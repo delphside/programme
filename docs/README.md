@@ -33,6 +33,18 @@ Run in this order for a normal change: Setup once, then Development → Testing,
 
 Facts you look up rather than read start to end.
 
+Each of these carries a **freshness stamp** under its title — the commit its
+contents were last checked against the code. Only the 4.x documents have one:
+they're the ones making falsifiable claims ("these are the columns", "this is
+every endpoint"), so they're the ones that can silently go wrong when the code
+moves. A stamp turns "is this still true?" into an answerable question —
+`git log <stamp>..HEAD -- crates/` — rather than a feeling. Update it when you
+re-verify a document, not merely when you edit one.
+
+There is no per-document changelog, deliberately: `git log --follow --
+docs/<file>` already gives one, with the diffs and the reasoning attached, and
+can't drift the way a hand-maintained list would.
+
 - [4.1 Configuration](4.1-configuration.md) — environments, environment variables, versioning scheme
 - [4.2 Database Schema](4.2-database-schema.md)
 - [4.3 API Schema](4.3-api-schema.md) — every HTTP/WebSocket endpoint and DTO
