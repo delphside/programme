@@ -21,7 +21,7 @@ This folder collects the design notes and operating guides for Tile Lite Elite, 
 
 ## 3.x — Lifecycle
 
-Run in this order for a normal change: Setup once, then Development → Testing, CI & Release → Deployment → Production Support & Maintenance repeatedly.
+Run in this order for a typical change: Setup once, then Development → Testing, CI & Release → Deployment → Production Support & Maintenance repeatedly.
 
 - [3.0 Tools](3.0-tools.md) — every script, linking to where it's explained
 - [3.1 Setup](3.1-setup.md) — one-time: dev machine, Oracle VM, HTTPS, troubleshooting
