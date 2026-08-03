@@ -26,7 +26,7 @@ Run in this order for a typical change: Setup once, then Development → Testing
 - [3.0 Tools](3.0-tools.md) — every script, linking to where it's explained
 - [3.1 Setup](3.1-setup.md) — one-time: dev machine, Oracle VM, HTTPS, troubleshooting
 - [3.2 Development](3.2-development.md) — running services locally, building, resetting local state
-- [3.3 Testing, CI & Release](3.3-testing-ci-and-release.md) — `cargo test`, GitHub Actions CI, the local staging environment, the end-to-end release runbook, and how `deploy.sh` ships an image
+- [3.3 Testing, CI & Release](3.3-testing-ci-and-release.md) — `cargo test`, GitHub Actions CI, the local preview environment, the end-to-end release runbook, and how `deploy.sh` ships an image
 - [3.4 Production Environment & Operations](3.4-production-environment.md) — the running system: container topology, secrets, admin CLI, inspecting the database, logging, backups, wiping production
 
 ## 4.x — Reference
