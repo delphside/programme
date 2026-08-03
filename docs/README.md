@@ -52,6 +52,33 @@ can't drift the way a hand-maintained list would.
 - [4.5 Data Dictionary](4.5-data-dictionary.md) — where each game field lives across snapshot/DB/DTO, and its kind
 - [4.6 Client-Local Storage](4.6-client-local-storage.md) — StoredAuth / chat watermarks kept on the device
 
+## How these documents are written
+
+Four habits, learned by breaking them.
+
+**Reference answers "what is there" and "what do I type".** Not "why is it
+like that". The why belongs in an overview section or a 2.x design note. A
+reader looking up a command should not have to read the reasoning that
+produced it.
+
+**Imply the rationale rather than narrating it.** Often an adjective carries
+what a sentence would restate — "the safe default", "one throwaway worktree",
+"a single source of truth". Explaining the history to explain the thinking is
+tempting and usually unnecessary.
+
+Where history does earn its place is a rule that would otherwise look
+arbitrary and get tidied away by someone who has never been bitten. Keep it
+then, and keep it short. The test: would a reader do the wrong thing without
+this? If it only makes the decision feel justified, cut it.
+
+**No issue numbers.** `#42` means nothing once the tracker has moved on, and
+these documents outlive it. Provenance belongs in commit messages, which are
+permanent and carry their own context; the document carries current truth.
+
+**Say what is, not what should be.** `should`, `may` and `typically` describe
+an intention. "Each environment has one SQLite database" beats "the project
+should use one primary database file per environment".
+
 ## Current Direction
 
 The project is moving toward a client-server design where the server owns game state and rule enforcement, and clients are thin presentation layers for web, desktop, CLI, or mobile.
