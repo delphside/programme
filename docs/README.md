@@ -75,6 +75,21 @@ this? If it only makes the decision feel justified, cut it.
 these documents outlive it. Provenance belongs in commit messages, which are
 permanent and carry their own context; the document carries current truth.
 
+**Say what we do, not what we rejected.** Options considered and dropped
+belong to the discussion, not the document. "We change the dates in the
+database" — not "not the system clock, and not the CLI either". The reader
+never proposed those.
+
+This is the hardest one to hold, because the alternatives are vivid to
+whoever just chose between them and invisible to everyone else. It is also
+where documents rot: a decision changes, the new choice is written in, and
+the old one survives as an aside that now describes something nobody does.
+
+Where a rejected option was carrying a real constraint, keep the constraint
+and drop the comparison. "It must be in-module: backdating needs `state.db`"
+says everything "rather than an external test" did, and stays true when the
+alternative is forgotten.
+
 **Say what is, not what should be.** `should`, `may` and `typically` describe
 an intention. "Each environment has one SQLite database" beats "the project
 should use one primary database file per environment".
