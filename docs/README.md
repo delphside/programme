@@ -4,6 +4,7 @@ This folder collects the design notes and operating guides for Tile Lite Elite, 
 
 ## 1.x — Meta: overview, functionality, architecture
 
+- [1.0 Rules](1.0-rules.md) — the decisions about how the service behaves, cited by id from tests and commits
 - [1.1 Architecture](1.1-architecture.md) — system overview, deployment topology, guiding principles and roles
 - [1.2 Components and Interactions](1.2-components-and-interactions.md) — component diagram, move/turn sequence diagrams
 - [1.3 Technology Decisions](1.3-technology-decisions.md) — why Axum/SQLite/Dioxus/etc.
