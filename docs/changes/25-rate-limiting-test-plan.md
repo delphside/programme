@@ -108,7 +108,8 @@ traffic, which is the price of having a floor at all.
 ## Scenarios
 
 Each walks several conditions. **T** are automated and run in CI; **S** are
-steps of the rehearsal script.
+steps of the rehearsal script; **L** are checks in the #28 load test, which
+needs more traffic than a handful of requests.
 
 | | Scenario | Conditions | Rules |
 | --- | --- | --- | --- |
@@ -121,6 +122,9 @@ steps of the rehearsal script.
 | S2 | `/health` still answers while that caller is being refused | R4, E2 | LIMIT-4 |
 | S3 | A different address registers successfully at the same moment | W1, R1, E2 | LIMIT-3 |
 | S4 | Logging in repeatedly from one address is refused within twenty attempts | W1, R2, H2 | LIMIT-1, LIMIT-2 |
+| T6 | A caller over the burst is served again one period later | H2 → H3 | LIMIT-5 |
+| T7 | Unset, empty, blank, non-numeric, zero and negative limits all fall back to the default | — | LIMIT-7 |
+| L1 | The global floor refuses as unavailable, not as asking too often | E3 | LIMIT-2 |
 
 S1 to S4 are one run of `./scripts/check-rate-limits.sh` against rehearsal,
 which uses a fresh random address pair per run so a re-run is not refused by
@@ -136,9 +140,9 @@ the buckets the last one filled.
 | LIMIT-2 | T4, S1, S4 | ✓ |
 | LIMIT-3 | T1, T2, T3, T5, S3 | ✓ |
 | LIMIT-4 | S2 | ✓ |
-| LIMIT-5 | — | **gap** |
+| LIMIT-5 | T6 | ✓ |
 | LIMIT-6 | not testable by design | n/a |
-| LIMIT-7 | — | **gap** |
+| LIMIT-7 | T7 | ✓ |
 
 ### Every condition to a scenario
 
@@ -154,27 +158,24 @@ the buckets the last one filled.
 | R5 admin | — | **gap** |
 | H1 within | T4, T5, S1 | ✓ |
 | H2 over | T4, S1, S4 | ✓ |
-| H3 waited | — | **gap** |
+| H3 waited | T6 | ✓ |
 | E1 quiet | all | ✓ |
 | E2 another caller over | T5, S2, S3 | ✓ |
-| E3 over the global floor | — | **gap** |
+| E3 over the global floor | L1 (#28) | ✓ |
 
 ## The gaps, and what I would do about them
 
-Five, in the order I would close them.
+Five, of which two are now closed.
 
-**Replenishment (LIMIT-5, H3).** "Slowed rather than locked out" is claimed in
-the design note and in the code and asserted nowhere. A config that locked a
-caller out for a full window would pass every test here. Cheap to close: a unit
-test with a short period that exhausts the burst, waits, and asserts the next
-request is served.
+**Replenishment (LIMIT-5, H3) — closed.** `a_refused_caller_recovers_after_one_period`
+exhausts a one-permit burst, waits a period, and asserts the next request is
+served. A fixed-window limiter passes every other test here and fails this one.
 
-**The environment parsing (LIMIT-7).** `limit_from_env` and `burst_from_env`
-have no test, and the case they exist for is the one that has already taken a
-deploy down — Compose passes `${VAR:-}` as an empty string, so an *empty*
-value must fall back to the default exactly as an unset one does. Cheap, and
-the failure it guards against is silent: the limits would quietly become
-whatever the default is, or fail to build the config at all.
+**The environment parsing (LIMIT-7) — closed.**
+`an_unusable_limit_falls_back_to_the_default` covers unset, empty, whitespace,
+non-numeric, zero and negative, for both the limit and the burst. The case it
+exists for is the one that has already taken a deploy down: Compose passes
+`${VAR:-}` as an empty string, so empty must behave exactly as unset.
 
 **The wiring (R5, and the tiers generally).** The limits are off under
 `cfg(test)`, so no test exercises `build_router` — only the layer it applies.
@@ -184,11 +185,10 @@ a test that builds the router with limits *on*, which is a bigger change than
 the others and may not be worth it; the rehearsal script covers the cases that
 matter most.
 
-**The global floor (E3).** The one tier a caller cannot detect from their own
-traffic, and the one that refuses people who have done nothing wrong. Hard to
-test from outside without generating 1200 requests a minute, which is #28's
-job rather than this script's. A unit test against a router with a small global
-limit would at least prove the tier does what it says.
+**The global floor (E3) — moved to #28.** The one tier a caller cannot detect
+from their own traffic, and the one that refuses people who have done nothing
+wrong. Reaching it needs 1200 requests a minute spread across enough addresses
+that no keyed tier trips first, which is exactly what the load test generates.
 
 **W2, the shared bucket.** Reachable only in-process, and the code path exists
 to stop a request with no address from panicking rather than to be relied on.
