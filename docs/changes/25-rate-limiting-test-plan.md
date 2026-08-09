@@ -199,7 +199,12 @@ Low value.
 **Whether the numbers are right.** 2 registrations a minute, 240 requests a
 minute for a signed-in caller: these are a first guess for a 954 MB box and
 nothing here measures them. That needs sustained load against the rehearsal
-host, which is #28.
+host, which is #28 — the third of the three changes the design note sets out,
+after #11's concurrency bounds and this one.
+
+**The `429` versus `503` distinction**, which #28 expects and this change does
+not yet make. Recorded in the design note as a decision to settle before
+release rather than a gap in this plan.
 
 **A WebSocket's message rate.** The upgrade is limited; what flows over the
 socket afterwards is not. Recorded as a known gap in the design note.
