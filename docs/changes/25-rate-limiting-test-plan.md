@@ -108,8 +108,7 @@ traffic, which is the price of having a floor at all.
 ## Scenarios
 
 Each walks several conditions. **T** are automated and run in CI; **S** are
-steps of the rehearsal script; **L** are checks in the #28 load test, which
-needs more traffic than a handful of requests.
+steps of the rehearsal script.
 
 | | Scenario | Conditions | Rules |
 | --- | --- | --- | --- |
@@ -124,7 +123,7 @@ needs more traffic than a handful of requests.
 | S4 | Logging in repeatedly from one address is refused within twenty attempts | W1, R2, H2 | LIMIT-1, LIMIT-2 |
 | T6 | A caller over the burst is served again one period later | H2 → H3 | LIMIT-5 |
 | T7 | Unset, empty, blank, non-numeric, zero and negative limits all fall back to the default | — | LIMIT-7 |
-| L1 | The global floor refuses as unavailable, not as asking too often | E3 | LIMIT-2 |
+| S5 | A refusal is 429, with `Retry-After` and an `ApiError` body | R1, H2 | LIMIT-2 |
 
 S1 to S4 are one run of `./scripts/check-rate-limits.sh` against rehearsal,
 which uses a fresh random address pair per run so a re-run is not refused by
@@ -161,7 +160,7 @@ the buckets the last one filled.
 | H3 waited | T6 | ✓ |
 | E1 quiet | all | ✓ |
 | E2 another caller over | T5, S2, S3 | ✓ |
-| E3 over the global floor | L1 (#28) | ✓ |
+| E3 over the global floor | — | **gap**, see below |
 
 ## The gaps, and what I would do about them
 
