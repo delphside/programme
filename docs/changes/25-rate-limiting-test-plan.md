@@ -1,8 +1,15 @@
 # Rate Limiting — Test Plan
 
-For issue #25. The design is in
-[25-rate-limiting.md](25-rate-limiting.md); this says what is checked, what is
-not, and why. It follows the method used for the user-deletion plan in #41:
+For issue #25, **shipped in 0.5.0**. Kept past its change deliberately: #59
+is to write up how a test plan is built, and this is one of its two worked
+examples — the non-functional one, judged by a script because there was nothing
+for a person to look at. Deleting the model before writing the guide would be
+careless. It goes when #59 lands.
+
+The design note it accompanied has been retired as the convention asks: the
+limits grid, the account-column reasoning and the forwarded-header finding are
+now in [4.1 Configuration](../4.1-configuration.md), and the status codes and
+`Retry-After` in [4.3 API Schema](../4.3-api-schema.md). It follows the method used for the user-deletion plan in #41:
 conditions grouped into complete partitions, a matrix that names the
 impossible combinations, and scenarios that walk several conditions each.
 
