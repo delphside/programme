@@ -29,6 +29,7 @@ Run in this order for a typical change: Setup once, then Development → Testing
 - [3.2 Development](3.2-development.md) — running services locally, building, resetting local state
 - [3.3 Testing, CI & Release](3.3-testing-ci-and-release.md) — `cargo test`, GitHub Actions CI, the local preview environment, the end-to-end release runbook, and how `deploy.sh` ships an image
 - [3.4 Production Environment & Operations](3.4-production-environment.md) — the running system: container topology, secrets, admin CLI, inspecting the database, logging, backups, wiping production
+- [3.5 Word Lists & Dictionaries](3.5-word-lists-and-dictionaries.md) — how a published word list becomes the trie the engine searches: sourcing, normalising, generating the denylist and greylist, and the runbooks for changing either
 
 ## 4.x — Reference
 
@@ -55,7 +56,12 @@ can't drift the way a hand-maintained list would.
 
 ## How these documents are written
 
-Four habits, learned by breaking them.
+Five habits, learned by breaking them.
+
+**Give a commit's app version alongside its id.** `25e9e09` alone dates a
+change only for somebody willing to go and look it up; `25e9e09` (app 0.4.12)
+places it in the release history a reader already carries. The id stays,
+because it is the thing you can `git show`.
 
 **Reference answers "what is there" and "what do I type".** Not "why is it
 like that". The why belongs in an overview section or a 2.x design note. A
