@@ -56,7 +56,12 @@ can't drift the way a hand-maintained list would.
 
 ## How these documents are written
 
-Four habits, learned by breaking them.
+Five habits, learned by breaking them.
+
+**Give a commit's app version alongside its id.** `25e9e09` alone dates a
+change only for somebody willing to go and look it up; `25e9e09` (app 0.4.12)
+places it in the release history a reader already carries. The id stays,
+because it is the thing you can `git show`.
 
 **Reference answers "what is there" and "what do I type".** Not "why is it
 like that". The why belongs in an overview section or a 2.x design note. A
