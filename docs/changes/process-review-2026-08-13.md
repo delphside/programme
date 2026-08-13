@@ -142,6 +142,26 @@ oversight.
    process answers the second only *before* release. A free external check
    against `/health` with an email alert is fifteen minutes' work and converts
    "a user tells me" into "I know".
+
+   > **Added after this report — closed 2026-08-13, #136.** Built entirely from
+   > Oracle's own tooling rather than custom code. An OCI Notifications topic
+   > `tile-lite-elite-alerts` emails the owner, and four things now publish to
+   > it: an external Health Check on `https://tileliteelite.com/health` from
+   > three vantage points, with an alarm at *two of three failing for 3
+   > minutes*; and CPU > 90%, memory > 90% and instance-stopped alarms on the
+   > production instance. Delivery was tested end to end with a published test
+   > message, not assumed.
+   >
+   > The external probe is the part that closes the gap. The three host alarms
+   > are published by an agent running on the host they report about, so if the
+   > VM goes away, silence looks identical to health — and `RESEND_API_KEY`
+   > lives on that same VM, so anything we wrote ourselves would have died with
+   > the thing it was meant to report.
+   >
+   > Still open: filesystem free space, which `oci_computeagent` does not
+   > publish and Oracle has no built-in metric for. Deferred at 13% used rather
+   > than write a custom-metric cron job.
+
 2. **Promote the artifact, not the commit** (above).
 3. **Fix on trunk, cherry-pick to the branch** (above) — one paragraph.
 4. **A de-scoping rule, and tooling that does not resist it** (above).
