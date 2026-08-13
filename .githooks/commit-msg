@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# commit-msg — refuse a commit whose subject does not carry the version stamp.
+#
+# CI checks this too, and will keep doing so: a hook lives in a working copy
+# and can be skipped with --no-verify, so it is a convenience rather than a
+# gate. What it buys is the six minutes between making the mistake and being
+# told — and the fix while the commit is still the tip, before anything is
+# pushed and a reword needs a rebase.
+#
+# Deliberately not a copy of check-commit-stamp.sh's logic. That validates a
+# commit against *its own tree*, which does not exist yet at commit-msg time.
+# This checks the two things that can be known now: the shape of the subject,
+# and whether the versions claimed match the tree about to be committed.
+
+MSG_FILE="$1"
+SUBJECT="$(head -1 "$MSG_FILE")"
+
+# A merge's subject is generated and describes no change of its own.
+case "$SUBJECT" in
+  "Merge "*|"Revert "*|fixup!*|squash!*) exit 0 ;;
+esac
+
+STAMP='^app ([0-9]+\.[0-9]+\.[0-9]+) api ([0-9]+\.[0-9]+): .+'
+if [[ ! "$SUBJECT" =~ $STAMP ]]; then
+  echo "commit refused: the subject does not carry the version stamp." >&2
+  echo "  got:    $SUBJECT" >&2
+  echo "  wanted: app <X.Y.Z> api <M.N>: <subject>" >&2
+  echo >&2
+  echo "  The colon after the api version is part of it, and is the one" >&2
+  echo "  people miss." >&2
+  exit 1
+fi
+
+CLAIMED_APP="${BASH_REMATCH[1]}"
+CLAIMED_API="${BASH_REMATCH[2]}"
+HERE="$(git rev-parse --show-toplevel)"
+
+ACTUAL_APP="$(grep -m1 '^version' "$HERE/Cargo.toml" 2>/dev/null | cut -d'"' -f2 || true)"
+ACTUAL_API="$("$HERE/scripts/read-api-version.sh" < "$HERE/crates/api/src/lib.rs" 2>/dev/null || true)"
+
+if [[ -n "$ACTUAL_APP" && "$CLAIMED_APP" != "$ACTUAL_APP" ]]; then
+  echo "commit refused: subject says app $CLAIMED_APP, Cargo.toml says $ACTUAL_APP" >&2
+  exit 1
+fi
+if [[ -n "$ACTUAL_API" && "$CLAIMED_API" != "$ACTUAL_API" ]]; then
+  echo "commit refused: subject says api $CLAIMED_API, API_VERSION is $ACTUAL_API" >&2
+  exit 1
+fi
