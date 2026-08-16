@@ -56,7 +56,25 @@ can't drift the way a hand-maintained list would.
 
 ## How these documents are written
 
-Five habits, learned by breaking them.
+**Write first for somebody who needs to do something quickly and wants
+pointing at what they need.** Every other reader is served afterwards. That
+reader is not studying the system — they have a job in progress, they know
+roughly what they want, and every paragraph between them and it is a cost. So:
+the command or the rule first, an index by *intent* rather than by structure,
+and the reasoning below where it can be found by anyone who wants it and
+skipped by anyone who does not.
+
+The second reader — trying to understand *why* — is real and well served by
+the same arrangement, because reasoning gathered in one place reads better than
+reasoning scattered through instructions. Nobody is worse off. The habit that
+fails both is mixing them, which makes the reader in a hurry read the
+reasoning and the reader who wants reasoning hunt for it between commands.
+
+`docs/3.3` is the worked example: each section is *what to do* followed by
+*notes*, with numbered markers linking one to the other, and an overview at the
+top indexed by what you are about to do.
+
+Then five habits, learned by breaking them.
 
 **Give a commit's app version alongside its id.** `25e9e09` alone dates a
 change only for somebody willing to go and look it up; `25e9e09` (app 0.4.12)
