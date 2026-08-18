@@ -48,3 +48,26 @@ if [[ -n "$ACTUAL_API" && "$CLAIMED_API" != "$ACTUAL_API" ]]; then
   echo "commit refused: subject says api $CLAIMED_API, API_VERSION is $ACTUAL_API" >&2
   exit 1
 fi
+
+# Attribution, added rather than demanded.
+#
+# `Co-Authored-By: Claude` was the convention here for 324 commits and then
+# lapsed silently for 104, which is what made it worth automating: under the
+# rule that absence means the owner typed it himself, a forgotten trailer no
+# longer merely loses information, it asserts something false.
+#
+# `CLAUDECODE` is set in Claude Code's environment and in no ordinary shell, so
+# this fires exactly when it should and never on a commit the owner types.
+#
+# **It never demands the trailer**, only adds one. Requiring it would refuse the
+# owner's own commits, which are precisely the case the convention exists to
+# preserve.
+#
+# `--if-exists doNothing` keeps a more specific trailer that was written by
+# hand: the history distinguishes Opus 5, Sonnet 5 and Opus 4.8, and a hook
+# cannot know the model. So a named trailer survives, and this is the backstop
+# for when none was written.
+if [[ -n "${CLAUDECODE:-}" ]]; then
+  git interpret-trailers --in-place --if-exists doNothing \
+    --trailer "Co-Authored-By: Claude <noreply@anthropic.com>" "$MSG_FILE"
+fi
