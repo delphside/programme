@@ -146,6 +146,42 @@ these looking like oversights.
 
 ---
 
+## The four levels, and what each is called
+
+Definitions only — where these live in GitHub is a separate question, settled
+on issue #179. Checked against MSP and PRINCE2, and against a second opinion
+asked the same question.
+
+| level | ours | the industry's | definition |
+| --- | --- | --- | --- |
+| the whole thing | **programme** | evergreen programme · continuous value stream | the application and its support: unbounded scope, no end date |
+| an area of it | **workstream** | functional or capability workstream | one capability, worked on indefinitely — the game model, the process, production operations |
+| a bounded piece | **project** | project | *a temporary endeavour undertaken to create a unique product or result* — fixed scope, ends when the scope is complete |
+| a unit of build | **chunk** | work package | one development unit within a project: "the client changes for #71" |
+| what ships | **release** | release | one or more changes built, tested and deployed together |
+
+**A workstream is a capability area, not a bag of related changes.** That is the
+sharper definition, and it gives a test: two pieces of work belong in the same
+workstream when they touch the same capability, not when they merely arrived in
+the same week.
+
+**A release may stand outside a project.** A fasttrack patch is a release with no
+project behind it, and a merge-lane change is live with no release at all. A
+model that implied otherwise would send documentation and tooling looking for a
+project they will never have.
+
+### Two terms offered and declined
+
+**Release train.** The train is specifically the *scheduled* variant: it departs
+on time and unready features get off. We release when a scope is ready, so the
+word would promise a cadence we do not run. Adopt *release branch*; keep the
+train metaphor for the de-scoping rule (#135), which is the narrower claim.
+
+**Epic**, for a project. An epic is not time-bound and has no fixed scope, which
+is the one property that makes a project a project.
+
+---
+
 ## Categorising changes and releases: three attributes, not one lane
 
 Moved here from #154 on the owner's instruction, 2026-08-19, because it is a
