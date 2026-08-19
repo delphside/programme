@@ -31,6 +31,7 @@ Three possible outcomes per term: **adopt** it, **keep ours** and say why, or
 | --- | --- | --- |
 | [The four levels](#the-four-levels-and-what-each-is-called) | **decided** | `docs/3.3`, the change lifecycle |
 | [Project phases](#project-phases) | **decided**, except the last | `docs/3.3`, and the `phase:` labels already exist |
+| [Capability workstreams](#capability-workstreams) | **candidate** — the list is agreed, the adoption is not started | `docs/3.3`, and a parent issue or label per workstream |
 | [Categorising changes and releases](#categorising-changes-and-releases-three-attributes-not-one-lane) | **candidate** — #154 | `docs/3.3`'s lane table, and new labels or an issue form |
 | [How ITIL handles tooling](#how-itil-handles-tooling-monitoring-and-instrumentation) | **decided** as reasoning; changes nothing on its own | the notes behind the lane rule |
 | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) | **decided** — the inventory of what we use | a new section in `docs/3.3`; script rows in `docs/3.0` |
@@ -465,6 +466,60 @@ a display has to be read, and the failure mode of reading is not noticing.
 | **Docs workflow** (`docs.yml`) | the review checklist as a check, and `/ready` `/changes` `/approve` as label-only commands. **Candidate** until PR #184 merges |
 | **OCI monitoring** | external `/health` probes from three regions, plus CPU, memory and instance-stopped alarms, emailing the owner (#136) |
 | **`.claude/` hooks** | a session-start GitHub digest, and a per-turn check for new comments and edited pull request bodies |
+
+---
+
+## Capability workstreams
+
+**Candidate**, with the list agreed 2026-08-19 and the adoption not started. A
+workstream is a **capability area**, worked on indefinitely — not a bag of
+issues that arrived in the same week. The difference is that a capability
+workstream is *predictive*: a new issue knows where it belongs before anybody
+discusses it.
+
+Ten, and they cover **every one of the 47 open issues** — which is the test a
+taxonomy has to pass, because an issue with no home goes back to being grouped
+by whoever filed it.
+
+| workstream | what it covers | anchored today by |
+| --- | --- | --- |
+| **process and tooling** | how we work, and everything that runs the work: the release path, the scripts, CI, testing tooling | #179, #160, #134, #144, #91 |
+| **game model and rules** | what the game *is*: seats, turns, versions, history, retention, the rules themselves | #71, #73, #68, #166 |
+| **interaction design** | how the game is presented and controlled | #146, #84, #105, #152 |
+| **accounts and identity** | who a player is, and what may be done to an account | #57, #58, #140 |
+| **notification and liveness** | telling a client that something changed, and noticing when it did not | #87, #142, #15 |
+| **infrastructure and persistence** | what every feature rests on: schema, migrations, concurrency, process lifetime, memory | #29, and #71's chunk A |
+| **capacity planning** | *will it fit* — growth, throttling, limits, measurement | #89, #29, #165 |
+| **production operations** | *is it healthy now* — logs, alerts, backups, disk, access | #174, #175, #176, #40 |
+| **dictionaries and word lists** | the lexicons and what may be played | #116 |
+| **desktop and distribution** | shipping something that is not the web client | #38, #15 |
+
+### The two rules that keep it clean
+
+**One axis: capability, never layer.** *Client UI* and *server/db* are tiers, and
+a taxonomy on two axes stops being predictive — #142 would belong to notification
+*and* to server/db, and #71 to game model *and* to both tiers, which is precisely
+the issue whose argument is that the two halves are one model. So *client UI*
+becomes **interaction design**, and *server/db* becomes **infrastructure and
+persistence**, which is a genuine non-feature capability rather than a tier:
+everything rests on it.
+
+**If it would disappear when a feature is cut, it belongs to the feature.** That
+is the test for infrastructure, and it settles the cases that feel ambiguous:
+issue #29 survives every feature, so it is infrastructure; #166 is a rule, and needing
+a background task does not move it out of game model; #142's fix is a server's
+but its symptom is a user's, so it is liveness.
+
+**And a technique is not a capability.** *e2e design* is how we know the
+application works, not something it does — so it is a project inside process and
+tooling rather than a workstream of its own.
+
+### The decision point
+
+Adopting this means **every open issue gets a workstream**: a pass over 47, and a
+choice between a parent issue each or a `workstream:` label each. Worth doing
+once, deliberately — the half-done version is worse than the grouping it
+replaces, because a partial taxonomy still has to be searched.
 
 ---
 
