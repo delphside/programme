@@ -17,12 +17,20 @@ A term or a rule leaves this document once it is applied — the numbered
 documents are the record, and a second copy here would be the one that goes
 stale.
 
-**Language changes land in one pass, when this document is approved.** Owner,
-2026-08-19: *"language changes can be tied to approving the glossary, we don't
-need to update everything now."* So a renamed term is not chased through the
-documents as it is agreed; it waits here, and the whole set moves together. That
-keeps the intermediate state coherent — a half-applied rename is worse than
-either end of it — and it makes approving this document the event that matters.
+**A new term is used from the moment it is agreed; the sweep waits for
+approval.** Owner, 2026-08-19: *"it's okay to change the language now, I just
+don't want to cause confusion by having you look for changes now when we can
+wait."*
+
+So the two halves separate:
+
+- **new writing uses the new word immediately** — an issue, a commit message, a
+  paragraph being edited anyway. There is no value in writing *chunk* in the
+  morning because the sweep happens in the afternoon
+- **the pass over existing documents waits** for this document to be approved,
+  and then happens once. Hunting the old word through the repository while the
+  list is still moving costs attention twice and risks a half-applied rename,
+  which is worse than either end of it
 
 The point was never renaming for its own sake. It is that a reader who knows the
 standard term can map what we do onto what they already know and read further,
