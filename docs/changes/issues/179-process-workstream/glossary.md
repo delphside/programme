@@ -1,17 +1,41 @@
-# Glossary: our terms and the industry's
+# Glossary: our terms, the industry's, and the process changes they carry
 
-A draft for review, per #155. **Nothing here is decided.** Each entry gives the
-standard term, what it means in the literature, what we call it, and a
-recommendation — because sometimes ours is better *for us* and adopting a word
-adopts its baggage.
+**What this document is for.** Owner, 2026-08-19: *"The glossary has become a
+home for candidate changes to process and language of process. After review and
+discussion it should state the decisions which can then be used to update doc
+3.3 (and any other affected documents)."*
 
-The point is not renaming for its own sake. It is that a reader who knows the
-standard term can map what we do onto what they already know and go and read
-more; and that `docs/3.x` is meant to be portable to a second project, where our
+So it has three states, and every section is in one of them:
+
+| state | means |
+| --- | --- |
+| **candidate** | proposed here, not agreed. Argue with it |
+| **decided** | agreed, and not yet in the numbered documents. **This is the work list** for updating `docs/3.3` and its neighbours |
+| **applied** | in the numbered documents, and the entry here can go |
+
+A term or a rule leaves this document once it is applied — the numbered
+documents are the record, and a second copy here would be the one that goes
+stale.
+
+The point was never renaming for its own sake. It is that a reader who knows the
+standard term can map what we do onto what they already know and read further,
+and that `docs/3.x` is meant to be portable to a second project, where our
 private vocabulary would travel badly.
 
 Three possible outcomes per term: **adopt** it, **keep ours** and say why, or
 **use both** — the standard term once so it is findable, ours thereafter.
+
+## Where each part stands
+
+| section | state | lands in |
+| --- | --- | --- |
+| [The four levels](#the-four-levels-and-what-each-is-called) | **decided** | `docs/3.3`, the change lifecycle |
+| [Project phases](#project-phases) | **decided**, except the last | `docs/3.3`, and the `phase:` labels already exist |
+| [Categorising changes and releases](#categorising-changes-and-releases-three-attributes-not-one-lane) | **candidate** — #154 | `docs/3.3`'s lane table, and new labels or an issue form |
+| [How ITIL handles tooling](#how-itil-handles-tooling-monitoring-and-instrumentation) | **decided** as reasoning; changes nothing on its own | the notes behind the lane rule |
+| [How the process is managed](#how-the-process-is-managed-github-folders-scripts) | **decided** — the inventory of what we use | a new section in `docs/3.3`; script rows in `docs/3.0` |
+| Individual terms below | **candidate**, except *parent issue* | wherever the term is used |
+| *parent issue* | **applied** 2026-08-19 | `docs/3.3` — PR #185 |
 
 ---
 
@@ -182,6 +206,59 @@ is the one property that makes a project a project.
 
 ---
 
+## Project phases
+
+**Decided 2026-08-19**, except where marked. A phase belongs to a **project**, not
+to a workstream: a workstream has no end, and a project is the thing that passes
+through phases and stops.
+
+Five, and the first covers two activities rather than being split into two
+phases — owner: *"scoping and design are done in the same phase for us."*
+
+| phase | the question | its artefact | it ends when |
+| --- | --- | --- | --- |
+| **scope and design** | what is in, and how will it be done? | the **issue body** fixes the scope; the **design note** carries the design | both are agreed — in practice one review |
+| **development** | is it built? | **chunks**: branches, pull requests, merges | the last chunk in scope is merged |
+| **user testing** | does it do what was wanted? | the release's **testing document** | somebody decides it does — **or the scope changes**, which sends it back |
+| **deployment** | is it live? | the **release**: milestone, `prod-` tag, smoke test | `deploy.sh` exits 0 |
+| **post-deployment** | did it do what it was for? | a **review** — *not built* | the project closes |
+
+**Recorded as a `phase:` label** on the project's issue, hand-set. The
+interesting boundaries are judgements — *"user testing is finished"* is not
+visible to a script — and a phase changes a handful of times per project, which
+is when hand-set state does not drift. A label rather than a body line, because
+a label is filterable where the work is done.
+
+### Where the gates are, and why there are only three
+
+The classic five gates map onto the phases, and two of them are already machines:
+
+| gate | attaches to | who answers |
+| --- | --- | --- |
+| scope agreed · design agreed | the project | a person, and it needs no ceremony beyond the review we already run |
+| **build review** | each release | **CI** — fmt, clippy, tests, wasm, the stamp, e2e |
+| **go-live readiness** | each release | **the deploy gates** — preview and rehearsal on the exact commit, the schema check, the snapshot, automatic rollback |
+| **post-implementation** | the project, at close | a person — **and we do not have it** |
+
+A gate with an objective answer belongs in a script; the ones left for a person
+are the ones without. That is the same test the lane discussion arrived at.
+
+### The decision points still open
+
+1. **The post-implementation review.** Nothing asks whether a normal release did
+   what it was for — only an emergency gets a retrospective, raised by
+   `deploy.sh` itself. #67 is the case: closed by a milestone, listed as
+   deferred in the testing report, and genuinely broken. **Candidate**, and it
+   needs an issue of its own.
+2. **Whether phases apply to a project only**, or also to a chunk. Today a chunk
+   inherits its project's phase and carries no label. Untested, because we have
+   no project layer in GitHub yet.
+3. **Inserting the project layer.** #71's chunks and #179's children hang
+   directly off a workstream, with no project between. The vocabulary is decided;
+   the restructuring is not done.
+
+---
+
 ## Categorising changes and releases: three attributes, not one lane
 
 Moved here from #154 on the owner's instruction, 2026-08-19, because it is a
@@ -326,6 +403,68 @@ types](https://the-requirements-engineer.com/management-articles/itil-types-of-r
 management](https://purplegriffon.com/blog/monitoring-and-event-management-itil)
 · [ITIL 4 overview, including the four
 dimensions](https://itsm.tools/itil-4-explained/)
+
+---
+
+## How the process is managed: GitHub, folders, scripts
+
+**Decided and in use**, except where marked. Owner, 2026-08-19: *"We also need to
+document how we are using GitHub and scripts to manage the process… and the
+folders and any other tooling."* This is the inventory; it lands in `docs/3.3`
+as a section of its own, and the script rows join the table in `docs/3.0`.
+
+### GitHub objects, and what each one means here
+
+| object | carries | notes |
+| --- | --- | --- |
+| **issue** | one change, or one project | the body is the conclusion, the comments are the argument |
+| **parent issue** · **sub-issue** | a workstream and its parts | real GitHub links, so structure is read rather than inferred |
+| **milestone** | a **release**, or a lane | `deploy.sh` closes the milestone and every open issue in it, which is why anything not shipping must leave first |
+| **type label** | what a change is, and what it owes | the seven: `bug`, `documentation`, `non-prod-tooling`, `prod-tooling`, `major-function`, `minor-function`, `appearance` |
+| **`phase:` label** | where a project is | five, hand-set — scope-and-design, development, user-testing, deployment, post-deployment |
+| **`awaiting-review`** | it is Steve's turn | set by hand or by `/ready`; the native draft flag cannot be set by our token |
+| **`approved`** | reviewed; the merge is Claude's to run | approving and merging are different decisions, so this never merges anything |
+| **task list in an issue body** | an **action** — the only surface that carries state | `(Steve)` / `(Claude)` prefix makes "waiting on whom" derivable |
+| **task list in a pull request body** | the **review checklist**, which is the review itself | a workflow fails the check while a box is unticked |
+| **pull request** | one change's passage: review, readiness, mechanics | frozen at merge, so conclusions are promoted to the issue body or a document before then |
+
+### Folders
+
+| path | holds |
+| --- | --- |
+| `docs/1.x` – `docs/4.x` | the numbered documents: rules, design, lifecycle, reference. The permanent record |
+| `docs/changes/issues/<n>-<name>/` | design notes, impact assessments and drafts for one issue — or for a workstream's parent |
+| `docs/changes/releases/<version>/` | testing documents for one release |
+| `docs/changes/*.md` | five files that predate the convention and stay put, because issue comments link to them |
+| `docs/diagrams/` | `.mmd` sources and their rendered `.svg` — edit the source, re-render, commit both |
+| `scripts/` | everything below, plus the deploy path |
+| `.github/workflows/` | CI, and the document review workflow |
+| `.claude/` | how Claude is driven — gitignored, because it is not the project's |
+
+### Which script answers which question
+
+| question | script |
+| --- | --- |
+| where is every open change, and what is each environment running? | `status.sh` |
+| what is in each release, in release order? | `roadmap.sh` |
+| what is waiting on me? | `actions.py` |
+| what has been said on GitHub since I last looked? | `inbox.sh` |
+| is everything actually in place? (asserts, exits non-zero) | `verify.sh` |
+| are the documents lint-clean, their links live, their files in the right folders? | `check-docs.sh` — CI runs it on every push |
+| did a named CI run pass for this commit? | `ci-status.sh` |
+
+The first four **derive and store nothing**, so they cannot drift; the last three
+**assert**, and exit non-zero when they are unhappy. That split is deliberate:
+a display has to be read, and the failure mode of reading is not noticing.
+
+### Other tooling
+
+| | what it does |
+| --- | --- |
+| **CI** (`.github/workflows/ci.yml`) | fmt, clippy, tests, wasm, the commit stamp, `check-docs.sh`, and Playwright on `main` and pull requests. A deploy gate, not a signal |
+| **Docs workflow** (`docs.yml`) | the review checklist as a check, and `/ready` `/changes` `/approve` as label-only commands. **Candidate** until PR #184 merges |
+| **OCI monitoring** | external `/health` probes from three regions, plus CPU, memory and instance-stopped alarms, emailing the owner (#136) |
+| **`.claude/` hooks** | a session-start GitHub digest, and a per-turn check for new comments and edited pull request bodies |
 
 ---
 
