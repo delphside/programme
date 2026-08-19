@@ -17,6 +17,13 @@ A term or a rule leaves this document once it is applied — the numbered
 documents are the record, and a second copy here would be the one that goes
 stale.
 
+**Language changes land in one pass, when this document is approved.** Owner,
+2026-08-19: *"language changes can be tied to approving the glossary, we don't
+need to update everything now."* So a renamed term is not chased through the
+documents as it is agreed; it waits here, and the whole set moves together. That
+keeps the intermediate state coherent — a half-applied rename is worse than
+either end of it — and it makes approving this document the event that matters.
+
 The point was never renaming for its own sake. It is that a reader who knows the
 standard term can map what we do onto what they already know and read further,
 and that `docs/3.x` is meant to be portable to a second project, where our
@@ -182,7 +189,7 @@ asked the same question.
 | the whole thing | **programme** | evergreen programme · continuous value stream | the application and its support: unbounded scope, no end date |
 | an area of it | **workstream** | functional or capability workstream | one capability, worked on indefinitely — the game model, the process, production operations |
 | a bounded piece | **project** | project | *a temporary endeavour undertaken to create a unique product or result* — fixed scope, ends when the scope is complete |
-| a unit of build | **chunk** | work package | one development unit within a project: "the client changes for #71" |
+| a unit of build | **work package** | work package (PRINCE2, WBS) | one development unit within a project: "the client changes for #71". We said *chunk* until 2026-08-19 |
 | what ships | **release** | release | one or more changes built, tested and deployed together |
 
 **A workstream is a capability area, not a bag of related changes.** That is the
@@ -219,8 +226,8 @@ phases — owner: *"scoping and design are done in the same phase for us."*
 | phase | the question | its artefact | it ends when |
 | --- | --- | --- | --- |
 | **scope and design** | what is in, and how will it be done? | the **issue body** fixes the scope; the **design note** carries the design | both are agreed — in practice one review |
-| **development** | is it built? | **chunks**: branches, pull requests, merges | the last chunk in scope is merged |
-| **user testing** | does it do what was wanted? | the release's **testing document** | somebody decides it does — **or the scope changes**, which sends it back |
+| **development** | is it built? | **work packages**: branches, pull requests, merges | the last work package in scope is merged |
+| **user testing** | does it do what was wanted? | the **project's** testing documents, in a folder named for its main release | somebody decides it does — **or the scope changes**, which sends it back |
 | **deployment** | is it live? | the **release**: milestone, `prod-` tag, smoke test | `deploy.sh` exits 0 |
 | **post-deployment** | did it do what it was for? | a **review** — *not built* | the project closes |
 
@@ -251,10 +258,10 @@ are the ones without. That is the same test the lane discussion arrived at.
    `deploy.sh` itself. #67 is the case: closed by a milestone, listed as
    deferred in the testing report, and genuinely broken. **Candidate**, and it
    needs an issue of its own.
-2. **Whether phases apply to a project only**, or also to a chunk. Today a chunk
+2. **Whether phases apply to a project only**, or also to a work package. Today a work package
    inherits its project's phase and carries no label. Untested, because we have
    no project layer in GitHub yet.
-3. **Inserting the project layer.** #71's chunks and #179's children hang
+3. **Inserting the project layer.** #71's work packages and #179's children hang
    directly off a workstream, with no project between. The vocabulary is decided;
    the restructuring is not done.
 
