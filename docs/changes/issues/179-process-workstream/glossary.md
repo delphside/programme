@@ -388,6 +388,35 @@ service and a standard change from the game's point of view. Both statements are
 true at once, and the confusion in #154 came from having one word that forced a
 single answer.
 
+### The criteria inform the judgement; the judgement decides
+
+**Decided 2026-08-19.** Owner: *"there are lots of framings which might apply in
+different circumstances. Perhaps an important one is that we can make the
+decision we think is right, even if the documented criteria don't tell us to do
+that."*
+
+Five framings were produced for the lane question in one day — the artifact test,
+the deploy test, the configuration-item test, blast radius, and live-means-a-
+consumer. That is the evidence for the rule: **they are lenses, not a decision
+procedure.**
+
+> The criteria inform the judgement. The judgement decides. The reason is
+> recorded.
+
+Two constraints keep that from dissolving the process:
+
+- **Judgement may override a classification; it may never override a gate.** A
+  change can be called merge-lane against the written test; nobody can decide
+  that CI passed. Gates have objective answers and scripts own them — overrides
+  live entirely on the other side of that line.
+- **A criterion overridden repeatedly is a defect in the criterion.** One
+  override is a judgement, three in the same direction are a bug report. That is
+  how #154 came to exist.
+
+And an override costs **a sentence** — what was decided, and why the written test
+did not fit. Not a form and not an approval: the sentence is what turns a
+departure into evidence, and evidence is what fixes the criterion.
+
 ### Live means a consumer has it, not that production has it
 
 **Decided 2026-08-19.** Owner, on merging a half-written script: *"I want to use
