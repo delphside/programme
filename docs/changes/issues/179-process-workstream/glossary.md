@@ -388,6 +388,25 @@ service and a standard change from the game's point of view. Both statements are
 true at once, and the confusion in #154 came from having one word that forced a
 single answer.
 
+### Live means a consumer has it, not that production has it
+
+**Decided 2026-08-19.** Owner, on merging a half-written script: *"I want to use
+the new script, so it is 'live' even if it is potentially still being
+developed."*
+
+That is the merge lane's logic stated from the other end. Tooling is an internal
+service whose consumer is the delivery team, so **merging is its release** —
+there is nobody else to release it to. Three consequences:
+
+- it stops being a scratch file: further work goes on a branch and merges like
+  any other change, and leaving it broken is a small outage rather than an
+  untidy working tree
+- *still being developed* is not the opposite of live — it is the
+  living-document rule applied to a script: **finished means working, not
+  complete**
+- care scales with **blast radius**, not with category: `actions.py` breaks a
+  view, `deploy.sh` breaks a release, and both are tooling
+
 **What this gives us that "does it reach production through a deploy?" does
 not.** The deploy test is the right *operational* question — fast, checkable,
 and it answers most cases. The CI-and-service framing is the *reason*, and it is
