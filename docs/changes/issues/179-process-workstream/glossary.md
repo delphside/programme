@@ -77,6 +77,99 @@ The form asks three questions — **type**, **route**, **release** — and the
 answers land in the issue body where `actions.py` and `roadmap.sh` can read
 them. Draft in `.github/ISSUE_TEMPLATE/change.yml`.
 
+#### The form itself, as proposed
+
+**Not created yet**, deliberately: an issue form is live the moment it lands, and
+two of its options are still wrong (below). It lives here as text until D1 is
+settled, and then it is created once — because an issue with changes on `main`
+and changes on a branch invites exactly the mistake it sounds like. Owner,
+2026-08-20: *"No issue should have changes in main and changes in a branch."*
+
+```yaml
+name: Change
+description: Anything that changes the application, the process, or how either is run
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Three questions before the description. They decide what this change
+        owes and how it reaches users — and answering them here is cheaper than
+        arguing about them later.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong, and what should be true instead
+      description: The scope. What is excluded is worth saying too.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type — what this change is
+      description: One only. If two apply, it is two changes.
+      options:
+        - "bug — the app does the wrong thing"
+        - "minor-function — behaviour a user could notice"
+        - "major-function — changes the design, architecture or principles"
+        - "appearance — visual only"
+        - "documentation — the whole change is documentation"
+        - "non-prod-tooling — dev, test and preview tooling"
+        - "prod-tooling — acts on production without changing the app"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: route
+    attributes:
+      label: Route — how it reaches production
+      description: >-
+        Where several apply, pick the one that decides the risk: the artifact
+        beats the deploy, the deploy beats the host.
+      options:
+        - "in the artifact — built into an image we ship"
+        - "carried by the deploy — sent to the VM, but not built"
+        - "applied on the host — by hand on the production machine, no artifact"
+        - "applied to a service we use — GitHub, OCI, DNS, the mail provider"
+        - "never leaves the repository — live the moment it merges"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: release
+    attributes:
+      label: Release — what carries it to users
+      description: Leave as "not decided" if it is not scheduled yet.
+      options:
+        - "nothing — live at merge"
+        - "a patch, on its own"
+        - "grouped into a minor release"
+        - "grouped into a major release"
+        - "not decided yet"
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: What would show it works
+      description: >-
+        Evidence follows what the change does, not its type — a migration owes a
+        restore, a rate limit owes a script, a document owes a reader.
+```
+
+**Two things to fix before it is created**, both found by running real issues
+through it:
+
+- **route needs a *not decided yet***, as release has. #40 and #175 do not know
+  their own shape — a firewall rule or a `Caddyfile` change; a script on the host
+  or one in the image — and the form currently forces a guess
+- **a change can have two routes.** #174 is JSON logging in the artifact **and** a
+  journald drop-in on the host. The tie-break picks the artifact, and nothing
+  records the half that stays manual. Either route becomes multi-select, or two
+  routes means two issues — the same shape as *one change, one type*
+
 #### The four axes, defined
 
 Owner, 2026-08-20: *"each of these three axes needs a table with definitions.
@@ -877,6 +970,27 @@ Two constraints keep that from dissolving the process:
 And an override costs **a sentence** — what was decided, and why the written test
 did not fit. Not a form and not an approval: the sentence is what turns a
 departure into evidence, and evidence is what fixes the criterion.
+
+### An issue's changes live in one place
+
+**Decided 2026-08-20.** Owner: *"No issue should have changes in main and changes
+in a branch, it invites mistakes."*
+
+Right, and today produced the mistake to prove it: #155 had the glossary on
+`main` and the issue form on a branch, so *"where is #155's work?"* had two
+answers, and a document that should never have been behind a review spent an
+afternoon there.
+
+**So an issue is either standard — everything on `main` — or normal —
+everything on a branch until it merges.** The [standard-change
+criteria](#standard-changes-what-may-go-straight-to-main) decide which, and they
+decide it for the **issue**, not for each commit.
+
+**When an issue turns out to be both**, it is two issues. That is the same rule
+as *one change, one type*, arriving from a different direction: #155's decisions
+are standard and belong on `main`; creating the issue form is normal and belongs
+on a branch of its own, raised when the decision is made. Until then the form
+is text in this document, which is a proposal rather than a change.
 
 ### Standard changes: what may go straight to `main`
 
