@@ -961,6 +961,50 @@ in a morning against a moving target.
 do I have to do with this?* is the question a contributor actually asks — and the
 tooling rows gain the gate that would have caught two of this week's rewrites.
 
+### D15 · Technical testing and user testing — a variant, or a property of each change?
+
+Owner, 2026-08-20: *"One variant on application release is technical application
+release, which replaces user testing with technical testing in rehearsal… Or
+perhaps we just say that technical aspects of the change are tested in rehearsal
+by a technical test rather than in preview by a user test. Then if a release is
+all technical or all functional it would just do one, but if it is a mix it would
+do both."*
+
+**The second framing is the better one**, and it is already 3.3's rule arriving
+from a new direction: *evidence follows what the change does, not the label it
+carries.* A category called *technical application release* would make the
+release the unit; the change is the unit, and a release inherits the union of its
+changes' obligations.
+
+| what the change is | where it is judged | by what |
+| --- | --- | --- |
+| a person can see whether it does what was wanted | **preview** | **user testing** — the judgement no script makes |
+| nobody can see it by using it — limits, timing, memory, headers | **rehearsal** | **a technical test**: a script that asserts the shape, on hardware that matches production |
+| both | both | both, and neither substitutes for the other |
+
+**This is not derivable from type.** #165 (`Retry-After` rebuilt from a rounded
+number) is `minor-function` and entirely technical: nobody can see it by playing.
+#29 (memory growth) is `major-function` and tested by load, not by use. And #25's
+rate limiting is the case that produced `check-rate-limits.sh` precisely because
+preview *cannot* judge it — a development machine says nothing about a 2 vCPU
+box.
+
+**The machinery already exists**, and only the reasoning is missing:
+`DEPLOY_SKIP_PREVIEW=1` means *"there was nothing for a person to look at"*,
+which is exactly the all-technical release. Today that is a judgement typed at
+deploy time; it should be the sum of what the milestone's issues said.
+
+| option | |
+| --- | --- |
+| **every issue names where it is tested** — preview, rehearsal, or both | one more thing to answer, and the release's obligation becomes the union rather than a judgement at the end |
+| a fifth axis, *test surface* | the same information, dressed as a category |
+| leave it a judgement | which is where `DEPLOY_SKIP_PREVIEW` is now, and it has never been wrong yet — because one person holds all the context |
+
+**Recommended: the first**, as part of the *what would show it works* field rather
+than as a new dropdown. It costs a phrase per issue and it makes the skip
+derivable — and the one-person-holds-the-context argument for leaving it is
+exactly the argument that stops being true first.
+
 ## Where each part stands
 
 | section | state | lands in |
