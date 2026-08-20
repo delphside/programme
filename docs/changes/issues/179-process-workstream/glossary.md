@@ -197,7 +197,7 @@ means a consumer has it rather than that production does.
 | **carried by the deploy** | sent to the VM by `deploy.sh`, but built by nothing | `docker-compose.yml`, the `sa` alias | the full release path — it reaches production and can break it |
 | **applied on the host** | changed by hand on the production machine; no artifact exists | `.env`, a journald drop-in, a cron entry | no release. Document it, and close the issue by hand |
 | **applied to a service we use** | changed in somebody else's console | OCI alarms, DNS, GitHub's own settings, the mail provider | no release, same obligations as the host |
-| **never leaves the repository** | nothing is sent anywhere; it is live when it merges | `docs/`, `scripts/` we run locally, CI config, tests | the merge lane |
+| **never leaves the repository** | nothing is sent anywhere | `docs/`, `scripts/` we run locally, CI config, tests | the merge lane — but **on save** for whoever is in the worktree, **on merge** for everyone else |
 
 **When each route goes live is not the same moment.** Owner, 2026-08-20: *"code,
 docker files etc. are checked out as part of the build process. Documents and
@@ -276,6 +276,22 @@ would otherwise flatter:
 - **design documents** — a wrong design reaches developers immediately and users
   eventually, through whatever gets built from it. That is the argument for
   reviewing a design note as carefully as the code it produces
+
+**Two moments, not one, on the last row.** Owner, 2026-08-20: *"we should
+distinguish between 'release on save' and 'release on merge'."*
+
+| | delivered when | to whom |
+| --- | --- | --- |
+| **on save** | the file is written | the person standing in that worktree, on whatever branch they are on |
+| **on merge** | it lands on `main` | everyone else — CI, a fresh checkout, the next session, and a reader on GitHub |
+
+This is unique to the repository route, because it is the only one whose consumer
+is holding the file. An artifact is delivered when it is deployed and a host
+change when it is applied — both single moments, both for everybody at once.
+
+It is also why `deploy.sh` reports the branch and cleanliness of the tooling it
+is running from: on-save delivery means the script running a release can be a
+version nobody else has.
 
 > **Where several apply: the artifact beats the deploy, the deploy beats the
 > host.** Pick the one that decides the risk. A file in the repository is repo
@@ -754,6 +770,12 @@ either widens or gains a sibling.
 | **release means any delivery** | a document edit is a release. Then we need a new word for the versioned kind, and every existing sentence about releases has to be reread |
 | **release stays narrow; *delivery* is the umbrella** | a **delivery** is a change reaching its consumer, and it comes in three kinds: a **release** (versioned, deployed), an **application** (done by hand on a host or a service), a **merge** (live where it lands) |
 | no umbrella term | we keep saying *"live at merge"* and *"applied"*, which works in a sentence and not in a table heading |
+
+**Evidence for the ambiguity, from the same conversation:** the owner asked to
+distinguish *"release on save"* from *"release on merge"* — reaching for
+*release* in the broad sense one message after asking whether it should carry
+that sense. The word is already doing both jobs, which is the argument for giving
+the broad one its own name rather than legislating the narrow one.
 
 **Recommended: the second.** It keeps *release* meaning what it means everywhere
 else — ITIL's *"one or more changes built, tested and deployed together"* — and
