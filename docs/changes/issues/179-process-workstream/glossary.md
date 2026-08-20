@@ -108,7 +108,13 @@ genuinely broken.
 if a release goes wrong and nobody noticed, that is the evidence for making it
 automatic — which is exactly how the emergency retrospective came about.
 
-### D5 · Does `main` get a ruleset?
+### D5 · Does `main` get a ruleset? — **answered: yes**
+
+**Decided 2026-08-20**, reviewing PR #184. Requiring CI's `check` job on `main`,
+and nothing more. Still to do: create the ruleset, which may need a token
+permission we do not have.
+
+
 
 | option | |
 | --- | --- |
@@ -116,10 +122,25 @@ automatic — which is exactly how the emergency retrospective came about.
 | **require the CI check** | a red push cannot land on `main` |
 | **require CI and the review checklist** | and a pull request for every change, which the merge lane deliberately does not ask for |
 
-**Recommended: require CI's `check` job, nothing else, and only after #184
-merges.** It is the one gate whose answer is objective and whose failure is
-expensive. Requiring a review checklist with one author is ceremony, and
-requiring pull requests would undo the merge lane.
+**Recommended, and agreed: require CI's `check` job, nothing else, and only
+after #184 merges.** It is the one gate whose answer is objective and whose
+failure is expensive. Requiring a review checklist with one author is ceremony,
+and requiring pull requests would undo the merge lane.
+
+### A review has three outcomes
+
+**Decided 2026-08-20.** Owner: *"I need to say 'approved', 'approved with
+changes', 'change and re-review'. I guess we don't need 'reject'."*
+
+| outcome | label | what happens next |
+| --- | --- | --- |
+| **approved** | `approved` | Claude merges |
+| **approved with changes** | `approved-with-changes` | Claude makes the noted changes **and merges** — no second review |
+| **change and re-review** | neither | Claude changes it and hands it back |
+
+The middle one is most reviews, and without it each of them costs a lap whose
+only purpose is to confirm what was already agreed. There is no *reject*: a
+change that should not happen is a closed pull request and a comment saying why.
 
 ## Where each part stands
 
