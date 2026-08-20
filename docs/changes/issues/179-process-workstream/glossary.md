@@ -476,6 +476,35 @@ So the release log's shape is not a separate design: it falls out of the route
 values, one entry-kind per class. If a new route ever appears, the log gains a
 kind — which is a good test of whether the route is real.
 
+### D7 · Should `docs/changes/issues/` be renamed, and to what?
+
+Owner, 2026-08-20: *"We should rename the issues folder as workstream, but
+presumably that will be done as part of applying the glossary."* Yes to the
+second half — it is an apply-the-glossary task, and it moves files, so it wants
+doing once.
+
+**But the folder does not hold only workstreams today.** It holds
+`179-process-workstream/` — a workstream's parent — and
+`174-logs-and-backups/` — a plain issue's design note, for an issue that belongs
+to *production operations* and is not a workstream at all. Renaming to
+`workstreams/` would file that second one under a claim that is not true.
+
+| option | | |
+| --- | --- | --- |
+| **A. keep `issues/`** | folders named for the issue that owns them, whatever level that issue is | accurate today, and says nothing about the levels |
+| **B. rename to `workstreams/`, and nest** | `workstreams/179-process/`, with projects and issue notes inside | mirrors the model exactly, and every document has one path that reflects what owns it |
+| **C. three folders** | `workstreams/` · `projects/` · `issues/` | most precise, and three places to look instead of one |
+
+**Recommended: B**, with the caveat that it is the most work. It is the only one
+that makes the folder tree say what the levels say — and since **every issue now
+has a workstream** (D2), every document can be placed under one without a
+judgement. It also removes the question *"is this folder's issue a workstream?"*,
+which is the ambiguity A quietly carries.
+
+The cost is real: deeper paths, a move whenever an issue's workstream changes —
+which should be rare — and one more round of broken links, which is the argument
+for doing every folder move in the same change.
+
 ### D6 · What is a release, and what gets logged as one?
 
 Owner, 2026-08-20: *"These are attributes of the issue. We also need to
