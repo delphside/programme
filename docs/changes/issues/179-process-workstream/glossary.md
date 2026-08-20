@@ -40,6 +40,87 @@ private vocabulary would travel badly.
 Three possible outcomes per term: **adopt** it, **keep ours** and say why, or
 **use both** — the standard term once so it is findable, ours thereafter.
 
+## Decisions awaiting your agreement
+
+Owner, 2026-08-20: *"A lot of the actions can become decisions in the glossary,
+with options and recommendations."* So they are here, as questions rather than
+as *"(Steve) decide whether…"* scattered across issues — each with what the
+options actually are and what I would do.
+
+A decision made here is **decided** in the section it belongs to, and then
+applied to the numbered documents in one pass.
+
+### D1 · Does the lane become three attributes?
+
+**The question.** Today one milestone answers three questions: how a change is
+authorised, how it reaches production, and what carries it to users.
+
+| option | |
+| --- | --- |
+| **keep the lane** | one label, and the arguments recur — five framings in a day, and #134 decided against the written test |
+| **three attributes as labels** | `type` (have it) · `route` · `release`. Explicit, and four new label families to maintain |
+| **three attributes via an issue form** | the same three as dropdowns when an issue is raised, landing in the body where the tooling can read them |
+
+**Recommended: the issue form.** It puts the question at the moment the answer is
+cheapest — when the issue is written — and it needs no new labels. It also gives
+issue #160 something concrete: this is GitHub replacing something we would otherwise
+hand-maintain.
+
+### D2 · Do we adopt capability workstreams, and when?
+
+| option | |
+| --- | --- |
+| **adopt in one pass** | assign all 47 open issues, then keep it true |
+| **adopt as issues arise** | new issues get one, old ones do not |
+| **do not adopt** | keep grouping by whatever arrived together |
+
+**Recommended: one pass.** A partial taxonomy still has to be searched, so the
+half-done version costs what the whole one costs and delivers nothing. It is an
+hour of filing, once.
+
+### D3 · Do project phases stay, and where do they apply?
+
+The five `phase:` labels exist and are in use nowhere, after the process
+workstream turned out to have no projects.
+
+| option | |
+| --- | --- |
+| **projects in delivering workstreams only** | a standing workstream has issues and pull requests and nothing between |
+| **every issue** | more state to maintain, and most of it derivable |
+| **drop them** | fall back to the derived three: not started, in progress, completed |
+
+**Recommended: projects only.** The first real test will be #71, which is the
+one workstream that genuinely has projects.
+
+### D4 · Is the post-implementation review built, and how?
+
+Nothing asks whether a *normal* release did what it was for. #67 is the worked
+example: closed by a milestone, listed as deferred in the testing report, and
+genuinely broken.
+
+| option | |
+| --- | --- |
+| **an action on the project at close** | one checkbox, no machinery, and it can be skipped silently |
+| **an issue raised by `deploy.sh`** | as it already does for an emergency. Impossible to skip, and it will sometimes be noise |
+| **nothing** | the status quo |
+
+**Recommended: the action first, the issue later.** Start where it costs nothing;
+if a release goes wrong and nobody noticed, that is the evidence for making it
+automatic — which is exactly how the emergency retrospective came about.
+
+### D5 · Does `main` get a ruleset?
+
+| option | |
+| --- | --- |
+| **none** | today. Anything can be pushed, and nothing has gone wrong yet |
+| **require the CI check** | a red push cannot land on `main` |
+| **require CI and the review checklist** | and a pull request for every change, which the merge lane deliberately does not ask for |
+
+**Recommended: require CI's `check` job, nothing else, and only after #184
+merges.** It is the one gate whose answer is objective and whose failure is
+expensive. Requiring a review checklist with one author is ceremony, and
+requiring pull requests would undo the merge lane.
+
 ## Where each part stands
 
 | section | state | lands in |
