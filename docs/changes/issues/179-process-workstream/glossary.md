@@ -476,7 +476,7 @@ So the release log's shape is not a separate design: it falls out of the route
 values, one entry-kind per class. If a new route ever appears, the log gains a
 kind — which is a good test of whether the route is real.
 
-### D7 · Should `docs/changes/issues/` be renamed, and to what?
+### D7 · Should `docs/changes/issues/` be renamed, and to what? — **answered: B, nested**
 
 Owner, 2026-08-20: *"We should rename the issues folder as workstream, but
 presumably that will be done as part of applying the glossary."* Yes to the
@@ -495,15 +495,36 @@ to *production operations* and is not a workstream at all. Renaming to
 | **B. rename to `workstreams/`, and nest** | `workstreams/179-process/`, with projects and issue notes inside | mirrors the model exactly, and every document has one path that reflects what owns it |
 | **C. three folders** | `workstreams/` · `projects/` · `issues/` | most precise, and three places to look instead of one |
 
-**Recommended: B**, with the caveat that it is the most work. It is the only one
-that makes the folder tree say what the levels say — and since **every issue now
-has a workstream** (D2), every document can be placed under one without a
-judgement. It also removes the question *"is this folder's issue a workstream?"*,
-which is the ambiguity A quietly carries.
+**Decided 2026-08-20: B.** Owner: *"yes, B. And it makes us think about which
+workstream an issue is in."* Which is the argument I had missed — the structure
+does not merely *record* the classification, it **forces** it, at the moment a
+document is created and while the answer is still cheap. Same principle as the
+issue form asking for type and route at the moment an issue is raised.
 
-The cost is real: deeper paths, a move whenever an issue's workstream changes —
-which should be rare — and one more round of broken links, which is the argument
-for doing every folder move in the same change.
+The shape:
+
+```text
+docs/changes/
+  workstreams/
+    process-and-tooling/          the capability, not the issue number
+      glossary.md                 documents the workstream owns
+      process-review.md
+      179-…/                      an issue's own documents, where it has any
+      projects/
+        179A-…/                   a project's documents, testing included
+    production-operations/
+      174-logs-and-backups/
+        design.md
+```
+
+**Named for the capability, not for a parent issue**, because a capability may
+have no parent issue yet — nine of the ten do not. A folder needs no issue to
+exist, and naming it for one would block filing behind creating ten issues
+nobody has asked for.
+
+The costs stand and are worth restating: deeper paths, a move when an issue's
+workstream changes — rare — and one more round of broken links, which is the
+argument for doing **every** folder move in a single change.
 
 ### D6 · What is a release, and what gets logged as one?
 
