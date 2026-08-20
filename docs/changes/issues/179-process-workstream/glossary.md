@@ -285,6 +285,21 @@ distinguish between 'release on save' and 'release on merge'."*
 | **on save** | the file is written | the person standing in that worktree, on whatever branch they are on |
 | **on merge** | it lands on `main` | everyone else — CI, a fresh checkout, the next session, and a reader on GitHub |
 
+**And reading on GitHub costs a push.** Owner, 2026-08-20: *"if you are reading
+docs on GitHub then you need changes to be merged and pushed to see them."* True,
+and it is the price of the provenance: GitHub can only show what it has. Read the
+worktree when you need the unpushed state — and know which branch you are on,
+which is the reason the rule exists.
+
+**A commit on `main` is a decision to deliver.** Owner: *"Any change in main could
+be pushed by any other change, so you must decide that is okay."* An unpushed
+commit on `main` rides out with the next push, whatever that push was for —
+so committing to `main` is publishing, delayed only by accident. Two things
+follow: never leave half-finished work committed on `main`, and the
+[standard-change criteria](#standard-changes-what-may-go-straight-to-main) are
+exactly the test of whether you are happy for it to go now, because *now* is when
+it may go.
+
 This is unique to the repository route, because it is the only one whose consumer
 is holding the file. An artifact is delivered when it is deployed and a host
 change when it is applied — both single moments, both for everybody at once.
@@ -755,7 +770,7 @@ are how a two-line fix reaches users without waiting for a project of its own.
 The cost is that *"what was this release for?"* has an answer and a footnote —
 which the release log's *what it carried* column already accommodates.
 
-### D13 · Is *release* the word for any delivery, including a document edit?
+### D13 · Is *release* the word for any delivery? — **answered: no, *delivery* is**
 
 Owner, 2026-08-20: *"are we happy that we use the word 'release' for any delivery
 of change to its users, including a document edit? Otherwise we need a word for
@@ -770,6 +785,19 @@ either widens or gains a sibling.
 | **release means any delivery** | a document edit is a release. Then we need a new word for the versioned kind, and every existing sentence about releases has to be reread |
 | **release stays narrow; *delivery* is the umbrella** | a **delivery** is a change reaching its consumer, and it comes in three kinds: a **release** (versioned, deployed), an **application** (done by hand on a host or a service), a **merge** (live where it lands) |
 | no umbrella term | we keep saying *"live at merge"* and *"applied"*, which works in a sentence and not in a table heading |
+
+**Decided 2026-08-20.** Owner: *"I am happy to have delivery as the general term
+and release for a change in the application build id and version."*
+
+So **a release is a change to the application's build id and version** — which is
+exactly what `deploy.sh` produces, since the build id is derived from the commit
+it builds. That definition settles an edge that would otherwise have needed
+arguing: a `docker-compose.yml` change ships through `deploy.sh`, which rebuilds
+from the commit, so the build id moves and it *is* a release — even though
+nothing in the image changed on purpose.
+
+And **delivery** is the general term, in three kinds: **release**,
+**application** (by hand, on a host or in a service), **merge**.
 
 **Evidence for the ambiguity, from the same conversation:** the owner asked to
 distinguish *"release on save"* from *"release on merge"* — reaching for
