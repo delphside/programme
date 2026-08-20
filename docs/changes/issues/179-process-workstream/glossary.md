@@ -199,6 +199,38 @@ means a consumer has it rather than that production does.
 | **applied to a service we use** | changed in somebody else's console | OCI alarms, DNS, GitHub's own settings, the mail provider | no release, same obligations as the host |
 | **never leaves the repository** | nothing is sent anywhere; it is live when it merges | `docs/`, `scripts/` we run locally, CI config, tests | the merge lane |
 
+**When each route goes live is not the same moment.** Owner, 2026-08-20: *"code,
+docker files etc. are checked out as part of the build process. Documents and
+scripts are read in the dev environment worktree. This means that the dev branch
+must be main before they are accessed… It also means that changes in main take
+effect even before they are committed and merged."*
+
+That is a real asymmetry, and it is the sharpest thing said about the repo route:
+
+| | how it is read | live from |
+| --- | --- | --- |
+| **code, `Dockerfile`, migrations** | checked out into a throwaway worktree **at a commit**, then built | the commit is deployed — and never before, by construction |
+| **documents and scripts** | read from **the working tree you are standing in** | **the moment the file is saved** |
+
+So *"live at merge"* is the repo route's answer for **everyone else** — for CI,
+for a fresh checkout, for the next session. For the person at the keyboard it is
+already live, on whatever branch they happen to be on, saved or not committed.
+
+Three consequences, and the first two are already defended:
+
+- **`deploy.sh` checks the tooling it is running from**, not only the commit it
+  ships: uncommitted changes under `scripts/` are reported before a release,
+  because the script running the deploy is *not* the one from the worktree it
+  builds
+- **the fresh-checkout rule exists to make the first row true.** Code is
+  protected from this by construction; scripts and documents are not, and cannot
+  be — they have to be usable before they are finished
+- **the branch you are on decides which process you are following.** Switching
+  branches switches your runbook, your scripts and your conventions, silently.
+  That is the same shape as the dev client/server drift, one level up: the
+  environment is telling you something different from what you think you are
+  looking at
+
 **And what a defect in each one reaches.** Owner, 2026-08-20: *"things have a
 different IMPACT if there is a defect. The production service will impact users.
 Capacity might also impact users. Design documents impact developers."*
