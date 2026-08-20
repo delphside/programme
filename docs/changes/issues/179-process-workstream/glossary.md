@@ -878,6 +878,60 @@ And an override costs **a sentence** — what was decided, and why the written t
 did not fit. Not a form and not an approval: the sentence is what turns a
 departure into evidence, and evidence is what fixes the criterion.
 
+### Standard changes: what may go straight to `main`
+
+**Decided 2026-08-20.** Owner: *"sometimes we say documents should be in a branch
+(because they are a major new version, and people should not consult them until
+approved) and sometimes we make the changes in main (because they are living
+documents, it is a quick update, or otherwise we want the changes to be
+immediately visible). That ties into the authorised point in the ITIL change
+type. Subject to certain criteria changes can be made directly in main with
+limited process — they are pre-approved."*
+
+That is ITIL's **standard change** exactly: pre-approved by the *procedure*, so
+no authorisation is sought for the instance. It answers a question 3.3 has been
+answering by feel — *when is a branch called for?* — with a criterion instead.
+
+#### Straight to `main` — pre-approved
+
+A change is standard when **every** one of these holds:
+
+| | |
+| --- | --- |
+| **it records a decision, rather than making one** | the glossary noting what was agreed; a release log entry |
+| **or it corrects an error** | a typo, a broken link, a stale reference, a lint failure |
+| **or it is additive reference** | a row for a tool that already exists |
+| **a defect reaches developers only** | route is *never leaves the repository*, and nobody is mid-way through following it |
+| **and it is reversible in one commit** | no migration, no third party, nothing already read and acted on |
+
+#### A branch and a review — normal
+
+Any **one** of these makes it a normal change:
+
+| | |
+| --- | --- |
+| **it states or changes a rule** | somebody may follow it while it is still provisional |
+| **it is a major revision** | the half-updated state misleads — `docs/3.3`'s restructure was 2,300 lines of it |
+| **a defect reaches users** | route is *in the artifact*, *carried by the deploy*, or applied to production |
+| **it is live at merge with a blast radius** | a workflow, a shared script, a template everybody copies |
+| **the owner asked to see it first** | which needs no other justification |
+
+#### Tested against today
+
+| change | went | correct? |
+| --- | --- | --- |
+| the glossary recording D3, D4, D6 | `main` | yes — records decisions, developer-only, reversible |
+| five tool rows in `docs/3.0` | `main` | yes — additive reference |
+| the blank-line and lint fixes | `main` | yes — corrections |
+| `docs/3.3` restructured into three parts | branch, PR #178 | yes — a major revision |
+| `check-docs.sh` and the docs workflow | branch, PR #184 | yes — live at merge, and CI runs it on every push |
+| the issue form | branch, PR #187 | yes — live at merge, changes how every issue is raised |
+| **the glossary, this afternoon** | **branch, PR #187** | **no** — it was a living document behind a review, which is the drift this rule prevents |
+
+**This entry is itself a standard change**: it records a decision the owner just
+made, a defect in it reaches nobody but us, and reverting it is one commit. So it
+went straight to `main`, which is the rule demonstrating itself.
+
 ### Live means a consumer has it, not that production has it
 
 **Decided 2026-08-19.** Owner, on merging a half-written script: *"I want to use
