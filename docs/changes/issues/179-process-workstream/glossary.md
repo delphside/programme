@@ -916,6 +916,51 @@ cannot express: #174's journald drop-in should be applied *before* the JSON
 logging ships, or the first structured logs land in a 50M journal that discards
 them in five days. A project plan has to say that; a release cannot.
 
+### D14 · Do we classify the process a delivery must go through?
+
+Owner, 2026-08-20, proposing four categories: *pre-approved edit directly in
+main · document merge · non-prod tooling and configuration · production tooling
+and configuration*, the last two *"design and test approach approved"*.
+
+**The categories are right and the list is incomplete** — it covers everything
+except changes to the application itself, which is where most of the evidence
+rules already live. The full set:
+
+| process category | when | what it owes |
+| --- | --- | --- |
+| **pre-approved** | meets the [standard-change criteria](#standard-changes-what-may-go-straight-to-main), or the owner says *"go ahead and change the script"* | nothing beyond the commit. Straight to `main` |
+| **document, reviewed** | a document that states a rule, or a major revision | a branch, a pull request, a review checklist, and the owner's tick |
+| **non-production tooling and configuration** | `non-prod-tooling`, any route | **the design and test approach agreed before it is built**, then a branch and a review |
+| **production tooling and configuration** | `prod-tooling`, any route | the same, plus rehearsal where the change can be rehearsed |
+| **application change** | `bug` · `appearance` · `minor-function` · `major-function` | the full release path: CI, preview, **user testing**, rehearsal, the deploy gates. `major-function` owes a design note first |
+| **emergency** | production is broken now | the rollback first; two gates skipped and a retrospective owed |
+
+#### Is it a fifth axis, or derived?
+
+**Derived**, and it should stay that way. Every row above is decided by *type*
+plus *route* plus the standard-change criteria — the three things an issue
+already carries — so asking for it in the form would be asking a question whose
+answer is already in the answers. That is the same conclusion as *impact*: state
+it, do not collect it.
+
+**But one thing in it is genuinely new**, and it is the part worth adopting: the
+tooling rows say **the design and test approach is agreed before the work
+starts**. Today that gate exists only for `major-function` (a design note first)
+and for projects (scope and design agreed). A tooling change of any size goes
+straight from *"good idea"* to a branch — which is how `check-docs.sh` acquired a
+second copy of CI's markdown lint, and how `actions.py` was rewritten three times
+in a morning against a moving target.
+
+| option | |
+| --- | --- |
+| **derive the category, and add the design-and-test gate for tooling** | one new obligation, on the two rows that lack it |
+| derive it, change nothing | the table is documentation, and the gap stays |
+| make it a fifth field on the form | a question whose answer is already implied by two others |
+
+**Recommended: the first.** The categories go into `docs/3.3` as a table — *what
+do I have to do with this?* is the question a contributor actually asks — and the
+tooling rows gain the gate that would have caught two of this week's rewrites.
+
 ## Where each part stands
 
 | section | state | lands in |
