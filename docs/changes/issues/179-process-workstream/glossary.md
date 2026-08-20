@@ -78,7 +78,29 @@ hand-maintain.
 half-done version costs what the whole one costs and delivers nothing. It is an
 hour of filing, once.
 
-### D3 · Do project phases stay, and where do they apply?
+### D3 · Do project phases stay, and where do they apply? — **answered: delivering workstreams only**
+
+**Decided 2026-08-20.** Phases belong to projects, and projects belong to
+delivering workstreams; a standing workstream has issues and pull requests and
+nothing between. With three consequences the owner drew out, and the third
+reverses an earlier decision:
+
+**A project is an issue.** It has to be raised as one, because that is what
+records its structure — its scope, its work packages, its phase, and its
+documents.
+
+**A project is named, not versioned.** *"The version won't be known until it is
+scheduled, so we also need a name for the project consisting of workstream
+number and an increasing letter or number"* — so `71A`, `71B`, `179A`. A project
+still has a **main release version** once it is scheduled; the name is what it is
+called before that, and after.
+
+**Releases are attributes of projects** — the mechanism by which a project puts
+its changes live — rather than the thing the project is filed under. Owner:
+*"This changes a previous comment from me about naming projects after releases.
+I now think releases are too volatile and imprecise."* That reverses the folder
+rule agreed yesterday: a project's documents live under its **name**, not under
+a version that may move or split.
 
 The five `phase:` labels exist and are in use nowhere, after the process
 workstream turned out to have no projects.
@@ -92,7 +114,32 @@ workstream turned out to have no projects.
 **Recommended: projects only.** The first real test will be #71, which is the
 one workstream that genuinely has projects.
 
-### D4 · Is the post-implementation review built, and how?
+### D4 · Is the post-implementation review built, and how? — **answered: yes, as a lessons-learned review**
+
+**Decided 2026-08-20.** Owner: *"Post-deployment should have a lesson's learnt
+review, conducted by Claude and reviewed by Steve. It should have a template and
+include 'was the intended scope delivered'… the template should list areas to be
+considered, including areas where we have had problems. This review might lead
+to new issues — to improve the process or to extend the scope."*
+
+**Written by Claude, reviewed by Steve.** The person who did the work is worst
+placed to notice what it cost and best placed to remember what happened, which
+is the argument for both halves of that.
+
+**The template is `docs/templates/post-deployment-review.md`**, and its shape
+comes from two sources rather than from invention:
+
+| source | what it contributes |
+| --- | --- |
+| [After Action Review](https://asana.com/resources/after-action-review-template) | the four questions: what did we set out to do, what happened, why the difference, what next. The oldest and clearest form of this |
+| [PRINCE2 Lessons Report](https://prince2.wiki/management-products/reports/lessons-report/) | that a lesson is only worth capturing if somebody can act on it — so every finding ends as an issue, or is explicitly dropped |
+
+Plus a list of **areas to consider**, each there because it has cost us
+something: the milestone closing unshipped work (#67), a deferred test shipping
+anyway, a rule landing in two documents, gates skipped, a tool failing silently.
+
+**When:** once the project's last release has been live and used, not on the day
+it ships — a week is usually enough for the interesting failures to surface.
 
 Nothing asks whether a *normal* release did what it was for. #67 is the worked
 example: closed by a milestone, listed as deferred in the testing report, and
