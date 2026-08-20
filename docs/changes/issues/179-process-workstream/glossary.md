@@ -133,7 +133,7 @@ changes', 'change and re-review'. I guess we don't need 'reject'."*
 | outcome | label | what happens next |
 | --- | --- | --- |
 | **approved** | `approved` | Claude merges |
-| **approved with changes** | `approved-with-changes` | Claude makes the noted changes **and merges** — no second review |
+| **approved with changes** | `provisionally-approved` | Claude makes the noted changes **and merges** — no second review |
 | **change and re-review** | neither | Claude changes it and hands it back |
 
 The middle one is most reviews, and without it each of them costs a lap whose
@@ -147,9 +147,10 @@ change that should not happen is a closed pull request and a comment saying why.
 | [The four levels](#the-four-levels-and-what-each-is-called) | **decided** | `docs/3.3`, the change lifecycle |
 | [Project phases](#project-phases) | **decided**, except the last | `docs/3.3`, and the `phase:` labels already exist |
 | [Capability workstreams](#capability-workstreams) | **candidate** — the list is agreed, the adoption is not started | `docs/3.3`, and a parent issue or label per workstream |
-| [Categorising changes and releases](#categorising-changes-and-releases-three-attributes-not-one-lane) | **candidate** — #154 | `docs/3.3`'s lane table, and new labels or an issue form |
+| [Decisions awaiting your agreement](#decisions-awaiting-your-agreement) | **D1–D4 open, D5 answered** | each into the section it belongs to, then `docs/3.3` |
+| [Categorising changes and releases](#categorising-changes-and-releases-three-attributes-not-one-lane) | **candidate** — the decision is D1; #154 is closed and folded here | `docs/3.3`'s lane table, and new labels or an issue form |
 | [How ITIL handles tooling](#how-itil-handles-tooling-monitoring-and-instrumentation) | **decided** as reasoning; changes nothing on its own | the notes behind the lane rule |
-| [How the process is managed](#how-the-process-is-managed-github-folders-scripts) | **decided** — the inventory of what we use | a new section in `docs/3.3`; script rows in `docs/3.0` |
+| [How the process is managed](#how-the-process-is-managed-github-folders-scripts) | **decided**; the `docs/3.0` script rows are **applied** in PR #184 | a new section in `docs/3.3` |
 | Individual terms below | **candidate**, except *parent issue* | wherever the term is used |
 | *parent issue* | **applied** 2026-08-19 | `docs/3.3` — PR #185 |
 
@@ -207,8 +208,8 @@ rule matters. "Build id" is fine everywhere else.
 **Standard**: GitHub's own vocabulary for the feature — a *parent issue* with
 *sub-issues*, with progress rolled up automatically.
 
-**Ours**: `docs/3.3` says **master issue**; conversation on 2026-08-19 used
-**lead issue**.
+**Ours**: `docs/3.3` said **master issue** until PR #185; conversation on
+2026-08-19 used **lead issue**. Both are gone.
 
 **Recommend: adopt**, decided 2026-08-19. Using the tool's own word means the
 document, the API and the UI all say the same thing, and it retires "master".
@@ -646,14 +647,14 @@ tooling to know what is safe.
 
 ### Folders
 
+**Where a document lives is `docs/3.3` §2.9.4.1**, applied and enforced by
+`check-docs.sh`. It is not repeated here: the table below covers only what that
+section does not, because a second copy of a rule is the copy that goes stale.
+
 | path | holds |
 | --- | --- |
-| `docs/1.x` – `docs/4.x` | the numbered documents: rules, design, lifecycle, reference. The permanent record |
-| `docs/changes/issues/<n>-<name>/` | design notes, impact assessments and drafts for one issue — or for a workstream's parent |
-| `docs/changes/releases/<version>/` | testing documents for one release |
-| `docs/changes/*.md` | five files that predate the convention and stay put, because issue comments link to them |
 | `docs/diagrams/` | `.mmd` sources and their rendered `.svg` — edit the source, re-render, commit both |
-| `scripts/` | everything below, plus the deploy path |
+| `scripts/` | the tools, listed in `docs/3.0` |
 | `.github/workflows/` | CI, and the document review workflow |
 | `.claude/` | how Claude is driven — gitignored, because it is not the project's |
 
@@ -703,7 +704,7 @@ by whoever filed it.
 | **interaction design** | how the game is presented and controlled | #146, #84, #105, #152 |
 | **accounts and identity** | who a player is, and what may be done to an account | #57, #58, #140 |
 | **notification and liveness** | telling a client that something changed, and noticing when it did not | #87, #142, #15 |
-| **infrastructure and persistence** | what every feature rests on: schema, migrations, concurrency, process lifetime, memory | #29, and #71's chunk A |
+| **infrastructure and persistence** | what every feature rests on: schema, migrations, concurrency, process lifetime, memory | #29, and #71's work package A |
 | **capacity planning** | *will it fit* — growth, throttling, limits, measurement | #89, #29, #165 |
 | **production operations** | *is it healthy now* — logs, alerts, backups, disk, access | #174, #175, #176, #40 |
 | **dictionaries and word lists** | the lexicons and what may be played | #116 |
