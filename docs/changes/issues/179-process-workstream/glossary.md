@@ -114,8 +114,6 @@ automatic — which is exactly how the emergency retrospective came about.
 and nothing more. Still to do: create the ruleset, which may need a token
 permission we do not have.
 
-
-
 | option | |
 | --- | --- |
 | **none** | today. Anything can be pushed, and nothing has gone wrong yet |
