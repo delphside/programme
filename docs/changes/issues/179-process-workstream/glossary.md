@@ -492,6 +492,28 @@ as a section of its own, and the script rows join the table in `docs/3.0`.
 | **task list in a pull request body** | the **review checklist**, which is the review itself | a workflow fails the check while a box is unticked |
 | **pull request** | one change's passage: review, readiness, mechanics | frozen at merge, so conclusions are promoted to the issue body or a document before then |
 
+### How an action is recorded
+
+**Decided 2026-08-19**, from #181. An **action** is an unchecked `- [ ]` in an
+**issue** body, under an `Open actions` heading, prefixed `(Steve)` or
+`(Claude)`.
+
+The issue body is the only surface that carries state: an issue holds one bit,
+open or closed; a comment is append-only, so it can never be marked done; a pull
+request body freezes at merge. A checkbox can be ticked, GitHub counts it, and an
+item promotes to a full issue in one click when it turns out to be real work.
+
+**The same syntax in a pull request body is not an action** — it is the review
+checklist, which is the review itself.
+
+**The boundary with a sub-issue:** if it needs a branch, it is an issue. If it is
+a decision, a lookup or a small edit, it is a checkbox. A checkbox that grows a
+design discussion has told you it should have been an issue.
+
+`./scripts/actions.py` gathers them across every open issue, grouped by
+workstream, so the record can stay where the argument is without becoming
+impossible to find.
+
 ### What the tooling reads, and what it writes
 
 **Decided 2026-08-20**, after the owner left two tables in an issue body he
