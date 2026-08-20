@@ -225,6 +225,18 @@ Three consequences, and the first two are already defended:
 - **the fresh-checkout rule exists to make the first row true.** Code is
   protected from this by construction; scripts and documents are not, and cannot
   be — they have to be usable before they are finished
+- **so documents are read in GitHub, and edited in the worktree.** Owner,
+  2026-08-20: *"you choose the branch and it defaults to main. In the dev
+  environment worktree the branch might switch as part of development."* GitHub
+  makes provenance explicit — the branch is named on the page and `main` is the
+  default — where the working tree answers *"which version is this?"* with
+  whatever the last checkout left behind. The exception is a document **under
+  review**: it is on a branch by definition, so choose that branch deliberately,
+  which is the one case where the default is the wrong answer.
+
+  The evidence is from today: three commits went to a branch while I believed I
+  was on `main`, and `git push origin main` reported success because it pushed
+  `main` — unchanged — from a working tree standing somewhere else.
 - **a separate checkout for released scripts was considered and rejected.**
   Owner, 2026-08-20: *"Previously we decided not to have a separate clone of the
   repository for scripts, and have the check for main instead. It was seen as
