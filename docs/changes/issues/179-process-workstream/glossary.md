@@ -225,6 +225,15 @@ Three consequences, and the first two are already defended:
 - **the fresh-checkout rule exists to make the first row true.** Code is
   protected from this by construction; scripts and documents are not, and cannot
   be — they have to be usable before they are finished
+- **a separate checkout for released scripts was considered and rejected.**
+  Owner, 2026-08-20: *"Previously we decided not to have a separate clone of the
+  repository for scripts, and have the check for main instead. It was seen as
+  lower risk."* `deploy.sh`'s own comment records the same judgement — *"the fix
+  is a separate released-scripts checkout, judged not worth its own upkeep"*. The
+  trade is a **detect** control against a **prevent** one: a second clone would
+  make it impossible to deploy from unmerged tooling, and would introduce two
+  checkouts that can drift, a second thing to update, and the new failure of
+  running the wrong one. The warning is cheaper than the failure it would prevent
 - **the branch you are on decides which process you are following.** Switching
   branches switches your runbook, your scripts and your conventions, silently.
   That is the same shape as the dev client/server drift, one level up: the
