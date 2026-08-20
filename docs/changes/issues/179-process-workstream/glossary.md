@@ -708,6 +708,63 @@ layer in GitHub yet.
 handful of times per project, which is when hand-set state stays honest. A work
 package that needs its own phase is probably a project.
 
+### D12 · Can a release carry work from more than one project? — **answered: one owner, plus small passengers**
+
+**Decided 2026-08-20.** Owner: *"It should be possible to combine different
+projects in the same release… one owning project and smaller passengers makes
+sense. Larger projects are complicated enough in themselves that you wouldn't
+want to combine them. However small code changes can be tacked on to another
+release without increasing the risk or complexity, as long as they don't touch
+the same code."*
+
+**The criterion for a passenger, in his words:** small, and **it does not touch
+the same code**. That is what keeps the risk additive rather than multiplicative
+— two changes in one file interact, two changes in different files do not, and
+the second case is most of a backlog's small fixes.
+
+**Two large projects are never combined.** Each is complicated enough on its own,
+and a release that fails then has two candidate causes and two rollback stories.
+
+*Previously discussed and consistent with this: a milestone is a shipping list,
+and anything not shipping leaves it before the deploy.*
+
+| option | |
+| --- | --- |
+| **one release, one project** | clean, and it matches *"releases are attributes of projects"*. It also forces more releases, and leaves a one-line fix waiting for a project it has nothing to do with |
+| **a release has one owning project, and may carry passengers** | the project is why the release exists; unrelated ready work rides along and the milestone records it. Matches what 0.6.0 actually was — twelve issues, several unrelated |
+| anything ready ships together | which is where we are now, and it is what made the milestone mean four different things |
+
+**Recommended: the second.** The owning project explains the release; passengers
+are how a two-line fix reaches users without waiting for a project of its own.
+The cost is that *"what was this release for?"* has an answer and a footnote —
+which the release log's *what it carried* column already accommodates.
+
+### D13 · Is *release* the word for any delivery, including a document edit?
+
+Owner, 2026-08-20: *"are we happy that we use the word 'release' for any delivery
+of change to its users, including a document edit? Otherwise we need a word for
+this."*
+
+Today *release* means a **versioned deploy** — `prod-X.Y.Z`, a tag, a milestone,
+a smoke test — and the merge lane deliberately has none of those. So the word
+either widens or gains a sibling.
+
+| option | |
+| --- | --- |
+| **release means any delivery** | a document edit is a release. Then we need a new word for the versioned kind, and every existing sentence about releases has to be reread |
+| **release stays narrow; *delivery* is the umbrella** | a **delivery** is a change reaching its consumer, and it comes in three kinds: a **release** (versioned, deployed), an **application** (done by hand on a host or a service), a **merge** (live where it lands) |
+| no umbrella term | we keep saying *"live at merge"* and *"applied"*, which works in a sentence and not in a table heading |
+
+**Recommended: the second.** It keeps *release* meaning what it means everywhere
+else — ITIL's *"one or more changes built, tested and deployed together"* — and
+gives the thing we lacked a name: the row in a log, the event in a lifecycle, the
+answer to *"when did this reach anybody?"*
+
+**And it renames one thing already proposed.** #156's *release log* becomes the
+**delivery log**, because D6 already decided it records host and service changes
+alongside deploys — entries with no version. The name was describing one of its
+three kinds.
+
 ### Route is the join between an issue and a release
 
 **Owner, 2026-08-20: *"I guess route ties issues and releases together."*** That
@@ -795,25 +852,19 @@ workstream          a capability, never finished
 4. **Version** — type. The highest type in the release decides the bump: a
    `minor-function` anywhere makes it a minor, and everything else rides along.
 
+**A release may itself span routes, and that is not a defect.** Owner,
+2026-08-20: *"we shouldn't split a project's release by route, because the
+changes may be related and have to be done together in a particular order. So a
+release may involve different routes."* A release is therefore a **coordinated
+set of steps**, not a single act: host actions ordered around the deploy, and —
+rarely — *"different builds of the application applied at the beginning and the
+end"*, which is worth knowing is possible so that nobody treats one deploy per
+release as a rule.
+
 **Sequencing across routes is planning too**, and it is the part a milestone
 cannot express: #174's journald drop-in should be applied *before* the JSON
 logging ships, or the first structured logs land in a 50M journal that discards
 them in five days. A project plan has to say that; a release cannot.
-
-### D12 · Can a release carry work from more than one project?
-
-**Not yet decided**, and history and the model disagree.
-
-| option | |
-| --- | --- |
-| **one release, one project** | clean, and it matches *"releases are attributes of projects"*. It also forces more releases, and leaves a one-line fix waiting for a project it has nothing to do with |
-| **a release has one owning project, and may carry passengers** | the project is why the release exists; unrelated ready work rides along and the milestone records it. Matches what 0.6.0 actually was — twelve issues, several unrelated |
-| anything ready ships together | which is where we are now, and it is what made the milestone mean four different things |
-
-**Recommended: the second.** The owning project explains the release; passengers
-are how a two-line fix reaches users without waiting for a project of its own.
-The cost is that *"what was this release for?"* has an answer and a footnote —
-which the release log's *what it carried* column already accommodates.
 
 ## Where each part stands
 
