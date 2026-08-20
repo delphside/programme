@@ -745,6 +745,76 @@ The middle one is most reviews, and without it each of them costs a lap whose
 only purpose is to confirm what was already agreed. There is no *reject*: a
 change that should not happen is a closed pull request and a comment saying why.
 
+## Release planning: from a categorised issue to a user
+
+Owner, 2026-08-20: *"I guess we start with route. Does route [determine] the
+release mechanism? Do we group issues by route to construct releases?"*
+
+**Yes to the first. No to the second**, and the difference is the whole of
+planning.
+
+### Route decides the mechanism; it does not decide the grouping
+
+| route | mechanism | who acts |
+| --- | --- | --- |
+| in the artifact · carried by the deploy | **a release** — build, ship, migrate, smoke-test, tag, close the milestone | `deploy.sh` |
+| applied on the host · to a service | **an action**, done by hand and written down | a person |
+| never leaves the repository | **a merge** | whoever merges |
+
+So route **filters** what a release can even contain: only artifact and deploy
+issues are eligible. Grouping them is a different question, and grouping *by
+route* would produce a release of unrelated changes that happen to share a
+delivery mechanism — which is the milestone-as-lane mistake in a new costume.
+
+### What actually groups issues: the project
+
+**A project groups by outcome** — the set of changes that makes something true —
+and its issues will usually span routes. #174 is the worked example already in
+front of us: JSON logging is *artifact*, the journald retention drop-in is
+*host*, and neither delivers the outcome alone.
+
+So the shape of delivery is:
+
+```text
+workstream          a capability, never finished
+  project           a fixed scope, and it ends
+    issues          each with a route
+      artifact/deploy  →  one or more releases
+      host/service     →  actions, ordered around the releases
+      repo             →  merges, live when they land
+```
+
+### Four things decide a release, in this order
+
+1. **Eligibility** — route. Only artifact and deploy issues can ship in one.
+2. **Coherence** — project. A release exists to deliver something; the project
+   says what.
+3. **Readiness** — is it built, reviewed, merged? An unready issue leaves the
+   milestone rather than delaying it (#151 was caught this way, with an hour to
+   spare).
+4. **Version** — type. The highest type in the release decides the bump: a
+   `minor-function` anywhere makes it a minor, and everything else rides along.
+
+**Sequencing across routes is planning too**, and it is the part a milestone
+cannot express: #174's journald drop-in should be applied *before* the JSON
+logging ships, or the first structured logs land in a 50M journal that discards
+them in five days. A project plan has to say that; a release cannot.
+
+### D12 · Can a release carry work from more than one project?
+
+**Not yet decided**, and history and the model disagree.
+
+| option | |
+| --- | --- |
+| **one release, one project** | clean, and it matches *"releases are attributes of projects"*. It also forces more releases, and leaves a one-line fix waiting for a project it has nothing to do with |
+| **a release has one owning project, and may carry passengers** | the project is why the release exists; unrelated ready work rides along and the milestone records it. Matches what 0.6.0 actually was — twelve issues, several unrelated |
+| anything ready ships together | which is where we are now, and it is what made the milestone mean four different things |
+
+**Recommended: the second.** The owning project explains the release; passengers
+are how a two-line fix reaches users without waiting for a project of its own.
+The cost is that *"what was this release for?"* has an answer and a footnote —
+which the release log's *what it carried* column already accommodates.
+
 ## Where each part stands
 
 | section | state | lands in |
