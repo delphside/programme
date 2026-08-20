@@ -1262,20 +1262,71 @@ ten parts, written for #41 and deliberately thorough. A *test approach* is meant
 to be the smaller thing that usually suffices, and right now nothing says what it
 contains or where it lives.
 
+##### What the industry means by the two words
+
+Researched 2026-08-20, at the owner's instruction. Owner's own definition first:
+*"test approach says things like — use this environment, use these tools, measure
+these things against these criteria. Whereas a test plan is the detailed tests
+with conditions and scripts."*
+
+**The first half of that is the standard definition almost word for word.** ISTQB
+glossary: a test approach is *"the implementation of the test strategy for a
+specific project… the test design techniques to be applied, exit criteria and
+test types to be performed."* Environment and tools, techniques, and what is
+measured against what criteria — the same list.
+
+**The second half is where our word has drifted**, and it is worth knowing
+because `docs/3.x` is meant to travel. Three terms, not two:
+
+| term | what the standards mean by it | ours |
+| --- | --- | --- |
+| **test strategy** | organisation- or programme-level: the test levels performed, and the testing within them. Generic, outlives any one project | we have never written one. `docs/3.3`'s testing sections *are* it, unnamed |
+| **test approach** | the strategy applied to one project: environment, tools, techniques, test types, exit criteria | the thing D14 gates on |
+| **test plan** | a **management** document — scope, approach, schedule, resources, risks, metrics, deliverables | not what we mean at all |
+
+The detailed tests are none of those. In IEEE 829 they are the **test design
+specification** (techniques, conditions, pass/fail criteria), the **test case
+specification** (preconditions, inputs, expected results) and the **test
+procedure** (the script). ISO/IEC/IEEE 29119-3 superseded 829 in 2013 and keeps
+the split, folding the approach into the plan as a *test strategy* clause.
+
+**So the approach is a section of the plan, not a lighter substitute for one** —
+IEEE 829's test plan has *Approach* as its section 6. Which is exactly the shape
+our own template already has, without anyone having planned it:
+[`docs/templates/test-plan.md`](../../../templates/test-plan.md) §8 is called
+**Approach**, and it asks *what runs and where · what is real and what is stubbed
+· how time is manipulated · what state each test starts from*. The criteria half
+of the owner's definition lives in §3 (outcomes) and §6 (refusals and successes).
+
+That makes the "a test plan would satisfy the gate" clause exact rather than
+generous: a test plan satisfies it **by containing it**.
+
+##### The options, in that light
+
 | option | |
 | --- | --- |
-| **a named short form**: what could go wrong · how we would see it · where it is judged | three lines in the issue, on the issue. A test plan supersedes it when the change is big enough to want one |
+| **the plan's §8, extractable** — environment · tools · what is measured against what criteria, written in the issue when there is no plan | one form, one vocabulary. A change that later grows a test plan pastes what it already wrote into §8 |
+| a named short form of our own — what could go wrong · how we would see it · where it is judged | readable, and it invents a third structure alongside §8 and the standards' |
 | a cut-down template beside the test plan | a second document to maintain, and a folder to file it in, for what is usually a paragraph |
 | leave it to judgement | which is what we have now, and D14 just added a gate that cannot be checked against nothing |
 
 **Recommended: the first**, written in the issue under the existing *what would
 show it works* field rather than in a document of its own. The gate is then
-answerable by looking at the issue: either those three things are stated or they
-are not. A project-sized change writes a test plan instead, and the plan
-satisfies the gate by containing all three.
+answerable by looking at the issue: either the environment, the tools and the
+criteria are stated or they are not.
 
-Distinct from D15, which asks *where* a change is judged: this asks *what we
-would look for*.
+Distinct from D15, which asks *where* a change is judged: this asks *what runs
+there, and what would count as passing*.
+
+**One thing this exposes**, for the apply pass rather than for now: our test-plan
+template is, by the standards' names, a test **design** specification with a
+plan's title. Renaming it is probably not worth the churn, but `docs/3.3` should
+say so in a line, so that a reader who knows the standard terms is not misled.
+
+Sources: [ISTQB glossary: test approach](https://istqb-glossary.page/test-approach/) ·
+[ISTQB glossary: test strategy](https://glossary.istqb.org/en_US/term/test-strategy) ·
+[IEEE 829 test documentation](https://zetcode.com/terms-testing/ieee-829/) ·
+[ISO/IEC/IEEE 29119-3](https://www.iso.org/standard/56737.html)
 
 #### D5 · Does `main` get a ruleset? — **answered: yes**
 
