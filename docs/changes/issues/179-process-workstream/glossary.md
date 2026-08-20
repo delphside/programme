@@ -492,6 +492,36 @@ as a section of its own, and the script rows join the table in `docs/3.0`.
 | **task list in a pull request body** | the **review checklist**, which is the review itself | a workflow fails the check while a box is unticked |
 | **pull request** | one change's passage: review, readiness, mechanics | frozen at merge, so conclusions are promoted to the issue body or a document before then |
 
+### What the tooling reads, and what it writes
+
+**Decided 2026-08-20**, after the owner left two tables in an issue body he
+wanted to delete: *"I wasn't sure if they were automated and I didn't want to
+break the tooling."* A document whose machine-read parts are invisible makes
+every edit a risk, and the safe move becomes changing nothing.
+
+Two categories, and they need different marks because they need opposite
+behaviour from a reader:
+
+| | mark | who writes it | what a person may do |
+| --- | --- | --- | --- |
+| **read** by a script | a **named heading**: `## Open actions`, `## Review` | a person | edit freely, but keep the shape — one `- [ ]` per item |
+| **written** by a script | a **banner**, unmissable: `***** GENERATED — DO NOT EDIT *****`, with the tool named | the tool | nothing. Change the source, re-run the tool |
+| everything else | none | a person | anything at all |
+
+**Nothing is generated today.** The banner is defined ahead of its first use —
+#156's release log is the first thing that will need it — because the rule is
+cheap to state now and expensive to retrofit onto a document somebody has
+already hand-edited.
+
+**Never mix the two in one section.** That is #156's own conclusion about the
+release log — *never mix generated and hand-written in one file* — applied one
+level down: a regeneration that has to preserve somebody's prose is a
+regeneration that will eventually eat it, and the failure is silent.
+
+**A read section says so, in itself.** One italic line under the heading naming
+the script and the shape it expects. A reader should not have to know the
+tooling to know what is safe.
+
 ### Folders
 
 | path | holds |
