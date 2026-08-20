@@ -45,15 +45,238 @@ private vocabulary would travel badly.
 Three possible outcomes per term: **adopt** it, **keep ours** and say why, or
 **use both** — the standard term once so it is findable, ours thereafter.
 
-## Decisions awaiting your agreement
+## Decisions
 
 Owner, 2026-08-20: *"A lot of the actions can become decisions in the glossary,
 with options and recommendations."* So they are here, as questions rather than
 as *"(Steve) decide whether…"* scattered across issues — each with what the
 options actually are and what I would do.
 
-A decision made here is **decided** in the section it belongs to, and then
-applied to the numbered documents in one pass.
+**Each decision lives in the section it belongs to**, with the argument that
+produced it. This is the index: the question, whether it is settled, and where
+to read it.
+
+| | question | | where |
+| --- | --- | --- | --- |
+| **D1** | Does the lane become three attributes? | **answered** | [Classifying a change](#classifying-a-change-type-route-release) |
+| **D2** | Do we adopt capability workstreams, and when? | **open** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
+| **D3** | Do project phases stay, and where do they apply? | **answered** | [Projects](#projects-phases-and-gates) |
+| **D4** | Is the post-implementation review built, and how? | **answered** | [Projects](#projects-phases-and-gates) |
+| **D5** | Does `main` get a ruleset? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
+| **D6** | What is a release, and what gets logged as one? | **open** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D7** | Should `docs/changes/issues/` be renamed, and to what? | **answered** | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) |
+| **D8** | How much to cite | **open** | [Terminology](#terminology-our-words-and-the-industrys) |
+| **D9** | Do *gate* and *check* mean different things? | **open** | [Terminology](#terminology-our-words-and-the-industrys) |
+| **D10** | The terminology recommendations — accept them? | **open** | [Terminology](#terminology-our-words-and-the-industrys) |
+| **D11** | Do phases apply to a work package, or only to a project? | **open** | [Projects](#projects-phases-and-gates) |
+| **D12** | Can a release carry work from more than one project? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D13** | Is *release* the word for any delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D14** | Do we classify the process a delivery must go through? | **open** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
+| **D15** | Technical testing and user testing — a variant, or a property of each change? | **open** | [Classifying a change](#classifying-a-change-type-route-release) |
+
+## The levels: programme, workstream, project, work package, release
+
+Definitions only — where these live in GitHub is a separate question, settled
+on issue #179. Checked against MSP and PRINCE2, and against a second opinion
+asked the same question.
+
+| level | ours | the industry's | definition |
+| --- | --- | --- | --- |
+| the whole thing | **programme** | evergreen programme · continuous value stream | the application **and everything we maintain to keep it going**: the production service, the dev, preview and rehearsal environments, the documentation, and the process itself. Unbounded scope, no end date |
+| an area of it | **workstream** | functional or capability workstream | one capability, worked on indefinitely — the game model, the process, production operations |
+| a bounded piece | **project** | project | *a temporary endeavour undertaken to create a unique product or result* — fixed scope, ends when the scope is complete |
+| a unit of build | **work package** | work package (PRINCE2, WBS) | one development unit within a project: "the client changes for #71". We said *chunk* until 2026-08-19 |
+| what ships | **release** | release | one or more changes built, tested and deployed together |
+
+**Everything in the programme is under change control, not only the production
+service.** Owner, 2026-08-20: *"The whole application includes not only the
+production service, but also the dev and test environments, the design
+documentation, the processes and so on. A change to any of these should be
+recorded and controlled."* That is why `documentation` and `non-prod-tooling`
+are types rather than exemptions, why the merge lane is a lane rather than a way
+of avoiding one, and why this document exists at all. What differs between them
+is the **evidence** each owes and the **route** it takes — never whether it is
+tracked.
+
+**A workstream is a capability area, not a bag of related changes.** That is the
+sharper definition, and it gives a test: two pieces of work belong in the same
+workstream when they touch the same capability, not when they merely arrived in
+the same week.
+
+**A release may stand outside a project.** A fasttrack patch is a release with no
+project behind it, and a merge-lane change is live with no release at all. A
+model that implied otherwise would send documentation and tooling looking for a
+project they will never have.
+
+### Two terms offered and declined
+
+**Release train.** The train is specifically the *scheduled* variant: it departs
+on time and unready features get off. We release when a scope is ready, so the
+word would promise a cadence we do not run. Adopt *release branch*; keep the
+train metaphor for the de-scoping rule (#135), which is the narrower claim.
+
+**Epic**, for a project. An epic is not time-bound and has no fixed scope, which
+is the one property that makes a project a project.
+
+*Both were listed as open questions at the foot of this document until
+2026-08-20; they were answered here and the duplicate has gone.*
+
+---
+
+## Workstreams: the capabilities we maintain
+
+**Candidate**, with the list agreed 2026-08-19 and the adoption not started. A
+workstream is a **capability area**, worked on indefinitely — not a bag of
+issues that arrived in the same week. The difference is that a capability
+workstream is *predictive*: a new issue knows where it belongs before anybody
+discusses it.
+
+Ten, and they cover **every one of the 47 open issues** — which is the test a
+taxonomy has to pass, because an issue with no home goes back to being grouped
+by whoever filed it.
+
+| workstream | what it covers | anchored today by |
+| --- | --- | --- |
+| **process and tooling** | how we work, and everything that runs the work: the release path, the scripts, CI, testing tooling | #179, #160, #134, #144, #91 |
+| **game model and rules** | what the game *is*: seats, turns, versions, history, retention, the rules themselves | #71, #73, #68, #166 |
+| **interaction design** | how the game is presented and controlled | #146, #84, #105, #152 |
+| **accounts and identity** | who a player is, and what may be done to an account | #57, #58, #140 |
+| **notification and liveness** | telling a client that something changed, and noticing when it did not | #87, #142, #15 |
+| **infrastructure and persistence** | what every feature rests on: schema, migrations, concurrency, process lifetime, memory | #29, and #71's work package A |
+| **capacity planning** | *will it fit* — growth, throttling, limits, measurement | #89, #29, #165 |
+| **production operations** | *is it healthy now* — logs, alerts, backups, disk, access | #174, #175, #176, #40 |
+| **dictionaries and word lists** | the lexicons and what may be played | #116 |
+| **desktop and distribution** | shipping something that is not the web client | #38, #15 |
+
+### Every open issue, on all three axes and a workstream
+
+**The whole tracker, in one table.** Owner, 2026-08-20: *"As you have mapped
+every open issue to the axes and workstream can we see that in one table."* This
+is the test the list and the axes both have to pass, and the work list if D1 and
+D2 are adopted.
+
+Routes are abbreviated: **artifact** · **deploy** · **host** · **service** ·
+**repo**. *Release* is `not decided` wherever the work is not scheduled, which
+is most of the backlog and is the honest answer.
+
+| # | title | type | route | release | workstream |
+| --- | --- | --- | --- | --- | --- |
+| **10** | Bot client harness: run an engine as an extern… | non-prod-tooling | repo | none | process and tooling |
+| **15** | Desktop has no client-update signal since 2.9 | major-function | artifact | not decided | desktop and distribution |
+| **29** | Memory and startup grow with every game ever p… | major-function | artifact | not decided | infrastructure and persistence |
+| **38** | A download site for desktop builds — or a deci… | major-function | service · a download site is a service we would run | not decided | desktop and distribution |
+| **40** | Rehearsal holds production user data on a publ… | non-prod-tooling | **?** · Caddyfile or a firewall rule — shape not chosen | none | production operations |
+| **57** | A player closing their own account | major-function | artifact | not decided | accounts and identity |
+| **58** | Shutting out a problematic player | major-function | artifact | not decided | accounts and identity |
+| **66** | A rating graph point can link to a swept game | bug | artifact | patch | game model and rules |
+| **68** | Retention for games that never started: the 30… | major-function | artifact | not decided | game model and rules |
+| **71** | One game model: version, seats, DTOs and the e… | major-function | artifact | major | game model and rules |
+| **73** | Undo, from a history keyed on the game's versi… | major-function | artifact | major | game model and rules |
+| **80** | Changing your display name does not reach othe… | bug | artifact | patch | accounts and identity |
+| **84** | Games list appearance | appearance | artifact | not decided | interaction design |
+| **87** | Tell a player a message has arrived when they … | major-function | artifact | not decided | notification and liveness |
+| **88** | out-of-turn staging and rearranging tiles | minor-function | artifact | not decided | game model and rules |
+| **89** | Notice unusual growth in the database, startin… | major-function | artifact · the daily record is in the image | not decided | capacity planning |
+| **91** | Stress testing: find where the service breaks,… | non-prod-tooling | repo | none | process and tooling |
+| **103** | Browser tab icon | appearance | artifact | patch | interaction design |
+| **105** | withdrawing should immediately hide the game | minor-function | artifact | patch | game model and rules |
+| **106** | inviting yourself should automatically accept | minor-function | artifact | patch | game model and rules |
+| **116** | Curate the denylist | minor-function | artifact · the list is compiled in | patch | dictionaries and word lists |
+| **128** | e2e-clean cleans dev's database whatever envir… | non-prod-tooling | repo | none | process and tooling |
+| **130** | Show the server's version in dev, where the to… | — | artifact · dev-only, but it ships in the binary | minor | **unassigned** |
+| **134** | Ship the build we tested, rather than rebuildi… | prod-tooling | repo · deploy.sh runs from a laptop | none | process and tooling |
+| **135** | Make a release branch rebuildable, so a change… | non-prod-tooling | repo | none | process and tooling |
+| **140** | Admin CLI: sign an account out, so the delete … | — | artifact · the admin CLI is in the image | not decided | accounts and identity |
+| **142** | A reconnected WebSocket never re-fetches state… | minor-function | artifact | not decided | notification and liveness |
+| **144** | Check CI before merging into a release branch,… | prod-tooling | repo | none | process and tooling |
+| **146** | Rework the play controls: Pass/Exchange/Play, … | — | artifact | not decided | interaction design |
+| **148** | check-rate-limits.sh leaves its test accounts … | prod-tooling | repo | none | process and tooling |
+| **150** | deploy.sh closed the milestone on an emergency… | prod-tooling | repo | none | process and tooling |
+| **151** | Check for a new bundle on visibilitychange, no… | — | artifact | patch | notification and liveness |
+| **152** | removing a game should clear the board and rac… | appearance | artifact | patch | interaction design |
+| **155** | Process decisions: agree them here, apply them… | documentation | repo | none | process and tooling |
+| **156** | A log with one entry per release | documentation | repo | none | process and tooling |
+| **157** | Remove leaves a staged tile on the board after… | bug | artifact | patch | interaction design |
+| **160** | Use more of GitHub where it replaces something… | non-prod-tooling | service · GitHub's own configuration | none | process and tooling |
+| **165** | Retry-After is rebuilt from an already-rounded… | minor-function | artifact | patch | infrastructure and persistence |
+| **166** | Nothing happens when a move time limit expires… | minor-function | artifact | not decided | game model and rules |
+| **171** | A separate GitHub account for Claude, if the f… | non-prod-tooling | service · a second GitHub account | none | process and tooling |
+| **174** | Container logs are discarded on every deploy, … | minor-function | artifact · **+ host** — the journald drop-in | not decided | production operations |
+| **175** | No backup leaves the VM: losing the instance l… | prod-tooling | **?** · host or deploy — shape not chosen | none | production operations |
+| **176** | Nothing alerts on the production disk filling,… | prod-tooling | service · an OCI alarm | none | production operations |
+| **179** | Process workstream | documentation | repo · the parent issue itself | none | process and tooling |
+| **183** | A document review workflow in Actions: lint, l… | non-prod-tooling | repo · a workflow file is a repo file | none | process and tooling |
+
+#### What the table shows
+
+**Four issues carry no type label** — 130, 140, 146, 151 — which the form would
+have made impossible: type is a required field. That is the first concrete
+argument for the form over labels applied afterwards.
+
+**Two cannot answer *route*.** #40 and #175 do not know their own shape yet: a
+firewall rule or a `Caddyfile` change; a script on the host or one in the image.
+Route needs a *not decided yet*, exactly as release has one.
+
+**One carries two routes.** #174 is JSON logging in the artifact **and** a
+journald drop-in on the host. The tie-break picks artifact; nothing yet records
+the half that stays manual.
+
+**One fits no workstream.** #130 is dev-only tooling that ships in the client
+binary — process by purpose, interaction design by location. Left unassigned as
+evidence rather than forced.
+
+**Two workstreams hold one issue each, and that is fine.** Owner: *"It may be a
+fairly focussed workstream. It may be that the issue was well scoped with a
+complete thought out set of changes."* A capability is not less real for having
+one open question about it today. What would be evidence against it is a
+workstream nothing ever lands in.
+
+**The release column is mostly *not decided*, and should be.** Twenty-three of
+forty-five. Deciding what ships together is scheduling, and scheduling before
+there is a project to schedule is guessing.
+
+### The two rules that keep it clean
+
+**One axis: capability, never layer.** *Client UI* and *server/db* are tiers, and
+a taxonomy on two axes stops being predictive — #142 would belong to notification
+*and* to server/db, and #71 to game model *and* to both tiers, which is precisely
+the issue whose argument is that the two halves are one model. So *client UI*
+becomes **interaction design**, and *server/db* becomes **infrastructure and
+persistence**, which is a genuine non-feature capability rather than a tier:
+everything rests on it.
+
+**If it would disappear when a feature is cut, it belongs to the feature.** That
+is the test for infrastructure, and it settles the cases that feel ambiguous:
+issue #29 survives every feature, so it is infrastructure; #166 is a rule, and needing
+a background task does not move it out of game model; #142's fix is a server's
+but its symptom is a user's, so it is liveness.
+
+**And a technique is not a capability.** *e2e design* is how we know the
+application works, not something it does — so it is a project inside process and
+tooling rather than a workstream of its own.
+
+### The decision point
+
+Adopting this means **every open issue gets a workstream**: a pass over 47, and a
+choice between a parent issue each or a `workstream:` label each. Worth doing
+once, deliberately — the half-done version is worse than the grouping it
+replaces, because a partial taxonomy still has to be searched.
+
+---
+
+#### D2 · Do we adopt capability workstreams, and when?
+
+| option | |
+| --- | --- |
+| **adopt in one pass** | assign all 47 open issues, then keep it true |
+| **adopt as issues arise** | new issues get one, old ones do not |
+| **do not adopt** | keep grouping by whatever arrived together |
+
+**Recommended: one pass.** A partial taxonomy still has to be searched, so the
+half-done version costs what the whole one costs and delivers nothing. It is an
+hour of filing, once.
+
+## Classifying a change: type, route, release
 
 ### D1 · Does the lane become three attributes? — **answered: yes, as an issue form**
 
@@ -159,13 +382,13 @@ through it:
   records the half that stays manual. Either route becomes multi-select, or two
   routes means two issues — the same shape as *one change, one type*
 
-#### The four axes, defined
+##### The four axes, defined
 
 Owner, 2026-08-20: *"each of these three axes needs a table with definitions.
 Workstream as well."* Four tables, one per axis, each value defined rather than
 listed.
 
-##### type — what the change is
+###### type — what the change is
 
 The seven, and **`docs/3.3` §2.9.6 is the definition** — how each ships, what
 version it moves, and what evidence it owes. Summarised here only so the axes
@@ -182,7 +405,7 @@ rather than repeating this one.
 | `non-prod-tooling` | dev, preview and test tooling: it does not act on production |
 | `prod-tooling` | acts on production without changing the app |
 
-##### route — how it reaches its consumer
+###### route — how it reaches its consumer
 
 Named for production because that is where the risk is, but the honest question
 is **how does this reach whoever uses it**. Owner, 2026-08-20: *"the production
@@ -313,7 +536,7 @@ version nobody else has.
 > route whatever executes it — otherwise every CI change becomes a service
 > change.
 
-##### release — what carries it to users
+###### release — what carries it to users
 
 | value | what it means | which milestone closes it |
 | --- | --- | --- |
@@ -323,7 +546,7 @@ version nobody else has.
 | **grouped into a major** | rides in a `x.0.0` — structural, or a breaking wire change | that release's milestone |
 | **not decided yet** | nobody has scheduled it. **The honest answer for most of the backlog** | none, until it is scheduled |
 
-##### When the release is *nothing* — what to do, and how you know it is done
+###### When the release is *nothing* — what to do, and how you know it is done
 
 Owner, 2026-08-20: *"Where the release is 'nothing' how do we know what to do?
 How do we know when we have done it?"* A release is the completion event for
@@ -357,15 +580,15 @@ later only because it silently defeated a requirement.
   the issue closes on **live**, and whatever remains is a new issue rather than
   an open one nobody can act on.
 
-##### workstream — which capability it belongs to
+###### workstream — which capability it belongs to
 
 The ten are defined in [Capability
-workstreams](#capability-workstreams) below, with what each covers and the two
+workstreams](#workstreams-the-capabilities-we-maintain) below, with what each covers and the two
 rules that keep the list clean. A workstream is a **capability**, worked on
 indefinitely — not a bag of issues that arrived in the same week — and every
 open issue has one, which is the test that list had to pass.
 
-#### The routes, and the tie-break
+##### The routes, and the tie-break
 
 | route | means |
 | --- | --- |
@@ -383,7 +606,7 @@ against the proposal: #136's alarms and #147's DNS are neither an artifact nor
 the production host, and filing them under *the host* was the first thing that
 broke.
 
-#### Twenty real issues, run through the three questions
+##### Twenty real issues, run through the three questions
 
 Chosen to exercise every route, every type, and each case #154 called hard —
 not to demonstrate that it works.
@@ -412,7 +635,7 @@ not to demonstrate that it works.
 | **#175 the backup** | prod-tooling | **host, or deploy** — undecided | none | **the shape is not known until the fix is chosen** |
 | **#40 rehearsal access** | non-prod-tooling | **artifact or service** — undecided | none | same, and #154 named it |
 
-#### What the test found
+##### What the test found
 
 **Three answers changed nothing**, which is the point: #134, #144 and #128 come
 out merge-lane without an argument, where the old criterion produced one.
@@ -446,19 +669,179 @@ cheapest — when the issue is written — and it needs no new labels. It also g
 issue #160 something concrete: this is GitHub replacing something we would otherwise
 hand-maintain.
 
-### D2 · Do we adopt capability workstreams, and when?
+#### D15 · Technical testing and user testing — a variant, or a property of each change?
+
+Owner, 2026-08-20: *"One variant on application release is technical application
+release, which replaces user testing with technical testing in rehearsal… Or
+perhaps we just say that technical aspects of the change are tested in rehearsal
+by a technical test rather than in preview by a user test. Then if a release is
+all technical or all functional it would just do one, but if it is a mix it would
+do both."*
+
+**The second framing is the better one**, and it is already 3.3's rule arriving
+from a new direction: *evidence follows what the change does, not the label it
+carries.* A category called *technical application release* would make the
+release the unit; the change is the unit, and a release inherits the union of its
+changes' obligations.
+
+| what the change is | where it is judged | by what |
+| --- | --- | --- |
+| a person can see whether it does what was wanted | **preview** | **user testing** — the judgement no script makes |
+| nobody can see it by using it — limits, timing, memory, headers | **rehearsal** | **a technical test**: a script that asserts the shape, on hardware that matches production |
+| both | both | both, and neither substitutes for the other |
+
+**This is not derivable from type.** #165 (`Retry-After` rebuilt from a rounded
+number) is `minor-function` and entirely technical: nobody can see it by playing.
+Issue #29 (memory growth) is `major-function` and tested by load, not by use. And #25's
+rate limiting is the case that produced `check-rate-limits.sh` precisely because
+preview *cannot* judge it — a development machine says nothing about a 2 vCPU
+box.
+
+**The machinery already exists**, and only the reasoning is missing:
+`DEPLOY_SKIP_PREVIEW=1` means *"there was nothing for a person to look at"*,
+which is exactly the all-technical release. Today that is a judgement typed at
+deploy time; it should be the sum of what the milestone's issues said.
 
 | option | |
 | --- | --- |
-| **adopt in one pass** | assign all 47 open issues, then keep it true |
-| **adopt as issues arise** | new issues get one, old ones do not |
-| **do not adopt** | keep grouping by whatever arrived together |
+| **every issue names where it is tested** — preview, rehearsal, or both | one more thing to answer, and the release's obligation becomes the union rather than a judgement at the end |
+| a fifth axis, *test surface* | the same information, dressed as a category |
+| leave it a judgement | which is where `DEPLOY_SKIP_PREVIEW` is now, and it has never been wrong yet — because one person holds all the context |
 
-**Recommended: one pass.** A partial taxonomy still has to be searched, so the
-half-done version costs what the whole one costs and delivers nothing. It is an
-hour of filing, once.
+**Recommended: the first**, as part of the *what would show it works* field rather
+than as a new dropdown. It costs a phrase per issue and it makes the skip
+derivable — and the one-person-holds-the-context argument for leaving it is
+exactly the argument that stops being true first.
 
-### D3 · Do project phases stay, and where do they apply? — **answered: delivering workstreams only**
+Moved here from #154 on the owner's instruction, 2026-08-19, because it is a
+question about **words** before it is a question about process.
+
+### What the industry separates
+
+ITIL keeps three things apart that our one lane word runs together:
+
+| | categorises by | values |
+| --- | --- | --- |
+| **change type** | how it is **authorised** | standard (pre-approved, repeatable, no per-instance authorisation) · normal (assessed and scheduled) · emergency (expedited) |
+| **release type** | what the release **contains** | major · minor · emergency |
+| **release vs deployment** | *deployment* moves components into an environment; *release* makes function available to users | two separate practices in ITIL 4 |
+
+That third row is the one worth internalising: they are deliberately not the
+same event, which is also the entire basis of feature flags in the CD
+literature — deploy dark, release later.
+
+**A naming caution.** ITIL already uses *dimensions* for something else — the
+[four dimensions of service
+management](https://itsm.tools/itil-4-explained/) — so ours should be called
+**attributes** or **axes**, never dimensions, or a reader who knows ITIL will
+expect organisations-and-people, information-and-technology, partners, and value
+streams.
+
+### What our lane word is actually saying
+
+| our lane | the question it answers | ITIL axis |
+| --- | --- | --- |
+| **merge** | it never travels the deploy path | deployment |
+| **config-only** (never named, and no longer needed) | it changes production with no artifact — which the axes now say as *route = applied on the host, release = none*. A combination, not a category: naming it would invite it to grow rules of its own | deployment |
+| **fasttrack** | it ships alone, as a patch | release |
+| **minor** / **major** | it is grouped into a release of that size | release |
+| **emergency** | authorisation is expedited | change type |
+
+`emergency` is not the same *kind* of thing as `minor`, and `merge` is not the
+same kind of thing as `fasttrack`.
+
+### The proposal
+
+Three attributes on an issue, replacing the single lane:
+
+| attribute | values | answers |
+| --- | --- | --- |
+| **type** (already have it) | the seven labels | what it is, and what evidence it owes |
+| **route** | *in the artifact* · *carried by the deploy* · *applied on the host* · *applied to a service we use* · *never leaves the repository* | how it reaches its consumer, and which environment it changes |
+| **release** | patch (alone) · minor · major · none | what carries it to users, and which milestone closes it |
+
+Authorisation then falls out without a label of its own, landing on ITIL's three
+change types exactly: *never leaves the repo* is a **standard change** — live on
+merge, pre-authorised by a documented procedure; anything in the artifact or
+carried by the deploy is a **normal change**; and the emergency deploy is an
+**emergency change**, orthogonal to both other attributes.
+
+The cases are #154's, plus the ones this week produced. Every row was previously
+an argument.
+
+| case | type | route | release |
+| --- | --- | --- | --- |
+| `deploy.sh`, `rollback.sh`, `verify.sh` | prod-tooling | never leaves the repo | none — live at merge |
+| `.github/workflows/`, `e2e/`, `scripts/tests/` | non-prod-tooling | never leaves the repo | none |
+| `Caddyfile.preview` | non-prod-tooling | never leaves the repo | none |
+| documentation, including `docs/3.4` about production | documentation | never leaves the repo | none |
+| client/server code, `Caddyfile`, the admin CLI | app | in the artifact | with a release |
+| **migrations** | app | in the artifact, and they change production data irreversibly | with a release |
+| dev-only client code (#130) | minor-function | in the artifact | with a release |
+| **instrumentation** — JSON logs, metrics (#174) | minor-function | in the artifact | with a release |
+| `docker-compose.yml` | prod-tooling | carried by the deploy | with a release |
+| the `sa` alias `deploy.sh` writes on the VM | prod-tooling | carried by the deploy | with a release |
+| **journald retention drop-in** (#174) | prod-tooling | applied on the **production** host | none — document it, close by hand |
+| **OCI alarms** (#136) | prod-tooling | applied to a service, for **production** | none — same |
+| **rehearsal DNS** (#147) | prod-tooling | applied to a service, for **rehearsal** | none — same, and it changed no production service at all |
+| `.env` on the VM | prod-tooling | applied on the **production** host | none — same |
+| **the backup job** (#175) | prod-tooling | applied on the host, from a script in the repo | none, unless it ships in the image |
+
+The two rows that used to have no answer at all — config-only and
+tooling-installed-by-the-deploy — now have one by construction rather than by
+adjudication.
+
+## Projects: phases and gates
+
+**Decided 2026-08-19**, except where marked. A phase belongs to a **project**, not
+to a workstream: a workstream has no end, and a project is the thing that passes
+through phases and stops.
+
+Five, and the first covers two activities rather than being split into two
+phases — owner: *"scoping and design are done in the same phase for us."*
+
+| phase | the question | its artefact | it ends when |
+| --- | --- | --- | --- |
+| **scope and design** | what is in, and how will it be done? | the **issue body** fixes the scope; the **design note** carries the design | both are agreed — in practice one review |
+| **development** | is it built? | **work packages**: branches, pull requests, merges | the last work package in scope is merged |
+| **user testing** | does it do what was wanted? | the **project's** testing documents, in a folder named for its main release | somebody decides it does — **or the scope changes**, which sends it back |
+| **deployment** | is it live? | the **release**: milestone, `prod-` tag, smoke test | `deploy.sh` exits 0 |
+| **post-deployment** | did it do what it was for? | a **review** — *not built* | the project closes |
+
+**Recorded as a `phase:` label** on the project's issue, hand-set. The
+interesting boundaries are judgements — *"user testing is finished"* is not
+visible to a script — and a phase changes a handful of times per project, which
+is when hand-set state does not drift. A label rather than a body line, because
+a label is filterable where the work is done.
+
+### Where the gates are, and why there are only three
+
+The classic five gates map onto the phases, and two of them are already machines:
+
+| gate | attaches to | who answers |
+| --- | --- | --- |
+| scope agreed · design agreed | the project | a person, and it needs no ceremony beyond the review we already run |
+| **build review** | each release | **CI** — fmt, clippy, tests, wasm, the stamp, e2e |
+| **go-live readiness** | each release | **the deploy gates** — preview and rehearsal on the exact commit, the schema check, the snapshot, automatic rollback |
+| **post-implementation** | the project, at close | a person — **and we do not have it** |
+
+A gate with an objective answer belongs in a script; the ones left for a person
+are the ones without. That is the same test the lane discussion arrived at.
+
+### What the phases still owe
+
+The two questions this section used to carry are now **D4** (the
+post-implementation review, answered) and **D11** (phases on a work package).
+What remains is not a decision but a piece of work:
+
+**Inserting the project layer.** #71's work packages and #179's children hang
+directly off a workstream, with no project between. The vocabulary is decided and
+the restructuring is not done — and #71 is where it will first be tested, being
+the one workstream that genuinely has projects.
+
+---
+
+#### D3 · Do project phases stay, and where do they apply? — **answered: delivering workstreams only**
 
 **Decided 2026-08-20.** Phases belong to projects, and projects belong to
 delivering workstreams; a standing workstream has issues and pull requests and
@@ -492,7 +875,21 @@ a version that may move or split.
 
 The first real test will be #71, the one workstream that genuinely has projects.
 
-### D4 · Is the post-implementation review built, and how? — **answered: yes, as a lessons-learned review**
+#### D11 · Do phases apply to a work package, or only to a project?
+
+Left over from the phases section, and untested because there is no project
+layer in GitHub yet.
+
+| option | |
+| --- | --- |
+| **projects only** | a work package inherits its project's phase and carries no label |
+| every work package | more state, and most of it derivable from whether a branch exists |
+
+**Recommended: projects only**, on the same argument as D3: a phase changes a
+handful of times per project, which is when hand-set state stays honest. A work
+package that needs its own phase is probably a project.
+
+#### D4 · Is the post-implementation review built, and how? — **answered: yes, as a lessons-learned review**
 
 **Decided 2026-08-20.** Owner: *"Post-deployment should have a lesson's learnt
 review, conducted by Claude and reviewed by Steve. It should have a template and
@@ -535,240 +932,7 @@ Start where it costs nothing; if a release goes wrong and nobody notices, that i
 the evidence for making it automatic — which is how the emergency retrospective
 came about.
 
-### D5 · Does `main` get a ruleset? — **answered: yes**
-
-**Decided 2026-08-20**, reviewing PR #184. Requiring CI's `check` job on `main`,
-and nothing more. Still to do: create the ruleset, which may need a token
-permission we do not have.
-
-**The options as they stood, kept as the record:**
-
-| option | |
-| --- | --- |
-| none | anything can be pushed, and nothing had gone wrong yet |
-| **require the CI check** — *chosen* | a red push cannot land on `main` |
-| require CI and the review checklist | and a pull request for every change, which the merge lane deliberately does not ask for |
-
-**Agreed: require CI's `check` job, nothing else, and only after #184 merges.** It is the one gate whose answer is objective and whose
-failure is expensive. Requiring a review checklist with one author is ceremony,
-and requiring pull requests would undo the merge lane.
-
-### D6 · What is a release, and what gets logged as one?
-
-Owner, 2026-08-20: *"These are attributes of the issue. We also need to
-categorise a release. Are we going to log any change as a release, or only code
-changes…"*
-
-**Releases have attributes of their own**, and they are not the issue's. An issue
-says what a change is; a release says what happened to production on one
-occasion.
-
-| attribute | values |
-| --- | --- |
-| **version** | `X.Y.Z` — patch, minor or major, per the rules already in 3.3 |
-| **kind** | **normal** · **fasttrack** (a patch shipped alone) · **emergency** (gates skipped, retrospective owed) · **rollback** (production moved backwards) |
-| **carried** | the milestone's issues — derivable, and `deploy.sh` already closes them |
-| **outcome** | went live · rolled back · **went live and was wrong**, which #67 was |
-| **facts** | tag, commit, date — all derivable from `git tag --list 'prod-*'` |
-
-#### What gets logged
-
-Three options, and the question is really *what is the log for*:
-
-| option | | |
-| --- | --- | --- |
-| **A. deploys only** | one entry per `prod-*` tag | clean and fully derivable, and it misses every production change that arrives without a deploy — the journald cap, an OCI alarm, a DNS record |
-| **B. anything that changes an environment we maintain** | deploys, **plus** host and service changes, **and which environment** each touched | matches the route axis exactly: artifact and deploy get a version, host and service get a dated entry with no version. And it holds for rehearsal and preview, which are also things we maintain — #147 changed rehearsal's DNS and nothing in production |
-| **C. every change** | including merge-lane work | the commit log already does this, better, and nobody would read a log that grows by a dozen entries a week |
-
-**Recommended: B**, and the reason is the one the route axis already found. A
-change applied on the host or in somebody's console leaves **nothing in the
-repository** unless we put it there — that is why those routes are *done when
-their documentation is*. The release log is where that documentation naturally
-lives, because the question it answers is *"what changed in production, and
-when?"*, and a firewall rule answers to that question exactly as a deploy does.
-
-So the log has two kinds of entry:
-
-```text
-version  date        kind       where       what                              outcome
-0.6.2    2026-08-17  normal     production  bytes RUSTSEC fix, throttle test  went live
-—        2026-08-19  host       production  journald retention raised to 7d   —
-0.6.1    2026-08-14  fasttrack  production  #67's real fix                    went live
-—        2026-08-14  service    rehearsal   DNS: rehearsal.tileliteelite.com  —
-0.6.0    2026-08-14  normal     production  twelve issues                     #67 was wrong
-```
-
-**The version column is empty for a host or service change**, which is the point:
-it says at a glance that this one had no release, and therefore no smoke test, no
-rollback path and no milestone.
-
-**And the environment column is there because production is not everything we
-maintain.** A rehearsal DNS record and a preview volume are changes to things we
-own, and the log's question — *what changed, where, and when* — is the same for
-them. Filtering to production is then a column, where excluding them would have
-been a decision nobody could reverse later.
-
-#### The part that is not derivable
-
-Version, date, commit and contents all come from tags and milestones. **Outcome
-does not**, and it is the column worth having: *"went live and was wrong"* is
-what makes 0.6.0's entry useful, and no tag knows it. That is #156's
-generated-skeleton-plus-a-written-line, arrived at from the other end.
-
-### D7 · Should `docs/changes/issues/` be renamed, and to what? — **answered: B, nested**
-
-Owner, 2026-08-20: *"We should rename the issues folder as workstream, but
-presumably that will be done as part of applying the glossary."* Yes to the
-second half — it is an apply-the-glossary task, and it moves files, so it wants
-doing once.
-
-**But the folder does not hold only workstreams today.** It holds
-`179-process-workstream/` — a workstream's parent — and
-`174-logs-and-backups/` — a plain issue's design note, for an issue that belongs
-to *production operations* and is not a workstream at all. Renaming to
-`workstreams/` would file that second one under a claim that is not true.
-
-| option | | |
-| --- | --- | --- |
-| **A. keep `issues/`** | folders named for the issue that owns them, whatever level that issue is | accurate today, and says nothing about the levels |
-| **B. rename to `workstreams/`, and nest** | `workstreams/179-process/`, with projects and issue notes inside | mirrors the model exactly, and every document has one path that reflects what owns it |
-| **C. three folders** | `workstreams/` · `projects/` · `issues/` | most precise, and three places to look instead of one |
-
-**Decided 2026-08-20: B.** Owner: *"yes, B. And it makes us think about which
-workstream an issue is in."* Which is the argument I had missed — the structure
-does not merely *record* the classification, it **forces** it, at the moment a
-document is created and while the answer is still cheap. Same principle as the
-issue form asking for type and route at the moment an issue is raised.
-
-The shape:
-
-```text
-docs/changes/
-  workstreams/
-    process-and-tooling/          the capability, not the issue number
-      glossary.md                 documents the workstream owns
-      process-review.md
-      179-…/                      an issue's own documents, where it has any
-      projects/
-        179A-…/                   a project's documents, testing included
-    production-operations/
-      174-logs-and-backups/
-        design.md
-```
-
-**Named for the capability, not for a parent issue**, because a capability may
-have no parent issue yet — nine of the ten do not. A folder needs no issue to
-exist, and naming it for one would block filing behind creating ten issues
-nobody has asked for.
-
-The costs stand and are worth restating: deeper paths, a move when an issue's
-workstream changes — rare — and one more round of broken links, which is the
-argument for doing **every** folder move in a single change.
-
-### D8 · How much to cite
-
-The trailing *open questions* section carried this, and it is still open. A named
-practice a reader can look up is worth more than a paragraph of our own
-reasoning — but `docs/3.3` is long, and #137 was about making it shorter to
-consult.
-
-| option | |
-| --- | --- |
-| **cite once, in the notes** | the term appears in the *what*; the source appears once in part 3, and nowhere else |
-| cite at every use | findable anywhere, and it turns the runbook into a bibliography |
-| cite nowhere | our vocabulary becomes private, which is the thing this document exists to prevent |
-
-**Recommended: the first.** Part 3 is where a reader goes when they want to know
-*why*, which is the same moment they want the source.
-
-### D9 · Do *gate* and *check* mean different things?
-
-We use *gate* for both **a check that refuses** and **a check that warns and
-asks** — and #137's audit found `docs/3.3` describing the second as the first,
-which is the evidence that the words are doing two jobs.
-
-| option | |
-| --- | --- |
-| **gate refuses, check reports** | used strictly. `deploy.sh`'s nine gates refuse; `verify.sh` reports; the review checklist refuses; the tooling-on-`main` warning asks |
-| one word, qualified in place | *"a gate that warns"* — accurate, and it puts the burden on every sentence |
-| leave it | the audit already found one place where the ambiguity misled a reader |
-
-**Recommended: the first**, and it costs a pass over `docs/3.3` in the same
-change that applies the rest.
-
-### D10 · The terminology recommendations — accept them?
-
-Owner, 2026-08-20, on what else is open: *"for example the recommendations around
-terminology."* Right — every entry below carries a recommendation and none has
-been agreed, so the whole set is one unanswered question wearing nine hats.
-
-Answering them one at a time is the wrong shape. **Accept the set, or name the
-exceptions:**
-
-| term | ours | recommendation |
-| --- | --- | --- |
-| release branch | version branch | **adopt** — universal, and ours adds nothing |
-| release *train* | — | **decline** — it names a schedule we do not run |
-| hermetic build | "builds a commit, never the working tree" | **use both** — the term once, our phrase thereafter |
-| expand/contract · parallel change | — | **adopt** — we do it and have no word for it |
-| build metadata | `+<sha>` | **adopt**, for the version discussion |
-| parent issue · sub-issue | master issue, lead issue | **adopt** — *applied 2026-08-19* |
-| blast radius | — | **adopt** — already in use |
-| rehearsal | rehearsal | **keep ours**, mention *staging* once — staging carries expectations we deliberately do not meet |
-| living document · standing issue | ours, coined here | **keep ours** — defined in 3.3 and doing real work |
-| preview | preview | **keep ours**, noting it is not per-branch as the industry's usually is |
-| work package | chunk | **adopt** — *decided 2026-08-20* |
-| programme · project · release | ours | **adopt** — three of the four levels are already the standard term |
-
-**Recommended: accept the set.** Two are already applied, the rest cost a
-find-and-replace in the sweep, and the only one that changes behaviour rather
-than vocabulary is *release train*, which is being declined.
-
-### D11 · Do phases apply to a work package, or only to a project?
-
-Left over from the phases section, and untested because there is no project
-layer in GitHub yet.
-
-| option | |
-| --- | --- |
-| **projects only** | a work package inherits its project's phase and carries no label |
-| every work package | more state, and most of it derivable from whether a branch exists |
-
-**Recommended: projects only**, on the same argument as D3: a phase changes a
-handful of times per project, which is when hand-set state stays honest. A work
-package that needs its own phase is probably a project.
-
-### D12 · Can a release carry work from more than one project? — **answered: one owner, plus small passengers**
-
-**Decided 2026-08-20.** Owner: *"It should be possible to combine different
-projects in the same release… one owning project and smaller passengers makes
-sense. Larger projects are complicated enough in themselves that you wouldn't
-want to combine them. However small code changes can be tacked on to another
-release without increasing the risk or complexity, as long as they don't touch
-the same code."*
-
-**The criterion for a passenger, in his words:** small, and **it does not touch
-the same code**. That is what keeps the risk additive rather than multiplicative
-— two changes in one file interact, two changes in different files do not, and
-the second case is most of a backlog's small fixes.
-
-**Two large projects are never combined.** Each is complicated enough on its own,
-and a release that fails then has two candidate causes and two rollback stories.
-
-*Previously discussed and consistent with this: a milestone is a shipping list,
-and anything not shipping leaves it before the deploy.*
-
-| option | |
-| --- | --- |
-| **one release, one project** | clean, and it matches *"releases are attributes of projects"*. It also forces more releases, and leaves a one-line fix waiting for a project it has nothing to do with |
-| **a release has one owning project, and may carry passengers** | the project is why the release exists; unrelated ready work rides along and the milestone records it. Matches what 0.6.0 actually was — twelve issues, several unrelated |
-| anything ready ships together | which is where we are now, and it is what made the milestone mean four different things |
-
-**Recommended: the second.** The owning project explains the release; passengers
-are how a two-line fix reaches users without waiting for a project of its own.
-The cost is that *"what was this release for?"* has an answer and a footnote —
-which the release log's *what it carried* column already accommodates.
+## Delivery: releases, applications and merges
 
 ### D13 · Is *release* the word for any delivery? — **answered: no, *delivery* is**
 
@@ -814,45 +978,6 @@ answer to *"when did this reach anybody?"*
 **delivery log**, because D6 already decided it records host and service changes
 alongside deploys — entries with no version. The name was describing one of its
 three kinds.
-
-### Route is the join between an issue and a release
-
-**Owner, 2026-08-20: *"I guess route ties issues and releases together."*** That
-is the framing, and it is worth stating before D6 rather than discovering it
-inside it.
-
-An issue's other two axes describe the issue: *type* says what it is and what it
-owes, *workstream* says which capability it belongs to. Neither says anything
-about production. **Route does** — and in saying how a change reaches
-production, it decides whether a release exists at all, what kind, and what
-counts as done:
-
-| route | is there a release? | what the record is |
-| --- | --- | --- |
-| in the artifact · carried by the deploy | **yes** — versioned, tagged, smoke-tested, closing a milestone | a release entry |
-| applied on the host · applied to a service | **no**, but production changed | a dated entry with **no version** |
-| never leaves the repository | no, and production did not change | the commit |
-
-So the release log's shape is not a separate design: it falls out of the route
-values, one entry-kind per class. If a new route ever appears, the log gains a
-kind — which is a good test of whether the route is real.
-
-### A review has three outcomes
-
-**Decided 2026-08-20.** Owner: *"I need to say 'approved', 'approved with
-changes', 'change and re-review'. I guess we don't need 'reject'."*
-
-| outcome | label | what happens next |
-| --- | --- | --- |
-| **approved** | `approved` | Claude merges |
-| **approved with changes** | `provisionally-approved` | Claude makes the noted changes **and merges** — no second review |
-| **change and re-review** | neither | Claude changes it and hands it back |
-
-The middle one is most reviews, and without it each of them costs a lap whose
-only purpose is to confirm what was already agreed. There is no *reject*: a
-change that should not happen is a closed pull request and a comment saying why.
-
-## Release planning: from a categorised issue to a user
 
 Owner, 2026-08-20: *"I guess we start with route. Does route [determine] the
 release mechanism? Do we group issues by route to construct releases?"*
@@ -916,6 +1041,102 @@ cannot express: #174's journald drop-in should be applied *before* the JSON
 logging ships, or the first structured logs land in a 50M journal that discards
 them in five days. A project plan has to say that; a release cannot.
 
+#### D12 · Can a release carry work from more than one project? — **answered: one owner, plus small passengers**
+
+**Decided 2026-08-20.** Owner: *"It should be possible to combine different
+projects in the same release… one owning project and smaller passengers makes
+sense. Larger projects are complicated enough in themselves that you wouldn't
+want to combine them. However small code changes can be tacked on to another
+release without increasing the risk or complexity, as long as they don't touch
+the same code."*
+
+**The criterion for a passenger, in his words:** small, and **it does not touch
+the same code**. That is what keeps the risk additive rather than multiplicative
+— two changes in one file interact, two changes in different files do not, and
+the second case is most of a backlog's small fixes.
+
+**Two large projects are never combined.** Each is complicated enough on its own,
+and a release that fails then has two candidate causes and two rollback stories.
+
+*Previously discussed and consistent with this: a milestone is a shipping list,
+and anything not shipping leaves it before the deploy.*
+
+| option | |
+| --- | --- |
+| **one release, one project** | clean, and it matches *"releases are attributes of projects"*. It also forces more releases, and leaves a one-line fix waiting for a project it has nothing to do with |
+| **a release has one owning project, and may carry passengers** | the project is why the release exists; unrelated ready work rides along and the milestone records it. Matches what 0.6.0 actually was — twelve issues, several unrelated |
+| anything ready ships together | which is where we are now, and it is what made the milestone mean four different things |
+
+**Recommended: the second.** The owning project explains the release; passengers
+are how a two-line fix reaches users without waiting for a project of its own.
+The cost is that *"what was this release for?"* has an answer and a footnote —
+which the release log's *what it carried* column already accommodates.
+
+#### D6 · What is a release, and what gets logged as one?
+
+Owner, 2026-08-20: *"These are attributes of the issue. We also need to
+categorise a release. Are we going to log any change as a release, or only code
+changes…"*
+
+**Releases have attributes of their own**, and they are not the issue's. An issue
+says what a change is; a release says what happened to production on one
+occasion.
+
+| attribute | values |
+| --- | --- |
+| **version** | `X.Y.Z` — patch, minor or major, per the rules already in 3.3 |
+| **kind** | **normal** · **fasttrack** (a patch shipped alone) · **emergency** (gates skipped, retrospective owed) · **rollback** (production moved backwards) |
+| **carried** | the milestone's issues — derivable, and `deploy.sh` already closes them |
+| **outcome** | went live · rolled back · **went live and was wrong**, which #67 was |
+| **facts** | tag, commit, date — all derivable from `git tag --list 'prod-*'` |
+
+##### What gets logged
+
+Three options, and the question is really *what is the log for*:
+
+| option | | |
+| --- | --- | --- |
+| **A. deploys only** | one entry per `prod-*` tag | clean and fully derivable, and it misses every production change that arrives without a deploy — the journald cap, an OCI alarm, a DNS record |
+| **B. anything that changes an environment we maintain** | deploys, **plus** host and service changes, **and which environment** each touched | matches the route axis exactly: artifact and deploy get a version, host and service get a dated entry with no version. And it holds for rehearsal and preview, which are also things we maintain — #147 changed rehearsal's DNS and nothing in production |
+| **C. every change** | including merge-lane work | the commit log already does this, better, and nobody would read a log that grows by a dozen entries a week |
+
+**Recommended: B**, and the reason is the one the route axis already found. A
+change applied on the host or in somebody's console leaves **nothing in the
+repository** unless we put it there — that is why those routes are *done when
+their documentation is*. The release log is where that documentation naturally
+lives, because the question it answers is *"what changed in production, and
+when?"*, and a firewall rule answers to that question exactly as a deploy does.
+
+So the log has two kinds of entry:
+
+```text
+version  date        kind       where       what                              outcome
+0.6.2    2026-08-17  normal     production  bytes RUSTSEC fix, throttle test  went live
+—        2026-08-19  host       production  journald retention raised to 7d   —
+0.6.1    2026-08-14  fasttrack  production  #67's real fix                    went live
+—        2026-08-14  service    rehearsal   DNS: rehearsal.tileliteelite.com  —
+0.6.0    2026-08-14  normal     production  twelve issues                     #67 was wrong
+```
+
+**The version column is empty for a host or service change**, which is the point:
+it says at a glance that this one had no release, and therefore no smoke test, no
+rollback path and no milestone.
+
+**And the environment column is there because production is not everything we
+maintain.** A rehearsal DNS record and a preview volume are changes to things we
+own, and the log's question — *what changed, where, and when* — is the same for
+them. Filtering to production is then a column, where excluding them would have
+been a decision nobody could reverse later.
+
+##### The part that is not derivable
+
+Version, date, commit and contents all come from tags and milestones. **Outcome
+does not**, and it is the column worth having: *"went live and was wrong"* is
+what makes 0.6.0's entry useful, and no tag knows it. That is #156's
+generated-skeleton-plus-a-written-line, arrived at from the other end.
+
+## Process and authorisation: what a change must pass through
+
 ### D14 · Do we classify the process a delivery must go through?
 
 Owner, 2026-08-20, proposing four categories: *pre-approved edit directly in
@@ -961,69 +1182,86 @@ in a morning against a moving target.
 do I have to do with this?* is the question a contributor actually asks — and the
 tooling rows gain the gate that would have caught two of this week's rewrites.
 
-### D15 · Technical testing and user testing — a variant, or a property of each change?
+#### D5 · Does `main` get a ruleset? — **answered: yes**
 
-Owner, 2026-08-20: *"One variant on application release is technical application
-release, which replaces user testing with technical testing in rehearsal… Or
-perhaps we just say that technical aspects of the change are tested in rehearsal
-by a technical test rather than in preview by a user test. Then if a release is
-all technical or all functional it would just do one, but if it is a mix it would
-do both."*
+**Decided 2026-08-20**, reviewing PR #184. Requiring CI's `check` job on `main`,
+and nothing more. Still to do: create the ruleset, which may need a token
+permission we do not have.
 
-**The second framing is the better one**, and it is already 3.3's rule arriving
-from a new direction: *evidence follows what the change does, not the label it
-carries.* A category called *technical application release* would make the
-release the unit; the change is the unit, and a release inherits the union of its
-changes' obligations.
-
-| what the change is | where it is judged | by what |
-| --- | --- | --- |
-| a person can see whether it does what was wanted | **preview** | **user testing** — the judgement no script makes |
-| nobody can see it by using it — limits, timing, memory, headers | **rehearsal** | **a technical test**: a script that asserts the shape, on hardware that matches production |
-| both | both | both, and neither substitutes for the other |
-
-**This is not derivable from type.** #165 (`Retry-After` rebuilt from a rounded
-number) is `minor-function` and entirely technical: nobody can see it by playing.
-Issue #29 (memory growth) is `major-function` and tested by load, not by use. And #25's
-rate limiting is the case that produced `check-rate-limits.sh` precisely because
-preview *cannot* judge it — a development machine says nothing about a 2 vCPU
-box.
-
-**The machinery already exists**, and only the reasoning is missing:
-`DEPLOY_SKIP_PREVIEW=1` means *"there was nothing for a person to look at"*,
-which is exactly the all-technical release. Today that is a judgement typed at
-deploy time; it should be the sum of what the milestone's issues said.
+**The options as they stood, kept as the record:**
 
 | option | |
 | --- | --- |
-| **every issue names where it is tested** — preview, rehearsal, or both | one more thing to answer, and the release's obligation becomes the union rather than a judgement at the end |
-| a fifth axis, *test surface* | the same information, dressed as a category |
-| leave it a judgement | which is where `DEPLOY_SKIP_PREVIEW` is now, and it has never been wrong yet — because one person holds all the context |
+| none | anything can be pushed, and nothing had gone wrong yet |
+| **require the CI check** — *chosen* | a red push cannot land on `main` |
+| require CI and the review checklist | and a pull request for every change, which the merge lane deliberately does not ask for |
 
-**Recommended: the first**, as part of the *what would show it works* field rather
-than as a new dropdown. It costs a phrase per issue and it makes the skip
-derivable — and the one-person-holds-the-context argument for leaving it is
-exactly the argument that stops being true first.
+**Agreed: require CI's `check` job, nothing else, and only after #184 merges.** It is the one gate whose answer is objective and whose
+failure is expensive. Requiring a review checklist with one author is ceremony,
+and requiring pull requests would undo the merge lane.
 
-## Where each part stands
+## Terminology: our words and the industry's
 
-| section | state | lands in |
+### D10 · The terminology recommendations — accept them?
+
+Owner, 2026-08-20, on what else is open: *"for example the recommendations around
+terminology."* Right — every entry below carries a recommendation and none has
+been agreed, so the whole set is one unanswered question wearing nine hats.
+
+Answering them one at a time is the wrong shape. **Accept the set, or name the
+exceptions:**
+
+| term | ours | recommendation |
 | --- | --- | --- |
-| [The four levels](#the-four-levels-and-what-each-is-called) | **decided** | `docs/3.3`, the change lifecycle |
-| [Project phases](#project-phases) | **decided**, except the last | `docs/3.3`, and the `phase:` labels already exist |
-| [Capability workstreams](#capability-workstreams) | **candidate** — the list is agreed, the adoption is not started | `docs/3.3`, and a parent issue or label per workstream |
-| [Decisions awaiting your agreement](#decisions-awaiting-your-agreement) | **D1–D4 open, D5 answered** | each into the section it belongs to, then `docs/3.3` |
-| [Categorising changes and releases](#categorising-changes-and-releases-three-attributes-not-one-lane) | **candidate** — the decision is D1; #154 is closed and folded here | `docs/3.3`'s lane table, and new labels or an issue form |
-| [How ITIL handles tooling](#how-itil-handles-tooling-monitoring-and-instrumentation) | **decided** as reasoning; changes nothing on its own | the notes behind the lane rule |
-| [How the process is managed](#how-the-process-is-managed-github-folders-scripts) | **decided**; the `docs/3.0` script rows are **applied** in PR #184 | a new section in `docs/3.3` |
-| Individual terms below | **candidate**, except *parent issue* | wherever the term is used |
-| *parent issue* | **applied** 2026-08-19 | `docs/3.3` — PR #185 |
+| release branch | version branch | **adopt** — universal, and ours adds nothing |
+| release *train* | — | **decline** — it names a schedule we do not run |
+| hermetic build | "builds a commit, never the working tree" | **use both** — the term once, our phrase thereafter |
+| expand/contract · parallel change | — | **adopt** — we do it and have no word for it |
+| build metadata | `+<sha>` | **adopt**, for the version discussion |
+| parent issue · sub-issue | master issue, lead issue | **adopt** — *applied 2026-08-19* |
+| blast radius | — | **adopt** — already in use |
+| rehearsal | rehearsal | **keep ours**, mention *staging* once — staging carries expectations we deliberately do not meet |
+| living document · standing issue | ours, coined here | **keep ours** — defined in 3.3 and doing real work |
+| preview | preview | **keep ours**, noting it is not per-branch as the industry's usually is |
+| work package | chunk | **adopt** — *decided 2026-08-20* |
+| programme · project · release | ours | **adopt** — three of the four levels are already the standard term |
 
----
+**Recommended: accept the set.** Two are already applied, the rest cost a
+find-and-replace in the sweep, and the only one that changes behaviour rather
+than vocabulary is *release train*, which is being declined.
 
-## Where the standard term is simply better
+#### D8 · How much to cite
 
-### release branch · release train
+The trailing *open questions* section carried this, and it is still open. A named
+practice a reader can look up is worth more than a paragraph of our own
+reasoning — but `docs/3.3` is long, and #137 was about making it shorter to
+consult.
+
+| option | |
+| --- | --- |
+| **cite once, in the notes** | the term appears in the *what*; the source appears once in part 3, and nowhere else |
+| cite at every use | findable anywhere, and it turns the runbook into a bibliography |
+| cite nowhere | our vocabulary becomes private, which is the thing this document exists to prevent |
+
+**Recommended: the first.** Part 3 is where a reader goes when they want to know
+*why*, which is the same moment they want the source.
+
+#### D9 · Do *gate* and *check* mean different things?
+
+We use *gate* for both **a check that refuses** and **a check that warns and
+asks** — and #137's audit found `docs/3.3` describing the second as the first,
+which is the evidence that the words are doing two jobs.
+
+| option | |
+| --- | --- |
+| **gate refuses, check reports** | used strictly. `deploy.sh`'s nine gates refuse; `verify.sh` reports; the review checklist refuses; the tooling-on-`main` warning asks |
+| one word, qualified in place | *"a gate that warns"* — accurate, and it puts the burden on every sentence |
+| leave it | the audit already found one place where the ambiguity misled a reader |
+
+**Recommended: the first**, and it costs a pass over `docs/3.3` in the same
+change that applies the rest.
+
+#### release branch · release train
 
 **Standard**: a branch cut for a release, with scope frozen at the cut; changes
 merge into it, and it ships. A *train* is the scheduling variant — it departs on
@@ -1035,7 +1273,7 @@ time and unready features get off.
 train metaphor is worth adopting too, because it names the de-scoping rule we do
 not yet have (#135): the train leaves, the feature waits for the next one.
 
-### hermetic build
+#### hermetic build
 
 **Standard**: a build that depends only on declared inputs, so it can be
 reproduced from source control alone.
@@ -1047,7 +1285,7 @@ at the target commit, never the working tree.
 actually do, which is narrower and clearer. Lead with hermetic, keep the
 worktree sentence.
 
-### expand/contract  (also: parallel change)
+#### expand/contract  (also: parallel change)
 
 **Standard**: schema changes made in two deployable steps so the old and new
 code both work against the intermediate state.
@@ -1059,7 +1297,7 @@ container swap.
 hard to reason about. Worth noting we currently do the *sequencing* half but not
 the two-phase half — naming it makes that gap visible.
 
-### build metadata
+#### build metadata
 
 **Standard**: semver §10 — the `+<anything>` suffix, ignored in precedence.
 
@@ -1068,7 +1306,7 @@ the two-phase half — naming it makes that gap visible.
 **Recommend: adopt** for the version-number discussion, where the precedence
 rule matters. "Build id" is fine everywhere else.
 
-### parent issue  ·  sub-issue
+#### parent issue  ·  sub-issue
 
 **Standard**: GitHub's own vocabulary for the feature — a *parent issue* with
 *sub-issues*, with progress rolled up automatically.
@@ -1080,7 +1318,7 @@ rule matters. "Build id" is fine everywhere else.
 document, the API and the UI all say the same thing, and it retires "master".
 Owes one edit to 3.3's *Where a document lives*.
 
-### blast radius
+#### blast radius
 
 **Standard**: how much breaks, and how visibly, if a change is wrong.
 
@@ -1091,9 +1329,7 @@ blast radius, not by category".
 
 ---
 
-## Where ours is better, and should stay
-
-### rehearsal  (vs staging)
+#### rehearsal  (vs staging)
 
 **Standard**: *staging* — an environment resembling production, used before
 release.
@@ -1108,21 +1344,21 @@ errand) lands on that version and not on ours. Our word says what it is *for*,
 which is the distinction that makes the preview/rehearsal split work. Say
 "rehearsal (a staging environment, but see below)" once, then use ours.
 
-### ~~lane~~ → three attributes
+#### ~~lane~~ → three attributes
 
 **Superseded** by [Categorising changes and
-releases](#categorising-changes-and-releases-three-attributes-not-one-lane)
+releases](#classifying-a-change-type-route-release)
 below. The short version: `merge`, `fasttrack`, `minor`, `major` and
 `emergency` are one word answering three different questions, which is why
 mapping a real change onto the list takes an argument every time.
 
-### living document · standing issue
+#### living document · standing issue
 
 **Standard**: none in common use.
 
 **Recommend: keep ours.** Coined here, defined in 3.3, and doing real work.
 
-### preview
+#### preview
 
 **Standard**: "preview environment" / "review app" — close enough to be the same
 thing, though usually per-branch and ephemeral where ours is one shared local
@@ -1131,8 +1367,6 @@ stack.
 **Recommend: keep ours**, and note the difference: ours is not per-branch.
 
 ---
-
-## Where the standard term names something we do not do
 
 Worth naming anyway, because a considered rejection needs somewhere to live —
 and 3.3's convention of "say what we do, not what we rejected" currently leaves
@@ -1147,193 +1381,176 @@ these looking like oversights.
 | **SLSA provenance** | binding an artifact digest to a source revision | the formal version of #134; worth citing there |
 | **trunk-based development** | short-lived branches off a trunk that is always releasable | mostly what we do; our release branches are TBD's "branch for release", explicitly *not* GitFlow's permanent `develop` |
 | **dev/prod parity** | 12-factor X — keep environments similar | why preview keeps its volume, so migrations meet a non-empty database |
-| **change enablement** | ITIL — normal / standard / emergency changes, with post-implementation review | we have the decision points exactly, under our own words — see [Categorising changes and releases](#categorising-changes-and-releases-three-attributes-not-one-lane) |
+| **change enablement** | ITIL — normal / standard / emergency changes, with post-implementation review | we have the decision points exactly, under our own words — see [Categorising changes and releases](#classifying-a-change-type-route-release) |
 | **quality gate** | an automated check that blocks progress | our "gate" — same word, already aligned |
 
 ---
 
-## The four levels, and what each is called
+## How the process is managed: GitHub, folders, scripts
 
-Definitions only — where these live in GitHub is a separate question, settled
-on issue #179. Checked against MSP and PRINCE2, and against a second opinion
-asked the same question.
+**Decided and in use**, except where marked. Owner, 2026-08-19: *"We also need to
+document how we are using GitHub and scripts to manage the process… and the
+folders and any other tooling."* This is the inventory; it lands in `docs/3.3`
+as a section of its own, and the script rows join the table in `docs/3.0`.
 
-| level | ours | the industry's | definition |
+### GitHub objects, and what each one means here
+
+| object | carries | notes |
+| --- | --- | --- |
+| **issue** | one change, or one project | the body is the conclusion, the comments are the argument |
+| **parent issue** · **sub-issue** | a workstream and its parts | real GitHub links, so structure is read rather than inferred |
+| **milestone** | a **release**, or a lane | `deploy.sh` closes the milestone and every open issue in it, which is why anything not shipping must leave first |
+| **type label** | what a change is, and what it owes | the seven: `bug`, `documentation`, `non-prod-tooling`, `prod-tooling`, `major-function`, `minor-function`, `appearance` |
+| **`phase:` label** | where a project is | five, hand-set — scope-and-design, development, user-testing, deployment, post-deployment |
+| **`awaiting-review`** | it is Steve's turn | set by hand or by `/ready`; the native draft flag cannot be set by our token |
+| **`approved`** | reviewed; the merge is Claude's to run | approving and merging are different decisions, so this never merges anything |
+| **task list in an issue body** | an **action** — the only surface that carries state | `(Steve)` / `(Claude)` prefix makes "waiting on whom" derivable |
+| **task list in a pull request body** | the **review checklist**, which is the review itself | a workflow fails the check while a box is unticked |
+| **pull request** | one change's passage: review, readiness, mechanics | frozen at merge, so conclusions are promoted to the issue body or a document before then |
+
+### How an action is recorded
+
+**Decided 2026-08-19**, from #181. An **action** is an unchecked `- [ ]` in an
+**issue** body, under an `Open actions` heading, prefixed `(Steve)` or
+`(Claude)`.
+
+The issue body is the only surface that carries state: an issue holds one bit,
+open or closed; a comment is append-only, so it can never be marked done; a pull
+request body freezes at merge. A checkbox can be ticked, GitHub counts it, and an
+item promotes to a full issue in one click when it turns out to be real work.
+
+**The same syntax in a pull request body is not an action** — it is the review
+checklist, which is the review itself.
+
+**The boundary with a sub-issue:** if it needs a branch, it is an issue. If it is
+a decision, a lookup or a small edit, it is a checkbox. A checkbox that grows a
+design discussion has told you it should have been an issue.
+
+`./scripts/actions.py` gathers them across every open issue, grouped by
+workstream, so the record can stay where the argument is without becoming
+impossible to find.
+
+### What the tooling reads, and what it writes
+
+**Decided 2026-08-20**, after the owner left two tables in an issue body he
+wanted to delete: *"I wasn't sure if they were automated and I didn't want to
+break the tooling."* A document whose machine-read parts are invisible makes
+every edit a risk, and the safe move becomes changing nothing.
+
+Two categories, and they need different marks because they need opposite
+behaviour from a reader:
+
+| | mark | who writes it | what a person may do |
 | --- | --- | --- | --- |
-| the whole thing | **programme** | evergreen programme · continuous value stream | the application **and everything we maintain to keep it going**: the production service, the dev, preview and rehearsal environments, the documentation, and the process itself. Unbounded scope, no end date |
-| an area of it | **workstream** | functional or capability workstream | one capability, worked on indefinitely — the game model, the process, production operations |
-| a bounded piece | **project** | project | *a temporary endeavour undertaken to create a unique product or result* — fixed scope, ends when the scope is complete |
-| a unit of build | **work package** | work package (PRINCE2, WBS) | one development unit within a project: "the client changes for #71". We said *chunk* until 2026-08-19 |
-| what ships | **release** | release | one or more changes built, tested and deployed together |
+| **read** by a script | a **named heading**: `## Open actions`, `## Review` | a person | edit freely, but keep the shape — one `- [ ]` per item |
+| **written** by a script | a **banner**, unmissable: `***** GENERATED — DO NOT EDIT *****`, with the tool named | the tool | nothing. Change the source, re-run the tool |
+| everything else | none | a person | anything at all |
 
-**Everything in the programme is under change control, not only the production
-service.** Owner, 2026-08-20: *"The whole application includes not only the
-production service, but also the dev and test environments, the design
-documentation, the processes and so on. A change to any of these should be
-recorded and controlled."* That is why `documentation` and `non-prod-tooling`
-are types rather than exemptions, why the merge lane is a lane rather than a way
-of avoiding one, and why this document exists at all. What differs between them
-is the **evidence** each owes and the **route** it takes — never whether it is
-tracked.
+**Nothing is generated today.** The banner is defined ahead of its first use:
+the release log in #156 is the first thing that will need it — because the rule is
+cheap to state now and expensive to retrofit onto a document somebody has
+already hand-edited.
 
-**A workstream is a capability area, not a bag of related changes.** That is the
-sharper definition, and it gives a test: two pieces of work belong in the same
-workstream when they touch the same capability, not when they merely arrived in
-the same week.
+**Never mix the two in one section.** That is #156's own conclusion about the
+release log — *never mix generated and hand-written in one file* — applied one
+level down: a regeneration that has to preserve somebody's prose is a
+regeneration that will eventually eat it, and the failure is silent.
 
-**A release may stand outside a project.** A fasttrack patch is a release with no
-project behind it, and a merge-lane change is live with no release at all. A
-model that implied otherwise would send documentation and tooling looking for a
-project they will never have.
+**A read section says so, in itself.** One italic line under the heading naming
+the script and the shape it expects. A reader should not have to know the
+tooling to know what is safe.
 
-### Two terms offered and declined
+### Folders
 
-**Release train.** The train is specifically the *scheduled* variant: it departs
-on time and unready features get off. We release when a scope is ready, so the
-word would promise a cadence we do not run. Adopt *release branch*; keep the
-train metaphor for the de-scoping rule (#135), which is the narrower claim.
+**Where a document lives is `docs/3.3` §2.9.4.1**, applied and enforced by
+`check-docs.sh`. It is not repeated here: the table below covers only what that
+section does not, because a second copy of a rule is the copy that goes stale.
 
-**Epic**, for a project. An epic is not time-bound and has no fixed scope, which
-is the one property that makes a project a project.
+| path | holds |
+| --- | --- |
+| `docs/diagrams/` | `.mmd` sources and their rendered `.svg` — edit the source, re-render, commit both |
+| `scripts/` | the tools, listed in `docs/3.0` |
+| `.github/workflows/` | CI, and the document review workflow |
+| `.claude/` | how Claude is driven — gitignored, because it is not the project's |
 
-*Both were listed as open questions at the foot of this document until
-2026-08-20; they were answered here and the duplicate has gone.*
+### Which script answers which question
+
+| question | script |
+| --- | --- |
+| where is every open change, and what is each environment running? | `status.sh` |
+| what is in each release, in release order? | `roadmap.sh` |
+| what is waiting on me? | `actions.py` |
+| what has been said on GitHub since I last looked? | `inbox.sh` |
+| is everything actually in place? (asserts, exits non-zero) | `verify.sh` |
+| are the documents lint-clean, their links live, their files in the right folders? | `check-docs.sh` — CI runs it on every push |
+| did a named CI run pass for this commit? | `ci-status.sh` |
+
+The first four **derive and store nothing**, so they cannot drift; the last three
+**assert**, and exit non-zero when they are unhappy. That split is deliberate:
+a display has to be read, and the failure mode of reading is not noticing.
+
+### Other tooling
+
+| | what it does |
+| --- | --- |
+| **CI** (`.github/workflows/ci.yml`) | fmt, clippy, tests, wasm, the commit stamp, `check-docs.sh`, and Playwright on `main` and pull requests. A deploy gate, not a signal |
+| **Docs workflow** (`docs.yml`) | the review checklist as a check, and `/ready` `/changes` `/approve` as label-only commands. **Candidate** until PR #184 merges |
+| **OCI monitoring** | external `/health` probes from three regions, plus CPU, memory and instance-stopped alarms, emailing the owner (#136) |
+| **`.claude/` hooks** | a session-start GitHub digest, and a per-turn check for new comments and edited pull request bodies |
 
 ---
 
-## Project phases
+#### D7 · Should `docs/changes/issues/` be renamed, and to what? — **answered: B, nested**
 
-**Decided 2026-08-19**, except where marked. A phase belongs to a **project**, not
-to a workstream: a workstream has no end, and a project is the thing that passes
-through phases and stops.
+Owner, 2026-08-20: *"We should rename the issues folder as workstream, but
+presumably that will be done as part of applying the glossary."* Yes to the
+second half — it is an apply-the-glossary task, and it moves files, so it wants
+doing once.
 
-Five, and the first covers two activities rather than being split into two
-phases — owner: *"scoping and design are done in the same phase for us."*
+**But the folder does not hold only workstreams today.** It holds
+`179-process-workstream/` — a workstream's parent — and
+`174-logs-and-backups/` — a plain issue's design note, for an issue that belongs
+to *production operations* and is not a workstream at all. Renaming to
+`workstreams/` would file that second one under a claim that is not true.
 
-| phase | the question | its artefact | it ends when |
-| --- | --- | --- | --- |
-| **scope and design** | what is in, and how will it be done? | the **issue body** fixes the scope; the **design note** carries the design | both are agreed — in practice one review |
-| **development** | is it built? | **work packages**: branches, pull requests, merges | the last work package in scope is merged |
-| **user testing** | does it do what was wanted? | the **project's** testing documents, in a folder named for its main release | somebody decides it does — **or the scope changes**, which sends it back |
-| **deployment** | is it live? | the **release**: milestone, `prod-` tag, smoke test | `deploy.sh` exits 0 |
-| **post-deployment** | did it do what it was for? | a **review** — *not built* | the project closes |
-
-**Recorded as a `phase:` label** on the project's issue, hand-set. The
-interesting boundaries are judgements — *"user testing is finished"* is not
-visible to a script — and a phase changes a handful of times per project, which
-is when hand-set state does not drift. A label rather than a body line, because
-a label is filterable where the work is done.
-
-### Where the gates are, and why there are only three
-
-The classic five gates map onto the phases, and two of them are already machines:
-
-| gate | attaches to | who answers |
+| option | | |
 | --- | --- | --- |
-| scope agreed · design agreed | the project | a person, and it needs no ceremony beyond the review we already run |
-| **build review** | each release | **CI** — fmt, clippy, tests, wasm, the stamp, e2e |
-| **go-live readiness** | each release | **the deploy gates** — preview and rehearsal on the exact commit, the schema check, the snapshot, automatic rollback |
-| **post-implementation** | the project, at close | a person — **and we do not have it** |
+| **A. keep `issues/`** | folders named for the issue that owns them, whatever level that issue is | accurate today, and says nothing about the levels |
+| **B. rename to `workstreams/`, and nest** | `workstreams/179-process/`, with projects and issue notes inside | mirrors the model exactly, and every document has one path that reflects what owns it |
+| **C. three folders** | `workstreams/` · `projects/` · `issues/` | most precise, and three places to look instead of one |
 
-A gate with an objective answer belongs in a script; the ones left for a person
-are the ones without. That is the same test the lane discussion arrived at.
+**Decided 2026-08-20: B.** Owner: *"yes, B. And it makes us think about which
+workstream an issue is in."* Which is the argument I had missed — the structure
+does not merely *record* the classification, it **forces** it, at the moment a
+document is created and while the answer is still cheap. Same principle as the
+issue form asking for type and route at the moment an issue is raised.
 
-### What the phases still owe
+The shape:
 
-The two questions this section used to carry are now **D4** (the
-post-implementation review, answered) and **D11** (phases on a work package).
-What remains is not a decision but a piece of work:
+```text
+docs/changes/
+  workstreams/
+    process-and-tooling/          the capability, not the issue number
+      glossary.md                 documents the workstream owns
+      process-review.md
+      179-…/                      an issue's own documents, where it has any
+      projects/
+        179A-…/                   a project's documents, testing included
+    production-operations/
+      174-logs-and-backups/
+        design.md
+```
 
-**Inserting the project layer.** #71's work packages and #179's children hang
-directly off a workstream, with no project between. The vocabulary is decided and
-the restructuring is not done — and #71 is where it will first be tested, being
-the one workstream that genuinely has projects.
+**Named for the capability, not for a parent issue**, because a capability may
+have no parent issue yet — nine of the ten do not. A folder needs no issue to
+exist, and naming it for one would block filing behind creating ten issues
+nobody has asked for.
 
----
+The costs stand and are worth restating: deeper paths, a move when an issue's
+workstream changes — rare — and one more round of broken links, which is the
+argument for doing **every** folder move in a single change.
 
-## Categorising changes and releases: three attributes, not one lane
-
-Moved here from #154 on the owner's instruction, 2026-08-19, because it is a
-question about **words** before it is a question about process.
-
-### What the industry separates
-
-ITIL keeps three things apart that our one lane word runs together:
-
-| | categorises by | values |
-| --- | --- | --- |
-| **change type** | how it is **authorised** | standard (pre-approved, repeatable, no per-instance authorisation) · normal (assessed and scheduled) · emergency (expedited) |
-| **release type** | what the release **contains** | major · minor · emergency |
-| **release vs deployment** | *deployment* moves components into an environment; *release* makes function available to users | two separate practices in ITIL 4 |
-
-That third row is the one worth internalising: they are deliberately not the
-same event, which is also the entire basis of feature flags in the CD
-literature — deploy dark, release later.
-
-**A naming caution.** ITIL already uses *dimensions* for something else — the
-[four dimensions of service
-management](https://itsm.tools/itil-4-explained/) — so ours should be called
-**attributes** or **axes**, never dimensions, or a reader who knows ITIL will
-expect organisations-and-people, information-and-technology, partners, and value
-streams.
-
-### What our lane word is actually saying
-
-| our lane | the question it answers | ITIL axis |
-| --- | --- | --- |
-| **merge** | it never travels the deploy path | deployment |
-| **config-only** (never named, and no longer needed) | it changes production with no artifact — which the axes now say as *route = applied on the host, release = none*. A combination, not a category: naming it would invite it to grow rules of its own | deployment |
-| **fasttrack** | it ships alone, as a patch | release |
-| **minor** / **major** | it is grouped into a release of that size | release |
-| **emergency** | authorisation is expedited | change type |
-
-`emergency` is not the same *kind* of thing as `minor`, and `merge` is not the
-same kind of thing as `fasttrack`.
-
-### The proposal
-
-Three attributes on an issue, replacing the single lane:
-
-| attribute | values | answers |
-| --- | --- | --- |
-| **type** (already have it) | the seven labels | what it is, and what evidence it owes |
-| **route** | *in the artifact* · *carried by the deploy* · *applied on the host* · *applied to a service we use* · *never leaves the repository* | how it reaches its consumer, and which environment it changes |
-| **release** | patch (alone) · minor · major · none | what carries it to users, and which milestone closes it |
-
-Authorisation then falls out without a label of its own, landing on ITIL's three
-change types exactly: *never leaves the repo* is a **standard change** — live on
-merge, pre-authorised by a documented procedure; anything in the artifact or
-carried by the deploy is a **normal change**; and the emergency deploy is an
-**emergency change**, orthogonal to both other attributes.
-
-## How the three attributes settle the cases that were hard
-
-The cases are #154's, plus the ones this week produced. Every row was previously
-an argument.
-
-| case | type | route | release |
-| --- | --- | --- | --- |
-| `deploy.sh`, `rollback.sh`, `verify.sh` | prod-tooling | never leaves the repo | none — live at merge |
-| `.github/workflows/`, `e2e/`, `scripts/tests/` | non-prod-tooling | never leaves the repo | none |
-| `Caddyfile.preview` | non-prod-tooling | never leaves the repo | none |
-| documentation, including `docs/3.4` about production | documentation | never leaves the repo | none |
-| client/server code, `Caddyfile`, the admin CLI | app | in the artifact | with a release |
-| **migrations** | app | in the artifact, and they change production data irreversibly | with a release |
-| dev-only client code (#130) | minor-function | in the artifact | with a release |
-| **instrumentation** — JSON logs, metrics (#174) | minor-function | in the artifact | with a release |
-| `docker-compose.yml` | prod-tooling | carried by the deploy | with a release |
-| the `sa` alias `deploy.sh` writes on the VM | prod-tooling | carried by the deploy | with a release |
-| **journald retention drop-in** (#174) | prod-tooling | applied on the **production** host | none — document it, close by hand |
-| **OCI alarms** (#136) | prod-tooling | applied to a service, for **production** | none — same |
-| **rehearsal DNS** (#147) | prod-tooling | applied to a service, for **rehearsal** | none — same, and it changed no production service at all |
-| `.env` on the VM | prod-tooling | applied on the **production** host | none — same |
-| **the backup job** (#175) | prod-tooling | applied on the host, from a script in the repo | none, unless it ships in the image |
-
-The two rows that used to have no answer at all — config-only and
-tooling-installed-by-the-deploy — now have one by construction rather than by
-adjudication.
-
-## How ITIL handles tooling, monitoring and instrumentation
+## Background: how ITIL handles tooling, monitoring and instrumentation
 
 The owner's question, 2026-08-19. ITIL's answer is not a special case for
 tooling; it is that **the categories were never about "app versus tooling" in
@@ -1522,257 +1739,17 @@ dimensions](https://itsm.tools/itil-4-explained/)
 
 ---
 
-## How the process is managed: GitHub, folders, scripts
+## Where each part stands
 
-**Decided and in use**, except where marked. Owner, 2026-08-19: *"We also need to
-document how we are using GitHub and scripts to manage the process… and the
-folders and any other tooling."* This is the inventory; it lands in `docs/3.3`
-as a section of its own, and the script rows join the table in `docs/3.0`.
-
-### GitHub objects, and what each one means here
-
-| object | carries | notes |
+| section | state | lands in |
 | --- | --- | --- |
-| **issue** | one change, or one project | the body is the conclusion, the comments are the argument |
-| **parent issue** · **sub-issue** | a workstream and its parts | real GitHub links, so structure is read rather than inferred |
-| **milestone** | a **release**, or a lane | `deploy.sh` closes the milestone and every open issue in it, which is why anything not shipping must leave first |
-| **type label** | what a change is, and what it owes | the seven: `bug`, `documentation`, `non-prod-tooling`, `prod-tooling`, `major-function`, `minor-function`, `appearance` |
-| **`phase:` label** | where a project is | five, hand-set — scope-and-design, development, user-testing, deployment, post-deployment |
-| **`awaiting-review`** | it is Steve's turn | set by hand or by `/ready`; the native draft flag cannot be set by our token |
-| **`approved`** | reviewed; the merge is Claude's to run | approving and merging are different decisions, so this never merges anything |
-| **task list in an issue body** | an **action** — the only surface that carries state | `(Steve)` / `(Claude)` prefix makes "waiting on whom" derivable |
-| **task list in a pull request body** | the **review checklist**, which is the review itself | a workflow fails the check while a box is unticked |
-| **pull request** | one change's passage: review, readiness, mechanics | frozen at merge, so conclusions are promoted to the issue body or a document before then |
-
-### How an action is recorded
-
-**Decided 2026-08-19**, from #181. An **action** is an unchecked `- [ ]` in an
-**issue** body, under an `Open actions` heading, prefixed `(Steve)` or
-`(Claude)`.
-
-The issue body is the only surface that carries state: an issue holds one bit,
-open or closed; a comment is append-only, so it can never be marked done; a pull
-request body freezes at merge. A checkbox can be ticked, GitHub counts it, and an
-item promotes to a full issue in one click when it turns out to be real work.
-
-**The same syntax in a pull request body is not an action** — it is the review
-checklist, which is the review itself.
-
-**The boundary with a sub-issue:** if it needs a branch, it is an issue. If it is
-a decision, a lookup or a small edit, it is a checkbox. A checkbox that grows a
-design discussion has told you it should have been an issue.
-
-`./scripts/actions.py` gathers them across every open issue, grouped by
-workstream, so the record can stay where the argument is without becoming
-impossible to find.
-
-### What the tooling reads, and what it writes
-
-**Decided 2026-08-20**, after the owner left two tables in an issue body he
-wanted to delete: *"I wasn't sure if they were automated and I didn't want to
-break the tooling."* A document whose machine-read parts are invisible makes
-every edit a risk, and the safe move becomes changing nothing.
-
-Two categories, and they need different marks because they need opposite
-behaviour from a reader:
-
-| | mark | who writes it | what a person may do |
-| --- | --- | --- | --- |
-| **read** by a script | a **named heading**: `## Open actions`, `## Review` | a person | edit freely, but keep the shape — one `- [ ]` per item |
-| **written** by a script | a **banner**, unmissable: `***** GENERATED — DO NOT EDIT *****`, with the tool named | the tool | nothing. Change the source, re-run the tool |
-| everything else | none | a person | anything at all |
-
-**Nothing is generated today.** The banner is defined ahead of its first use:
-the release log in #156 is the first thing that will need it — because the rule is
-cheap to state now and expensive to retrofit onto a document somebody has
-already hand-edited.
-
-**Never mix the two in one section.** That is #156's own conclusion about the
-release log — *never mix generated and hand-written in one file* — applied one
-level down: a regeneration that has to preserve somebody's prose is a
-regeneration that will eventually eat it, and the failure is silent.
-
-**A read section says so, in itself.** One italic line under the heading naming
-the script and the shape it expects. A reader should not have to know the
-tooling to know what is safe.
-
-### Folders
-
-**Where a document lives is `docs/3.3` §2.9.4.1**, applied and enforced by
-`check-docs.sh`. It is not repeated here: the table below covers only what that
-section does not, because a second copy of a rule is the copy that goes stale.
-
-| path | holds |
-| --- | --- |
-| `docs/diagrams/` | `.mmd` sources and their rendered `.svg` — edit the source, re-render, commit both |
-| `scripts/` | the tools, listed in `docs/3.0` |
-| `.github/workflows/` | CI, and the document review workflow |
-| `.claude/` | how Claude is driven — gitignored, because it is not the project's |
-
-### Which script answers which question
-
-| question | script |
-| --- | --- |
-| where is every open change, and what is each environment running? | `status.sh` |
-| what is in each release, in release order? | `roadmap.sh` |
-| what is waiting on me? | `actions.py` |
-| what has been said on GitHub since I last looked? | `inbox.sh` |
-| is everything actually in place? (asserts, exits non-zero) | `verify.sh` |
-| are the documents lint-clean, their links live, their files in the right folders? | `check-docs.sh` — CI runs it on every push |
-| did a named CI run pass for this commit? | `ci-status.sh` |
-
-The first four **derive and store nothing**, so they cannot drift; the last three
-**assert**, and exit non-zero when they are unhappy. That split is deliberate:
-a display has to be read, and the failure mode of reading is not noticing.
-
-### Other tooling
-
-| | what it does |
-| --- | --- |
-| **CI** (`.github/workflows/ci.yml`) | fmt, clippy, tests, wasm, the commit stamp, `check-docs.sh`, and Playwright on `main` and pull requests. A deploy gate, not a signal |
-| **Docs workflow** (`docs.yml`) | the review checklist as a check, and `/ready` `/changes` `/approve` as label-only commands. **Candidate** until PR #184 merges |
-| **OCI monitoring** | external `/health` probes from three regions, plus CPU, memory and instance-stopped alarms, emailing the owner (#136) |
-| **`.claude/` hooks** | a session-start GitHub digest, and a per-turn check for new comments and edited pull request bodies |
-
----
-
-## Capability workstreams
-
-**Candidate**, with the list agreed 2026-08-19 and the adoption not started. A
-workstream is a **capability area**, worked on indefinitely — not a bag of
-issues that arrived in the same week. The difference is that a capability
-workstream is *predictive*: a new issue knows where it belongs before anybody
-discusses it.
-
-Ten, and they cover **every one of the 47 open issues** — which is the test a
-taxonomy has to pass, because an issue with no home goes back to being grouped
-by whoever filed it.
-
-| workstream | what it covers | anchored today by |
-| --- | --- | --- |
-| **process and tooling** | how we work, and everything that runs the work: the release path, the scripts, CI, testing tooling | #179, #160, #134, #144, #91 |
-| **game model and rules** | what the game *is*: seats, turns, versions, history, retention, the rules themselves | #71, #73, #68, #166 |
-| **interaction design** | how the game is presented and controlled | #146, #84, #105, #152 |
-| **accounts and identity** | who a player is, and what may be done to an account | #57, #58, #140 |
-| **notification and liveness** | telling a client that something changed, and noticing when it did not | #87, #142, #15 |
-| **infrastructure and persistence** | what every feature rests on: schema, migrations, concurrency, process lifetime, memory | #29, and #71's work package A |
-| **capacity planning** | *will it fit* — growth, throttling, limits, measurement | #89, #29, #165 |
-| **production operations** | *is it healthy now* — logs, alerts, backups, disk, access | #174, #175, #176, #40 |
-| **dictionaries and word lists** | the lexicons and what may be played | #116 |
-| **desktop and distribution** | shipping something that is not the web client | #38, #15 |
-
-### Every open issue, on all three axes and a workstream
-
-**The whole tracker, in one table.** Owner, 2026-08-20: *"As you have mapped
-every open issue to the axes and workstream can we see that in one table."* This
-is the test the list and the axes both have to pass, and the work list if D1 and
-D2 are adopted.
-
-Routes are abbreviated: **artifact** · **deploy** · **host** · **service** ·
-**repo**. *Release* is `not decided` wherever the work is not scheduled, which
-is most of the backlog and is the honest answer.
-
-| # | title | type | route | release | workstream |
-| --- | --- | --- | --- | --- | --- |
-| **10** | Bot client harness: run an engine as an extern… | non-prod-tooling | repo | none | process and tooling |
-| **15** | Desktop has no client-update signal since 2.9 | major-function | artifact | not decided | desktop and distribution |
-| **29** | Memory and startup grow with every game ever p… | major-function | artifact | not decided | infrastructure and persistence |
-| **38** | A download site for desktop builds — or a deci… | major-function | service · a download site is a service we would run | not decided | desktop and distribution |
-| **40** | Rehearsal holds production user data on a publ… | non-prod-tooling | **?** · Caddyfile or a firewall rule — shape not chosen | none | production operations |
-| **57** | A player closing their own account | major-function | artifact | not decided | accounts and identity |
-| **58** | Shutting out a problematic player | major-function | artifact | not decided | accounts and identity |
-| **66** | A rating graph point can link to a swept game | bug | artifact | patch | game model and rules |
-| **68** | Retention for games that never started: the 30… | major-function | artifact | not decided | game model and rules |
-| **71** | One game model: version, seats, DTOs and the e… | major-function | artifact | major | game model and rules |
-| **73** | Undo, from a history keyed on the game's versi… | major-function | artifact | major | game model and rules |
-| **80** | Changing your display name does not reach othe… | bug | artifact | patch | accounts and identity |
-| **84** | Games list appearance | appearance | artifact | not decided | interaction design |
-| **87** | Tell a player a message has arrived when they … | major-function | artifact | not decided | notification and liveness |
-| **88** | out-of-turn staging and rearranging tiles | minor-function | artifact | not decided | game model and rules |
-| **89** | Notice unusual growth in the database, startin… | major-function | artifact · the daily record is in the image | not decided | capacity planning |
-| **91** | Stress testing: find where the service breaks,… | non-prod-tooling | repo | none | process and tooling |
-| **103** | Browser tab icon | appearance | artifact | patch | interaction design |
-| **105** | withdrawing should immediately hide the game | minor-function | artifact | patch | game model and rules |
-| **106** | inviting yourself should automatically accept | minor-function | artifact | patch | game model and rules |
-| **116** | Curate the denylist | minor-function | artifact · the list is compiled in | patch | dictionaries and word lists |
-| **128** | e2e-clean cleans dev's database whatever envir… | non-prod-tooling | repo | none | process and tooling |
-| **130** | Show the server's version in dev, where the to… | — | artifact · dev-only, but it ships in the binary | minor | **unassigned** |
-| **134** | Ship the build we tested, rather than rebuildi… | prod-tooling | repo · deploy.sh runs from a laptop | none | process and tooling |
-| **135** | Make a release branch rebuildable, so a change… | non-prod-tooling | repo | none | process and tooling |
-| **140** | Admin CLI: sign an account out, so the delete … | — | artifact · the admin CLI is in the image | not decided | accounts and identity |
-| **142** | A reconnected WebSocket never re-fetches state… | minor-function | artifact | not decided | notification and liveness |
-| **144** | Check CI before merging into a release branch,… | prod-tooling | repo | none | process and tooling |
-| **146** | Rework the play controls: Pass/Exchange/Play, … | — | artifact | not decided | interaction design |
-| **148** | check-rate-limits.sh leaves its test accounts … | prod-tooling | repo | none | process and tooling |
-| **150** | deploy.sh closed the milestone on an emergency… | prod-tooling | repo | none | process and tooling |
-| **151** | Check for a new bundle on visibilitychange, no… | — | artifact | patch | notification and liveness |
-| **152** | removing a game should clear the board and rac… | appearance | artifact | patch | interaction design |
-| **155** | Process decisions: agree them here, apply them… | documentation | repo | none | process and tooling |
-| **156** | A log with one entry per release | documentation | repo | none | process and tooling |
-| **157** | Remove leaves a staged tile on the board after… | bug | artifact | patch | interaction design |
-| **160** | Use more of GitHub where it replaces something… | non-prod-tooling | service · GitHub's own configuration | none | process and tooling |
-| **165** | Retry-After is rebuilt from an already-rounded… | minor-function | artifact | patch | infrastructure and persistence |
-| **166** | Nothing happens when a move time limit expires… | minor-function | artifact | not decided | game model and rules |
-| **171** | A separate GitHub account for Claude, if the f… | non-prod-tooling | service · a second GitHub account | none | process and tooling |
-| **174** | Container logs are discarded on every deploy, … | minor-function | artifact · **+ host** — the journald drop-in | not decided | production operations |
-| **175** | No backup leaves the VM: losing the instance l… | prod-tooling | **?** · host or deploy — shape not chosen | none | production operations |
-| **176** | Nothing alerts on the production disk filling,… | prod-tooling | service · an OCI alarm | none | production operations |
-| **179** | Process workstream | documentation | repo · the parent issue itself | none | process and tooling |
-| **183** | A document review workflow in Actions: lint, l… | non-prod-tooling | repo · a workflow file is a repo file | none | process and tooling |
-
-#### What the table shows
-
-**Four issues carry no type label** — 130, 140, 146, 151 — which the form would
-have made impossible: type is a required field. That is the first concrete
-argument for the form over labels applied afterwards.
-
-**Two cannot answer *route*.** #40 and #175 do not know their own shape yet: a
-firewall rule or a `Caddyfile` change; a script on the host or one in the image.
-Route needs a *not decided yet*, exactly as release has one.
-
-**One carries two routes.** #174 is JSON logging in the artifact **and** a
-journald drop-in on the host. The tie-break picks artifact; nothing yet records
-the half that stays manual.
-
-**One fits no workstream.** #130 is dev-only tooling that ships in the client
-binary — process by purpose, interaction design by location. Left unassigned as
-evidence rather than forced.
-
-**Two workstreams hold one issue each, and that is fine.** Owner: *"It may be a
-fairly focussed workstream. It may be that the issue was well scoped with a
-complete thought out set of changes."* A capability is not less real for having
-one open question about it today. What would be evidence against it is a
-workstream nothing ever lands in.
-
-**The release column is mostly *not decided*, and should be.** Twenty-three of
-forty-five. Deciding what ships together is scheduling, and scheduling before
-there is a project to schedule is guessing.
-
-### The two rules that keep it clean
-
-**One axis: capability, never layer.** *Client UI* and *server/db* are tiers, and
-a taxonomy on two axes stops being predictive — #142 would belong to notification
-*and* to server/db, and #71 to game model *and* to both tiers, which is precisely
-the issue whose argument is that the two halves are one model. So *client UI*
-becomes **interaction design**, and *server/db* becomes **infrastructure and
-persistence**, which is a genuine non-feature capability rather than a tier:
-everything rests on it.
-
-**If it would disappear when a feature is cut, it belongs to the feature.** That
-is the test for infrastructure, and it settles the cases that feel ambiguous:
-issue #29 survives every feature, so it is infrastructure; #166 is a rule, and needing
-a background task does not move it out of game model; #142's fix is a server's
-but its symptom is a user's, so it is liveness.
-
-**And a technique is not a capability.** *e2e design* is how we know the
-application works, not something it does — so it is a project inside process and
-tooling rather than a workstream of its own.
-
-### The decision point
-
-Adopting this means **every open issue gets a workstream**: a pass over 47, and a
-choice between a parent issue each or a `workstream:` label each. Worth doing
-once, deliberately — the half-done version is worse than the grouping it
-replaces, because a partial taxonomy still has to be searched.
-
----
+| [The levels](#the-levels-programme-workstream-project-work-package-release) | **decided** | `docs/3.3`, the change lifecycle |
+| [Workstreams](#workstreams-the-capabilities-we-maintain) | **decided** — the list is agreed; the assignment is not applied | `docs/3.3`, and a parent issue or label per workstream |
+| [Classifying a change](#classifying-a-change-type-route-release) | **decided**, except the form's two gaps | `docs/3.3`'s lane table, and `.github/ISSUE_TEMPLATE/change.yml` |
+| [Projects: phases and gates](#projects-phases-and-gates) | **decided**; the `phase:` labels exist | `docs/3.3` |
+| [Delivery](#delivery-releases-applications-and-merges) | **decided**, except D6 | `docs/3.3`, and #156's delivery log |
+| [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) | **decided**, except D14's new gate | `docs/3.3` |
+| [Terminology](#terminology-our-words-and-the-industrys) | **candidate** — D10 decides the set | wherever each term is used |
+| [How the process is managed](#how-the-process-is-managed-github-folders-scripts) | **decided**; the `docs/3.0` rows are **applied** | a new section in `docs/3.3` |
+| [Background: ITIL](#background-how-itil-handles-tooling-monitoring-and-instrumentation) | reasoning only; changes nothing on its own | the notes behind the lane rule |
+| *parent issue* | **applied** 2026-08-19 | `docs/3.3` — PR #185 |
