@@ -55,22 +55,6 @@ options actually are and what I would do.
 A decision made here is **decided** in the section it belongs to, and then
 applied to the numbered documents in one pass.
 
-### D1 · Does the lane become three attributes?
-
-**The question.** Today one milestone answers three questions: how a change is
-authorised, how it reaches production, and what carries it to users.
-
-| option | |
-| --- | --- |
-| **keep the lane** | one label, and the arguments recur — five framings in a day, and #134 decided against the written test |
-| **three attributes as labels** | `type` (have it) · `route` · `release`. Explicit, and four new label families to maintain |
-| **three attributes via an issue form** | the same three as dropdowns when an issue is raised, landing in the body where the tooling can read them |
-
-**Recommended: the issue form.** It puts the question at the moment the answer is
-cheapest — when the issue is written — and it needs no new labels. It also gives
-issue #160 something concrete: this is GitHub replacing something we would otherwise
-hand-maintain.
-
 ### D1 · Does the lane become three attributes? — **answered: yes, as an issue form**
 
 **Decided 2026-08-20**, with the criteria still to settle. Owner: *"we should be
@@ -365,6 +349,19 @@ be multi-select.
 in the repository. The rule that settles it: **the file decides, not the
 executor** — otherwise every CI change becomes a service change.
 
+**The options as they stood, kept as the record:**
+
+| option | |
+| --- | --- |
+| **keep the lane** | one label, and the arguments recur — five framings in a day, and #134 decided against the written test |
+| **three attributes as labels** | `type` (have it) · `route` · `release`. Explicit, and four new label families to maintain |
+| **three attributes via an issue form** | the same three as dropdowns when an issue is raised, landing in the body where the tooling can read them |
+
+**Recommended: the issue form.** It puts the question at the moment the answer is
+cheapest — when the issue is written — and it needs no new labels. It also gives
+issue #160 something concrete: this is GitHub replacing something we would otherwise
+hand-maintain.
+
 ### D2 · Do we adopt capability workstreams, and when?
 
 | option | |
@@ -454,77 +451,23 @@ Start where it costs nothing; if a release goes wrong and nobody notices, that i
 the evidence for making it automatic — which is how the emergency retrospective
 came about.
 
-### Route is the join between an issue and a release
+### D5 · Does `main` get a ruleset? — **answered: yes**
 
-**Owner, 2026-08-20: *"I guess route ties issues and releases together."*** That
-is the framing, and it is worth stating before D6 rather than discovering it
-inside it.
+**Decided 2026-08-20**, reviewing PR #184. Requiring CI's `check` job on `main`,
+and nothing more. Still to do: create the ruleset, which may need a token
+permission we do not have.
 
-An issue's other two axes describe the issue: *type* says what it is and what it
-owes, *workstream* says which capability it belongs to. Neither says anything
-about production. **Route does** — and in saying how a change reaches
-production, it decides whether a release exists at all, what kind, and what
-counts as done:
+**The options as they stood, kept as the record:**
 
-| route | is there a release? | what the record is |
-| --- | --- | --- |
-| in the artifact · carried by the deploy | **yes** — versioned, tagged, smoke-tested, closing a milestone | a release entry |
-| applied on the host · applied to a service | **no**, but production changed | a dated entry with **no version** |
-| never leaves the repository | no, and production did not change | the commit |
+| option | |
+| --- | --- |
+| none | anything can be pushed, and nothing had gone wrong yet |
+| **require the CI check** — *chosen* | a red push cannot land on `main` |
+| require CI and the review checklist | and a pull request for every change, which the merge lane deliberately does not ask for |
 
-So the release log's shape is not a separate design: it falls out of the route
-values, one entry-kind per class. If a new route ever appears, the log gains a
-kind — which is a good test of whether the route is real.
-
-### D7 · Should `docs/changes/issues/` be renamed, and to what? — **answered: B, nested**
-
-Owner, 2026-08-20: *"We should rename the issues folder as workstream, but
-presumably that will be done as part of applying the glossary."* Yes to the
-second half — it is an apply-the-glossary task, and it moves files, so it wants
-doing once.
-
-**But the folder does not hold only workstreams today.** It holds
-`179-process-workstream/` — a workstream's parent — and
-`174-logs-and-backups/` — a plain issue's design note, for an issue that belongs
-to *production operations* and is not a workstream at all. Renaming to
-`workstreams/` would file that second one under a claim that is not true.
-
-| option | | |
-| --- | --- | --- |
-| **A. keep `issues/`** | folders named for the issue that owns them, whatever level that issue is | accurate today, and says nothing about the levels |
-| **B. rename to `workstreams/`, and nest** | `workstreams/179-process/`, with projects and issue notes inside | mirrors the model exactly, and every document has one path that reflects what owns it |
-| **C. three folders** | `workstreams/` · `projects/` · `issues/` | most precise, and three places to look instead of one |
-
-**Decided 2026-08-20: B.** Owner: *"yes, B. And it makes us think about which
-workstream an issue is in."* Which is the argument I had missed — the structure
-does not merely *record* the classification, it **forces** it, at the moment a
-document is created and while the answer is still cheap. Same principle as the
-issue form asking for type and route at the moment an issue is raised.
-
-The shape:
-
-```text
-docs/changes/
-  workstreams/
-    process-and-tooling/          the capability, not the issue number
-      glossary.md                 documents the workstream owns
-      process-review.md
-      179-…/                      an issue's own documents, where it has any
-      projects/
-        179A-…/                   a project's documents, testing included
-    production-operations/
-      174-logs-and-backups/
-        design.md
-```
-
-**Named for the capability, not for a parent issue**, because a capability may
-have no parent issue yet — nine of the ten do not. A folder needs no issue to
-exist, and naming it for one would block filing behind creating ten issues
-nobody has asked for.
-
-The costs stand and are worth restating: deeper paths, a move when an issue's
-workstream changes — rare — and one more round of broken links, which is the
-argument for doing **every** folder move in a single change.
+**Agreed: require CI's `check` job, nothing else, and only after #184 merges.** It is the one gate whose answer is objective and whose
+failure is expensive. Requiring a review checklist with one author is ceremony,
+and requiring pull requests would undo the merge lane.
 
 ### D6 · What is a release, and what gets logged as one?
 
@@ -589,23 +532,108 @@ does not**, and it is the column worth having: *"went live and was wrong"* is
 what makes 0.6.0's entry useful, and no tag knows it. That is #156's
 generated-skeleton-plus-a-written-line, arrived at from the other end.
 
-### D5 · Does `main` get a ruleset? — **answered: yes**
+### D7 · Should `docs/changes/issues/` be renamed, and to what? — **answered: B, nested**
 
-**Decided 2026-08-20**, reviewing PR #184. Requiring CI's `check` job on `main`,
-and nothing more. Still to do: create the ruleset, which may need a token
-permission we do not have.
+Owner, 2026-08-20: *"We should rename the issues folder as workstream, but
+presumably that will be done as part of applying the glossary."* Yes to the
+second half — it is an apply-the-glossary task, and it moves files, so it wants
+doing once.
 
-**The options as they stood, kept as the record:**
+**But the folder does not hold only workstreams today.** It holds
+`179-process-workstream/` — a workstream's parent — and
+`174-logs-and-backups/` — a plain issue's design note, for an issue that belongs
+to *production operations* and is not a workstream at all. Renaming to
+`workstreams/` would file that second one under a claim that is not true.
+
+| option | | |
+| --- | --- | --- |
+| **A. keep `issues/`** | folders named for the issue that owns them, whatever level that issue is | accurate today, and says nothing about the levels |
+| **B. rename to `workstreams/`, and nest** | `workstreams/179-process/`, with projects and issue notes inside | mirrors the model exactly, and every document has one path that reflects what owns it |
+| **C. three folders** | `workstreams/` · `projects/` · `issues/` | most precise, and three places to look instead of one |
+
+**Decided 2026-08-20: B.** Owner: *"yes, B. And it makes us think about which
+workstream an issue is in."* Which is the argument I had missed — the structure
+does not merely *record* the classification, it **forces** it, at the moment a
+document is created and while the answer is still cheap. Same principle as the
+issue form asking for type and route at the moment an issue is raised.
+
+The shape:
+
+```text
+docs/changes/
+  workstreams/
+    process-and-tooling/          the capability, not the issue number
+      glossary.md                 documents the workstream owns
+      process-review.md
+      179-…/                      an issue's own documents, where it has any
+      projects/
+        179A-…/                   a project's documents, testing included
+    production-operations/
+      174-logs-and-backups/
+        design.md
+```
+
+**Named for the capability, not for a parent issue**, because a capability may
+have no parent issue yet — nine of the ten do not. A folder needs no issue to
+exist, and naming it for one would block filing behind creating ten issues
+nobody has asked for.
+
+The costs stand and are worth restating: deeper paths, a move when an issue's
+workstream changes — rare — and one more round of broken links, which is the
+argument for doing **every** folder move in a single change.
+
+### D8 · How much to cite
+
+The trailing *open questions* section carried this, and it is still open. A named
+practice a reader can look up is worth more than a paragraph of our own
+reasoning — but `docs/3.3` is long, and #137 was about making it shorter to
+consult.
 
 | option | |
 | --- | --- |
-| none | anything can be pushed, and nothing had gone wrong yet |
-| **require the CI check** — *chosen* | a red push cannot land on `main` |
-| require CI and the review checklist | and a pull request for every change, which the merge lane deliberately does not ask for |
+| **cite once, in the notes** | the term appears in the *what*; the source appears once in part 3, and nowhere else |
+| cite at every use | findable anywhere, and it turns the runbook into a bibliography |
+| cite nowhere | our vocabulary becomes private, which is the thing this document exists to prevent |
 
-**Agreed: require CI's `check` job, nothing else, and only after #184 merges.** It is the one gate whose answer is objective and whose
-failure is expensive. Requiring a review checklist with one author is ceremony,
-and requiring pull requests would undo the merge lane.
+**Recommended: the first.** Part 3 is where a reader goes when they want to know
+*why*, which is the same moment they want the source.
+
+### D9 · Do *gate* and *check* mean different things?
+
+We use *gate* for both **a check that refuses** and **a check that warns and
+asks** — and #137's audit found `docs/3.3` describing the second as the first,
+which is the evidence that the words are doing two jobs.
+
+| option | |
+| --- | --- |
+| **gate refuses, check reports** | used strictly. `deploy.sh`'s nine gates refuse; `verify.sh` reports; the review checklist refuses; the tooling-on-`main` warning asks |
+| one word, qualified in place | *"a gate that warns"* — accurate, and it puts the burden on every sentence |
+| leave it | the audit already found one place where the ambiguity misled a reader |
+
+**Recommended: the first**, and it costs a pass over `docs/3.3` in the same
+change that applies the rest.
+
+### Route is the join between an issue and a release
+
+**Owner, 2026-08-20: *"I guess route ties issues and releases together."*** That
+is the framing, and it is worth stating before D6 rather than discovering it
+inside it.
+
+An issue's other two axes describe the issue: *type* says what it is and what it
+owes, *workstream* says which capability it belongs to. Neither says anything
+about production. **Route does** — and in saying how a change reaches
+production, it decides whether a release exists at all, what kind, and what
+counts as done:
+
+| route | is there a release? | what the record is |
+| --- | --- | --- |
+| in the artifact · carried by the deploy | **yes** — versioned, tagged, smoke-tested, closing a milestone | a release entry |
+| applied on the host · applied to a service | **no**, but production changed | a dated entry with **no version** |
+| never leaves the repository | no, and production did not change | the commit |
+
+So the release log's shape is not a separate design: it falls out of the route
+values, one entry-kind per class. If a new route ever appears, the log gains a
+kind — which is a good test of whether the route is real.
 
 ### A review has three outcomes
 
@@ -813,6 +841,9 @@ train metaphor for the de-scoping rule (#135), which is the narrower claim.
 **Epic**, for a project. An epic is not time-bound and has no fixed scope, which
 is the one property that makes a project a project.
 
+*Both were listed as open questions at the foot of this document until
+2026-08-20; they were answered here and the duplicate has gone.*
+
 ---
 
 ## Project phases
@@ -899,7 +930,7 @@ streams.
 | our lane | the question it answers | ITIL axis |
 | --- | --- | --- |
 | **merge** | it never travels the deploy path | deployment |
-| **config-only** (unnamed today) | it changes production with no artifact | deployment |
+| **config-only** (never named, and no longer needed) | it changes production with no artifact — which the axes now say as *route = applied on the host, release = none*. A combination, not a category: naming it would invite it to grow rules of its own | deployment |
 | **fasttrack** | it ships alone, as a patch | release |
 | **minor** / **major** | it is grouped into a release of that size | release |
 | **emergency** | authorisation is expedited | change type |
@@ -1393,29 +1424,3 @@ once, deliberately — the half-done version is worse than the grouping it
 replaces, because a partial taxonomy still has to be searched.
 
 ---
-
-## Open questions for the review
-
-1. **How much to cite.** A named practice a reader can look up is worth more
-   than a paragraph of our own reasoning — but 3.3 is already long, and #137 is
-   about making it shorter to consult. Suggest: name the term in the *what*,
-   cite the source once in the *notes*, and nowhere else.
-
-2. **Whether "gate" needs qualifying.** We use it for both "a check that
-   refuses" and "a check that warns and asks" — and the audit found 3.3
-   describing the second as the first. Perhaps *gate* (refuses) and *check*
-   (reports), used strictly.
-
-3. **Whether to adopt "release train" fully.** It implies a schedule, and we
-   release when a scope is ready rather than on a cadence. Adopting the word
-   without the schedule may mislead.
-
-4. **Whether to adopt the three attributes and retire "lane"** — the substantive
-   decision in this document. Adopting them means new labels or a project field
-   (worth checking against #160 before adding four more labels), an edit to
-   `docs/3.3`'s lane table, and `status.sh` learning to read whichever mechanism
-   replaces the milestone-as-lane.
-
-5. **Whether "config-only" needs a name at all**, or is simply *route = applied
-   on the host, release = none*. I lean to the second: it is a combination, not
-   a category, and naming it invites it to grow rules of its own.
