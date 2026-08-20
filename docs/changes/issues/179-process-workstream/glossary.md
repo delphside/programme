@@ -613,6 +613,48 @@ which is the evidence that the words are doing two jobs.
 **Recommended: the first**, and it costs a pass over `docs/3.3` in the same
 change that applies the rest.
 
+### D10 · The terminology recommendations — accept them?
+
+Owner, 2026-08-20, on what else is open: *"for example the recommendations around
+terminology."* Right — every entry below carries a recommendation and none has
+been agreed, so the whole set is one unanswered question wearing nine hats.
+
+Answering them one at a time is the wrong shape. **Accept the set, or name the
+exceptions:**
+
+| term | ours | recommendation |
+| --- | --- | --- |
+| release branch | version branch | **adopt** — universal, and ours adds nothing |
+| release *train* | — | **decline** — it names a schedule we do not run |
+| hermetic build | "builds a commit, never the working tree" | **use both** — the term once, our phrase thereafter |
+| expand/contract · parallel change | — | **adopt** — we do it and have no word for it |
+| build metadata | `+<sha>` | **adopt**, for the version discussion |
+| parent issue · sub-issue | master issue, lead issue | **adopt** — *applied 2026-08-19* |
+| blast radius | — | **adopt** — already in use |
+| rehearsal | rehearsal | **keep ours**, mention *staging* once — staging carries expectations we deliberately do not meet |
+| living document · standing issue | ours, coined here | **keep ours** — defined in 3.3 and doing real work |
+| preview | preview | **keep ours**, noting it is not per-branch as the industry's usually is |
+| work package | chunk | **adopt** — *decided 2026-08-20* |
+| programme · project · release | ours | **adopt** — three of the four levels are already the standard term |
+
+**Recommended: accept the set.** Two are already applied, the rest cost a
+find-and-replace in the sweep, and the only one that changes behaviour rather
+than vocabulary is *release train*, which is being declined.
+
+### D11 · Do phases apply to a work package, or only to a project?
+
+Left over from the phases section, and untested because there is no project
+layer in GitHub yet.
+
+| option | |
+| --- | --- |
+| **projects only** | a work package inherits its project's phase and carries no label |
+| every work package | more state, and most of it derivable from whether a branch exists |
+
+**Recommended: projects only**, on the same argument as D3: a phase changes a
+handful of times per project, which is when hand-set state stays honest. A work
+package that needs its own phase is probably a project.
+
 ### Route is the join between an issue and a release
 
 **Owner, 2026-08-20: *"I guess route ties issues and releases together."*** That
@@ -883,19 +925,16 @@ The classic five gates map onto the phases, and two of them are already machines
 A gate with an objective answer belongs in a script; the ones left for a person
 are the ones without. That is the same test the lane discussion arrived at.
 
-### The decision points still open
+### What the phases still owe
 
-1. **The post-implementation review.** Nothing asks whether a normal release did
-   what it was for — only an emergency gets a retrospective, raised by
-   `deploy.sh` itself. #67 is the case: closed by a milestone, listed as
-   deferred in the testing report, and genuinely broken. **Candidate**, and it
-   needs an issue of its own.
-2. **Whether phases apply to a project only**, or also to a work package. Today a work package
-   inherits its project's phase and carries no label. Untested, because we have
-   no project layer in GitHub yet.
-3. **Inserting the project layer.** #71's work packages and #179's children hang
-   directly off a workstream, with no project between. The vocabulary is decided;
-   the restructuring is not done.
+The two questions this section used to carry are now **D4** (the
+post-implementation review, answered) and **D11** (phases on a work package).
+What remains is not a decision but a piece of work:
+
+**Inserting the project layer.** #71's work packages and #179's children hang
+directly off a workstream, with no project between. The vocabulary is decided and
+the restructuring is not done — and #71 is where it will first be tested, being
+the one workstream that genuinely has projects.
 
 ---
 
