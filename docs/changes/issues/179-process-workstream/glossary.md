@@ -984,7 +984,7 @@ changes' obligations.
 
 **This is not derivable from type.** #165 (`Retry-After` rebuilt from a rounded
 number) is `minor-function` and entirely technical: nobody can see it by playing.
-#29 (memory growth) is `major-function` and tested by load, not by use. And #25's
+Issue #29 (memory growth) is `major-function` and tested by load, not by use. And #25's
 rate limiting is the case that produced `check-rate-limits.sh` precisely because
 preview *cannot* judge it — a development machine says nothing about a 2 vCPU
 box.
