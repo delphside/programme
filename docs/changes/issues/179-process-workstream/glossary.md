@@ -508,8 +508,8 @@ behaviour from a reader:
 | **written** by a script | a **banner**, unmissable: `***** GENERATED — DO NOT EDIT *****`, with the tool named | the tool | nothing. Change the source, re-run the tool |
 | everything else | none | a person | anything at all |
 
-**Nothing is generated today.** The banner is defined ahead of its first use —
-#156's release log is the first thing that will need it — because the rule is
+**Nothing is generated today.** The banner is defined ahead of its first use:
+the release log in #156 is the first thing that will need it — because the rule is
 cheap to state now and expensive to retrofit onto a document somebody has
 already hand-edited.
 
