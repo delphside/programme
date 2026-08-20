@@ -45,6 +45,17 @@ private vocabulary would travel badly.
 Three possible outcomes per term: **adopt** it, **keep ours** and say why, or
 **use both** — the standard term once so it is findable, ours thereafter.
 
+**Older sections here use the older words.** Owner, 2026-08-20: *"we have been
+updating our use of the words 'issue', 'project', 'release', 'delivery'. Some of
+the text predates this. However the important document is not this one, but the
+main documents we will update."*
+
+So this document is not swept. It is a record of how the words were arrived at,
+and a section written before *delivery* was settled is evidence of that, not a
+defect. **The sweep applies to `docs/3.x` and its neighbours**, where a reader is
+looking for the rule rather than for the argument that produced it — and where a
+stale word would be read as current.
+
 ## Decisions
 
 Owner, 2026-08-20: *"A lot of the actions can become decisions in the glossary,
@@ -59,20 +70,21 @@ to read it.
 | | question | | where |
 | --- | --- | --- | --- |
 | **D1** | Does the lane become three attributes? | **answered** | [Classifying a change](#classifying-a-change-type-route-release) |
-| **D2** | Do we adopt capability workstreams, and when? | **open** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
+| **D2** | Do we adopt capability workstreams, and when? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
 | **D3** | Do project phases stay, and where do they apply? | **answered** | [Projects](#projects-phases-and-gates) |
 | **D4** | Is the post-implementation review built, and how? | **answered** | [Projects](#projects-phases-and-gates) |
 | **D5** | Does `main` get a ruleset? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
-| **D6** | What is a release, and what gets logged as one? | **open** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D6** | What is a release, and what gets logged as one? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D7** | Should `docs/changes/issues/` be renamed, and to what? | **answered** | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) |
-| **D8** | How much to cite | **open** | [Terminology](#terminology-our-words-and-the-industrys) |
-| **D9** | Do *gate* and *check* mean different things? | **open** | [Terminology](#terminology-our-words-and-the-industrys) |
-| **D10** | The terminology recommendations — accept them? | **open** | [Terminology](#terminology-our-words-and-the-industrys) |
-| **D11** | Do phases apply to a work package, or only to a project? | **open** | [Projects](#projects-phases-and-gates) |
+| **D8** | How much to cite | **answered** | [Terminology](#terminology-our-words-and-the-industrys) |
+| **D9** | Do *gate* and *check* mean different things? | **answered** | [Terminology](#terminology-our-words-and-the-industrys) |
+| **D10** | The terminology recommendations — accept them? | **answered** | [Terminology](#terminology-our-words-and-the-industrys) |
+| **D11** | Do phases apply to a work package, or only to a project? | **answered** | [Projects](#projects-phases-and-gates) |
 | **D12** | Can a release carry work from more than one project? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D13** | Is *release* the word for any delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
-| **D14** | Do we classify the process a delivery must go through? | **open** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
-| **D15** | Technical testing and user testing — a variant, or a property of each change? | **open** | [Classifying a change](#classifying-a-change-type-route-release) |
+| **D14** | Do we classify the process a delivery must go through? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
+| **D15** | Technical testing and user testing — a variant, or a property of each change? | **answered** | [Classifying a change](#classifying-a-change-type-route-release) |
+| **D16** | What is a *test approach*, and what satisfies the gate? | **open** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -264,7 +276,7 @@ replaces, because a partial taxonomy still has to be searched.
 
 ---
 
-#### D2 · Do we adopt capability workstreams, and when?
+#### D2 · Do we adopt capability workstreams, and when? — **answered: yes, one pass**
 
 | option | |
 | --- | --- |
@@ -275,6 +287,12 @@ replaces, because a partial taxonomy still has to be searched.
 **Recommended: one pass.** A partial taxonomy still has to be searched, so the
 half-done version costs what the whole one costs and delivers nothing. It is an
 hour of filing, once.
+
+**Answered 2026-08-20: yes — adopt them, and every issue is assigned to a
+workstream.** Owner: *"yes, adopt capability workstreams, every issue is assigned
+to a workstream."* So it is a rule and not a habit: an issue without a workstream
+is an issue that is not yet filed, which makes the pass over the 47 open ones the
+first application of the rule rather than a migration preceding it.
 
 ## Classifying a change: type, route, release
 
@@ -669,7 +687,7 @@ cheapest — when the issue is written — and it needs no new labels. It also g
 issue #160 something concrete: this is GitHub replacing something we would otherwise
 hand-maintain.
 
-#### D15 · Technical testing and user testing — a variant, or a property of each change?
+#### D15 · Technical testing and user testing — a variant, or a property of each change? — **answered: a property of each change**
 
 Owner, 2026-08-20: *"One variant on application release is technical application
 release, which replaces user testing with technical testing in rehearsal… Or
@@ -712,6 +730,19 @@ deploy time; it should be the sum of what the milestone's issues said.
 than as a new dropdown. It costs a phrase per issue and it makes the skip
 derivable — and the one-person-holds-the-context argument for leaving it is
 exactly the argument that stops being true first.
+
+**Answered 2026-08-20: the recommended option**, and the owner reduced it to two
+questions asked of every delivery:
+
+- **does this delivery involve functional changes which require user testing?**
+- **does this delivery involve technical changes that require technical testing?**
+
+They are asked separately and answered independently, which is the whole point:
+*yes/no* sends it to preview alone, *no/yes* to rehearsal alone, *yes/yes* to
+both, and *no/no* is a change nobody can show works — which is the answer worth
+catching. A delivery's obligation is the union of its changes' answers, so
+`DEPLOY_SKIP_PREVIEW=1` stops being a judgement typed at deploy time and becomes
+the sum of what the milestone's issues already said.
 
 Moved here from #154 on the owner's instruction, 2026-08-19, because it is a
 question about **words** before it is a question about process.
@@ -875,7 +906,7 @@ a version that may move or split.
 
 The first real test will be #71, the one workstream that genuinely has projects.
 
-#### D11 · Do phases apply to a work package, or only to a project?
+#### D11 · Do phases apply to a work package, or only to a project? — **answered: the project only**
 
 Left over from the phases section, and untested because there is no project
 layer in GitHub yet.
@@ -888,6 +919,17 @@ layer in GitHub yet.
 **Recommended: projects only**, on the same argument as D3: a phase changes a
 handful of times per project, which is when hand-set state stays honest. A work
 package that needs its own phase is probably a project.
+
+**Answered 2026-08-20: the project only.** Owner: *"phases apply to the whole
+project, work packages deliver into the project and manage themselves."*
+
+The second half is the part worth keeping, because it says what a work package
+*is*: not a smaller project with a smaller lifecycle, but a unit of work that
+owes the project **a delivery** and is otherwise left alone. Nobody tracks where
+it has got to — the branch and its pull request say that already — and nothing is
+reported at its level. The phase belongs to the project because the phase is what
+the project owes *outward*: scope agreed, built, user-tested, deployed, reviewed.
+A work package is inside that and inherits it.
 
 #### D4 · Is the post-implementation review built, and how? — **answered: yes, as a lessons-learned review**
 
@@ -1072,7 +1114,7 @@ are how a two-line fix reaches users without waiting for a project of its own.
 The cost is that *"what was this release for?"* has an answer and a footnote —
 which the release log's *what it carried* column already accommodates.
 
-#### D6 · What is a release, and what gets logged as one?
+#### D6 · What is a release, and what gets logged as one? — **answered: the log records deliveries**
 
 Owner, 2026-08-20: *"These are attributes of the issue. We also need to
 categorise a release. Are we going to log any change as a release, or only code
@@ -1128,6 +1170,25 @@ own, and the log's question — *what changed, where, and when* — is the same 
 them. Filtering to production is then a column, where excluding them would have
 been a decision nobody could reverse later.
 
+##### Answered 2026-08-20
+
+Owner: *"we have just discussed the general term is 'delivery', a release is a
+version of the application with a build id and app version."*
+
+So the two halves of the question separate, and the word does the separating:
+
+- **the log records deliveries** — option B, everything that changes an
+  environment we maintain, because a firewall rule answers *"what changed in
+  production, and when?"* exactly as a deploy does
+- **only some of those rows are releases** — the ones with a **build id and an
+  application version**. That is what the empty version column above was already
+  saying without having the word for it
+
+Which means the table is a **delivery log**, not a release log, and the version
+column is the test of which kind each row is. A row with a version is a release
+and owes a smoke test, a rollback path and a milestone; a row without one owes
+its documentation and nothing else.
+
 ##### The part that is not derivable
 
 Version, date, commit and contents all come from tags and milestones. **Outcome
@@ -1137,7 +1198,7 @@ generated-skeleton-plus-a-written-line, arrived at from the other end.
 
 ## Process and authorisation: what a change must pass through
 
-### D14 · Do we classify the process a delivery must go through?
+### D14 · Do we classify the process a delivery must go through? — **answered: yes, derived**
 
 Owner, 2026-08-20, proposing four categories: *pre-approved edit directly in
 main · document merge · non-prod tooling and configuration · production tooling
@@ -1182,6 +1243,40 @@ in a morning against a moving target.
 do I have to do with this?* is the question a contributor actually asks — and the
 tooling rows gain the gate that would have caught two of this week's rewrites.
 
+**Answered 2026-08-20: the recommended option, and the category is derived** —
+from type, route and the standard-change criteria, never asked for on the form.
+
+**The new gate is on the *test approach*, not on a test plan.** Owner: *"note
+that the gate is on test approach, not a detailed test plan, although a test plan
+would satisfy the gate, and we haven't defined test approach."* Two things follow.
+The obligation is deliberately light — a paragraph saying how we will know this
+works clears it, and the #41-style test plan is the heavy end of the same
+spectrum, not a separate requirement. And **the term is undefined**, which is
+[D16](#d16--what-is-a-test-approach-and-what-satisfies-the-gate) below.
+
+#### D16 · What is a *test approach*, and what satisfies the gate?
+
+New, 2026-08-20, arising from D14: the gate names a document we have never
+defined. A test plan we have — [`docs/templates/test-plan.md`](../../../templates/test-plan.md),
+ten parts, written for #41 and deliberately thorough. A *test approach* is meant
+to be the smaller thing that usually suffices, and right now nothing says what it
+contains or where it lives.
+
+| option | |
+| --- | --- |
+| **a named short form**: what could go wrong · how we would see it · where it is judged | three lines in the issue, on the issue. A test plan supersedes it when the change is big enough to want one |
+| a cut-down template beside the test plan | a second document to maintain, and a folder to file it in, for what is usually a paragraph |
+| leave it to judgement | which is what we have now, and D14 just added a gate that cannot be checked against nothing |
+
+**Recommended: the first**, written in the issue under the existing *what would
+show it works* field rather than in a document of its own. The gate is then
+answerable by looking at the issue: either those three things are stated or they
+are not. A project-sized change writes a test plan instead, and the plan
+satisfies the gate by containing all three.
+
+Distinct from D15, which asks *where* a change is judged: this asks *what we
+would look for*.
+
 #### D5 · Does `main` get a ruleset? — **answered: yes**
 
 **Decided 2026-08-20**, reviewing PR #184. Requiring CI's `check` job on `main`,
@@ -1202,7 +1297,7 @@ and requiring pull requests would undo the merge lane.
 
 ## Terminology: our words and the industry's
 
-### D10 · The terminology recommendations — accept them?
+### D10 · The terminology recommendations — accept them? — **answered: accept, with three corrections**
 
 Owner, 2026-08-20, on what else is open: *"for example the recommendations around
 terminology."* Right — every entry below carries a recommendation and none has
@@ -1220,17 +1315,55 @@ exceptions:**
 | build metadata | `+<sha>` | **adopt**, for the version discussion |
 | parent issue · sub-issue | master issue, lead issue | **adopt** — *applied 2026-08-19* |
 | blast radius | — | **adopt** — already in use |
-| rehearsal | rehearsal | **keep ours**, mention *staging* once — staging carries expectations we deliberately do not meet |
+| staging | rehearsal | **keep ours**, mention *staging* once — staging carries expectations we deliberately do not meet |
 | living document · standing issue | ours, coined here | **keep ours** — defined in 3.3 and doing real work |
-| preview | preview | **keep ours**, noting it is not per-branch as the industry's usually is |
+| preview | preview | **keep ours** — the same word and much the same thing: ours is per-branch too, but rebuilt on demand rather than standing |
 | work package | chunk | **adopt** — *decided 2026-08-20* |
-| programme · project · release | ours | **adopt** — three of the four levels are already the standard term |
+| programme · project · delivery | ours | **adopt** — the levels are already the standard terms. A delivery is recorded against its project, not as an issue of its own |
 
 **Recommended: accept the set.** Two are already applied, the rest cost a
 find-and-replace in the sweep, and the only one that changes behaviour rather
 than vocabulary is *release train*, which is being declined.
 
-#### D8 · How much to cite
+**Answered 2026-08-20: accepted**, with three corrections the owner made in the
+same breath, all of them now in the table above.
+
+**One: the staging row named the wrong term.** The first column is the
+*industry's* word and it read *rehearsal* — our word in both columns, which made
+the row say nothing. The industry's word is **staging**.
+
+**Two: what staging expects that rehearsal does not meet.** The row asserted the
+mismatch without ever listing it, so the question was fair. Four expectations
+come with the word:
+
+| what *staging* is expected to be | what rehearsal actually is |
+| --- | --- |
+| **permanently up**, addressable at a known URL | brought up for a release and taken down after. Between releases there is nothing running |
+| **a mirror of production's data**, or a scrubbed copy of it | production's *shape*, with its own data. We never copy players' games sideways |
+| **where features are demonstrated and signed off** | where the **mechanism** is proved — migration, deploy, rollback, and anything needing production-like hardware. Features are judged in preview |
+| **the last environment before production**, and therefore the place bugs are found | the last *gate* before production, and deliberately not the place we expect to find functional bugs — if one surfaces there, preview failed |
+
+The standing criticism of staging — that mirroring production is a fool's errand,
+because the mirror is never quite the thing and the difference is where you get
+hurt — lands on the first two rows. It does not land on ours, because ours never
+claims to be a mirror. That is precisely why the word is worth avoiding: adopting
+*staging* would import an argument we are not having.
+
+**Three: preview is per-branch after all.** Owner: *"ours is per branch initially
+until we are ready to test the whole release, we can tear it down and rebuild it
+to test whatever branch or build we want, although it is more efficient to test
+branches in dev first to save build and CI time."* So the difference from the
+industry's review app is not *what it points at* but *how many exist*: one stack,
+rebuilt on demand at whatever ref is being looked at, rather than one per open
+pull request standing simultaneously. The recommendation is unchanged — keep the
+word — but the note attached to it was wrong and is corrected below.
+
+**And the levels row now says *delivery*.** A delivery is recorded **against its
+project**, not as an issue in its own right: the project is the thing with a
+number, and what it delivered is a line in its record. This is the same shape as
+D6's answer — the delivery log is a log, not a set of issues.
+
+#### D8 · How much to cite — **answered: cite once, in the notes**
 
 The trailing *open questions* section carried this, and it is still open. A named
 practice a reader can look up is worth more than a paragraph of our own
@@ -1246,7 +1379,10 @@ consult.
 **Recommended: the first.** Part 3 is where a reader goes when they want to know
 *why*, which is the same moment they want the source.
 
-#### D9 · Do *gate* and *check* mean different things?
+**Answered 2026-08-20: the recommended option.** The term appears where it is
+used; the source appears once, in part 3.
+
+#### D9 · Do *gate* and *check* mean different things? — **answered: yes — a gate refuses, a check reports**
 
 We use *gate* for both **a check that refuses** and **a check that warns and
 asks** — and #137's audit found `docs/3.3` describing the second as the first,
@@ -1260,6 +1396,11 @@ which is the evidence that the words are doing two jobs.
 
 **Recommended: the first**, and it costs a pass over `docs/3.3` in the same
 change that applies the rest.
+
+**Answered 2026-08-20: the recommended option.** Used strictly from now on: a
+**gate** refuses and the work stops; a **check** reports and a person decides.
+Every existing use of *gate* in `docs/3.3` is re-read against that in the sweep,
+because #137's audit already found one that was a check wearing the other word.
 
 #### release branch · release train
 
@@ -1337,10 +1478,12 @@ release.
 **Ours**: *rehearsal* — a production clone whose purpose is to prove the release
 **mechanism** and to run anything needing production-like hardware.
 
-**Recommend: keep ours, mention staging once.** "Staging" carries expectations we
-deliberately do not meet: it is usually a permanent production mirror, and the
-standing criticism of staging (Charity Majors: mirroring production is a fool's
-errand) lands on that version and not on ours. Our word says what it is *for*,
+**Recommend: keep ours, mention staging once.** "Staging" carries four
+expectations we deliberately do not meet — permanently up, mirroring production's
+data, where features are signed off, and where bugs are expected to surface —
+each set against what rehearsal actually is in D10 above.
+The standing criticism of staging (Charity Majors: mirroring production is a
+fool's errand) lands on that version and not on ours. Our word says what it is *for*,
 which is the distinction that makes the preview/rehearsal split work. Say
 "rehearsal (a staging environment, but see below)" once, then use ours.
 
@@ -1360,11 +1503,17 @@ mapping a real change onto the list takes an argument every time.
 
 #### preview
 
-**Standard**: "preview environment" / "review app" — close enough to be the same
-thing, though usually per-branch and ephemeral where ours is one shared local
-stack.
+**Standard**: "preview environment" / "review app" — the same thing, and ours is
+per-branch too.
 
-**Recommend: keep ours**, and note the difference: ours is not per-branch.
+**Recommend: keep ours.** The difference worth noting is **how many exist at
+once**: the industry's version usually stands one per open pull request,
+automatically, for as long as the branch lives. Ours is a single local stack torn
+down and rebuilt at whatever ref is being looked at — a branch early on, the
+release branch once there is a whole release to judge. Cheaper to run and
+cheaper to reason about, at the cost of only one thing being previewable at a
+time; branches are usually tried in dev first, where nothing has to be built or
+run through CI.
 
 ---
 
@@ -1746,10 +1895,11 @@ dimensions](https://itsm.tools/itil-4-explained/)
 | [The levels](#the-levels-programme-workstream-project-work-package-release) | **decided** | `docs/3.3`, the change lifecycle |
 | [Workstreams](#workstreams-the-capabilities-we-maintain) | **decided** — the list is agreed; the assignment is not applied | `docs/3.3`, and a parent issue or label per workstream |
 | [Classifying a change](#classifying-a-change-type-route-release) | **decided**, except the form's two gaps | `docs/3.3`'s lane table, and `.github/ISSUE_TEMPLATE/change.yml` |
+| [Workstream assignment](#every-open-issue-on-all-three-axes-and-a-workstream) | **decided**, not applied — 47 issues to file | GitHub: a label or parent issue per workstream |
 | [Projects: phases and gates](#projects-phases-and-gates) | **decided**; the `phase:` labels exist | `docs/3.3` |
-| [Delivery](#delivery-releases-applications-and-merges) | **decided**, except D6 | `docs/3.3`, and #156's delivery log |
-| [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) | **decided**, except D14's new gate | `docs/3.3` |
-| [Terminology](#terminology-our-words-and-the-industrys) | **candidate** — D10 decides the set | wherever each term is used |
+| [Delivery](#delivery-releases-applications-and-merges) | **decided** | `docs/3.3`, and #156's delivery log |
+| [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) | **decided**, except D16 — what a *test approach* is | `docs/3.3` |
+| [Terminology](#terminology-our-words-and-the-industrys) | **decided** — the set is accepted, with three corrections | wherever each term is used |
 | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) | **decided**; the `docs/3.0` rows are **applied** | a new section in `docs/3.3` |
 | [Background: ITIL](#background-how-itil-handles-tooling-monitoring-and-instrumentation) | reasoning only; changes nothing on its own | the notes behind the lane rule |
 | *parent issue* | **applied** 2026-08-19 | `docs/3.3` — PR #185 |
