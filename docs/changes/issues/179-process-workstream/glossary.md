@@ -32,6 +32,11 @@ So the two halves separate:
   list is still moving costs attention twice and risks a half-applied rename,
   which is worse than either end of it
 
+Its sibling in this folder is
+[`process-review.md`](process-review.md) — this project measured against
+published release-engineering practice, written 2026-08-13 for #133. It is
+history rather than a live document: what survived it is in `docs/3.3`.
+
 The point was never renaming for its own sake. It is that a reader who knows the
 standard term can map what we do onto what they already know and read further,
 and that `docs/3.x` is meant to be portable to a second project, where our
