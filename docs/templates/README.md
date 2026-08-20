@@ -8,7 +8,8 @@ depth, and an example alone leaves you guessing at what was optional.
 
 | template | copy it to | worked examples |
 | --- | --- | --- |
-| [test-plan.md](test-plan.md) | `docs/changes/<issue>-<name>-test-plan.md` | [user deletion](../changes/41-user-deletion-test-plan.md) (#41, functional) · [rate limiting](../changes/25-rate-limiting-test-plan.md) (#25, non-functional) |
+| [test-plan.md](test-plan.md) | the project's folder — `docs/changes/projects/<name>/` — else the issue's | [user deletion](../changes/41-user-deletion-test-plan.md) (#41, functional) · [rate limiting](../changes/25-rate-limiting-test-plan.md) (#25, non-functional) |
+| [post-deployment-review.md](post-deployment-review.md) | the project's folder, once its last release has been live and used | none yet — the first project to finish writes it |
 
 ## Notes
 

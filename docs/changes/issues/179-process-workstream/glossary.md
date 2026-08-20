@@ -78,7 +78,29 @@ hand-maintain.
 half-done version costs what the whole one costs and delivers nothing. It is an
 hour of filing, once.
 
-### D3 · Do project phases stay, and where do they apply?
+### D3 · Do project phases stay, and where do they apply? — **answered: delivering workstreams only**
+
+**Decided 2026-08-20.** Phases belong to projects, and projects belong to
+delivering workstreams; a standing workstream has issues and pull requests and
+nothing between. With three consequences the owner drew out, and the third
+reverses an earlier decision:
+
+**A project is an issue.** It has to be raised as one, because that is what
+records its structure — its scope, its work packages, its phase, and its
+documents.
+
+**A project is named, not versioned.** *"The version won't be known until it is
+scheduled, so we also need a name for the project consisting of workstream
+number and an increasing letter or number"* — so `71A`, `71B`, `179A`. A project
+still has a **main release version** once it is scheduled; the name is what it is
+called before that, and after.
+
+**Releases are attributes of projects** — the mechanism by which a project puts
+its changes live — rather than the thing the project is filed under. Owner:
+*"This changes a previous comment from me about naming projects after releases.
+I now think releases are too volatile and imprecise."* That reverses the folder
+rule agreed yesterday: a project's documents live under its **name**, not under
+a version that may move or split.
 
 The five `phase:` labels exist and are in use nowhere, after the process
 workstream turned out to have no projects.
@@ -92,7 +114,32 @@ workstream turned out to have no projects.
 **Recommended: projects only.** The first real test will be #71, which is the
 one workstream that genuinely has projects.
 
-### D4 · Is the post-implementation review built, and how?
+### D4 · Is the post-implementation review built, and how? — **answered: yes, as a lessons-learned review**
+
+**Decided 2026-08-20.** Owner: *"Post-deployment should have a lesson's learnt
+review, conducted by Claude and reviewed by Steve. It should have a template and
+include 'was the intended scope delivered'… the template should list areas to be
+considered, including areas where we have had problems. This review might lead
+to new issues — to improve the process or to extend the scope."*
+
+**Written by Claude, reviewed by Steve.** The person who did the work is worst
+placed to notice what it cost and best placed to remember what happened, which
+is the argument for both halves of that.
+
+**The template is `docs/templates/post-deployment-review.md`**, and its shape
+comes from two sources rather than from invention:
+
+| source | what it contributes |
+| --- | --- |
+| [After Action Review](https://asana.com/resources/after-action-review-template) | the four questions: what did we set out to do, what happened, why the difference, what next. The oldest and clearest form of this |
+| [PRINCE2 Lessons Report](https://prince2.wiki/management-products/reports/lessons-report/) | that a lesson is only worth capturing if somebody can act on it — so every finding ends as an issue, or is explicitly dropped |
+
+Plus a list of **areas to consider**, each there because it has cost us
+something: the milestone closing unshipped work (#67), a deferred test shipping
+anyway, a rule landing in two documents, gates skipped, a tool failing silently.
+
+**When:** once the project's last release has been live and used, not on the day
+it ships — a week is usually enough for the interesting failures to surface.
 
 Nothing asks whether a *normal* release did what it was for. #67 is the worked
 example: closed by a milestone, listed as deferred in the testing report, and
@@ -108,7 +155,11 @@ genuinely broken.
 if a release goes wrong and nobody noticed, that is the evidence for making it
 automatic — which is exactly how the emergency retrospective came about.
 
-### D5 · Does `main` get a ruleset?
+### D5 · Does `main` get a ruleset? — **answered: yes**
+
+**Decided 2026-08-20**, reviewing PR #184. Requiring CI's `check` job on `main`,
+and nothing more. Still to do: create the ruleset, which may need a token
+permission we do not have.
 
 | option | |
 | --- | --- |
@@ -116,10 +167,25 @@ automatic — which is exactly how the emergency retrospective came about.
 | **require the CI check** | a red push cannot land on `main` |
 | **require CI and the review checklist** | and a pull request for every change, which the merge lane deliberately does not ask for |
 
-**Recommended: require CI's `check` job, nothing else, and only after #184
-merges.** It is the one gate whose answer is objective and whose failure is
-expensive. Requiring a review checklist with one author is ceremony, and
-requiring pull requests would undo the merge lane.
+**Recommended, and agreed: require CI's `check` job, nothing else, and only
+after #184 merges.** It is the one gate whose answer is objective and whose
+failure is expensive. Requiring a review checklist with one author is ceremony,
+and requiring pull requests would undo the merge lane.
+
+### A review has three outcomes
+
+**Decided 2026-08-20.** Owner: *"I need to say 'approved', 'approved with
+changes', 'change and re-review'. I guess we don't need 'reject'."*
+
+| outcome | label | what happens next |
+| --- | --- | --- |
+| **approved** | `approved` | Claude merges |
+| **approved with changes** | `provisionally-approved` | Claude makes the noted changes **and merges** — no second review |
+| **change and re-review** | neither | Claude changes it and hands it back |
+
+The middle one is most reviews, and without it each of them costs a lap whose
+only purpose is to confirm what was already agreed. There is no *reject*: a
+change that should not happen is a closed pull request and a comment saying why.
 
 ## Where each part stands
 
@@ -128,9 +194,10 @@ requiring pull requests would undo the merge lane.
 | [The four levels](#the-four-levels-and-what-each-is-called) | **decided** | `docs/3.3`, the change lifecycle |
 | [Project phases](#project-phases) | **decided**, except the last | `docs/3.3`, and the `phase:` labels already exist |
 | [Capability workstreams](#capability-workstreams) | **candidate** — the list is agreed, the adoption is not started | `docs/3.3`, and a parent issue or label per workstream |
-| [Categorising changes and releases](#categorising-changes-and-releases-three-attributes-not-one-lane) | **candidate** — #154 | `docs/3.3`'s lane table, and new labels or an issue form |
+| [Decisions awaiting your agreement](#decisions-awaiting-your-agreement) | **D1–D4 open, D5 answered** | each into the section it belongs to, then `docs/3.3` |
+| [Categorising changes and releases](#categorising-changes-and-releases-three-attributes-not-one-lane) | **candidate** — the decision is D1; #154 is closed and folded here | `docs/3.3`'s lane table, and new labels or an issue form |
 | [How ITIL handles tooling](#how-itil-handles-tooling-monitoring-and-instrumentation) | **decided** as reasoning; changes nothing on its own | the notes behind the lane rule |
-| [How the process is managed](#how-the-process-is-managed-github-folders-scripts) | **decided** — the inventory of what we use | a new section in `docs/3.3`; script rows in `docs/3.0` |
+| [How the process is managed](#how-the-process-is-managed-github-folders-scripts) | **decided**; the `docs/3.0` script rows are **applied** in PR #184 | a new section in `docs/3.3` |
 | Individual terms below | **candidate**, except *parent issue* | wherever the term is used |
 | *parent issue* | **applied** 2026-08-19 | `docs/3.3` — PR #185 |
 
@@ -188,8 +255,8 @@ rule matters. "Build id" is fine everywhere else.
 **Standard**: GitHub's own vocabulary for the feature — a *parent issue* with
 *sub-issues*, with progress rolled up automatically.
 
-**Ours**: `docs/3.3` says **master issue**; conversation on 2026-08-19 used
-**lead issue**.
+**Ours**: `docs/3.3` said **master issue** until PR #185; conversation on
+2026-08-19 used **lead issue**. Both are gone.
 
 **Recommend: adopt**, decided 2026-08-19. Using the tool's own word means the
 document, the API and the UI all say the same thing, and it retires "master".
@@ -627,14 +694,14 @@ tooling to know what is safe.
 
 ### Folders
 
+**Where a document lives is `docs/3.3` §2.9.4.1**, applied and enforced by
+`check-docs.sh`. It is not repeated here: the table below covers only what that
+section does not, because a second copy of a rule is the copy that goes stale.
+
 | path | holds |
 | --- | --- |
-| `docs/1.x` – `docs/4.x` | the numbered documents: rules, design, lifecycle, reference. The permanent record |
-| `docs/changes/issues/<n>-<name>/` | design notes, impact assessments and drafts for one issue — or for a workstream's parent |
-| `docs/changes/releases/<version>/` | testing documents for one release |
-| `docs/changes/*.md` | five files that predate the convention and stay put, because issue comments link to them |
 | `docs/diagrams/` | `.mmd` sources and their rendered `.svg` — edit the source, re-render, commit both |
-| `scripts/` | everything below, plus the deploy path |
+| `scripts/` | the tools, listed in `docs/3.0` |
 | `.github/workflows/` | CI, and the document review workflow |
 | `.claude/` | how Claude is driven — gitignored, because it is not the project's |
 
@@ -684,7 +751,7 @@ by whoever filed it.
 | **interaction design** | how the game is presented and controlled | #146, #84, #105, #152 |
 | **accounts and identity** | who a player is, and what may be done to an account | #57, #58, #140 |
 | **notification and liveness** | telling a client that something changed, and noticing when it did not | #87, #142, #15 |
-| **infrastructure and persistence** | what every feature rests on: schema, migrations, concurrency, process lifetime, memory | #29, and #71's chunk A |
+| **infrastructure and persistence** | what every feature rests on: schema, migrations, concurrency, process lifetime, memory | #29, and #71's work package A |
 | **capacity planning** | *will it fit* — growth, throttling, limits, measurement | #89, #29, #165 |
 | **production operations** | *is it healthy now* — logs, alerts, backups, disk, access | #174, #175, #176, #40 |
 | **dictionaries and word lists** | the lexicons and what may be played | #116 |
