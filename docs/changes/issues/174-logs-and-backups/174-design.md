@@ -203,10 +203,43 @@ is alive, not that the site serves. And it makes application events unfindable �
 
 #### What replaces it
 
-**Point the web check at the site it serves**: `wget --spider
-http://127.0.0.1/version.txt`. It proves routing, the file server and the static
-build, and it is **silent**, because access logging is off. The server's check
-already hits `/health` and already logs nothing.
+**Point the web check at the site's own files** — but **not at the public site**,
+which cannot be probed from inside the container at all. The `Dockerfile`'s own
+comment already recorded why, and the design missed it: Caddy's global
+HTTP→HTTPS redirect fires for any `Host` on `:80`, and the TLS handshake on
+`:443` then fails because no certificate matches `127.0.0.1`. That is precisely
+why the check had moved to the admin API in the first place.
+
+**So the Caddyfile gains a loopback-only listener**, four lines, serving the same
+root with the redirect disabled for that site alone:
+
+```caddyfile
+http://127.0.0.1:2020 {
+    root * /srv
+    file_server
+}
+```
+
+and the health check probes `http://127.0.0.1:2020/version.txt`. It proves
+routing, the file server and the static build — a broken static root fails it —
+and it is **silent**, because access logging is off. Not published by
+docker-compose, so it is reachable only from inside the container.
+
+**What it deliberately does not prove** is the public path: TLS, the real
+hostname, the redirect. Nothing running on loopback can, and the OCI health check
+probes that from three regions, which is the only place it can honestly be proved
+from.
+
+**Built and verified 2026-08-21**, in a container with this Caddyfile:
+
+| | |
+| --- | --- |
+| the probe passes | `wget --spider …/version.txt` → exit 0 |
+| **a broken static root fails it** | a missing file → exit 1, which the admin-API check could never do |
+| it is silent | **0 log lines** from the health listener over the run |
+| the public site really is unprobeable from inside | `…:80/version.txt` → *connection reset by peer*, as the Dockerfile comment said |
+
+The server's check already hits `/health` and already logs nothing.
 
 That satisfies the requirement in its strongest form: health checks and
 application events are not in the same file because health checks are not in a
@@ -902,7 +935,8 @@ The diff carries the detail here; these summaries carry the intent above it.
 
 | artefact | | what it does afterwards |
 | --- | --- | --- |
-| `Dockerfile` | modified | the web health check fetches `/version.txt` from the site instead of polling Caddy's admin API — it proves routing, the file server and the static build, and writes nothing |
+| `Dockerfile` | modified | the web health check fetches `/version.txt` through a loopback-only listener instead of polling Caddy's admin API — it proves routing, the file server and the static build, and writes nothing |
+| `Caddyfile` · `Caddyfile.preview` | modified | each gains `http://127.0.0.1:2020`, a loopback-only listener serving the same root with the HTTP→HTTPS redirect disabled, so the container can probe its own files |
 | `crates/server-game/src/main.rs` | modified | the subscriber emits **JSON to stdout**. Human-readable output becomes a rendering applied at reading time rather than the stored form |
 | `crates/server-game/src/app/auth.rs` | modified | four events stop carrying `display_name`, and the unknown-email reset stops carrying **the email address**. What is left identifies the account to somebody with database access and to nobody else |
 | `crates/server-game/src/email.rs` | modified | mail events carry `player_id` and a message kind rather than the recipient address and subject |
