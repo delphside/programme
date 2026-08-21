@@ -99,6 +99,7 @@ to read it.
 | **D28** | May a project have a branch per delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D29** | What does the deliveries heading hold? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D30** | Is triage written down, and where? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
+| **D31** | What owns an artefact — the project, or a delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -2018,6 +2019,70 @@ same shape as [D27](#d27--what-does-the-design-document-owe-the-artefact-list--a
 The version and the date are in both, deliberately and bounded — and the log is
 **derivable** from the runbooks plus the tags, which is the direction the
 generation should run if it is ever automated.
+
+#### D31 · What owns an artefact — the project, or a delivery? — **answered: a delivery**
+
+Owner, 2026-08-21: *"A project has deliveries. Each delivery has artefacts. Each
+artefact has a route. Each project delivery therefore has a runbook specifying
+each artefact and the route with other technical details."*
+
+**Four levels, and each one is a set of the next.** Written out, because the model
+has been assembled a piece at a time and this is the first sentence that holds all
+of it:
+
+```text
+project
+  └── delivery            one act of putting change in front of its consumer
+        └── artefact      what that act touches
+              └── route   how that artefact reaches its consumer — a property of
+                          the artefact, never stated (D26)
+```
+
+##### What changes: artefacts belong to a delivery, not to the project
+
+[D25](#d25--does-the-project-issue-list-what-it-touches--answered-yes-new-or-modified)
+put a flat list on the project issue. **It gains a delivery column**, and the
+project's list becomes the union of its deliveries'.
+
+That is not tidiness. Three things need the per-delivery set and cannot use the
+union:
+
+- **the runbook**, which is written per delivery and has to know which artefacts
+  *this* act touches, and in what order
+- **rollback.** *"What does undoing this delivery touch?"* is the union's wrong
+  answer — it names artefacts a different delivery put there
+- **"is it delivered?"** A project with two deliveries is half-delivered for a
+  while, and the union cannot express that. Per-delivery, it is obvious
+
+**The union still does the job it was invented for.** The collision test between
+two projects — do their artefact lists intersect? — works on the whole table, and
+is unaffected.
+
+##### The runbook is where artefact, route and detail meet
+
+[D29](#d29--what-does-the-deliveries-heading-hold--answered-a-runbook-written-before-and-completed-after)
+said the deliveries heading holds a runbook written before and completed after.
+D31 says what a row of it contains:
+
+| written before | filled in after |
+| --- | --- |
+| the artefact · its route · the technical detail — the command, the file, the console page | which version or build carried it, and **when** |
+
+##### Three places name an artefact, and each has a different reader
+
+Worth stating plainly, because it is the most duplication this process allows
+anywhere:
+
+| where | what it adds | who reads it |
+| --- | --- | --- |
+| **the project issue** | new or modified, and which delivery | somebody asking *what does this project touch?* — including a script asking whether two projects collide |
+| **the design** | what the artefact does afterwards that it did not before | a reviewer, and whoever implements it |
+| **the delivery runbook** | the route, the order, the command — and afterwards the version and date | somebody performing the delivery, or undoing it |
+
+**The name is the only thing repeated**, which is the same bargain
+[D27](#d27--what-does-the-design-document-owe-the-artefact-list--answered-the-same-artefacts-and-what-changes-in-each)
+struck, and it is mechanically checkable: the three either name the same
+artefacts or they do not.
 
 #### D6 · What is a release, and what gets logged as one? — **answered: the log records deliveries**
 
