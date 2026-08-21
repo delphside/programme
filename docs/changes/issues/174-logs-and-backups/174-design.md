@@ -1106,12 +1106,14 @@ half of the table the answer to *"what else was on that box?"*
 | `OCI` write-only pre-authenticated request | **new** | lets the VM upload and nothing else. Tested: it cannot read, list or delete, and deleting it revokes access immediately. Its expiry date is recorded in `docs/3.4` |
 | `OCI alarm` — backup did not arrive | **new** | mails the owner when a day passes without a new object. It is what makes the PAR's expiry announce itself rather than being discovered when the database is gone |
 | `OCI alarm` — no verified restore recently | **new** | mails the owner when the newest restore marker is more than 100 days old. It is what turns *"quarterly"* from an intention into a trigger, and it is the same mechanism as the row above pointed at a different object |
+| `OCI alarm` — no clean log check recently | **new** | mails the owner when the nightly log validation has not written a clean marker for about 36 hours. Alerts on **absence of success**, so it also catches a crashed check, a timer nobody enabled, a host that is down, or an expired credential |
+| `production:` the nightly log-check script and its timer | **new** | validates the day's journal against `docs/4.7`, writes exceptions to its own log, and refreshes the marker only on a clean run |
 
-**Eighteen artefacts of which seven leave no trace in git**, which is the argument
+**Twenty artefacts of which nine leave no trace in git**, which is the argument
 for the table existing at all: a list that had quietly meant *files changed*
 would have described half of this project.
 
-**Three of the seventeen are test tooling, and two of those were missing** until
+**Three of the twenty are test tooling, and two of those were missing** until
 the owner asked twice — first whether the tests in Part 8 produced any scripts,
 then noticing that the one added *ran in production* and none tested the project
 itself. That is D25's *"the list stays provisional until the test approach
