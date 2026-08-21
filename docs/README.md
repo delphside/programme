@@ -54,6 +54,7 @@ can't drift the way a hand-maintained list would.
 - [4.4 snapshot_json Schema](4.4-snapshot-json-schema.md) — the authoritative game-state JSON blob's shape
 - [4.5 Data Dictionary](4.5-data-dictionary.md) — where each game field lives across snapshot/DB/DTO, and its kind
 - [4.6 Client-Local Storage](4.6-client-local-storage.md) — StoredAuth / chat watermarks kept on the device
+- [4.7 Log Events](4.7-log-events.md) — every event the server writes, the twenty-five field names the whole log uses, and the schema a test compares the code against
 - [4.8 Artefacts](4.8-artefacts.md) — the register of things under change control that leave no trace in git: host files, cloud resources, GitHub objects. Also the answer to *what else was on that box?*
 
 ## How these documents are written
