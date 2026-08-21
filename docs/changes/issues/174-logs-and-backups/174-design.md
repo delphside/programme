@@ -624,19 +624,42 @@ because they are the ones nobody looks at. Which is why the second half below
 exists — not because the log is noisy, but because waiting for a rare event is
 not a test.
 
-##### So: read the real logs, and make the rare paths happen
+##### So: the regression suite drives it, and production only reads
 
-The two halves cover each other, and neither needs a typed module:
+Owner, 2026-08-21: *"the production check should just check the production logs,
+and write its own exception log. Our normal regression tests will generate all of
+the log messages anyway, so running the check as part of CI should cover it."*
 
-| | covers | misses |
-| --- | --- | --- |
-| **validate every line of the real log** against the schema | anything that actually happened, including events nobody thought to test | whatever has not happened lately |
-| **drive the five personal-data paths** — register, login, failed login, reset, invitation — then validate | exactly the rare paths the first misses | error branches that need a provider or a database to fail |
+**Both halves are right, and together they delete a script I was about to
+write.** I had `check-log-hygiene.sh` driving register, login, failed login,
+reset and invitation against a live stack to reach the rare paths. **The
+regression suite already drives them, better**, and it runs on every push:
 
-**Which is `check-log-hygiene.sh` doing both jobs**, and it collapses three
-planned things into one: the hygiene grep, the schema validation, and the
-coverage problem. It runs against preview and rehearsal, where it can drive the
-flows, and against production's journal, where it validates what really happened.
+| path | tests that reach it |
+| --- | --- |
+| registration | 135 references |
+| invitations | 100 |
+| login, including *an unknown name still pays for a password check* | 34 |
+| password reset — and the rare branches by name: `rejects_an_unknown_token`, `rejects_an_expired_token`, `rejects_a_token_already_used_once` | 30 |
+
+**Those are exactly the events a week of production would not show**, and the
+suite reaches them every single run. Driving them a second time from a shell
+script would be a worse copy of a thing that already exists.
+
+**And driving flows against production was never right anyway** — it would create
+accounts and send real email to reach a code path. The owner's split is the
+correct one: **CI drives, production reads.**
+
+| where | what it does |
+| --- | --- |
+| **CI** | run the suite with the JSON subscriber capturing to a file, then validate every captured line against the schema. Fails the build on a field `4.7` does not declare |
+| **production** | nightly, read the day's journal, validate, and **write its own exception log**. It creates nothing and touches nothing |
+
+**The exception log rather than an alert** is the same instinct as D5's
+rejection of email: a channel that fires rarely and is read
+never is not a control. Exceptions accumulate somewhere greppable, and
+`status.sh` surfaces a non-empty one the way it now surfaces failing document
+checks — where somebody is already looking.
 
 **What is left uncovered** is honest and small: error branches needing an email
 provider to return 500 or a database to fall over. Those carry `error` and
@@ -1064,7 +1087,7 @@ The diff carries the detail here; these summaries carry the intent above it.
 | `docker-compose.yml` · `docker-compose.preview.yml` | modified | both services log through the **journald** driver, so the store belongs to the host and survives the container recreation that discards everything today |
 | `docs/4.7-log-events.md` | **new** | the event catalogue, and — because of the test below — the **declared schema** the code is measured against. It is a reference document that is also a gate |
 | `crates/server-game/tests/` — the schema comparison | **new** | renders every event through the real JSON layer and fails CI when a field appears that `4.7` does not declare. It proves code and document **agree**; whether the document is **right** is a person's job |
-| `scripts/check-log-hygiene.sh` | **new** | the **project's** test: drives the five personal-data paths against a preview or rehearsal stack and fails if an address or a display name reaches the log, if any line is not valid JSON, or if a deploy discarded the history |
+| `scripts/check-log-hygiene.sh` | **new** | validates a stream of log lines against `docs/4.7`'s schema and fails on an address, a display name, an undeclared field or a line that is not JSON. **Reads; never drives.** CI feeds it the suite's captured output, production feeds it the day's journal |
 | `scripts/restore-backup.sh` | **new** | fetches the newest backup, verifies it opens, and loads it into a fresh volume — so the restore drill is re-runnable rather than a thing done once in August |
 | `docs/3.4-production-environment.md` | modified | documents the host artefacts below, the backup procedure, the pre-authenticated request's expiry date, and the restore drill |
 
