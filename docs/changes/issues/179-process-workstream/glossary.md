@@ -1345,7 +1345,7 @@ approval, *settled* after — and an individual entry nobody is sure of carries 
 `?`. List-level rather than per-entry as the default, because marking every line
 invites arguing each one instead of writing the list.
 
-##### D26 · A register of artefacts, or just a naming convention? — **answered: both, and the register is small**
+##### D26 · A register of artefacts, or just a naming convention? — **answered: both, and route is derived from it**
 
 Owner, 2026-08-21: *"I agree with your two points. So maybe we need a list of
 artefacts, or at least a naming convention."*
@@ -1402,9 +1402,8 @@ repository file *and* a host file, giving {artifact, host}, which is exactly the
 two routes that made it awkward; #155 is repository files plus GitHub objects,
 giving {repository, service}.
 
-**Raised rather than decided**, because it changes an answered decision: if route
-is carried by the register, the artefact list is the only thing anybody writes and
-both route and the co-delivery test fall out of it.
+**Answered yes**, 2026-08-21 — see below. The artefact list becomes the only
+thing anybody writes, and both route and the co-delivery test fall out of it.
 
 ##### D27 · What does the design document owe the artefact list? — **answered: the same artefacts, and what changes in each**
 
@@ -1468,6 +1467,52 @@ A rule worth stating because it falls straight out of the route axis:
 Which is *done when their documentation is*, arriving for a fourth time — and the
 first time it has said something about how much to write rather than merely that
 one must.
+
+##### D26 answered: yes — route is derived from the artefact list
+
+Owner, 2026-08-21: *"Yes, on D26. The only complication is documents which might
+be edited in main or in a branch — but we can see that as one route with two
+variants."*
+
+**So route stops being written down anywhere.** A delivery's routes are the union
+of the routes of the artefacts it touches, and the artefact list — which the
+project already keeps — is the only thing anybody writes.
+
+| the artefact | its route |
+| --- | --- |
+| a path in the repository | **never leaves the repository**, or **in the artifact** where the build consumes it |
+| `production:/etc/…` | applied on the host |
+| `OCI bucket …` · `OCI alarm …` | applied to a service we use |
+| `github:label …` · `github:ruleset …` | applied to a service we use |
+
+##### The complication resolves into something already decided
+
+A repository document is delivered **on save** when it is edited on `main`, and
+**on merge** when it comes from a branch. One route, two moments — and *which*
+moment is not a new question, because
+[D24](#d24--what-is-a-project-branchs-life--answered-created-with-the-project-deleted-when-it-is-live)
+already answers it: **an issue with no branch edits on `main`; an issue with a
+branch edits on the branch.** The variant follows the branch, and the branch
+follows the standard-versus-normal decision.
+
+So nothing extra is recorded. The two variants are worth *naming* — a reader
+should know that *live* means different things on the two paths — but neither is
+a field anybody fills in.
+
+##### Which makes this the fifth thing to come out derived
+
+Route joins the list, and the pattern is now hard to miss: **we store what
+somebody decided, and derive what follows from it.**
+
+| | decided | derived |
+| --- | --- | --- |
+| the process category | type, and the standard-change criteria | what a change must pass through |
+| the milestone | which release a project is going in | what the release contains |
+| the release | which projects name it | the release branch, rebuilt from theirs |
+| **route** | **which artefacts a change touches** | **how each one reaches its consumer** |
+
+The one thing left stated on the form is what nobody can derive: what kind of
+change this is, and whether it needs a release.
 
 ##### Keeping it true
 
