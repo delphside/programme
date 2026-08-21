@@ -1,4 +1,4 @@
-# Test Plan — deleting a user, validating against orphaning games
+# Test design specification — deleting a user, validating against orphaning games
 
 This plan was written as the user test for issue #41. It is incorporated into
 the regression tests for the Admin CLI delete-user function, covering the

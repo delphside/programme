@@ -1994,7 +1994,7 @@ spectrum, not a separate requirement. And **the term is undefined**, which is
 #### D16 · What is a *test approach*, and what satisfies the gate? — **answered: in the issue, or in §8**
 
 New, 2026-08-20, arising from D14: the gate names a document we have never
-defined. A test plan we have — [`docs/templates/test-plan.md`](../../../templates/test-plan.md),
+defined. A test plan we have — [`docs/templates/test-design-specification.md`](../../../templates/test-design-specification.md),
 ten parts, written for #41 and deliberately thorough. A *test approach* is meant
 to be the smaller thing that usually suffices, and right now nothing says what it
 contains or where it lives.
@@ -2030,7 +2030,7 @@ the split, folding the approach into the plan as a *test strategy* clause.
 **So the approach is a section of the plan, not a lighter substitute for one** —
 IEEE 829's test plan has *Approach* as its section 6. Which is exactly the shape
 our own template already has, without anyone having planned it:
-[`docs/templates/test-plan.md`](../../../templates/test-plan.md) §8 is called
+[`docs/templates/test-design-specification.md`](../../../templates/test-design-specification.md) §8 is called
 **Approach**, and it asks *what runs and where · what is real and what is stubbed
 · how time is manipulated · what state each test starts from*. The criteria half
 of the owner's definition lives in §3 (outcomes) and §6 (refusals and successes).
@@ -2384,7 +2384,7 @@ gain:
 
 | what we have | what it is, in the standards' names | what happens |
 | --- | --- | --- |
-| `docs/templates/test-plan.md` — rules, conditions, outcomes, the matrix, scenarios, coverage both ways | a **test design specification**: techniques, conditions and pass/fail criteria | renamed, and its two worked examples with it — `41-user-deletion-*` and `25-rate-limiting-*` |
+| `docs/templates/test-design-specification.md` — rules, conditions, outcomes, the matrix, scenarios, coverage both ways | a **test design specification**: techniques, conditions and pass/fail criteria | renamed, and its two worked examples with it — `41-user-deletion-*` and `25-rate-limiting-*` |
 | §8 of that template, plus the criteria in §3 and §6 | a **test approach** | named as such, and it is what [D14](#d14--do-we-classify-the-process-a-delivery-must-go-through--answered-yes-derived)'s gate asks for |
 | `docs/3.3`'s testing sections | a **test strategy** — the levels we test at and the testing within them, holding across every change | named as such. **This is the term we gain**, and it is the one that pays |
 | *(nothing)* | a **test plan** — scope, schedule, resources, risks for one project's testing | we do not write one and should not start. One developer, no schedule to coordinate |
@@ -2658,7 +2658,7 @@ hardest — a tab, a search result, an attachment — are exactly the moments th
 path is not shown.
 
 Same rule as the existing test-plan examples, which already do this
-(`41-user-deletion-test-plan.md`), arrived at from the other direction. Applied
+(`41-user-deletion-test-design.md`), arrived at from the other direction. Applied
 to `174-design.md` on 2026-08-21; the rest follow in the folder move, since both
 are renames and one round of broken links is cheaper than two.
 
