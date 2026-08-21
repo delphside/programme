@@ -99,17 +99,36 @@ message, the level, and its fixed set of fields. That serves both readers — a
 person looking for what a line means, and a parser needing to know what fields
 exist.
 
-**Keeping it true is the open question.** 3.3's own rule is that a document the
-code disagrees with means one of them is wrong, and a catalogue maintained by
-memory drifts within a month. Options:
+**Keeping it true was the open question, and the owner's answer is better than
+either option I offered.** Owner, 2026-08-21: *"Can we be a bit smarter? In the
+document have the JSON schema in a form that can be compared mechanically to the
+logs. Then the review just has to check that the schema and the documented fields
+match, and if they don't then a reader can quickly see the gap."*
 
-| | cost |
+**The document becomes the artefact under test**, rather than something a test
+tries to keep up with. The schema lives in `docs/4.7-log-events.md` as a fenced
+`json` block; a test extracts that block and compares it against the fields the
+code actually emits. Divergence fails CI, and the failure names the field.
+
+| what I proposed | what this replaces it with |
 | --- | --- |
-| a test extracting every `tracing::` call site and comparing the set to the document | a source scan that is fiddly to write and must be updated whenever an event is added — which is the point |
-| review discipline | free, and the failure is silent |
+| scan every `tracing::` call site and compare the *set of events* to the document | serialise each event and compare its **fields** to the schema the document declares |
+| a source scan, fiddly and brittle — it must parse Rust to find what is logged | no parsing: the events are constructed in the test and rendered through the real JSON layer, so what is compared is **what would actually be written** |
+| tells you an event is missing from the catalogue | tells you an event gained a field nobody documented — **which is the leak this part exists to prevent** |
 
-Recommended: the test. Flagged for review because it is a judgement about how
-much machinery a hobby project should carry.
+The second row is why it is smarter and not merely tidier. A source scan proves
+the *list* is complete; it says nothing about whether an event quietly acquired a
+`display_name`. Comparing the rendered output to a declared schema catches
+exactly that, and catches it on the commit that introduces it.
+
+**And it makes review cheap, which was the stated goal.** A reviewer does not
+read code to check the catalogue. They read two lists that a machine has already
+proved identical, and the only judgement left is whether a documented field
+*should* be there — which is the judgement a person is actually for.
+
+*Not a new mechanism*: this is 3.3's rule — *wherever a rule can be checked by
+the tooling, check it there* — applied to a document rather than to code, which
+is the first time we have pointed it that way round.
 
 ---
 
@@ -522,12 +541,40 @@ entirely outside the application.
 
 1. **Seven days: promise or capacity?** If a promise, logrotate matches it and
    syslog stops being a five-week archive (Part 4).
+   **Answered: capacity.** Owner: *"if we only store ids then it is only
+   identifiable with access to the database, in which case the logs don't
+   matter."* Right, and it is consistent with *The limit of the claim* above: the
+   ids are pseudonymous, so a leaked log on its own identifies nobody, and the
+   sensitive copy is the database — which is governed separately and much more
+   tightly. **So seven days is a disk-space number and may be tuned freely**,
+   logrotate need not be made to match it, and syslog's five-week archive stops
+   being a problem to solve.
 2. **The catalogue test** — build the source scan, or rely on discipline
    (Part 1)?
+   **Answered: neither — the document declares the schema and a test compares
+   the emitted fields to it.** Written up in Part 1; it is a better answer than
+   either option offered, because it catches an undocumented *field* and not
+   merely a missing event.
 3. **Health probes recorded locally, or only in OCI** (Part 3)?
+   **Answered: OCI only.** Owner: *"I don't see any value in storing health
+   checks if OCI records outages."* Agreed — and it removes the largest single
+   source of log volume rather than merely bounding it. What is given up is the
+   near-miss: a probe that answered slowly is a signal OCI's up/down view does
+   not carry. Not worth a local log; if it ever matters, it is a latency metric
+   and not a line of text.
 4. **Sequencing** — do the three early pieces stand, or does everything wait for
    #71 (Part 9)?
+   **Answered: all of it goes before #71.** Owner: *"we can do those things ahead
+   of #71, we can do all of it ahead of #71 if that is easier."* It is easier —
+   splitting the project into an urgent third and a deferred remainder costs a
+   second pass over the same files, and the deferred part would have been rebased
+   over whatever #71 does to them.
 5. **One note or two** — this covers #174 and #175; splitting is easy if review
    prefers a document per issue.
+   **Answered: one.** Owner: *"this is one project and should have one design
+   even if it covers multiple requirements and deliveries."* Which is a general
+   rule rather than an answer about this document, and it is now recorded as such
+   in the glossary under D18 — **the design belongs to the project**, and #174
+   and #175 are two requirements of one project, not two projects.
 
 Refs #174, #175, #176, #166, #90, #136, #40
