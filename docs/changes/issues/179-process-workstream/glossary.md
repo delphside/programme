@@ -85,6 +85,7 @@ to read it.
 | **D14** | Do we classify the process a delivery must go through? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 | **D15** | Technical testing and user testing — a variant, or a property of each change? | **answered** | [Classifying a change](#classifying-a-change-type-route-release) |
 | **D16** | What is a *test approach*, and what satisfies the gate? | **open** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
+| **D17** | Do we adopt the standard testing terminology? | **answered** | [Terminology](#terminology-our-words-and-the-industrys) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1452,6 +1453,40 @@ change that applies the rest.
 **gate** refuses and the work stops; a **check** reports and a person decides.
 Every existing use of *gate* in `docs/3.3` is re-read against that in the sweep,
 because #137's audit already found one that was a check wearing the other word.
+
+#### D17 · Do we adopt the standard testing terminology? — **answered: yes**
+
+Owner, 2026-08-20: *"we should adopt the standard terminology for testing. Test
+Plan is a term that is often abused, and you are right in what it is supposed to
+mean."*
+
+Arising from D16's research. Our *test plan* is not what the standards call a
+test plan, and the word is the most abused in testing precisely because everyone
+uses it for whatever document they happen to have. Three renames and one term we
+gain:
+
+| what we have | what it is, in the standards' names | what happens |
+| --- | --- | --- |
+| `docs/templates/test-plan.md` — rules, conditions, outcomes, the matrix, scenarios, coverage both ways | a **test design specification**: techniques, conditions and pass/fail criteria | renamed, and its two worked examples with it — `41-user-deletion-*` and `25-rate-limiting-*` |
+| §8 of that template, plus the criteria in §3 and §6 | a **test approach** | named as such, and it is what [D14](#d14--do-we-classify-the-process-a-delivery-must-go-through--answered-yes-derived)'s gate asks for |
+| `docs/3.3`'s testing sections | a **test strategy** — the levels we test at and the testing within them, holding across every change | named as such. **This is the term we gain**, and it is the one that pays |
+| *(nothing)* | a **test plan** — scope, schedule, resources, risks for one project's testing | we do not write one and should not start. One developer, no schedule to coordinate |
+
+**The gain is the test strategy.** Once `docs/3.3` can say *this is the test
+strategy* — what a unit test is for here, what belongs in an e2e test, what only
+rehearsal can judge — every per-change document stops restating it and says only
+what is different about this change. That is #137's complaint (3.3 is long)
+answered from the vocabulary end rather than by cutting text.
+
+**And the fourth row is a real decision, not an omission.** A test plan
+coordinates people and dates. There is one developer and no schedule, so writing
+one would be ceremony — but *saying* we do not write one is different from not
+having heard of it, and the difference is exactly what this row records.
+
+**Cost**: three file renames, the references in
+[`docs/templates/README.md`](../../../templates/README.md) and `docs/3.3`
+(§2.4.2 *How a test plan is built*, and the document-ownership row in §2.9.4.1),
+and a heading pass over 3.3's testing sections. All inside the apply pass.
 
 #### release branch · release train
 
