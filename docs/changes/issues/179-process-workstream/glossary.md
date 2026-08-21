@@ -88,6 +88,7 @@ to read it.
 | **D17** | Do we adopt the standard testing terminology? | **answered** | [Terminology](#terminology-our-words-and-the-industrys) |
 | **D18** | What does a project own, and what happens to the issues it absorbs? | **open** | [Projects](#projects-phases-and-gates) |
 | **D19** | Do we need a release object? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D20** | Do living documents still always live on `main`? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1388,6 +1389,44 @@ does not**, and it is the column worth having: *"went live and was wrong"* is
 what makes 0.6.0's entry useful, and no tag knows it. That is #156's
 generated-skeleton-plus-a-written-line, arrived at from the other end.
 
+### Live means a consumer has it, not that production has it
+
+**Decided 2026-08-19.** Owner, on merging a half-written script: *"I want to use
+the new script, so it is 'live' even if it is potentially still being
+developed."*
+
+That is the merge lane's logic stated from the other end. Tooling is an internal
+service whose consumer is the delivery team, so **merging is its release** —
+there is nobody else to release it to. Three consequences:
+
+- it stops being a scratch file: further work goes on a branch and merges like
+  any other change, and leaving it broken is a small outage rather than an
+  untidy working tree
+- *still being developed* is not the opposite of live — it is the
+  living-document rule applied to a script: **finished means working, not
+  complete**
+- care scales with **blast radius**, not with category: `actions.py` breaks a
+  view, `deploy.sh` breaks a release, and both are tooling
+
+**What this gives us that "does it reach production through a deploy?" does
+not.** The deploy test is the right *operational* question — fast, checkable,
+and it answers most cases. The CI-and-service framing is the *reason*, and it is
+what makes config-only and monitoring fall out cleanly instead of feeling like
+exceptions. Keep the deploy question as the test; keep this as the explanation
+behind it.
+
+Sources: [ITIL change
+enablement](https://itsm.tools/change-enablement/) · [release vs deployment
+management](https://www.vivantio.com/blog/release-management-vs-deployment-management/)
+· [ITIL release
+types](https://the-requirements-engineer.com/management-articles/itil-types-of-releases/)
+· [monitoring and event
+management](https://purplegriffon.com/blog/monitoring-and-event-management-itil)
+· [ITIL 4 overview, including the four
+dimensions](https://itsm.tools/itil-4-explained/)
+
+---
+
 ## Process and authorisation: what a change must pass through
 
 ### D14 · Do we classify the process a delivery must go through? — **answered: yes, derived**
@@ -1548,6 +1587,176 @@ permission we do not have.
 **Agreed: require CI's `check` job, nothing else, and only after #184 merges.** It is the one gate whose answer is objective and whose
 failure is expensive. Requiring a review checklist with one author is ceremony,
 and requiring pull requests would undo the merge lane.
+
+### The criteria inform the judgement; the judgement decides
+
+**Decided 2026-08-19.** Owner: *"there are lots of framings which might apply in
+different circumstances. Perhaps an important one is that we can make the
+decision we think is right, even if the documented criteria don't tell us to do
+that."*
+
+Five framings were produced for the lane question in one day — the artifact test,
+the deploy test, the configuration-item test, blast radius, and live-means-a-
+consumer. That is the evidence for the rule: **they are lenses, not a decision
+procedure.**
+
+> The criteria inform the judgement. The judgement decides. The reason is
+> recorded.
+
+Two constraints keep that from dissolving the process:
+
+- **Judgement may override a classification; it may never override a gate.** A
+  change can be called merge-lane against the written test; nobody can decide
+  that CI passed. Gates have objective answers and scripts own them — overrides
+  live entirely on the other side of that line.
+- **A criterion overridden repeatedly is a defect in the criterion.** One
+  override is a judgement, three in the same direction are a bug report. That is
+  how #154 came to exist.
+
+And an override costs **a sentence** — what was decided, and why the written test
+did not fit. Not a form and not an approval: the sentence is what turns a
+departure into evidence, and evidence is what fixes the criterion.
+
+### An issue's changes live in one place
+
+**Decided 2026-08-20.** Owner: *"No issue should have changes in main and changes
+in a branch, it invites mistakes."*
+
+Right, and today produced the mistake to prove it: #155 had the glossary on
+`main` and the issue form on a branch, so *"where is #155's work?"* had two
+answers, and a document that should never have been behind a review spent an
+afternoon there.
+
+**So an issue is either standard — everything on `main` — or normal —
+everything on a branch until it merges.** The [standard-change
+criteria](#standard-changes-what-may-go-straight-to-main) decide which, and they
+decide it for the **issue**, not for each commit.
+
+**When an issue turns out to be both**, it is two issues. That is the same rule
+as *one change, one type*, arriving from a different direction: #155's decisions
+are standard and belong on `main`; creating the issue form is normal and belongs
+on a branch of its own, raised when the decision is made. Until then the form
+is text in this document, which is a proposal rather than a change.
+
+#### D20 · Do living documents still always live on `main`? — **answered: no — they follow their issue**
+
+Owner, 2026-08-21: *"I want to point out that it changes something I have said
+before, which is that files under changes are always updated in main as they are
+living documents. This is no longer true if the issue or project has a branch,
+the risk of confusion is the bigger factor."*
+
+**A correction to an earlier rule of his own**, and it is the one-place rule
+taking precedence over the living-document rule where the two meet.
+
+##### The rule that changes
+
+`docs/3.3` §2.9.3 currently says a living document *"belongs on `main`"* and that
+a testing report or a runbook *"does not belong on a branch"* — stated without
+qualification. That is now true **only of an issue that has no branch**.
+
+| | before | now |
+| --- | --- | --- |
+| an issue with no branch — a standard change | its documents are on `main` | unchanged |
+| an issue or project with a branch | its documents were still on `main`, because they were living | **its documents are on the branch**, and merge with everything else |
+
+**What survives untouched is the standing issue.** That mechanism is about *not
+needing an issue per update* — a dozen issues saying "updated the report" is
+bookkeeping — and it says nothing about location. A living document on a branch
+still has a standing issue and still commits `Refs #N`.
+
+##### Why the old justification had already weakened
+
+Worth recording, because it is not simply a preference reversed. §2.9.3 argued
+for `main` on **readability**: *"a testing report kept on a branch is a report
+nobody can read while the testing it tracks is happening."* That assumed reading
+happens in the working tree, where one checkout shows one branch.
+
+We since settled that **documents are read in GitHub** — where a branch is as
+readable as `main`, and reading the branch is in fact the more accurate answer
+because it shows the version the work is actually producing. So the argument the
+old rule rested on had already gone, and what is left is the confusion risk,
+which is the factor the owner is now weighting.
+
+##### What it costs, and the transition it needs
+
+- **two projects editing one living document now conflict at merge**, where
+  main-always serialised them. Mitigated by the fact that a living document has
+  one standing issue and therefore one owner: two projects editing the same one
+  was already a smell rather than a case to design for
+- **deciding to branch is a decision to move the documents**, in the same commit
+  that creates the branch. A project that starts standard and turns out to be
+  normal moves everything, or it is exactly the two-answers state the one-place
+  rule exists to prevent
+- **the delivery log is not an exception**, though it looks like one. It is
+  written by the *delivery* rather than by an issue, so it is not an issue's
+  changes and the rule does not reach it
+
+**Consistent with where we are today**: the glossary is a living document on
+`main`, and #155 has no branch. Had the form been built on the #155 branch, this
+rule would have moved the glossary onto it.
+
+##### What the apply pass owes
+
+- `docs/3.3` §2.9.3 — the unqualified *"belongs on `main`"* and *"does not belong
+  on a branch"* both become conditional on the issue having a branch
+- §2.9.3's readability argument is replaced by the confusion argument, since the
+  first no longer holds once documents are read in GitHub
+- the document-ownership table in §2.9.4.1 gains the qualification, or points at
+  §2.9.3 for it
+
+### Standard changes: what may go straight to `main`
+
+**Decided 2026-08-20.** Owner: *"sometimes we say documents should be in a branch
+(because they are a major new version, and people should not consult them until
+approved) and sometimes we make the changes in main (because they are living
+documents, it is a quick update, or otherwise we want the changes to be
+immediately visible). That ties into the authorised point in the ITIL change
+type. Subject to certain criteria changes can be made directly in main with
+limited process — they are pre-approved."*
+
+That is ITIL's **standard change** exactly: pre-approved by the *procedure*, so
+no authorisation is sought for the instance. It answers a question 3.3 has been
+answering by feel — *when is a branch called for?* — with a criterion instead.
+
+#### Straight to `main` — pre-approved
+
+A change is standard when **every** one of these holds:
+
+| | |
+| --- | --- |
+| **it records a decision, rather than making one** | the glossary noting what was agreed; a release log entry |
+| **or it corrects an error** | a typo, a broken link, a stale reference, a lint failure |
+| **or it is additive reference** | a row for a tool that already exists |
+| **a defect reaches developers only** | route is *never leaves the repository*, and nobody is mid-way through following it |
+| **and it is reversible in one commit** | no migration, no third party, nothing already read and acted on |
+
+#### A branch and a review — normal
+
+Any **one** of these makes it a normal change:
+
+| | |
+| --- | --- |
+| **it states or changes a rule** | somebody may follow it while it is still provisional |
+| **it is a major revision** | the half-updated state misleads — `docs/3.3`'s restructure was 2,300 lines of it |
+| **a defect reaches users** | route is *in the artifact*, *carried by the deploy*, or applied to production |
+| **it is live at merge with a blast radius** | a workflow, a shared script, a template everybody copies |
+| **the owner asked to see it first** | which needs no other justification |
+
+#### Tested against today
+
+| change | went | correct? |
+| --- | --- | --- |
+| the glossary recording D3, D4, D6 | `main` | yes — records decisions, developer-only, reversible |
+| five tool rows in `docs/3.0` | `main` | yes — additive reference |
+| the blank-line and lint fixes | `main` | yes — corrections |
+| `docs/3.3` restructured into three parts | branch, PR #178 | yes — a major revision |
+| `check-docs.sh` and the docs workflow | branch, PR #184 | yes — live at merge, and CI runs it on every push |
+| the issue form | branch, PR #187 | yes — live at merge, changes how every issue is raised |
+| **the glossary, this afternoon** | **branch, PR #187** | **no** — it was a living document behind a review, which is the drift this rule prevents |
+
+**This entry is itself a standard change**: it records a decision the owner just
+made, a defect in it reaches nobody but us, and reverting it is one commit. So it
+went straight to `main`, which is the rule demonstrating itself.
 
 ## Terminology: our words and the industry's
 
@@ -2033,148 +2242,6 @@ internal service that performs deployments — so it is a normal change to *that
 service and a standard change from the game's point of view. Both statements are
 true at once, and the confusion in #154 came from having one word that forced a
 single answer.
-
-### The criteria inform the judgement; the judgement decides
-
-**Decided 2026-08-19.** Owner: *"there are lots of framings which might apply in
-different circumstances. Perhaps an important one is that we can make the
-decision we think is right, even if the documented criteria don't tell us to do
-that."*
-
-Five framings were produced for the lane question in one day — the artifact test,
-the deploy test, the configuration-item test, blast radius, and live-means-a-
-consumer. That is the evidence for the rule: **they are lenses, not a decision
-procedure.**
-
-> The criteria inform the judgement. The judgement decides. The reason is
-> recorded.
-
-Two constraints keep that from dissolving the process:
-
-- **Judgement may override a classification; it may never override a gate.** A
-  change can be called merge-lane against the written test; nobody can decide
-  that CI passed. Gates have objective answers and scripts own them — overrides
-  live entirely on the other side of that line.
-- **A criterion overridden repeatedly is a defect in the criterion.** One
-  override is a judgement, three in the same direction are a bug report. That is
-  how #154 came to exist.
-
-And an override costs **a sentence** — what was decided, and why the written test
-did not fit. Not a form and not an approval: the sentence is what turns a
-departure into evidence, and evidence is what fixes the criterion.
-
-### An issue's changes live in one place
-
-**Decided 2026-08-20.** Owner: *"No issue should have changes in main and changes
-in a branch, it invites mistakes."*
-
-Right, and today produced the mistake to prove it: #155 had the glossary on
-`main` and the issue form on a branch, so *"where is #155's work?"* had two
-answers, and a document that should never have been behind a review spent an
-afternoon there.
-
-**So an issue is either standard — everything on `main` — or normal —
-everything on a branch until it merges.** The [standard-change
-criteria](#standard-changes-what-may-go-straight-to-main) decide which, and they
-decide it for the **issue**, not for each commit.
-
-**When an issue turns out to be both**, it is two issues. That is the same rule
-as *one change, one type*, arriving from a different direction: #155's decisions
-are standard and belong on `main`; creating the issue form is normal and belongs
-on a branch of its own, raised when the decision is made. Until then the form
-is text in this document, which is a proposal rather than a change.
-
-### Standard changes: what may go straight to `main`
-
-**Decided 2026-08-20.** Owner: *"sometimes we say documents should be in a branch
-(because they are a major new version, and people should not consult them until
-approved) and sometimes we make the changes in main (because they are living
-documents, it is a quick update, or otherwise we want the changes to be
-immediately visible). That ties into the authorised point in the ITIL change
-type. Subject to certain criteria changes can be made directly in main with
-limited process — they are pre-approved."*
-
-That is ITIL's **standard change** exactly: pre-approved by the *procedure*, so
-no authorisation is sought for the instance. It answers a question 3.3 has been
-answering by feel — *when is a branch called for?* — with a criterion instead.
-
-#### Straight to `main` — pre-approved
-
-A change is standard when **every** one of these holds:
-
-| | |
-| --- | --- |
-| **it records a decision, rather than making one** | the glossary noting what was agreed; a release log entry |
-| **or it corrects an error** | a typo, a broken link, a stale reference, a lint failure |
-| **or it is additive reference** | a row for a tool that already exists |
-| **a defect reaches developers only** | route is *never leaves the repository*, and nobody is mid-way through following it |
-| **and it is reversible in one commit** | no migration, no third party, nothing already read and acted on |
-
-#### A branch and a review — normal
-
-Any **one** of these makes it a normal change:
-
-| | |
-| --- | --- |
-| **it states or changes a rule** | somebody may follow it while it is still provisional |
-| **it is a major revision** | the half-updated state misleads — `docs/3.3`'s restructure was 2,300 lines of it |
-| **a defect reaches users** | route is *in the artifact*, *carried by the deploy*, or applied to production |
-| **it is live at merge with a blast radius** | a workflow, a shared script, a template everybody copies |
-| **the owner asked to see it first** | which needs no other justification |
-
-#### Tested against today
-
-| change | went | correct? |
-| --- | --- | --- |
-| the glossary recording D3, D4, D6 | `main` | yes — records decisions, developer-only, reversible |
-| five tool rows in `docs/3.0` | `main` | yes — additive reference |
-| the blank-line and lint fixes | `main` | yes — corrections |
-| `docs/3.3` restructured into three parts | branch, PR #178 | yes — a major revision |
-| `check-docs.sh` and the docs workflow | branch, PR #184 | yes — live at merge, and CI runs it on every push |
-| the issue form | branch, PR #187 | yes — live at merge, changes how every issue is raised |
-| **the glossary, this afternoon** | **branch, PR #187** | **no** — it was a living document behind a review, which is the drift this rule prevents |
-
-**This entry is itself a standard change**: it records a decision the owner just
-made, a defect in it reaches nobody but us, and reverting it is one commit. So it
-went straight to `main`, which is the rule demonstrating itself.
-
-### Live means a consumer has it, not that production has it
-
-**Decided 2026-08-19.** Owner, on merging a half-written script: *"I want to use
-the new script, so it is 'live' even if it is potentially still being
-developed."*
-
-That is the merge lane's logic stated from the other end. Tooling is an internal
-service whose consumer is the delivery team, so **merging is its release** —
-there is nobody else to release it to. Three consequences:
-
-- it stops being a scratch file: further work goes on a branch and merges like
-  any other change, and leaving it broken is a small outage rather than an
-  untidy working tree
-- *still being developed* is not the opposite of live — it is the
-  living-document rule applied to a script: **finished means working, not
-  complete**
-- care scales with **blast radius**, not with category: `actions.py` breaks a
-  view, `deploy.sh` breaks a release, and both are tooling
-
-**What this gives us that "does it reach production through a deploy?" does
-not.** The deploy test is the right *operational* question — fast, checkable,
-and it answers most cases. The CI-and-service framing is the *reason*, and it is
-what makes config-only and monitoring fall out cleanly instead of feeling like
-exceptions. Keep the deploy question as the test; keep this as the explanation
-behind it.
-
-Sources: [ITIL change
-enablement](https://itsm.tools/change-enablement/) · [release vs deployment
-management](https://www.vivantio.com/blog/release-management-vs-deployment-management/)
-· [ITIL release
-types](https://the-requirements-engineer.com/management-articles/itil-types-of-releases/)
-· [monitoring and event
-management](https://purplegriffon.com/blog/monitoring-and-event-management-itil)
-· [ITIL 4 overview, including the four
-dimensions](https://itsm.tools/itil-4-explained/)
-
----
 
 ## Where each part stands
 
