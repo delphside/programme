@@ -84,8 +84,9 @@ to read it.
 | **D13** | Is *release* the word for any delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D14** | Do we classify the process a delivery must go through? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 | **D15** | Technical testing and user testing — a variant, or a property of each change? | **answered** | [Classifying a change](#classifying-a-change-type-route-release) |
-| **D16** | What is a *test approach*, and what satisfies the gate? | **open** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
+| **D16** | What is a *test approach*, and what satisfies the gate? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 | **D17** | Do we adopt the standard testing terminology? | **answered** | [Terminology](#terminology-our-words-and-the-industrys) |
+| **D18** | What does a project own, and what happens to the issues it absorbs? | **open** | [Projects](#projects-phases-and-gates) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -975,6 +976,121 @@ Start where it costs nothing; if a release goes wrong and nobody notices, that i
 the evidence for making it automatic — which is how the emergency retrospective
 came about.
 
+#### D18 · What does a project own, and what happens to the issues it absorbs?
+
+Owner, 2026-08-21: *"Within a workstream issues can be grouped into a project,
+which then has a design, test approach and deliveries. At this point we should
+freeze the source issues as the project now owns the requirements, design, test
+approach and delivery… A single issue can be run as a project in its own right…
+These can be text within the issue if they do not justify separate documents. A
+single issue project can also accumulate other smaller issues and become the
+project issue for them also."*
+
+##### A project owns four things
+
+| artefact | the question it answers | ours today |
+| --- | --- | --- |
+| **requirements** | what must be true when this is done | the issue's body, or a document — the glossary is playing this role for the process work |
+| **design** | how it will be done | the design note, already required for `major-function` |
+| **test approach** | environment, tools, and what is measured against what criteria | [D16](#d16--what-is-a-test-approach-and-what-satisfies-the-gate--answered-in-the-issue-or-in-8), and §8 of the test design specification |
+| **deliveries** | what was shipped, when, and what happened | [D6](#d6--what-is-a-release-and-what-gets-logged-as-one--answered-the-log-records-deliveries)'s delivery log, recorded against the project |
+
+**All four always exist. Only their location varies**, and it varies with size —
+which is the whole answer to *documentation for large and small pieces*:
+
+| | small | large |
+| --- | --- | --- |
+| **where the four live** | text in the project issue, under headings | four documents in the project's folder |
+| **what decides** | whether they justify a separate document | the same question, answered the other way |
+| **what does not change** | that each one is written down, and that the project owns it | — |
+
+So there is no lightweight *process* and heavyweight *process* — one process, and
+a document threshold inside it. A change too small for a design note still says
+how it will be done; it says it in three lines in the issue.
+
+##### Freezing the source issues
+
+**The freeze is the part that does real work**, and it is worth being precise
+about what it means. Once a project owns the requirements, a source issue that is
+still live is a second place where requirements can change — and two sources
+drift silently, which is the failure this whole workstream exists to prevent.
+
+Frozen means: **the issue keeps its number and its history, and stops being where
+anything is decided.** New thoughts about it go to the project. It is no longer
+work in its own right, because the project is the work.
+
+How to record that, three ways:
+
+| option | |
+| --- | --- |
+| **close it, with a `folded` label and a comment naming the project** | the work list stays honest — a frozen issue is not work. Precedent: #154 and #181, both folded into the glossary and closed this way on 2026-08-20, and nothing was lost. The label is what keeps *closed* queryable into **delivered** and **folded**, which otherwise become indistinguishable |
+| leave it open with a `frozen` label, closed by the delivery | *closed means delivered* stays true. But a project runs for weeks, and every list — `actions.py`, `status.sh`, the 45-issue backlog — carries issues nobody may act on |
+| make it a sub-issue and leave it open | the parent link is real and GitHub renders it, but it says *belongs to* and not *do not touch*, which is the bit that matters |
+
+**Recommended: the first**, and the comment is not optional — it is the only
+thing that leads a reader of the frozen issue to where its content went. Two
+rules follow, both of which exist because the freeze can otherwise trap things:
+
+- **fold before you freeze.** The content moves into the project's requirements
+  *first*; closing an issue whose requirement was never copied loses it silently
+- **a frozen issue can be thawed.** If it turns out not to belong, it is reopened
+  and the project's requirements say so. A freeze that cannot be undone is a
+  reason not to freeze
+
+##### Capture cheaply, consolidate deliberately
+
+Owner: *"I don't want to limit our willingness to raise issues quickly when
+something comes up, but we should expect to go through a process of merging them
+into a coherent change."*
+
+This is a rule about **when** consolidation happens, and there is already a phase
+for it: **scope-and-design**. Raising an issue stays a five-second act with no
+ceremony attached, precisely because nothing downstream assumes an issue is
+well-formed. What makes it coherent happens later, once, and visibly.
+
+Worth naming, because the two halves are easy to confuse: *raise freely* is not
+*decide freely*. An issue raised in five seconds records that something was
+noticed. It does not settle anything, and the project is where it gets settled.
+
+##### A project is a state an issue enters, not a thing created up front
+
+The three shapes are one shape at different times:
+
+| | |
+| --- | --- |
+| **several issues grouped** | a new issue becomes the project, and absorbs them |
+| **one issue run as a project** | it owns its own four artefacts, as text |
+| **one issue that accretes** | the same issue becomes the project for later ones |
+
+Two consequences. **A project's identity is an issue number** — which retires the
+`<workstream><letter>` naming (`71A`) proposed earlier: `#71` already names it,
+and a second identifier would need keeping in step. And **any issue may become a
+project**, so nothing has to be decided at the moment of raising, which is what
+makes *capture cheaply* safe.
+
+##### Tested against the work in front of us
+
+The process work is this model, arrived at by doing it rather than by planning
+it — which is the strongest evidence available, and it also shows where the model
+does not yet fit:
+
+| | |
+| --- | --- |
+| **#179 absorbed six issues** | #137, #154, #181 folded and closed; #155, #156, #183 still open |
+| **the glossary is its requirements** | exactly the owner's *"the glossary acting as the requirements"* |
+| **but #155, #156 and #183 are not frozen** | #155 is the discussion venue for the requirements, which is a different thing from a source issue — it is the project's own thread. #156 and #183 are genuine source issues and should be frozen under this rule |
+| **and #179 is called a workstream** | it has a fixed scope and an end, which by our own definition makes it a **project** — inside a *process* workstream that does not end. The name predates the levels |
+
+That last row is a real finding rather than a tidy-up: the thing we have been
+calling the process **workstream** is a project, and the workstream above it is
+the one that will still exist after the glossary is applied.
+
+##### The questions this leaves
+
+- **is `folded` the right disposal**, or should frozen issues stay open?
+- **should #156 and #183 be folded into #179 now**, on the same rule?
+- **does #179 get renamed** to a project, with a process workstream above it?
+
 ## Delivery: releases, applications and merges
 
 ### D13 · Is *release* the word for any delivery? — **answered: no, *delivery* is**
@@ -1253,9 +1369,9 @@ would satisfy the gate, and we haven't defined test approach."* Two things follo
 The obligation is deliberately light — a paragraph saying how we will know this
 works clears it, and the #41-style test plan is the heavy end of the same
 spectrum, not a separate requirement. And **the term is undefined**, which is
-[D16](#d16--what-is-a-test-approach-and-what-satisfies-the-gate) below.
+[D16](#d16--what-is-a-test-approach-and-what-satisfies-the-gate--answered-in-the-issue-or-in-8) below.
 
-#### D16 · What is a *test approach*, and what satisfies the gate?
+#### D16 · What is a *test approach*, and what satisfies the gate? — **answered: in the issue, or in §8**
 
 New, 2026-08-20, arising from D14: the gate names a document we have never
 defined. A test plan we have — [`docs/templates/test-plan.md`](../../../templates/test-plan.md),
@@ -1318,6 +1434,17 @@ criteria are stated or they are not.
 
 Distinct from D15, which asks *where* a change is judged: this asks *what runs
 there, and what would count as passing*.
+
+**Answered 2026-08-21, by D17 and D18 between them.** D17 settled *what it is* —
+the test design specification's §8, plus the criteria in §3 and §6: environment,
+tools, and what is measured against what criteria. D18 settled *where it lives* —
+with the project, as a document when the project justifies one and as text in the
+issue when it does not. Owner: *"these can be text within the issue if they do
+not justify separate documents."*
+
+So the gate is answerable by looking at one place: the project owns a test
+approach, and either it is written down or it is not. Nothing about the gate
+changes with the size of the change; only the length of the answer does.
 
 **One thing this exposes**, for the apply pass rather than for now: our test-plan
 template is, by the standards' names, a test **design** specification with a
