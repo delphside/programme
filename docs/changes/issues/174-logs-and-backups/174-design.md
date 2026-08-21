@@ -593,15 +593,36 @@ refactor at all.
 | time to read them all | under a second. *"If that didn't take too long"* turns out not to be a constraint |
 | how | `docker compose logs` over ssh today; `journalctl CONTAINER_NAME=…` once Delivery 1 lands, with seven days' retention |
 
-**But the coverage is thin, and that is what to design around.** Of those 12,539
-lines only **69 are the server's own events** — the rest is the health check.
-Four days of production produced 30 from `app::games`, 21 from `app::sweeps`, 11
-from `app::auth`, and 6 between `email`, `server_game` and `app::roster`.
+**Those are today's numbers, and this project changes two of them** — which is
+the owner's point, 2026-08-21: *"I thought part of this project was to remove
+health messages from the log files, and to ensure we didn't lose the log files
+after a redeploy?"* It is, and both land in Delivery 1:
 
-**Fifteen-odd event types out of forty-eight**, and the missing ones are the rare
-paths: *password reset requested for unknown email*, *token expired*, *email send
-failed*. Which are exactly the events most likely to carry something they should
-not, because they are the ones nobody looks at.
+| | today | after Delivery 1 |
+| --- | --- | --- |
+| **health-check noise** | 2,858 of 2,922 lines a day | **none** — the probe is silent |
+| **how far back the log goes** | to the last deploy, which was four days ago **by luck** | a rolling **seven days**, whatever deploys happen |
+
+**So I framed the coverage argument wrongly.** *"Only 69 of 12,539 lines"* is a
+signal-to-noise figure, and I used it as if it were a coverage figure. Noise does
+not hide events from a script — it only makes the file bigger, and a script does
+not squint. The two are different problems and this project fixes the one I
+quoted while the other stands.
+
+**What actually limits coverage is that rare events are rare**, and retention
+helps rather than solves it:
+
+| | |
+| --- | --- |
+| events per day | about **16**, measured — 30 `app::games`, 21 `app::sweeps`, 11 `app::auth`, 6 elsewhere, over 4.2 days |
+| a nightly run therefore sees | ~16 events, from perhaps eight or ten types |
+| a seven-day window sees | ~115 — **better, and reliably seven days rather than however long since the last deploy**, which is the retention half genuinely paying |
+| what it still will not see | *password reset requested for unknown email*, *token expired*, *email send failed* — the paths that fire when somebody mistypes an address or a provider has a bad afternoon |
+
+**And those are the events most likely to carry something they should not**,
+because they are the ones nobody looks at. Which is why the second half below
+exists — not because the log is noisy, but because waiting for a rare event is
+not a test.
 
 ##### So: read the real logs, and make the rare paths happen
 
@@ -652,6 +673,13 @@ it:
 
 **It alerts the way production already alerts**, through the same OCI mechanism
 as the backup, rather than inventing a channel nobody reads.
+
+**And the check only works because of what the rest of the project does.** It
+reads a **seven-day** window rather than *"since whenever we last deployed"*, and
+every line in it is a real event rather than one in forty-five. Neither is true
+today. **The project builds the thing that verifies it** — which is worth
+noticing, because it means Delivery 1 has to land before the check is worth
+installing, and the ordering in Part 9 already has it that way.
 
 ##### A correction: the logs are not backed up
 
