@@ -667,7 +667,8 @@ appearance of one.
 
 Owner, 2026-08-21: *"it must be less maintenance to use existing JSON schema
 tooling than writing our own tooling."* Agreed, and it is the same instinct as
-#160 and as the morning `check-docs.sh` grew a second copy of CI's markdown lint.
+issue #160, and as the morning `check-docs.sh` grew a second copy of CI's
+markdown lint.
 
 **But taken absolutely it removes the meta-check**, and the meta-check is the
 thing that closes the hole. So the line is:
