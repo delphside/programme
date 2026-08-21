@@ -540,6 +540,50 @@ a source scan proves the list of events is complete and says nothing about an
 event quietly acquiring a `display_name`. This catches that on the commit that
 introduces it.
 
+#### Where the schema lives
+
+Owner, 2026-08-21: *"presumably that will live outside the document and be
+included, like diagrams? I am thinking it needs to be accessible by the test
+script."*
+
+**The diagram analogy does not carry, and the reason is worth stating.** A
+diagram has a real asymmetry: `.mmd` is the source, `.svg` is a build artefact
+nobody could author by hand, so two files with a re-render step is the only
+option. **A JSON schema has no such asymmetry** — the JSON is the readable form.
+
+And markdown has no include: a document cannot pull in a file, only *link* to it
+or *contain* it. So the three real options are:
+
+| | | |
+| --- | --- | --- |
+| **the schema is a fenced block in `docs/4.7`, and the test extracts it** | one copy, authoritative, and **visible where it is reviewed** | the test parses markdown — about five lines |
+| a `.json` file the document links to | one copy, trivially readable by the test | the reader has to open another file to see the thing they are reviewing |
+| a `.json` file copied into the document, with a check that they match | both, at the cost of a generator and a gate | two copies, which is the arrangement this project keeps deciding against |
+
+**Recommended: the first.** The schema has to be *in* the document, because
+reading it **is** the control — the test proves code and document agree, so if
+the document is a link nobody follows, the whole arrangement checks that the code
+agrees with something unread.
+
+**One practical detail, because the obvious version breaks.** The extractor must
+not be *"the first ```json block"* or *"the only one"* — the first example added
+to that document silently becomes the schema. The block carries an explicit
+marker:
+
+```text
+<!-- log-schema -->
+~~~json
+{ ... }
+~~~
+```
+
+so the test fails loudly with *"no block marked `log-schema`"* rather than
+quietly validating against an example.
+
+**And the test embeds the document at compile time** — `include_str!` of
+`docs/4.7-log-events.md` — so a moved or renamed document fails the build instead
+of the test, and there is no runtime path to get wrong.
+
 **Its limit, which matters:** it proves the code and the document **agree**, not
 that the document is **right**. A `display_name` added to both would pass. The
 control for that is a person reading `docs/4.7` — so the schema is not a field
