@@ -663,6 +663,40 @@ single omission is a silent hole in exactly the place nobody looks.
 The second is four lines and it is the difference between a control and the
 appearance of one.
 
+##### Existing tooling for the standard part, our own only for the policy
+
+Owner, 2026-08-21: *"it must be less maintenance to use existing JSON schema
+tooling than writing our own tooling."* Agreed, and it is the same instinct as
+#160 and as the morning `check-docs.sh` grew a second copy of CI's markdown lint.
+
+**But taken absolutely it removes the meta-check**, and the meta-check is the
+thing that closes the hole. So the line is:
+
+| | who does it |
+| --- | --- |
+| validate an event against a schema | **a library** — `jsonschema` is the obvious candidate. Draft handling, `$ref`, error paths: all solved, none of it ours |
+| assert every object sets `additionalProperties: false` | **us, in four lines** — it is a policy about *our* schema, and no validator has an opinion about it |
+
+**Use the library for the standard part and write only the policy the library
+cannot express.** That is a narrower rule than *"don't build tooling"*, and it is
+the one that survives contact with cases like this.
+
+##### And the schema stays hand-written, which is the maintenance worth having
+
+The tempting next step is `schemars` — derive the schema from the Rust types and
+stop maintaining it by hand. **It would make the test worthless.**
+
+The test's value is that the schema is an **independent statement** of what may be
+logged. Generate it from the code and the test compares the code to itself: it
+passes on the commit that adds `display_name`, because the schema gained the
+field at the same moment. The green tick would be the strongest evidence
+available, and it would mean nothing.
+
+**So writing the schema by hand is not a cost to optimise away — it is the
+control.** Ten-odd events, each a handful of field names, changed only when
+logging changes. The same reason a test derived from the code proves nothing
+about whether the code is right.
+
 **The alternative, considered and not taken:** a plainer declaration — event name
 to a list of field names — compared by **set equality**, which has the same
 property by construction and needs no `additionalProperties` at all. It is
