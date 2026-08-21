@@ -1991,6 +1991,28 @@ second half is the part with no substitute.
 | --- | --- |
 | the steps, in order, and the route each takes | **which app version or build carried it**, and **when** |
 
+##### Filled in three times, not written once
+
+Owner, 2026-08-21: *"the delivery runbook should be more detailed, giving all the
+information necessary to do the delivery, even the commands to type. But that
+detail may come later, when it is known, in time for the actual delivery."*
+
+| when | what it holds |
+| --- | --- |
+| **scope and design** | the outline — which artefacts, in what order, by which route |
+| **before the delivery** | the **commands**. This is the gate: a delivery does not start until its runbook is executable |
+| **after** | which version carried each step, and when |
+
+**Writing the commands out in advance is a design check.** It is where *"apply
+the drop-in on the host"* becomes a path, a `sudo` and a `systemctl` — and where
+a step nobody had thought through announces itself. **A step that cannot be
+written down yet is a step that is not understood yet**, and finding that out at
+the keyboard at eleven at night is how production incidents start.
+
+**And on the host and service routes it is the only record there will be.** A
+runbook written afterwards is a memory of what somebody thinks they did; written
+before and ticked off as it goes, it is what happened.
+
 ##### Why the version-and-date half matters more than it looks
 
 Three uses, and the third is the one that is hard to reconstruct later:
