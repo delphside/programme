@@ -338,11 +338,76 @@ needs no OCI CLI and holds no credentials beyond the URL itself.
 | the development laptop | owner: *"my laptop is not part of the production service"* |
 | volume backup as the primary | crash-consistent, above |
 
-**Open, and needing the OCI console:** the Always Free allowance for object
-storage, and the maximum expiry on a pre-authenticated request. A URL that
-quietly expires is exactly how this stops working two months after it is built,
-so whatever the maximum is, the expiry date belongs in `docs/3.4` and the upload
-must alert on failure rather than exiting quietly.
+#### The bucket, and the credential
+
+Settled 2026-08-21, and **measured rather than assumed** — the console questions
+this section used to carry are answered below.
+
+| | |
+| --- | --- |
+| namespace · bucket | `axbbaaptgyab` · `tile-lite-elite-backups` |
+| region · compartment | `uk-cardiff-1` (UK West, Newport) · `stephenmor (root)` |
+| tier · visibility | Standard · private |
+| **credential** | a **bucket-scoped PAR, access type *permit object writes*, object listing off** |
+| **on the bucket** | **object versioning on** |
+
+**The credential cannot destroy what it writes**, and that is the whole point of
+choosing it. Tested from the production VM on 2026-08-21 against a throwaway
+seven-day PAR:
+
+```text
+PUT     200  (0.128s)     upload works, and the VM reaches object storage
+GET     404               a write PAR cannot read
+LIST    404               a write PAR cannot list
+DELETE  404               a write PAR cannot delete
+HEAD    404               it cannot even confirm an object exists
+PUT2    200               but it CAN overwrite an existing name
+```
+
+So the threat this whole part exists to answer — *the VM holds the credential,
+so whatever can upload can also destroy* — does not apply. An attacker on the
+box, or a bug in our own script, cannot delete a backup. Oracle's documentation
+says so (*"pre-authenticated requests can't be used to delete buckets or
+objects"*) and the 404 above is that sentence observed.
+
+**Three consequences worth stating, because none of them is obvious:**
+
+- **the refusals are 404, not 403.** Object Storage will not distinguish *"you
+  may not"* from *"there is nothing there"*, so a leaked write-only URL reveals
+  nothing about the bucket's contents — not even whether a guessed name exists
+- **overwrite is the one remaining way to damage a backup**, and it returned
+  200. **Object versioning is therefore not optional and is also sufficient**: a
+  `PUT` over an existing name creates a version and the original bytes survive.
+  A retention rule adds nothing against *this* threat — only against a mistake
+  made from the console with real credentials
+- **revocation is immediate.** Deleting the PAR in the console turned the same
+  `PUT` into a **401** on the next attempt. So if the VM is ever compromised,
+  one click in the console stops the bleeding without touching the instance
+
+**The restore path is therefore asymmetric by construction.** The VM can write
+backups and cannot read them; restoring is done from the console or a laptop
+with real credentials. That is a feature and not an inconvenience — it means no
+credential on the production host can be used to exfiltrate the database.
+
+#### Capacity, and expiry
+
+**Capacity is a non-issue**, measured 2026-08-21: the production database is
+**1.7 MB**. A year of daily backups is ~620 MB uncompressed, against an Always
+Free allowance of **20 GB combined** across Standard, Infrequent Access and
+Archive — under 1%. The tenancy's *service* limit reads `Unlimited`, which is a
+different thing from the free allowance and is the reason a **retention rule
+matters as policy** even though capacity does not: an unbounded loop against an
+unlimited limit is the one way this turns into a bill.
+
+**Expiry has no maximum.** Oracle: *"Expiration date is required, but has no
+limits. You can set them as far out in the future as you want."* So the original
+worry — a URL that quietly expires two months after it is built — is ours to
+create or avoid, and the opposite one replaces it: a PAR set twenty years out is
+a permanent bearer credential nobody revisits.
+
+**The answer is an alarm rather than a long date.** A deliberate expiry recorded
+in `docs/3.4`, and the upload alerting on failure, so an expired PAR announces
+itself the next morning instead of being discovered when the database is gone.
 
 ### Restoring, which is the part that is currently a hypothesis
 
