@@ -91,6 +91,11 @@ to read it.
 | **D20** | Do living documents still always live on `main`? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 | **D21** | What does a branch belong to? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D22** | Is route an attribute of the issue? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D23** | Do document names repeat the project number? | **answered** | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) |
+| **D24** | What is a project branch's life? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D25** | Does the project issue list what it touches? | **answered** | [Projects](#projects-phases-and-gates) |
+| **D26** | A register of artefacts, or just a naming convention? | **answered** | [Projects](#projects-phases-and-gates) |
+| **D27** | What does the design document owe the artefact list? | **answered** | [Projects](#projects-phases-and-gates) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1110,21 +1115,297 @@ Applied to #154 on 2026-08-21, which was closed as *completed* and was not.
 (#181 was genuinely completed — `actions.py` shipped — so it keeps that reason;
 an earlier draft of this section had it wrong.)
 
-##### Four headings, always
+##### One project, one design
 
-**A project issue carries all four headings — requirements, design, test
-approach, deliveries — each holding either text or a link to a document.** Never
-absent, never empty.
+Owner, 2026-08-21, reviewing PR #177: *"this is one project and should have one
+design even if it covers multiple requirements and deliveries."*
 
-That converts D18's *"all four always exist, only their location varies"* from a
-principle into something checkable: the four headings are either there or they
-are not, and a script can say which. It also makes the small case explicit — a
+**So the four headings are singular on purpose.** A project does not accumulate a
+design per issue it absorbed; it has *a* design, which covers however many
+requirements it carries and however many deliveries it takes to satisfy them.
+Issues #174 and #175 are two requirements of one project — logs and backups — and not
+two projects that happen to share a note.
+
+Which is the same rule as the freeze, seen from the other end. Folding the source
+issues moves the **requirements** into one place; one design says the **answer**
+lives in one place too. A design per source issue would rebuild, inside the
+project, exactly the scattering the fold was for.
+
+**The test for whether it is one project or two** is not how many issues went in.
+It is whether one design can be written that covers them without saying *"and
+separately"* — logs and backups share a host, a retention argument and a delivery,
+so one note is shorter than two.
+
+##### Five headings, always
+
+**A project issue carries all five headings — requirements, design, **impacted
+artefacts**, test approach, deliveries — each holding either text or a link to a
+document.** Never absent, never empty. It was four until
+[D25](#d25--does-the-project-issue-list-what-it-touches--answered-yes-new-or-modified)
+added the third.
+
+That converts D18's *"all of them always exist, only their location varies"* from
+a principle into something checkable: the headings are either there or they are
+not, and a script can say which. It also makes the small case explicit — a
 heading with three lines under it is a complete answer, and the reader can see it
 was answered rather than skipped.
 
 **Which is the real gain**: an empty heading and a missing heading look identical
 in prose and are completely different in meaning. One says *nobody has decided*;
 the other says *nobody thought to ask*.
+
+##### D25 · Does the project issue list what it touches? — **answered: yes, new or modified**
+
+Owner, 2026-08-21: *"the project issue should list the impacted artefacts, with
+new or modified."*
+
+So a fifth heading, and it earns its own rather than living inside the design,
+because **the people who need it are not the people who wrote it**. A designer
+writes it once; a release planner, a tester and whoever is rolling back all read
+it later, and none of them should have to reconstruct it from prose.
+
+| | |
+| --- | --- |
+| **new** | did not exist before. Nothing else references it, there is no behaviour to preserve, and there is nothing to roll back to |
+| **modified** | exists and something depends on it. There is a previous version, existing tests, and a rollback that means something |
+
+##### What it makes possible: the co-delivery test stops being a judgement
+
+This is the part worth the heading.
+[D12](#d12--can-a-release-carry-work-from-more-than-one-project--answered-one-owner-plus-small-passengers)
+allows two projects in one release *"as long as they don't touch the same code"*,
+and [D19](#d19--do-we-need-a-release-object--answered-no-the-release-is-derived)
+extends that to peers from different workstreams. Until now that criterion has
+been **asserted by whoever was looking**, which is fine with one developer holding
+all the context and is the first thing to fail when that stops being true.
+
+**With a list on each project issue it is a set intersection.** Two projects may
+share a release exactly when their artefact lists do not overlap. That is
+checkable by eye in ten seconds and by a script in one line, and it is the same
+move D14 made with the process category: state what somebody decided, derive what
+follows.
+
+**And it is the rollback list, already written.** *What does rolling this back
+touch?* is the question asked in the worst ten minutes of a project's life, and
+it is exactly this heading. The `new` marks are the useful detail there — a new
+artefact has nothing to roll back to, so a rollback leaves it orphaned rather
+than restoring it.
+
+##### An artefact is not only a file
+
+The [route axis](#d22--is-route-an-attribute-of-the-issue--answered-no-of-the-delivery)
+already says a change reaches production five different ways, and the artefact
+list has to span all of them or it silently means *"the code we changed"*.
+Taking #175, which is live and therefore a fair test:
+
+| artefact | | route |
+| --- | --- | --- |
+| the OCI bucket `tile-lite-elite-backups` | **new** | applied to a service we use |
+| the write-only pre-authenticated request | **new** | applied to a service we use |
+| the backup script on the host | **new** | applied on the host |
+| its systemd timer | **new** | applied on the host |
+| `docs/3.4-production-environment.md` | **modified** | in the artifact |
+| the alert that fires when a backup fails | **new** | applied to a service we use |
+
+**Six artefacts, one of them in the repository.** A list that had meant *files
+changed* would have recorded one line and missed the entire delivery — which is
+the same lesson the route axis taught, arriving here from a different direction.
+
+##### When it is written: early and wrong, then right
+
+Owner, 2026-08-21: *"The list may only be known accurately after the design is
+approved, and possibly test approach if we build test tooling. But it should be
+attempted as early as possible. One reason is to identify dependencies between
+issues which touch the same artefacts."*
+
+**So it is not written once.** It firms up as the project does:
+
+| when | what the list is |
+| --- | --- |
+| **raised** | a guess, and worth making anyway — it is the cheapest moment to discover the project overlaps something already in flight |
+| **scope and design** | argued and revised, because deciding *how* is largely deciding *what to touch* |
+| **design approved** | **accurate**, and this is the point at which it can be relied on |
+| **test approach settled** | accurate *again*, if the testing builds anything — see below |
+
+**Test tooling is an artefact**, and it is the one most often missed. A test
+approach that says *"a script on the rehearsal host asserts the limits"* has just
+created a script, which is new, lives somewhere, and needs deploying — exactly
+what `check-rate-limits.sh` is. So the list cannot close until the test approach
+does, and a project whose testing builds nothing simply finds this step empty.
+
+##### The earlier use: dependencies, not co-delivery
+
+**This is the stronger reason, and it is upstream of the one I gave.** Mine was a
+release-planning question — *may these two ride the same build?* The owner's is a
+planning question asked much earlier: **two issues that touch the same artefact
+are related whether or not anybody noticed.**
+
+Three things that overlap can mean, and they want different answers:
+
+| what the overlap means | what to do |
+| --- | --- |
+| they are the same piece of work seen twice | **one project** — this is D18's *"can one design be written without saying 'and separately'"*, now with a mechanical signal to prompt the question |
+| one needs the other's change to exist first | **sequence them**, and say so. A dependency discovered at merge time is a dependency discovered too late |
+| they genuinely touch different parts of one file | **do it once**, or accept a conflict somebody will resolve under time pressure |
+
+Which is why *"attempted as early as possible"* is the operative half of the
+rule. A list that is only accurate at design approval still earns its keep at
+issue-raising time, because a **wrong** list that names the right file finds the
+collision just as well as a right one.
+
+##### Two things this needs to work
+
+**Artefacts are named the same way in every list**, or the intersection is only
+findable by somebody who already knows both projects. A path where there is one —
+`docs/3.4-production-environment.md`, not *"the production doc"* — and the
+canonical name where there is not: `tile-lite-elite-backups`, not *"the bucket"*.
+The whole mechanical value rests on this and it costs nothing at the time.
+
+**A provisional list is marked provisional.** A guess that looks settled is worse
+than no list, by the same argument that makes a missing heading different from an
+empty one. The heading carries where it stands — *provisional* until design
+approval, *settled* after — and an individual entry nobody is sure of carries a
+`?`. List-level rather than per-entry as the default, because marking every line
+invites arguing each one instead of writing the list.
+
+##### D26 · A register of artefacts, or just a naming convention? — **answered: both, and the register is small**
+
+Owner, 2026-08-21: *"I agree with your two points. So maybe we need a list of
+artefacts, or at least a naming convention."*
+
+**The two do different jobs**, which is the argument for having both rather than
+choosing:
+
+| | what it buys |
+| --- | --- |
+| **a naming convention** | two lists written by different people at different times use the same string for the same thing, so the intersection is textual |
+| **a register** | you can answer *"what exists that could be touched?"* **before** knowing what you are touching — so an early guess is made by picking from a list rather than by inventing names, which is where inconsistency comes from in the first place |
+
+##### The convention makes most artefacts need no register entry
+
+| kind | canonical name | example |
+| --- | --- | --- |
+| **in the repository** | its path from the repository root | `docs/3.4-production-environment.md` |
+| **on a host** | the host role, then the absolute path | `production:/etc/systemd/journald.conf.d/zz-tile-lite-elite.conf` |
+| **a cloud resource** | the provider, the type, the provider's own name | `OCI bucket tile-lite-elite-backups` |
+| **a GitHub object** | `github:` then type and name | `github:label folded`, `github:ruleset main` |
+| **an external service** | the service, then the thing | `OCI alarm tile-lite-elite-health` |
+
+**A repository artefact is self-naming**, so it needs no entry anywhere: the path
+is the name, the file either exists or it does not, and its route is *in the
+artifact* by default. That collapses most of the register before it is written.
+
+##### So the register holds exactly what git does not
+
+What is left is **host files, cloud resources, GitHub objects and external
+services** — perhaps twenty things — and that is precisely the set with **no
+other record**. It is the same set the route axis already singles out as *done
+when their documentation is*, arriving here for a third time.
+
+Which gives the register a second job it earns on its own: **it is the
+rebuild-the-world list.** #175 exists because losing the VM loses everything on
+it, and *"what else was on that box?"* is answerable only by something like this.
+Four of #175's own six artefacts are host or service.
+
+`docs/4.x` is where it goes — 4.x is reference, per the numbering convention.
+
+##### And it exposes something about route
+
+**Route looks like a property of the artefact, not of the delivery.** A file in
+the repository reaches production in the artifact; a file on the host is applied
+on the host; a bucket is applied to a service we use. The artefact decides, and
+nothing about the change alters it.
+
+If that holds, then
+[D22](#d22--is-route-an-attribute-of-the-issue--answered-no-of-the-delivery)'s
+answer gets sharper rather than overturned: a delivery's routes are the **union
+of the routes of the artefacts it touches**, and route stops being stated
+anywhere at all. Tested against the two cases that drove D22 — #174 is a
+repository file *and* a host file, giving {artifact, host}, which is exactly the
+two routes that made it awkward; #155 is repository files plus GitHub objects,
+giving {repository, service}.
+
+**Raised rather than decided**, because it changes an answered decision: if route
+is carried by the register, the artefact list is the only thing anybody writes and
+both route and the co-delivery test fall out of it.
+
+##### D27 · What does the design document owe the artefact list? — **answered: the same artefacts, and what changes in each**
+
+Owner, 2026-08-21: *"a design document needs to list the impacted artefacts and
+summarise the changes."*
+
+**Which raises the duplication question immediately**, since
+[D25](#d25--does-the-project-issue-list-what-it-touches--answered-yes-new-or-modified)
+already puts a list on the issue. Two copies of a list is the thing this whole
+workstream exists to stop, so the split has to be exact:
+
+| | holds | why there |
+| --- | --- | --- |
+| **the project issue** | the artefact **names**, and new or modified | needed **early**, before a design exists, and needed by people who should not have to read one — the release planner, the tester, whoever is rolling back |
+| **the design document** | the same names, and **what changes in each** | the change to an artefact is a design decision, and it belongs with the reasoning that produced it |
+
+**The names are deliberately in both, and nothing else is.** That is a small,
+bounded duplication with a purpose, and it is mechanically checkable: the two
+lists either name the same artefacts or they do not, which is the third time
+today the answer has been *let the document declare and let a machine compare*.
+
+##### Why the names cannot simply move into the design
+
+The tempting simplification is to let the issue hold a link, which
+[D18](#d18--what-does-a-project-own-and-what-happens-to-the-issues-it-absorbs--answered-four-headings-and-folded-sources)
+explicitly allows — *text or a link to a document*. It does not work here, and the
+reason is [D24](#d24--what-is-a-project-branchs-life--answered-created-with-the-project-deleted-when-it-is-live):
+
+**a design document lives on the project branch until the project is live.** So
+for the weeks that matter most — while the project is in flight and most likely
+to collide with another — the list would be invisible to anything comparing
+projects. The names stay in the issue because **the issue is the part that is
+always visible**, and cross-project comparison is the use that needs it.
+
+##### What "summarise the changes" is for, and how it goes wrong
+
+Four uses, none of them served by the prose version of the same design:
+
+- **a reviewer can check the design is complete.** An artefact listed with no
+  summary is an admission, and a visible one
+- **whoever implements it works artefact by artefact** rather than translating a
+  narrative into a list of files each time they sit down
+- **at rollback**, *"what did we do to this one?"* has an answer
+- **the design becomes checkable against the diff** — the branch touches a file,
+  and the design says what that file was supposed to gain
+
+**The failure mode is restating the diff.** *"Modified: added a function"* is
+what the table looks like when it has died: it says what the commit already says,
+and it says it worse. The summary is **what the artefact does now that it did not
+before**, which is the sentence the diff cannot produce.
+
+##### And the required depth is inverse to how well git records it
+
+A rule worth stating because it falls straight out of the route axis:
+
+| artefact | how much the summary owes |
+| --- | --- |
+| in the repository | **least** — the diff is the detail, and the summary is the intent above it |
+| on a host, in a cloud service, in GitHub | **most** — there is no diff anywhere, so this entry **is** the record of what was done, and it has to be enough to do it again |
+
+Which is *done when their documentation is*, arriving for a fourth time — and the
+first time it has said something about how much to write rather than merely that
+one must.
+
+##### Keeping it true
+
+It will drift, and half of it can be checked mechanically:
+
+- **for the repository route**, `git diff main...<branch> --name-only` is ground
+  truth. A file changed on the branch and absent from the list is a gap the
+  machine can name — the same trick as the owner's log-schema comparison on #177,
+  where the document declares and the code is measured against it
+- **for the host and service routes there is no diff**, and that is precisely why
+  those routes are *done when their documentation is*. The list is not a record of
+  what happened there; **it is the only record**
+
+So the check is worth building for the half it covers, and the other half is
+worth writing carefully, because nothing else will ever contradict it.
 
 ##### Still open under D18
 
@@ -1413,6 +1694,63 @@ Two obligations, both consequences rather than choices:
 - **a project branch is not a base for another project's branch.** Two projects
   that must both be present are one project, not two, because the second cannot
   then be descoped — which is the capability this whole model exists to keep
+
+#### D24 · What is a project branch's life? — **answered: created with the project, deleted when it is live**
+
+Owner, 2026-08-21, on PR #177: *"Everything stays on the branch until the branch
+is deleted. Things will be merged into the release branch (when there is one) and
+to main as part of testing and deploying the project, but all edits should be
+done in the branch. When it is live the project is closed and the branch is
+deleted."*
+
+| | |
+| --- | --- |
+| **created** | when the project starts |
+| **during** | **the only place edits happen** — code, documents, everything |
+| **merges out** | into a release branch, and to `main` as part of testing and deploying. More than once, if the project takes more than one release |
+| **deleted** | when the project is live and closed |
+
+##### The correction this makes: one place to *edit*, not one place to *exist*
+
+I read the one-place rule as being about where a project's content **lives**, and
+argued on PR #177 that merging the design would put #174's work in `main` and on
+a branch at once. **The recommendation was right and the reason was wrong.**
+
+A project's content reaches `main` every time it delivers, while the branch runs
+on. That is not the two-answers state, because there is still exactly one place
+where a change can be *made*. What the rule forbids is **editing in two places**,
+which is what produces a file whose two versions each look current.
+
+Worth being precise about, because the wrong reading forbids something ordinary:
+under it, no project could deliver twice.
+
+##### Deletion timing is required, not tidy
+
+[D21](#d21--what-does-a-branch-belong-to--answered-the-project-and-the-release-branch-is-rebuilt-from-them)
+says the release branch is always rebuildable from the project branches. **You
+cannot rebuild from a branch that has been deleted.** So keeping the branch until
+the project is live is not housekeeping preference — it is what makes descoping
+possible right up to the last release the project needs.
+
+Which also dates the deletion precisely: not at the first merge, not when the
+last pull request closes, but when the project is **live** and can no longer need
+rebuilding.
+
+##### And "merged" stops meaning "finished"
+
+Two consequences follow, both wanted:
+
+- **a project branch merges out repeatedly and carries on.** After each merge to
+  `main` it merges `main` back in — the currency obligation D21 already states,
+  now with a schedule attached rather than left to good intentions
+- **a pull request is a review surface, not a lifecycle.** #177's design is
+  agreed and stays on the branch; the pull request records that it was agreed,
+  which is the job it was opened for
+
+**The cost, stated plainly**: a design note is not readable from `main` while its
+project runs, which may be weeks. That is D20's argument accepted rather than
+avoided — documents are read in GitHub, where a branch is as readable as `main`
+and shows the version the work is actually producing.
 
 #### D22 · Is route an attribute of the issue? — **answered: no, of the delivery**
 
@@ -2244,6 +2582,30 @@ design discussion has told you it should have been an issue.
 workstream, so the record can stay where the argument is without becoming
 impossible to find.
 
+### Who typed it: the `Typed by` footer
+
+**Every comment ends with `Typed by Claude` or `Typed by Steve`.** We share one
+GitHub account, so nothing else distinguishes us — the author field says
+`SteveStyle` whoever wrote it.
+
+**This is not etiquette; two scripts key on the literal string.**
+`scripts/inbox.sh` uses it to decide whether a comment is marked `>` — *what
+Steve typed*, the ones worth reading — and the local `turn-check.sh` hook uses it
+to exclude Claude's own comments from "new since you last looked". A comment
+without the footer is **attributed to the owner and reported back to Claude as
+new activity**, which is both halves wrong at once.
+
+Owner, 2026-08-21: *"You missed the 'Typed by Claude' at the end of the comment.
+That is how we tell our comments apart."* Twenty comments over two days were
+missing it, and the failure was invisible in exactly the way an unstated
+convention is: the tooling did not complain, it silently mislabelled. They were
+backfilled on 2026-08-21.
+
+**Written down here because it was written down nowhere.** The rule existed only
+inside two scripts, one of which is gitignored — a convention enforced by
+tooling and stated in no document, which is the inverse of the failure `docs/3.3`
+usually worries about. It goes into 3.3 in the apply pass.
+
 ### What the tooling reads, and what it writes
 
 **Decided 2026-08-20**, after the owner left two tables in an issue body he
@@ -2273,6 +2635,32 @@ regeneration that will eventually eat it, and the failure is silent.
 **A read section says so, in itself.** One italic line under the heading naming
 the script and the shape it expects. A reader should not have to know the
 tooling to know what is safe.
+
+### D23 · Do document names repeat the project number? — **answered: yes**
+
+Owner, 2026-08-21, reviewing PR #177: *"the name should include the project
+number — for future reference, so doc names are meaningful without the path."*
+
+`design.md` inside `174-logs-and-backups/` is unambiguous **in the tree** and
+nowhere else. It is `design.md` in an editor tab, in a pull request's file list,
+in a browser title, in a search result, and in whatever anybody saves it as. Two
+projects with a design note give two tabs with the same name and no way to tell
+them apart.
+
+| | |
+| --- | --- |
+| **before** | `docs/changes/issues/174-logs-and-backups/design.md` |
+| **after** | `docs/changes/issues/174-logs-and-backups/174-design.md` |
+
+**The redundancy with the folder is the point.** A path is context the file
+carries only while it stays in the path, and the moments a name has to work
+hardest — a tab, a search result, an attachment — are exactly the moments the
+path is not shown.
+
+Same rule as the existing test-plan examples, which already do this
+(`41-user-deletion-test-plan.md`), arrived at from the other direction. Applied
+to `174-design.md` on 2026-08-21; the rest follow in the folder move, since both
+are renames and one round of broken links is cheaper than two.
 
 ### Folders
 
