@@ -95,6 +95,7 @@ to read it.
 | **D24** | What is a project branch's life? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D25** | Does the project issue list what it touches? | **answered** | [Projects](#projects-phases-and-gates) |
 | **D26** | A register of artefacts, or just a naming convention? | **answered** | [Projects](#projects-phases-and-gates) |
+| **D27** | What does the design document owe the artefact list? | **answered** | [Projects](#projects-phases-and-gates) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1327,6 +1328,69 @@ giving {repository, service}.
 **Raised rather than decided**, because it changes an answered decision: if route
 is carried by the register, the artefact list is the only thing anybody writes and
 both route and the co-delivery test fall out of it.
+
+##### D27 · What does the design document owe the artefact list? — **answered: the same artefacts, and what changes in each**
+
+Owner, 2026-08-21: *"a design document needs to list the impacted artefacts and
+summarise the changes."*
+
+**Which raises the duplication question immediately**, since
+[D25](#d25--does-the-project-issue-list-what-it-touches--answered-yes-new-or-modified)
+already puts a list on the issue. Two copies of a list is the thing this whole
+workstream exists to stop, so the split has to be exact:
+
+| | holds | why there |
+| --- | --- | --- |
+| **the project issue** | the artefact **names**, and new or modified | needed **early**, before a design exists, and needed by people who should not have to read one — the release planner, the tester, whoever is rolling back |
+| **the design document** | the same names, and **what changes in each** | the change to an artefact is a design decision, and it belongs with the reasoning that produced it |
+
+**The names are deliberately in both, and nothing else is.** That is a small,
+bounded duplication with a purpose, and it is mechanically checkable: the two
+lists either name the same artefacts or they do not, which is the third time
+today the answer has been *let the document declare and let a machine compare*.
+
+##### Why the names cannot simply move into the design
+
+The tempting simplification is to let the issue hold a link, which
+[D18](#d18--what-does-a-project-own-and-what-happens-to-the-issues-it-absorbs--answered-four-headings-and-folded-sources)
+explicitly allows — *text or a link to a document*. It does not work here, and the
+reason is [D24](#d24--what-is-a-project-branchs-life--answered-created-with-the-project-deleted-when-it-is-live):
+
+**a design document lives on the project branch until the project is live.** So
+for the weeks that matter most — while the project is in flight and most likely
+to collide with another — the list would be invisible to anything comparing
+projects. The names stay in the issue because **the issue is the part that is
+always visible**, and cross-project comparison is the use that needs it.
+
+##### What "summarise the changes" is for, and how it goes wrong
+
+Four uses, none of them served by the prose version of the same design:
+
+- **a reviewer can check the design is complete.** An artefact listed with no
+  summary is an admission, and a visible one
+- **whoever implements it works artefact by artefact** rather than translating a
+  narrative into a list of files each time they sit down
+- **at rollback**, *"what did we do to this one?"* has an answer
+- **the design becomes checkable against the diff** — the branch touches a file,
+  and the design says what that file was supposed to gain
+
+**The failure mode is restating the diff.** *"Modified: added a function"* is
+what the table looks like when it has died: it says what the commit already says,
+and it says it worse. The summary is **what the artefact does now that it did not
+before**, which is the sentence the diff cannot produce.
+
+##### And the required depth is inverse to how well git records it
+
+A rule worth stating because it falls straight out of the route axis:
+
+| artefact | how much the summary owes |
+| --- | --- |
+| in the repository | **least** — the diff is the detail, and the summary is the intent above it |
+| on a host, in a cloud service, in GitHub | **most** — there is no diff anywhere, so this entry **is** the record of what was done, and it has to be enough to do it again |
+
+Which is *done when their documentation is*, arriving for a fourth time — and the
+first time it has said something about how much to write rather than merely that
+one must.
 
 ##### Keeping it true
 
