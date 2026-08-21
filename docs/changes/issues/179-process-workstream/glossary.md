@@ -96,6 +96,8 @@ to read it.
 | **D25** | Does the project issue list what it touches? | **answered** | [Projects](#projects-phases-and-gates) |
 | **D26** | A register of artefacts, or just a naming convention? | **answered** | [Projects](#projects-phases-and-gates) |
 | **D27** | What does the design document owe the artefact list? | **answered** | [Projects](#projects-phases-and-gates) |
+| **D28** | May a project have a branch per delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D29** | What does the deliveries heading hold? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1812,6 +1814,90 @@ moment somebody actually decides.
 **Recommended: drop it from the form.** A field that is often wrong and never
 authoritative is worse than no field, because tooling reads it and people trust
 it.
+
+#### D28 · May a project have a branch per delivery? — **answered: yes, named for the delivery**
+
+Owner, 2026-08-21: *"If a project has two deliveries then it may have two
+branches, with the later branch based on the earlier branch… we can always wait
+until delivery 1 is live before starting on delivery 2, but having two branches
+seems fine as long as they are named as such."*
+
+**This relaxes [D21](#d21--what-does-a-branch-belong-to--answered-the-project-and-the-release-branch-is-rebuilt-from-them)
+and [D24](#d24--what-is-a-project-branchs-life--answered-created-with-the-project-deleted-when-it-is-live)**,
+which said one branch per project.
+
+##### Why a second branch is a requirement and not a preference
+
+It falls straight out of the release rule: *descoping a project from a release is
+done by recreating the release branch from the other project branches.*
+
+**Rebuilding from branch heads means whatever is on the head is in the release.**
+So if delivery 2's work sits on the same branch while delivery 1 is being
+released, a rebuild sweeps delivery 2 in — silently, and at exactly the moment
+nobody wants a surprise.
+
+**Only needed when the deliveries overlap in time.** If delivery 1 is live before
+delivery 2 starts, one branch is enough and a second is ceremony. The test is
+*"is a release being prepared from this branch right now?"*
+
+##### And not two projects, which was the alternative
+
+The git shape is identical either way — the later work is based on the earlier.
+What differs is the documents, and that decides it: **a project has one design,
+one test approach, one artefact list**. Splitting #174 would split the design, and
+logs and backups share the retention argument, the storage argument and the
+*expose a condition, let OCI alert* argument. Two projects would leave three
+cross-references where there is now one document.
+
+##### Naming
+
+`issue-<n>-<project>` for the first, and the delivery named in the second:
+`issue-174-logs-and-backups` then `issue-174-d2-backups`. The ordinal ties it to
+the runbook's numbering and the subject makes it readable in six months, when
+`-d2` alone would mean nothing. `status.sh` and `actions.py` both match on
+`issue-<n>-`, so a suffix costs nothing.
+
+#### D29 · What does the deliveries heading hold? — **answered: a runbook, written before and completed after**
+
+Owner, 2026-08-21: *"having the delivery runbooks in the project — they would
+specify which app version, or project delivery build, was deployed when."*
+
+So the *deliveries* heading is not a plan that is discarded once followed. **It is
+written before as a procedure and completed afterwards as a record**, and the
+second half is the part with no substitute.
+
+| written before | filled in after |
+| --- | --- |
+| the steps, in order, and the route each takes | **which app version or build carried it**, and **when** |
+
+##### Why the version-and-date half matters more than it looks
+
+Three uses, and the third is the one that is hard to reconstruct later:
+
+- **host and service steps have no other record.** A firewall rule applied on
+  Tuesday leaves nothing in git; the runbook line is the whole history
+- **a delivery may span more than one release**, so *"is this delivered?"* is only
+  answerable by knowing which release carried which step
+- **rollback.** If a host change was applied alongside 0.7.0 and production is
+  rolled back to 0.6.3, **is the host change still valid?** Sometimes yes and
+  sometimes catastrophically not — a journald drop-in survives, a script calling
+  an endpoint that no longer exists does not. The runbook is the only thing that
+  can answer it, because it is the only thing that recorded the pairing
+
+##### Not a second copy of the delivery log
+
+[D6](#d6--what-is-a-release-and-what-gets-logged-as-one--answered-the-log-records-deliveries)'s
+log records one row per delivery across the whole programme. The split is the
+same shape as [D27](#d27--what-does-the-design-document-owe-the-artefact-list--answered-the-same-artefacts-and-what-changes-in-each)'s:
+
+| | holds | reader |
+| --- | --- | --- |
+| **the project's runbook** | every step, its route, and what carried it when | somebody doing it, or undoing it |
+| **the delivery log** | one row: version, date, kind, where, what, outcome | somebody asking *what changed in production, and when* |
+
+The version and the date are in both, deliberately and bounded — and the log is
+**derivable** from the runbooks plus the tags, which is the direction the
+generation should run if it is ever automated.
 
 #### D6 · What is a release, and what gets logged as one? — **answered: the log records deliveries**
 
