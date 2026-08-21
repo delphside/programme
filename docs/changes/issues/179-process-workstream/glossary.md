@@ -93,6 +93,7 @@ to read it.
 | **D22** | Is route an attribute of the issue? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D23** | Do document names repeat the project number? | **answered** | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) |
 | **D24** | What is a project branch's life? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D25** | Does the project issue list what it touches? | **answered** | [Projects](#projects-phases-and-gates) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1133,21 +1134,95 @@ It is whether one design can be written that covers them without saying *"and
 separately"* — logs and backups share a host, a retention argument and a delivery,
 so one note is shorter than two.
 
-##### Four headings, always
+##### Five headings, always
 
-**A project issue carries all four headings — requirements, design, test
-approach, deliveries — each holding either text or a link to a document.** Never
-absent, never empty.
+**A project issue carries all five headings — requirements, design, **impacted
+artefacts**, test approach, deliveries — each holding either text or a link to a
+document.** Never absent, never empty. It was four until
+[D25](#d25--does-the-project-issue-list-what-it-touches--answered-yes-new-or-modified)
+added the third.
 
-That converts D18's *"all four always exist, only their location varies"* from a
-principle into something checkable: the four headings are either there or they
-are not, and a script can say which. It also makes the small case explicit — a
+That converts D18's *"all of them always exist, only their location varies"* from
+a principle into something checkable: the headings are either there or they are
+not, and a script can say which. It also makes the small case explicit — a
 heading with three lines under it is a complete answer, and the reader can see it
 was answered rather than skipped.
 
 **Which is the real gain**: an empty heading and a missing heading look identical
 in prose and are completely different in meaning. One says *nobody has decided*;
 the other says *nobody thought to ask*.
+
+##### D25 · Does the project issue list what it touches? — **answered: yes, new or modified**
+
+Owner, 2026-08-21: *"the project issue should list the impacted artefacts, with
+new or modified."*
+
+So a fifth heading, and it earns its own rather than living inside the design,
+because **the people who need it are not the people who wrote it**. A designer
+writes it once; a release planner, a tester and whoever is rolling back all read
+it later, and none of them should have to reconstruct it from prose.
+
+| | |
+| --- | --- |
+| **new** | did not exist before. Nothing else references it, there is no behaviour to preserve, and there is nothing to roll back to |
+| **modified** | exists and something depends on it. There is a previous version, existing tests, and a rollback that means something |
+
+##### What it makes possible: the co-delivery test stops being a judgement
+
+This is the part worth the heading.
+[D12](#d12--can-a-release-carry-work-from-more-than-one-project--answered-one-owner-plus-small-passengers)
+allows two projects in one release *"as long as they don't touch the same code"*,
+and [D19](#d19--do-we-need-a-release-object--answered-no-the-release-is-derived)
+extends that to peers from different workstreams. Until now that criterion has
+been **asserted by whoever was looking**, which is fine with one developer holding
+all the context and is the first thing to fail when that stops being true.
+
+**With a list on each project issue it is a set intersection.** Two projects may
+share a release exactly when their artefact lists do not overlap. That is
+checkable by eye in ten seconds and by a script in one line, and it is the same
+move D14 made with the process category: state what somebody decided, derive what
+follows.
+
+**And it is the rollback list, already written.** *What does rolling this back
+touch?* is the question asked in the worst ten minutes of a project's life, and
+it is exactly this heading. The `new` marks are the useful detail there — a new
+artefact has nothing to roll back to, so a rollback leaves it orphaned rather
+than restoring it.
+
+##### An artefact is not only a file
+
+The [route axis](#d22--is-route-an-attribute-of-the-issue--answered-no-of-the-delivery)
+already says a change reaches production five different ways, and the artefact
+list has to span all of them or it silently means *"the code we changed"*.
+Taking #175, which is live and therefore a fair test:
+
+| artefact | | route |
+| --- | --- | --- |
+| the OCI bucket `tile-lite-elite-backups` | **new** | applied to a service we use |
+| the write-only pre-authenticated request | **new** | applied to a service we use |
+| the backup script on the host | **new** | applied on the host |
+| its systemd timer | **new** | applied on the host |
+| `docs/3.4-production-environment.md` | **modified** | in the artifact |
+| the alert that fires when a backup fails | **new** | applied to a service we use |
+
+**Six artefacts, one of them in the repository.** A list that had meant *files
+changed* would have recorded one line and missed the entire delivery — which is
+the same lesson the route axis taught, arriving here from a different direction.
+
+##### Keeping it true
+
+It will drift, and half of it can be checked mechanically:
+
+- **for the repository route**, `git diff main...<branch> --name-only` is ground
+  truth. A file changed on the branch and absent from the list is a gap the
+  machine can name — the same trick as the owner's log-schema comparison on #177,
+  where the document declares and the code is measured against it
+- **for the host and service routes there is no diff**, and that is precisely why
+  those routes are *done when their documentation is*. The list is not a record of
+  what happened there; **it is the only record**
+
+So the check is worth building for the half it covers, and the other half is
+worth writing carefully, because nothing else will ever contradict it.
 
 ##### Still open under D18
 
