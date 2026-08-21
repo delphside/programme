@@ -86,9 +86,10 @@ to read it.
 | **D15** | Technical testing and user testing — a variant, or a property of each change? | **answered** | [Classifying a change](#classifying-a-change-type-route-release) |
 | **D16** | What is a *test approach*, and what satisfies the gate? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 | **D17** | Do we adopt the standard testing terminology? | **answered** | [Terminology](#terminology-our-words-and-the-industrys) |
-| **D18** | What does a project own, and what happens to the issues it absorbs? | **open** | [Projects](#projects-phases-and-gates) |
+| **D18** | What does a project own, and what happens to the issues it absorbs? | **answered** | [Projects](#projects-phases-and-gates) |
 | **D19** | Do we need a release object? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D20** | Do living documents still always live on `main`? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
+| **D21** | What does a branch belong to? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -978,7 +979,7 @@ Start where it costs nothing; if a release goes wrong and nobody notices, that i
 the evidence for making it automatic — which is how the emergency retrospective
 came about.
 
-#### D18 · What does a project own, and what happens to the issues it absorbs?
+#### D18 · What does a project own, and what happens to the issues it absorbs? — **answered: four headings, and folded sources**
 
 Owner, 2026-08-21: *"Within a workstream issues can be grouped into a project,
 which then has a design, test approach and deliveries. At this point we should
@@ -1025,7 +1026,7 @@ How to record that, three ways:
 
 | option | |
 | --- | --- |
-| **close it, with a `folded` label and a comment naming the project** | the work list stays honest — a frozen issue is not work. Precedent: #154 and #181, both folded into the glossary and closed this way on 2026-08-20, and nothing was lost. The label is what keeps *closed* queryable into **delivered** and **folded**, which otherwise become indistinguishable |
+| **close it, with a `folded` label and a comment naming the project** | the work list stays honest — a frozen issue is not work. Precedent: #154, folded into the glossary and closed on 2026-08-20 with a comment saying where its content went. The label is what keeps *closed* queryable into **delivered** and **folded**, which otherwise become indistinguishable |
 | leave it open with a `frozen` label, closed by the delivery | *closed means delivered* stays true. But a project runs for weeks, and every list — `actions.py`, `status.sh`, the 45-issue backlog — carries issues nobody may act on |
 | make it a sub-issue and leave it open | the parent link is real and GitHub renders it, but it says *belongs to* and not *do not touch*, which is the bit that matters |
 
@@ -1087,10 +1088,46 @@ That last row is a real finding rather than a tidy-up: the thing we have been
 calling the process **workstream** is a project, and the workstream above it is
 the one that will still exist after the glossary is applied.
 
-##### The questions this leaves
+##### Answered 2026-08-21
 
-- **is `folded` the right disposal**, or should frozen issues stay open?
-- **should #156 and #183 be folded into #179 now**, on the same rule?
+Owner: *"closed and marked folded works for me. `folded` is the closure reason —
+better than `duplicate`, which I suggested before for this case. Project issues
+should have all four headings with either text or a document link."*
+
+**Two answers, and the second is the one with teeth.**
+
+**Disposal: closed, labelled `folded`, with the comment.** *Duplicate* was the
+earlier candidate and it says something untrue — a folded issue is not a second
+copy of another issue, it is a requirement that moved. `folded` says what
+happened and stays queryable.
+
+**A mechanical note**, because GitHub's own vocabulary is narrower than ours: its
+native close reasons are only **completed · not planned · duplicate**, so
+`folded` is a **label** and the close reason is *not planned* — which at least
+carries the one bit that matters, that the issue was **not delivered as itself**.
+Applied to #154 on 2026-08-21, which was closed as *completed* and was not.
+(#181 was genuinely completed — `actions.py` shipped — so it keeps that reason;
+an earlier draft of this section had it wrong.)
+
+##### Four headings, always
+
+**A project issue carries all four headings — requirements, design, test
+approach, deliveries — each holding either text or a link to a document.** Never
+absent, never empty.
+
+That converts D18's *"all four always exist, only their location varies"* from a
+principle into something checkable: the four headings are either there or they
+are not, and a script can say which. It also makes the small case explicit — a
+heading with three lines under it is a complete answer, and the reader can see it
+was answered rather than skipped.
+
+**Which is the real gain**: an empty heading and a missing heading look identical
+in prose and are completely different in meaning. One says *nobody has decided*;
+the other says *nobody thought to ask*.
+
+##### Still open under D18
+
+- **should #156 and #183 be folded into #179 now**, on this rule?
 - **does #179 get renamed** to a project, with a process workstream above it?
 
 ## Delivery: releases, applications and merges
@@ -1306,6 +1343,72 @@ them.
 
 Which also means the phase update is scriptable rather than clerical: set the
 phase on every project in the milestone, one command per environment.
+
+#### D21 · What does a branch belong to? — **answered: the project, and the release branch is rebuilt from them**
+
+Owner, 2026-08-21: *"All work on a project is within the project branch, and the
+release branch is always rebuildable from the project branches. So we can remove
+a project from scope. Before we had issue branches so we could descope issues,
+but that seems too fiddly now."*
+
+**The unit of branching moves from the issue to the project.** Which is not a
+loss of granularity, because [D18](#d18--what-does-a-project-own-and-what-happens-to-the-issues-it-absorbs--answered-four-headings-and-folded-sources)
+made a lone issue a project in its own right: a one-issue change still gets a
+branch, it is just called the project's branch now. What goes away is a branch
+per issue *inside* a project, which bought descoping at the price of a branch
+graph nobody could hold in their head.
+
+##### The release branch is derived, like the release
+
+| | |
+| --- | --- |
+| **project branch** | where all of a project's work happens, including its documents ([D20](#d20--do-living-documents-still-always-live-on-main--answered-no--they-follow-their-issue)) |
+| **release branch** | cut from `main`, then the project branches named in the release merged into it |
+| **descoping** | rebuild it without that project. Nothing is edited out, because nothing was ever edited in |
+
+This is [D19](#d19--do-we-need-a-release-object--answered-no-the-release-is-derived)
+again one level down. D19 said the release is a set of projects that name it and
+is not tracked separately; D21 says the same of the branch that carries it. The
+release branch is a **build product**, not a place work happens.
+
+##### The invariant this depends on
+
+**Nothing is ever committed directly to the release branch**, and this is the
+whole load-bearing part. A typo fixed on the release branch is lost the next time
+it is rebuilt, silently, and the release then ships without a fix that everyone
+watched being made. So a defect found in preview goes to **its project's branch**
+and the release branch is rebuilt.
+
+The one thing that legitimately belongs to the release rather than to any project
+is the **version bump**. Which means it is the last step of the rebuild rather
+than a commit somebody makes: rebuild = cut from `main`, merge the projects,
+stamp the version.
+
+##### It supersedes the leave-a-release rule I proposed
+
+Under [D19](#d19--do-we-need-a-release-object--answered-no-the-release-is-derived)
+I suggested a project may leave a release only *up to the release branch being
+cut*, on the reasoning that recutting afterwards is expensive. **In this model it
+is not expensive** — rebuilding is the normal operation, so the branch is not the
+constraint and that rule can go.
+
+**The real constraint is testing, and it is a better rule.** Rebuilding without a
+project produces an artefact nobody has tested, so descoping after preview or
+rehearsal means **running them again**. A project may leave a release at any
+time; what it costs rises sharply once the release has been judged, which is an
+honest incentive to descope early rather than a prohibition.
+
+##### What long-lived project branches owe
+
+Two obligations, both consequences rather than choices:
+
+- **a project branch is kept current with `main`.** A branch that has not seen
+  `main` for three weeks makes descoping theoretical: the rebuild that was
+  supposed to be mechanical becomes a conflict resolution, which is a change
+  nobody reviewed
+- **a project branch is not a base for another project's branch.** Two projects
+  that must both be present are one project, not two, because the second cannot
+  then be descoped — which is the capability this whole model exists to keep
 
 #### D6 · What is a release, and what gets logged as one? — **answered: the log records deliveries**
 
