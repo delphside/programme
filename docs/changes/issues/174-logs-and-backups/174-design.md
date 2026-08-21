@@ -1011,25 +1011,96 @@ host script exists to use it.
 
 ### Delivery 1 — logging and health
 
-| # | step | route |
-| --- | --- | --- |
-| 1 | install the journald drop-in and reload — raising the cap **before** anything writes to journald, so retention is never briefly wrong | applied on the host |
-| 2 | release: the `Dockerfile` health check, JSON output, the five call sites, the compose `logging:` block, `docs/4.7`, `docs/3.4` | in the artifact |
-| 3 | confirm: deploy a second time and read across the boundary — the claim the project exists for | — |
+**Step 1 is on the host and comes first.** With the driver switched to journald
+but the old 50 M cap still in place, the size limit binds before the age rule and
+seven days silently becomes something less — the exact failure Part 4 describes,
+arrived at by doing things in the wrong order.
 
-Step 1 first is the part worth stating. With the driver switched but the old
-50 M cap in place, the size limit binds before the age rule and seven days
-silently becomes something less — the exact failure Part 4 describes, arrived at
-by doing things in the wrong order.
+```bash
+# 1 — on the host, before anything writes to journald
+sudo tee /etc/systemd/journald.conf.d/zz-tile-lite-elite.conf >/dev/null <<'EOF'
+[Journal]
+SystemMaxUse=100M
+MaxRetentionSec=7d
+EOF
+sudo sed -i 's/^SystemMaxUse=50M/SystemMaxUse=100M/' \
+  /etc/systemd/journald.conf.d/50-cap.conf
+sudo systemctl restart systemd-journald
+systemd-analyze cat-config systemd/journald.conf | grep -E 'SystemMaxUse|MaxRetention'
+```
+
+```bash
+# 2 — the release, from the development machine
+./scripts/deploy.sh
+
+# 3 — confirm, which is the claim the project exists for
+ssh tile-lite-elite 'journalctl CONTAINER_TAG=tle-server -o cat -n 5 | jq .'
+./scripts/deploy.sh                    # a second time
+ssh tile-lite-elite 'journalctl CONTAINER_TAG=tle-server -o cat --since "10 min ago" \
+  | wc -l'                             # lines from before the redeploy are still there
+ssh tile-lite-elite 'journalctl CONTAINER_TAG=tle-web --since "5 min ago" | wc -l'
+#                                        ^ near zero: the health probe is silent now
+```
 
 ### Delivery 2 — backups
 
-| # | step | route |
-| --- | --- | --- |
-| 1 | create the write-only pre-authenticated request, listing off, and turn on object versioning | applied to a service we use |
-| 2 | install the backup script and its systemd timer | applied on the host |
-| 3 | create the alarm that fires when a backup does not arrive | applied to a service we use |
-| 4 | the restore drill on a throwaway instance | — |
+**Step 1 is in the console** and produces a credential that must be copied
+straight to the host, because it is shown once.
+
+```text
+1a  Bucket tile-lite-elite-backups → Details → Object Versioning → Enable
+1b  → Management → Pre-Authenticated Requests → Create
+      target       Bucket
+      access       Permit object writes
+      listing      off
+      expiry       two years — record the date in docs/3.4
+1c  Copy the URL. It is shown once.
+```
+
+```bash
+# 1d — on the host, straight away. 0600 because it is a bearer token, and a file
+#      rather than an environment variable because `systemctl show` is world readable.
+ssh tile-lite-elite
+umask 077 && printf '%s\n' 'PASTE_THE_URL' > ~/.tile-lite-elite-backup-par
+
+# 2 — the scripts and their units. Three files travel together, because the
+#     validator is useless without the schema and there is no checkout here.
+sudo install -d -o ubuntu -g ubuntu /opt/tile-lite-elite
+# from the development machine:
+scp scripts/backup-to-oci.sh scripts/check-log-hygiene-nightly.sh \
+    scripts/check-log-hygiene.py docs/4.7-log-events.md \
+    tile-lite-elite:/opt/tile-lite-elite/
+scp scripts/systemd/* tile-lite-elite:/tmp/
+# back on the host:
+sudo mv /tmp/tile-lite-elite-*.service /tmp/tile-lite-elite-*.timer /etc/systemd/system/
+sudo usermod -aG systemd-journal ubuntu        # the log check reads the journal
+sudo systemctl daemon-reload
+sudo systemctl enable --now tile-lite-elite-backup.timer tile-lite-elite-log-check.timer
+systemctl list-timers 'tile-lite-elite-*'
+
+# 3 — prove it before waiting a night for it
+sudo systemctl start tile-lite-elite-backup.service
+journalctl -u tile-lite-elite-backup.service -n 20 --no-pager
+```
+
+```text
+4  Console → Monitoring → Alarms, three of them, each on the age of an object:
+     backup did not arrive          marker-backup-ok    older than 26 hours
+     no clean log check recently    marker-logcheck-ok  older than 36 hours
+     no verified restore recently   marker-restore-ok   older than 100 days
+   All fire on **absence of success**, which also catches a crashed script, a
+   timer nobody enabled, a host that is down, or an expired credential.
+```
+
+```bash
+# 5 — the restore drill, from the development machine, with a read PAR made in
+#     the console for the occasion and deleted afterwards.
+./scripts/restore-backup.sh 'READ_PAR_URL' --mark 'WRITE_PAR_URL'
+```
+
+**Step 5 is not optional and not a follow-up.** A backup nobody has restored is a
+hypothesis, and the 100-day alarm exists to make the drill recur rather than to
+happen once in August.
 
 **Neither delivery is a release on its own.** Delivery 1's step 2 is; everything
 else is an application, and gets a dated row in the delivery log with no version
