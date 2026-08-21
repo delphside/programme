@@ -545,7 +545,29 @@ that the document is **right**. A `display_name` added to both would pass. The
 control for that is a person reading `docs/4.7` — so the schema is not a field
 list to skim in review; it is the thing being reviewed.
 
-**2 · A restore script**, which the artefact list was missing. Part 5's drill —
+**2 · A project test script**, `scripts/check-log-hygiene.sh`. Owner,
+2026-08-21: *"I see a new test that will run in production, but not one for the
+project testing."* Right — the restore script is an **operational** tool that
+outlives the project, and the tests that prove *this project's changes work* had
+no script at all. I had written them off as one-off confirmations, and three of
+them are not.
+
+Run against a preview or rehearsal stack, it asserts:
+
+| claim | how |
+| --- | --- |
+| **every line is machine-readable** | `journalctl -o cat` over the run, each line through `jq -e .` |
+| **no personal data remains** | drive register · login · failed login · reset · invitation, then fail on an `@`, or on the display name used, anywhere in what was written |
+| **logs survive a deploy** | deploy twice, assert the oldest entry predates the second deploy |
+
+**The middle row is the one that earns the script.** It is the most important
+claim in the project — it is why the offsite copy is safe to make — and by hand
+it is a grep and a squint at the right moment, which is exactly the check that
+rots. `check-rate-limits.sh` is the precedent: a script written to test a change,
+run against rehearsal, kept afterwards because the claim it asserts stays true or
+stops being true.
+
+**3 · A restore script**, which the artefact list was also missing. Part 5's drill —
 build a throwaway VM, restore the newest backup, confirm the site serves — was
 written as a one-off, and a one-off restore proves the backup worked **once**. Six
 months later it is a hypothesis again.
@@ -559,11 +581,11 @@ That makes the drill re-runnable at each release, or quarterly, at the cost of
 one command — and it is the difference between *"we restored it in August"* and
 *"we restore it routinely."*
 
-**The other evidence in this part is deliberately not scripted.** Stopping the
-server to prove the health check fails, pointing the uploader at a bad URL to
-prove the alarm fires, reading `journalctl` after two deploys — each is a
-one-time confirmation of a mechanism that will not silently change, and a script
-for each would be more code than the thing it guards.
+**What stays manual, and why.** Stopping the server to prove the health check
+fails, and pointing the uploader at a bad URL to prove the alarm fires: both are
+destructive one-offs against a live stack, confirming a mechanism rather than a
+property. Retention — *seven days is still seven days* — is checked a week after
+landing, which no script run during the project can do.
 
 ### What is measured, against what criteria
 
@@ -579,6 +601,7 @@ for each would be more code than the thing it guards.
 | the daily backup keeps running | the failure path alerts — tested by pointing it at a bad URL |
 
 | **the log schema and the code agree** | the new test, in CI, on every push |
+| **no address or display name reaches the log** | `check-log-hygiene.sh`, against preview and again against rehearsal |
 | a leaked write-only credential cannot destroy a backup | **already shown**, 2026-08-21, from the production VM: `PUT 200`, `GET 404`, `LIST 404`, `DELETE 404`, `HEAD 404`, and `401` after revocation |
 
 The existing test suites should pass unchanged; nothing here touches game logic.
@@ -668,6 +691,7 @@ The diff carries the detail here; these summaries carry the intent above it.
 | `docker-compose.yml` · `docker-compose.preview.yml` | modified | both services log through the **journald** driver, so the store belongs to the host and survives the container recreation that discards everything today |
 | `docs/4.7-log-events.md` | **new** | the event catalogue, and — because of the test below — the **declared schema** the code is measured against. It is a reference document that is also a gate |
 | `crates/server-game/tests/` — the schema comparison | **new** | renders every event through the real JSON layer and fails CI when a field appears that `4.7` does not declare. It proves code and document **agree**; whether the document is **right** is a person's job |
+| `scripts/check-log-hygiene.sh` | **new** | the **project's** test: drives the five personal-data paths against a preview or rehearsal stack and fails if an address or a display name reaches the log, if any line is not valid JSON, or if a deploy discarded the history |
 | `scripts/restore-backup.sh` | **new** | fetches the newest backup, verifies it opens, and loads it into a fresh volume — so the restore drill is re-runnable rather than a thing done once in August |
 | `docs/3.4-production-environment.md` | modified | documents the host artefacts below, the backup procedure, the pre-authenticated request's expiry date, and the restore drill |
 
@@ -686,13 +710,17 @@ half of the table the answer to *"what else was on that box?"*
 | `OCI` write-only pre-authenticated request | **new** | lets the VM upload and nothing else. Tested: it cannot read, list or delete, and deleting it revokes access immediately. Its expiry date is recorded in `docs/3.4` |
 | `OCI alarm` — backup did not arrive | **new** | mails the owner when a day passes without a new object. It is what makes the PAR's expiry announce itself rather than being discovered when the database is gone |
 
-**Sixteen artefacts of which six leave no trace in git**, which is the argument
+**Seventeen artefacts of which six leave no trace in git**, which is the argument
 for the table existing at all: a list that had quietly meant *files changed*
 would have described half of this project.
 
-**Two of the sixteen are test tooling**, and one of them was missing until the
-owner asked for it directly — which is D25's *"the list stays provisional until
-the test approach settles"* happening in practice rather than in principle.
+**Three of the seventeen are test tooling, and two of those were missing** until
+the owner asked twice — first whether the tests in Part 8 produced any scripts,
+then noticing that the one added *ran in production* and none tested the project
+itself. That is D25's *"the list stays provisional until the test approach
+settles"* happening in practice rather than in principle, and it is also the
+answer to why the artefact list is worth a heading of its own: nobody spots a
+missing row in a paragraph.
 
 ---
 
