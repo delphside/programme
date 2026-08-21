@@ -580,6 +580,22 @@ marker:
 so the test fails loudly with *"no block marked `log-schema`"* rather than
 quietly validating against an example.
 
+##### Which direction the inclusion runs
+
+**Nothing is included into the markdown.** The document is a plain file that a
+person reads; the *Rust test* reaches into it. `include_str!` is a Rust macro,
+not a markdown feature — markdown has no include at all, which is why the schema
+is contained in `docs/4.7` rather than pulled into it.
+
+```text
+docs/4.7-log-events.md      the schema, in a marked fenced block — the source
+        ↑
+        │ include_str! at compile time
+        │
+crates/server-game/tests/   extracts the block, parses it, compares it to what
+                            the code actually emits
+```
+
 **And the test embeds the document at compile time.** `include_str!` takes a
 **string literal that is a path** — it reads the file while compiling and embeds
 the contents as a `&'static str`. The literal is required: it cannot be a
