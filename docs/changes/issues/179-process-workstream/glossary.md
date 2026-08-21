@@ -90,6 +90,7 @@ to read it.
 | **D19** | Do we need a release object? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D20** | Do living documents still always live on `main`? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 | **D21** | What does a branch belong to? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D22** | Is route an attribute of the issue? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1082,7 +1083,7 @@ does not yet fit:
 | **#179 absorbed six issues** | #137, #154, #181 folded and closed; #155, #156, #183 still open |
 | **the glossary is its requirements** | exactly the owner's *"the glossary acting as the requirements"* |
 | **but #155, #156 and #183 are not frozen** | #155 is the discussion venue for the requirements, which is a different thing from a source issue — it is the project's own thread. #156 and #183 are genuine source issues and should be frozen under this rule |
-| **and #179 is called a workstream** | it has a fixed scope and an end, which by our own definition makes it a **project** — inside a *process* workstream that does not end. The name predates the levels |
+| **and #179 was called a workstream** | it has a fixed scope and an end, which by our own definition makes it a **project**. **Split on 2026-08-21**: #188 is the process workstream, #179 the project under it |
 
 That last row is a real finding rather than a tidy-up: the thing we have been
 calling the process **workstream** is a project, and the workstream above it is
@@ -1127,8 +1128,11 @@ the other says *nobody thought to ask*.
 
 ##### Still open under D18
 
-- **should #156 and #183 be folded into #179 now**, on this rule?
-- **does #179 get renamed** to a project, with a process workstream above it?
+**Both applied 2026-08-21.** #156 folded and closed — its requirement is D6, and
+the log it asked for is unbuilt and now the project's to deliver. **#183 was
+closed as delivered, not folded**, against the instruction and on the instruction's
+own logic: everything it asked for shipped, and `folded` would have said the work
+never happened. And #179 is now the project, with #188 the workstream above it.
 
 ## Delivery: releases, applications and merges
 
@@ -1409,6 +1413,67 @@ Two obligations, both consequences rather than choices:
 - **a project branch is not a base for another project's branch.** Two projects
   that must both be present are one project, not two, because the second cannot
   then be descoped — which is the capability this whole model exists to keep
+
+#### D22 · Is route an attribute of the issue? — **answered: no, of the delivery**
+
+Owner, 2026-08-21, answering the issue form's two-route gap: *"A project (which
+may be a single issue) can have more than one delivery, and a delivery can
+involve more than one route — a delivery may involve a number of steps to be
+carried out in order. So #155 may have more than one route."*
+
+**This moves route off the issue**, where [D1](#d1--does-the-lane-become-three-attributes--answered-yes-as-an-issue-form)
+put it, and onto the delivery. The counts are the argument:
+
+| | how many |
+| --- | --- |
+| a project | one or more **deliveries** |
+| a delivery | one or more **routes**, and where there are several, **in order** |
+
+A single-valued field on the issue cannot hold that, and the two gaps we had were
+both symptoms of trying. #174 is JSON logging in the artifact *and* a journald
+drop-in on the host — one delivery, two routes, and the host step only makes
+sense after the image is deployed. #155 is the same shape: documents in the
+repository, labels and a workflow in GitHub, and a ruleset on `main`.
+
+##### Both gaps close, rather than being answered
+
+- **"a change can have two routes"** — it does, and now there is somewhere to say
+  so. Not multi-select on an issue, and not two issues either: **one delivery
+  with two routes**
+- **"route needs a *not decided yet*"** — it does not, because an issue is no
+  longer asked. #40 and #175 were awkward because the form demanded a shape
+  before anyone knew it; route is now decided when the delivery is planned, which
+  is exactly when it *is* known
+
+##### A delivery may be an ordered list of steps
+
+The part that is genuinely new. A delivery is not always one act — it can be
+*build the image · deploy it · apply the drop-in on the host · confirm* — and the
+order matters, because a host step usually assumes the deployed artifact.
+
+That belongs under the project's **deliveries** heading
+([D18](#d18--what-does-a-project-own-and-what-happens-to-the-issues-it-absorbs--answered-four-headings-and-folded-sources)),
+which is the first time that heading has had to hold a procedure rather than a
+list. A multi-step delivery is a small runbook, written before it is run and kept
+after, because the steps applied on a host are the ones nothing else records.
+
+##### What has to change elsewhere
+
+| | |
+| --- | --- |
+| **the issue form** | loses its route dropdown. Type and release stay |
+| **[D14](#d14--do-we-classify-the-process-a-delivery-must-go-through--answered-yes-derived)** | the process category derives from type plus **the delivery's** route. For a small change the issue, the project and the delivery are the same thing decided at the same moment, so nothing gets heavier |
+| **[D6](#d6--what-is-a-release-and-what-gets-logged-as-one--answered-the-log-records-deliveries)** | reconciled rather than changed — the log's *kind* column (normal · host · service) **is** route, recorded on the delivery. That was route living on the delivery before we had the words |
+
+**The cost is honest and small.** Route on the issue let us map all 45 open issues
+on to their mechanism in one pass, which was useful. That mapping becomes
+**planning** rather than stored metadata — done when a project takes shape,
+recorded under its deliveries heading, and correct because it is written at the
+moment somebody actually decides.
+
+**Recommended: drop it from the form.** A field that is often wrong and never
+authoritative is worse than no field, because tooling reads it and people trust
+it.
 
 #### D6 · What is a release, and what gets logged as one? — **answered: the log records deliveries**
 
