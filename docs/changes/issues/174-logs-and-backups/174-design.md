@@ -589,17 +589,35 @@ the project?"*
 **All three are kept, and none of them is in the first category.** Against the
 three categories in `docs/3.6`:
 
-| script | category | where it lives | when it runs |
+| script | category | when it runs | **what fires it** |
 | --- | --- | --- | --- |
-| the schema comparison test | **part of regression testing** | `crates/server-game/tests/` | **every push**, in CI, without anybody deciding to |
-| `check-log-hygiene.sh` | **optional regression test** | `scripts/`, listed in `docs/3.0` | against rehearsal in the release path when a release touches the server's logging or auth paths — and on demand |
-| `restore-backup.sh` | **optional regression test** | `scripts/`, listed in `docs/3.0` | quarterly, and after any change to the backup mechanism. The project's own drill is its first run |
+| the schema comparison test | **2 · regression** | every push | CI. Nobody decides |
+| `check-log-hygiene.sh` | **3 · triggered** | in the release path, when a release touches the server's logging or auth paths | **a deploy gate**, conditional on the changed paths — to be built with it |
+| `restore-backup.sh` | **3 · triggered** | quarterly, and after any change to the backup mechanism | **nothing yet** — see below |
+
+**Neither is category 4**, which is where I had put them. The distinction the
+owner drew is between a test something can fire and a test somebody has to
+remember, and both of these have a real trigger available.
+
+**`restore-backup.sh` has no trigger yet, and that is the honest gap.**
+*"Quarterly"* with nothing scheduling it is category 4 wearing category 3's
+clothes — and the year nobody notices it has not run is the year the backup does
+not restore. Three ways to fire it, cheapest first:
+
+| | |
+| --- | --- |
+| **an OCI alarm on the age of the newest *verified* restore** | the backup script writes a marker object on a successful drill; the alarm fires when it is older than 100 days. Uses machinery already built for #136, and it alerts rather than reminds |
+| a calendar reminder | works, and depends on one person reading it |
+| every Nth release | ties an interval to a cadence that varies, so it means nothing in a quiet quarter |
+
+**Recommended: the alarm**, and it goes in the same delivery as the backup
+alerting, because it is the same mechanism pointed at a different object.
 
 **This project produces nothing in the first category** — no one-off migration
 check, nothing true once. Worth stating rather than leaving to be inferred from
 an absence.
 
-**Why the two are optional, since the third category owes that reason:** both
+**Why neither is category 2, since anything outside it owes that reason:** both
 need a **running stack on real hardware**. `check-log-hygiene.sh` drives auth
 flows and then reads the host's journal; `restore-backup.sh` needs somewhere to
 restore *to*. Neither can run on a CI runner as things stand.
@@ -744,8 +762,9 @@ half of the table the answer to *"what else was on that box?"*
 | `OCI bucket tile-lite-elite-backups` | **new**, created 2026-08-21 | holds the backups. Standard tier, private, **object versioning on** — which is what closes the one remaining way a leaked credential could destroy a backup |
 | `OCI` write-only pre-authenticated request | **new** | lets the VM upload and nothing else. Tested: it cannot read, list or delete, and deleting it revokes access immediately. Its expiry date is recorded in `docs/3.4` |
 | `OCI alarm` — backup did not arrive | **new** | mails the owner when a day passes without a new object. It is what makes the PAR's expiry announce itself rather than being discovered when the database is gone |
+| `OCI alarm` — no verified restore recently | **new** | mails the owner when the newest restore marker is more than 100 days old. It is what turns *"quarterly"* from an intention into a trigger, and it is the same mechanism as the row above pointed at a different object |
 
-**Seventeen artefacts of which six leave no trace in git**, which is the argument
+**Eighteen artefacts of which seven leave no trace in git**, which is the argument
 for the table existing at all: a list that had quietly meant *files changed*
 would have described half of this project.
 
