@@ -94,6 +94,7 @@ to read it.
 | **D23** | Do document names repeat the project number? | **answered** | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) |
 | **D24** | What is a project branch's life? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D25** | Does the project issue list what it touches? | **answered** | [Projects](#projects-phases-and-gates) |
+| **D26** | A register of artefacts, or just a naming convention? | **answered** | [Projects](#projects-phases-and-gates) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1265,6 +1266,67 @@ empty one. The heading carries where it stands — *provisional* until design
 approval, *settled* after — and an individual entry nobody is sure of carries a
 `?`. List-level rather than per-entry as the default, because marking every line
 invites arguing each one instead of writing the list.
+
+##### D26 · A register of artefacts, or just a naming convention? — **answered: both, and the register is small**
+
+Owner, 2026-08-21: *"I agree with your two points. So maybe we need a list of
+artefacts, or at least a naming convention."*
+
+**The two do different jobs**, which is the argument for having both rather than
+choosing:
+
+| | what it buys |
+| --- | --- |
+| **a naming convention** | two lists written by different people at different times use the same string for the same thing, so the intersection is textual |
+| **a register** | you can answer *"what exists that could be touched?"* **before** knowing what you are touching — so an early guess is made by picking from a list rather than by inventing names, which is where inconsistency comes from in the first place |
+
+##### The convention makes most artefacts need no register entry
+
+| kind | canonical name | example |
+| --- | --- | --- |
+| **in the repository** | its path from the repository root | `docs/3.4-production-environment.md` |
+| **on a host** | the host role, then the absolute path | `production:/etc/systemd/journald.conf.d/zz-tile-lite-elite.conf` |
+| **a cloud resource** | the provider, the type, the provider's own name | `OCI bucket tile-lite-elite-backups` |
+| **a GitHub object** | `github:` then type and name | `github:label folded`, `github:ruleset main` |
+| **an external service** | the service, then the thing | `OCI alarm tile-lite-elite-health` |
+
+**A repository artefact is self-naming**, so it needs no entry anywhere: the path
+is the name, the file either exists or it does not, and its route is *in the
+artifact* by default. That collapses most of the register before it is written.
+
+##### So the register holds exactly what git does not
+
+What is left is **host files, cloud resources, GitHub objects and external
+services** — perhaps twenty things — and that is precisely the set with **no
+other record**. It is the same set the route axis already singles out as *done
+when their documentation is*, arriving here for a third time.
+
+Which gives the register a second job it earns on its own: **it is the
+rebuild-the-world list.** #175 exists because losing the VM loses everything on
+it, and *"what else was on that box?"* is answerable only by something like this.
+Four of #175's own six artefacts are host or service.
+
+`docs/4.x` is where it goes — 4.x is reference, per the numbering convention.
+
+##### And it exposes something about route
+
+**Route looks like a property of the artefact, not of the delivery.** A file in
+the repository reaches production in the artifact; a file on the host is applied
+on the host; a bucket is applied to a service we use. The artefact decides, and
+nothing about the change alters it.
+
+If that holds, then
+[D22](#d22--is-route-an-attribute-of-the-issue--answered-no-of-the-delivery)'s
+answer gets sharper rather than overturned: a delivery's routes are the **union
+of the routes of the artefacts it touches**, and route stops being stated
+anywhere at all. Tested against the two cases that drove D22 — #174 is a
+repository file *and* a host file, giving {artifact, host}, which is exactly the
+two routes that made it awkward; #155 is repository files plus GitHub objects,
+giving {repository, service}.
+
+**Raised rather than decided**, because it changes an answered decision: if route
+is carried by the register, the artefact list is the only thing anybody writes and
+both route and the co-delivery test fall out of it.
 
 ##### Keeping it true
 
