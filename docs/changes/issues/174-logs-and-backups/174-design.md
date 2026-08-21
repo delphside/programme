@@ -581,6 +581,30 @@ That makes the drill re-runnable at each release, or quarterly, at the cost of
 one command — and it is the difference between *"we restored it in August"* and
 *"we restore it routinely."*
 
+### All three are kept, and each says when it runs
+
+Owner, 2026-08-21: *"are these new scripts temporary or will we keep them after
+the project?"*
+
+**All three are permanent, and the test is not how useful they were during the
+project — it is whether the claim each asserts is permanent.** Every one of these
+is a property that must stay true for as long as the service runs, so a script
+that stops running is a property that stops being checked. A genuinely temporary
+test artefact asserts something true once: *"the migration converted all 412
+rows"* is a one-off; *"no address reaches the log"* is not.
+
+| script | kept because | runs |
+| --- | --- | --- |
+| the schema comparison test | the log's shape must keep matching what `4.7` declares | **CI, every push.** It costs nothing, so nothing else needs deciding |
+| `check-log-hygiene.sh` | personal data must keep out of the logs, and every future logging change is a chance to let it back in | **against rehearsal, in the release path, whenever a release touches the server's logging or auth paths** — and on demand |
+| `restore-backup.sh` | a backup that has not been restored recently is a backup nobody has tested | **quarterly, and after any change to the backup mechanism** — the project's own drill is its first run |
+
+**Saying when each runs is not bookkeeping.** A kept script with no trigger
+becomes a script nobody has run since the release it was written for — and that
+is *worse* than not having it, because it reads as coverage. The repository would
+show a test for personal data in the logs, and the logs would have personal data
+in them.
+
 **What stays manual, and why.** Stopping the server to prove the health check
 fails, and pointing the uploader at a bad URL to prove the alarm fires: both are
 destructive one-offs against a live stack, confirming a mechanism rather than a
