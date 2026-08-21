@@ -1,17 +1,20 @@
 # Logs and backups: what we keep, where it lives, and how we know it works
 
-Covers **#174** (container logs) and **#175** (no backup leaves the VM), designed
-as one workstream because they answer the same question about different data:
-*what survives, for how long, and who can read it.* #176 (nothing watches the
-disk) is adjacent and referenced where it touches; it is not designed here.
+The design for **project #174**, in the production operations workstream
+(#189). It covers the project's two requirements — **R1** logs that survive a
+deploy, and **R2** a database copy that survives the VM — because they answer the
+same question about different data: *what survives, for how long, and who can
+read it.* Issue #176 (nothing watches the disk) is adjacent and referenced where
+it touches; it is not designed here.
 
-Named for the leading issue, against the convention of one note per change —
-they can be split if review prefers it, but the retention argument, the storage
-argument and the "expose a condition, let OCI alert" argument are shared, and
-splitting them would leave three cross-references where there is now one
-document.
+**One design for the project**, per the owner, 2026-08-21: *"this is one project
+and should have one design even if it covers multiple requirements and
+deliveries."* The retention argument, the storage argument and the *expose a
+condition, let OCI alert* argument are shared, so splitting would leave three
+cross-references where there is now one document.
 
-*Nothing here is built. This is the shape proposed for review.*
+*Nothing here is built.* Reviewed on PR #177 and **provisionally approved**
+2026-08-21.
 
 ## The state today, measured 2026-08-18
 
@@ -493,11 +496,47 @@ everything else refuses.
 
 ---
 
-## Part 8 — Evidence
+## Part 8 — Test approach
 
-Per 3.3, evidence follows what the change does. This changes the process's
-startup path, its output format, production configuration and a data path — so
-the evidence is server- and operations-shaped, not gameplay-shaped.
+Named as such under D17: a **test approach** states the environment, the tools,
+and what is measured against what criteria. It is not a test plan — the standards
+reserve that for a management document of scope, schedule and resources, which a
+one-developer project does not write.
+
+### The two questions every delivery answers (D15)
+
+| | |
+| --- | --- |
+| **does this involve functional changes that require user testing?** | **Barely.** Almost nothing here is visible by using the site. The one exception is the health-check change, whose user-facing test is *the site still serves* — which the smoke test already asserts. So preview has very little to look at, and this is the release where `DEPLOY_SKIP_PREVIEW` is close to honest rather than convenient |
+| **does this involve technical changes that require technical testing?** | **Almost entirely.** Output format, journal retention, a credential's permissions, a restore from cold. None of it can be judged by a person using the application, and most of it needs production-like hardware or a real host |
+
+**Which is the useful finding**, not a formality: this project's evidence is
+nearly all technical, so the effort belongs in rehearsal and in CI, and the
+preview step should not be padded out to look busy.
+
+### Environment and tools
+
+| where | what it judges | tools |
+| --- | --- | --- |
+| **CI** | the log schema matches what the code emits; nothing regressed | `cargo test`, and the new schema-comparison test below |
+| **preview** | the stack comes up, logs are readable, a deploy does not discard them | `deploy-preview.sh`, `journalctl`, `jq` |
+| **rehearsal** | the things needing a real host: journald retention, the backup upload, the alarm | `journalctl --disk-usage`, `curl`, the backup script itself |
+| **a throwaway instance** | the restore, which is the only claim that cannot be tested anywhere else | a fresh VM, the newest backup, and a browser |
+| **production** | that the failure alarm actually fires | OCI, and a deliberately broken upload |
+
+### Test tooling this builds
+
+**One new thing, and it is an artefact** (D25): a test that renders every log
+event through the real JSON layer and compares the field names against the schema
+declared in `docs/4.7-log-events.md`. Owner's idea, 2026-08-21: *"in the document
+have the JSON schema in a form that can be compared mechanically to the logs."*
+
+It is the control that makes *identifiers only* durable rather than aspirational —
+a source scan proves the list of events is complete and says nothing about an
+event quietly acquiring a `display_name`. This catches that on the commit that
+introduces it.
+
+### What is measured, against what criteria
 
 | claim | how it is shown |
 | --- | --- |
@@ -510,15 +549,56 @@ the evidence is server- and operations-shaped, not gameplay-shaped.
 | the backup restores | the new-instance drill in Part 5 |
 | the daily backup keeps running | the failure path alerts — tested by pointing it at a bad URL |
 
+| **the log schema and the code agree** | the new test, in CI, on every push |
+| a leaked write-only credential cannot destroy a backup | **already shown**, 2026-08-21, from the production VM: `PUT 200`, `GET 404`, `LIST 404`, `DELETE 404`, `HEAD 404`, and `401` after revocation |
+
 The existing test suites should pass unchanged; nothing here touches game logic.
 
 ---
 
-## Part 9 — Sequencing, and the case for taking three pieces early
+## Part 9 — Deliveries
 
-The owner's default is that this workstream goes **behind #71**. That is right
-for most of it — and three pieces have a reason to go first that is not
-impatience:
+**Two deliveries, each an ordered sequence rather than a set** (D22), because a
+host step assumes the artifact already deployed and a service step assumes the
+host script exists to use it.
+
+### Delivery 1 — logging and health
+
+| # | step | route |
+| --- | --- | --- |
+| 1 | install the journald drop-in and reload — raising the cap **before** anything writes to journald, so retention is never briefly wrong | applied on the host |
+| 2 | release: the `Dockerfile` health check, JSON output, the five call sites, the compose `logging:` block, `docs/4.7`, `docs/3.4` | in the artifact |
+| 3 | confirm: deploy a second time and read across the boundary — the claim the project exists for | — |
+
+Step 1 first is the part worth stating. With the driver switched but the old
+50 M cap in place, the size limit binds before the age rule and seven days
+silently becomes something less — the exact failure Part 4 describes, arrived at
+by doing things in the wrong order.
+
+### Delivery 2 — backups
+
+| # | step | route |
+| --- | --- | --- |
+| 1 | create the write-only pre-authenticated request, listing off, and turn on object versioning | applied to a service we use |
+| 2 | install the backup script and its systemd timer | applied on the host |
+| 3 | create the alarm that fires when a backup does not arrive | applied to a service we use |
+| 4 | the restore drill on a throwaway instance | — |
+
+**Neither delivery is a release on its own.** Delivery 1's step 2 is; everything
+else is an application, and gets a dated row in the delivery log with no version
+(D6). That is what makes the log worth keeping — five of these seven steps leave
+no other trace.
+
+### Sequencing against #71
+
+**All of it goes before #71.** Owner, 2026-08-21: *"we can do those things ahead
+of #71, we can do all of it ahead of #71 if that is easier."* It is easier —
+splitting the project into an urgent third and a deferred remainder costs a
+second pass over the same files, and the deferred half would have been rebased
+over whatever #71 does to them.
+
+The argument for the three urgent pieces stands as the reason this project goes
+first at all:
 
 | piece | size | why not to wait |
 | --- | --- | --- |
@@ -526,14 +606,59 @@ impatience:
 | **personal data out of the logs** | ~5 call sites | every day it waits is another day of email addresses landing in a log that is about to gain seven-day retention *and* an offsite copy. The offsite copy is what changes this from tidiness to something worth doing first |
 | **the backup** | a script and a bucket | the only failure in the whole workstream that is **unrecoverable**. Everything else here is discomfort; losing the VM today loses every game ever played, and the exposure grows with each day the site stays up |
 
-The rest — JSON output, the event catalogue, the journald switch, retention, the
-capacity report — has no such argument and can follow #71 comfortably.
+**One interaction to be aware of, and it is now the only reason to hold anything
+back.** `/status` (Part 7) and the sweep task (#166) touch the same area as #71's
+chunk A, so building the endpoint before #71 risks rework. Nothing in the two
+deliveries above touches it: the health check is a `Dockerfile` line, the logging
+edits are five call sites, and the backup is entirely outside the application. So
+**Part 7 is the piece that waits**, and it is adjacent work rather than part of
+this project's scope.
 
-**One interaction to be aware of.** `/status` (Part 7) and the sweep task (#166)
-touch the same area as #71's chunk A, so building the endpoint before #71 risks
-rework. The three pieces above touch none of it: the health check is a
-`Dockerfile` line, the logging edits are five call sites, and the backup is
-entirely outside the application.
+---
+
+## Part 10 — Impacted artefacts
+
+Every artefact this project touches, and what it does afterwards that it did not
+before (D27). **Provisional** until the test approach is agreed, since the schema
+test is itself an artefact.
+
+Named by D26's convention: a repository path where there is one, `production:`
+plus an absolute path on the host, and the provider's own name for a cloud
+resource.
+
+### In the repository — six modified, two new
+
+The diff carries the detail here; these summaries carry the intent above it.
+
+| artefact | | what it does afterwards |
+| --- | --- | --- |
+| `Dockerfile` | modified | the web health check fetches `/version.txt` from the site instead of polling Caddy's admin API — it proves routing, the file server and the static build, and writes nothing |
+| `crates/server-game/src/main.rs` | modified | the subscriber emits **JSON to stdout**. Human-readable output becomes a rendering applied at reading time rather than the stored form |
+| `crates/server-game/src/app/auth.rs` | modified | four events stop carrying `display_name`, and the unknown-email reset stops carrying **the email address**. What is left identifies the account to somebody with database access and to nobody else |
+| `crates/server-game/src/email.rs` | modified | mail events carry `player_id` and a message kind rather than the recipient address and subject |
+| `docker-compose.yml` · `docker-compose.preview.yml` | modified | both services log through the **journald** driver, so the store belongs to the host and survives the container recreation that discards everything today |
+| `docs/4.7-log-events.md` | **new** | the event catalogue, and — because of the test below — the **declared schema** the code is measured against. It is a reference document that is also a gate |
+| `crates/server-game/tests/` — the schema comparison | **new** | renders every event through the real JSON layer and fails CI when a field appears that `4.7` does not declare |
+| `docs/3.4-production-environment.md` | modified | documents the host artefacts below, the backup procedure, the pre-authenticated request's expiry date, and the restore drill |
+
+### Outside the repository — five, all new but one
+
+**These entries are the record.** There is no diff anywhere, so what is written
+here has to be enough to do it again from nothing — which is also what makes this
+half of the table the answer to *"what else was on that box?"*
+
+| artefact | | what it does afterwards |
+| --- | --- | --- |
+| `production:/etc/systemd/journald.conf.d/zz-tile-lite-elite.conf` | **new** | `SystemMaxUse=100M`, `MaxRetentionSec=7d`. Sets seven-day retention and a size backstop that will not bind before the age rule does |
+| `production:/etc/systemd/journald.conf.d/50-cap.conf` | modified | the existing 50 M cap, set deliberately on 2026-07-30, doubled rather than deleted — 50 M would bind first and make seven days quietly untrue |
+| `production:` the backup script and its systemd timer | **new** | takes a consistent snapshot daily, uploads it under a dated name, alerts on failure and keeps the previous upload if this one fails |
+| `OCI bucket tile-lite-elite-backups` | **new**, created 2026-08-21 | holds the backups. Standard tier, private, **object versioning on** — which is what closes the one remaining way a leaked credential could destroy a backup |
+| `OCI` write-only pre-authenticated request | **new** | lets the VM upload and nothing else. Tested: it cannot read, list or delete, and deleting it revokes access immediately. Its expiry date is recorded in `docs/3.4` |
+| `OCI alarm` — backup did not arrive | **new** | mails the owner when a day passes without a new object. It is what makes the PAR's expiry announce itself rather than being discovered when the database is gone |
+
+**Twelve artefacts of which six leave no trace in git**, which is the argument for
+the table existing at all: a list that had quietly meant *files changed* would
+have described half of this project.
 
 ---
 
