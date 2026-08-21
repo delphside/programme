@@ -573,6 +573,99 @@ a source scan proves the list of events is complete and says nothing about an
 event quietly acquiring a `display_name`. This catches that on the commit that
 introduces it.
 
+#### How the test gets at what the code emits — read the real logs
+
+Owner, 2026-08-21: *"I was thinking the test would use a recent log file, or even
+run through all the log files if that didn't take too long. Are the log files
+accessible?"*
+
+**Yes, and it is a better answer than either option I offered.** Both of mine
+compared the document to something *modelled* — a test restating the fields, or a
+typed module the test drives. His compares it to **what was actually written**,
+which is the only thing that cannot be wrong about itself. And it needs no
+refactor at all.
+
+**Accessible, and cheap.** Measured on production, 2026-08-21:
+
+| | |
+| --- | --- |
+| lines available | **12,539**, back to `2026-08-17T13:36:28Z` — the moment the last deploy recreated the containers |
+| time to read them all | under a second. *"If that didn't take too long"* turns out not to be a constraint |
+| how | `docker compose logs` over ssh today; `journalctl CONTAINER_NAME=…` once Delivery 1 lands, with seven days' retention |
+
+**But the coverage is thin, and that is what to design around.** Of those 12,539
+lines only **69 are the server's own events** — the rest is the health check.
+Four days of production produced 30 from `app::games`, 21 from `app::sweeps`, 11
+from `app::auth`, and 6 between `email`, `server_game` and `app::roster`.
+
+**Fifteen-odd event types out of forty-eight**, and the missing ones are the rare
+paths: *password reset requested for unknown email*, *token expired*, *email send
+failed*. Which are exactly the events most likely to carry something they should
+not, because they are the ones nobody looks at.
+
+##### So: read the real logs, and make the rare paths happen
+
+The two halves cover each other, and neither needs a typed module:
+
+| | covers | misses |
+| --- | --- | --- |
+| **validate every line of the real log** against the schema | anything that actually happened, including events nobody thought to test | whatever has not happened lately |
+| **drive the five personal-data paths** — register, login, failed login, reset, invitation — then validate | exactly the rare paths the first misses | error branches that need a provider or a database to fail |
+
+**Which is `check-log-hygiene.sh` doing both jobs**, and it collapses three
+planned things into one: the hygiene grep, the schema validation, and the
+coverage problem. It runs against preview and rehearsal, where it can drive the
+flows, and against production's journal, where it validates what really happened.
+
+**What is left uncovered** is honest and small: error branches needing an email
+provider to return 500 or a database to fall over. Those carry `error` and
+`status`, not names or addresses, and forcing them is more machinery than the
+risk deserves.
+
+**The unit test stays, and shrinks** to the one assertion that needs no logs at
+all — that every object in the schema sets `additionalProperties: false`. That is
+the meta-check, and it belongs in CI where it costs nothing.
+
+##### And on production it runs nightly
+
+Owner, 2026-08-21: *"if this is a nightly check, say, then it could do that day's
+files. Or it could be more frequent."*
+
+**Nightly, over the day's journal**, as a **category 3** artefact — triggered, on
+a schedule, by a systemd timer beside the backup's. Same mechanism, same
+delivery, and it turns the coverage argument round: any event that occurs on any
+day is validated that night, so over a month the check has seen everything
+production actually does, rather than everything a test thought to try.
+
+**Why not more frequent.** Three reasons, and the third is the one that decides
+it:
+
+- **the day's volume is trivial** — about nineteen application lines once the
+  health check stops shouting, so an hourly run reads almost nothing
+- **the check is retrospective by nature.** Whatever it finds is already written;
+  no frequency prevents the first leaked line. What a check buys is stopping it
+  *continuing*, and a day is fast enough for that
+- **an hourly check that alerts would fire twenty-four times for one leak.** A
+  control that repeats itself becomes noise, and noise is what stops a channel
+  working — the same reason D5 rejected
+  email as a channel
+
+**It alerts the way production already alerts**, through the same OCI mechanism
+as the backup, rather than inventing a channel nobody reads.
+
+##### A correction: the logs are not backed up
+
+I wrote, when guarding the email body, that an unset API key would put reset
+links *"into a log we are about to copy off the box nightly."* **That is wrong.**
+Part 5 is explicit that `/data` is the only thing backed up — the database. The
+logs stay on the host and expire after seven days.
+
+The guard is still right, and for reasons that survive the correction: a log with
+seven days' retention is seven days of reset links on a public-facing box, and
+the journal is readable by anyone who can read the host. But the argument I gave
+was inflated, and an inflated argument is worse than a plain one, because the
+next person to check it stops trusting the ones around it.
+
 #### Where the schema lives
 
 Owner, 2026-08-21: *"presumably that will live outside the document and be
