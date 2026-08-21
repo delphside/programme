@@ -91,6 +91,7 @@ to read it.
 | **D20** | Do living documents still always live on `main`? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 | **D21** | What does a branch belong to? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D22** | Is route an attribute of the issue? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D23** | Do document names repeat the project number? | **answered** | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1109,6 +1110,27 @@ carries the one bit that matters, that the issue was **not delivered as itself**
 Applied to #154 on 2026-08-21, which was closed as *completed* and was not.
 (#181 was genuinely completed — `actions.py` shipped — so it keeps that reason;
 an earlier draft of this section had it wrong.)
+
+##### One project, one design
+
+Owner, 2026-08-21, reviewing PR #177: *"this is one project and should have one
+design even if it covers multiple requirements and deliveries."*
+
+**So the four headings are singular on purpose.** A project does not accumulate a
+design per issue it absorbed; it has *a* design, which covers however many
+requirements it carries and however many deliveries it takes to satisfy them.
+Issues #174 and #175 are two requirements of one project — logs and backups — and not
+two projects that happen to share a note.
+
+Which is the same rule as the freeze, seen from the other end. Folding the source
+issues moves the **requirements** into one place; one design says the **answer**
+lives in one place too. A design per source issue would rebuild, inside the
+project, exactly the scattering the fold was for.
+
+**The test for whether it is one project or two** is not how many issues went in.
+It is whether one design can be written that covers them without saying *"and
+separately"* — logs and backups share a host, a retention argument and a delivery,
+so one note is shorter than two.
 
 ##### Four headings, always
 
@@ -2273,6 +2295,32 @@ regeneration that will eventually eat it, and the failure is silent.
 **A read section says so, in itself.** One italic line under the heading naming
 the script and the shape it expects. A reader should not have to know the
 tooling to know what is safe.
+
+### D23 · Do document names repeat the project number? — **answered: yes**
+
+Owner, 2026-08-21, reviewing PR #177: *"the name should include the project
+number — for future reference, so doc names are meaningful without the path."*
+
+`design.md` inside `174-logs-and-backups/` is unambiguous **in the tree** and
+nowhere else. It is `design.md` in an editor tab, in a pull request's file list,
+in a browser title, in a search result, and in whatever anybody saves it as. Two
+projects with a design note give two tabs with the same name and no way to tell
+them apart.
+
+| | |
+| --- | --- |
+| **before** | `docs/changes/issues/174-logs-and-backups/design.md` |
+| **after** | `docs/changes/issues/174-logs-and-backups/174-design.md` |
+
+**The redundancy with the folder is the point.** A path is context the file
+carries only while it stays in the path, and the moments a name has to work
+hardest — a tab, a search result, an attachment — are exactly the moments the
+path is not shown.
+
+Same rule as the existing test-plan examples, which already do this
+(`41-user-deletion-test-plan.md`), arrived at from the other direction. Applied
+to `174-design.md` on 2026-08-21; the rest follow in the folder move, since both
+are renames and one round of broken links is cheaper than two.
 
 ### Folders
 
