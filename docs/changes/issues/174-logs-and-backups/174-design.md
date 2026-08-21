@@ -580,9 +580,37 @@ marker:
 so the test fails loudly with *"no block marked `log-schema`"* rather than
 quietly validating against an example.
 
-**And the test embeds the document at compile time** — `include_str!` of
-`docs/4.7-log-events.md` — so a moved or renamed document fails the build instead
-of the test, and there is no runtime path to get wrong.
+**And the test embeds the document at compile time.** `include_str!` takes a
+**string literal that is a path** — it reads the file while compiling and embeds
+the contents as a `&'static str`. The literal is required: it cannot be a
+variable, and the path resolves relative to the source file containing the macro,
+not to the crate root or the working directory.
+
+Which makes the plain form brittle — `include_str!("../../../docs/4.7-…")` moves
+if the test file does — so it is anchored to the crate instead:
+
+```rust
+const EVENTS_DOC: &str =
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/4.7-log-events.md"));
+```
+
+`concat!` and `env!` are expanded before `include_str!` sees them, so this is
+still a literal by the time it matters.
+
+**Verified rather than assumed**, 2026-08-21, in a scratch crate:
+
+| claim | observed |
+| --- | --- |
+| a missing file fails the **build**, not the test | `error: couldn't read …/nope.txt: No such file or directory` |
+| editing the included file triggers a rebuild | `Compiling inc v0.1.0` on the next `cargo build` |
+
+The second is the one worth checking: without it the test would keep validating
+against a schema embedded weeks ago, which is precisely the staleness this whole
+arrangement exists to prevent.
+
+*One caveat seen while testing it*: cargo's change detection is mtime-based, and
+an edit made in the same second as the previous build can be missed. General to
+cargo rather than to `include_str!`, and it resolves itself on the next build.
 
 **Its limit, which matters:** it proves the code and the document **agree**, not
 that the document is **right**. A `display_name` added to both would pass. The
