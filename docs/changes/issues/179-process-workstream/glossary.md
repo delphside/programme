@@ -98,6 +98,7 @@ to read it.
 | **D27** | What does the design document owe the artefact list? | **answered** | [Projects](#projects-phases-and-gates) |
 | **D28** | May a project have a branch per delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D29** | What does the deliveries heading hold? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D30** | Is triage written down, and where? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -288,6 +289,80 @@ once, deliberately — the half-done version is worse than the grouping it
 replaces, because a partial taxonomy still has to be searched.
 
 ---
+
+#### D30 · Is triage written down, and where? — **answered: yes, in `docs/3.3` §2.9.17**
+
+Owner, 2026-08-21: *"Do we need something on how issues are impact assessed,
+categorised, assigned to workstream, assigned to projects, and potentially folded
+and closed? I think the options for an issue, other than closing as rejected,
+are: pre-approved change implemented directly in main; small or urgent change
+which becomes a fasttrack project; folded into another project and closed."*
+And, on where: *"maybe this is in the development doc."*
+
+##### The fourth outcome
+
+Three were listed and there are four, because **an issue can become a project of
+its own without being fasttrack** — which is what #174 is: too large for a patch
+alone, not folded into anything, and owing a design, a test approach and an
+artefact list.
+
+| outcome | release |
+| --- | --- |
+| **pre-approved**, implemented directly on `main` | nothing, or a patch it rides with |
+| **a fasttrack project** — small or urgent | patch alone |
+| **a project of its own** | minor or major |
+| **folded into another project**, and closed | none of its own |
+
+**And a fifth state**, where most of the backlog sits: *not decided yet*. A real
+answer rather than a failure to answer, because it depends on what else turns out
+to be ready.
+
+**None of the four is new machinery**, which is the reassuring part: each is a
+combination of the type label, the release attribute, and whether the issue owns
+a project or joins one. Triage is the moment those get their first answers, not a
+new axis.
+
+##### The order matters, and one step earns its place by being wrong
+
+| | asked | why there |
+| --- | --- | --- |
+| 1 | do we want it? | everything below costs effort a rejected issue should not spend |
+| 2 | the **type** | cheapest question, answerable from the issue alone, and both the release attribute and the process follow from it |
+| 3 | the first guess at **impacted artefacts** | **wrong at this stage and worth writing anyway** — it is the step that discovers the issue overlaps work already in flight |
+| 4 | the **workstream** | an issue without one is not yet filed |
+| 5 | its own project, or folded into one? | answerable only after 3 and 4 |
+
+Step 3 before step 5 is the whole reason the order is stated: the artefact guess
+is what turns *"should this be its own project?"* from a judgement into something
+with evidence behind it.
+
+**Impact is not collected**, consistent with what was already decided: it follows
+from route and environment — *care scales with who a defect reaches, and how
+soon* — so triage **states** it where it is not obvious rather than asking for it.
+
+##### Where it went, and the question that raises
+
+**`docs/3.3` §2.9.17**, not `docs/3.2`. The development document is 138 lines of
+how to start the services, build the workspace and reset the database; putting
+process beside it would make it two unrelated documents. §2.9 already holds
+projects, folding, workstreams and closing, so triage completes that story rather
+than starting a second one somewhere else.
+
+**But the owner's instinct points at something real**, and it is the title rather
+than the contents: `docs/3.3` is called *Testing, CI & Release* and now owns the
+whole change lifecycle — types, triage, projects, workstreams, branching,
+closing, delivery. A reader looking for *"what happens when I raise an issue?"*
+has no reason to open a document about testing.
+
+| option | |
+| --- | --- |
+| **rename 3.3** to say what it holds — *The change lifecycle: testing, CI and release* | one line, no anchors broken, and the contents stop being a surprise |
+| split the lifecycle into a document of its own | truer to the numbering convention, and it moves several hundred lines and every link to them |
+| leave it | the title keeps misdirecting, quietly |
+
+**Recommended: the rename**, and split only if the lifecycle material keeps
+growing. It is the cheap half of the fix, and it makes the expensive half easy to
+judge later — a document that says what it holds is one you can see the shape of.
 
 #### D2 · Do we adopt capability workstreams, and when? — **answered: yes, one pass**
 
