@@ -2347,7 +2347,7 @@ Sources: [ISTQB glossary: test approach](https://istqb-glossary.page/test-approa
 [IEEE 829 test documentation](https://zetcode.com/terms-testing/ieee-829/) ·
 [ISO/IEC/IEEE 29119-3](https://www.iso.org/standard/56737.html)
 
-#### D5 · Does `main` get a ruleset? — **answered: yes**
+#### D5 · Does `main` get a ruleset? — **re-answered 2026-08-21: no**
 
 **Decided 2026-08-20**, reviewing PR #184. Requiring CI's `check` job on `main`,
 and nothing more. Still to do: create the ruleset, which may need a token
@@ -2361,9 +2361,53 @@ permission we do not have.
 | **require the CI check** — *chosen* | a red push cannot land on `main` |
 | require CI and the review checklist | and a pull request for every change, which the merge lane deliberately does not ask for |
 
-**Agreed: require CI's `check` job, nothing else, and only after #184 merges.** It is the one gate whose answer is objective and whose
-failure is expensive. Requiring a review checklist with one author is ceremony,
-and requiring pull requests would undo the merge lane.
+**Agreed 2026-08-20: require CI's `check` job, nothing else.** It is the one gate
+whose answer is objective and whose failure is expensive.
+
+##### Re-answered 2026-08-21: no ruleset
+
+**The rule does not do what we assumed.** A required status check **blocks direct
+pushes**, because a check runs after a push and a direct push can never arrive
+with one already passing. GitHub's own documentation: *"this rule should only be
+added to rulesets that target branches where all changes to the branch are
+performed by pull requests."*
+
+**Which forbids the pre-approved lane** — *implemented directly on `main`: no
+branch, no project, no review* — that carried around twenty commits on the day
+the two decisions were made. They were made a day apart and only met when the
+token refused the API call.
+
+Owner, 2026-08-21: *"the CI checks are only needed for code releases, not
+document changes. A gate in `deploy.sh` is sufficient… for the document checks,
+they can run after the push has succeeded as a warning rather than a blocker."*
+
+**And the gate that matters already exists.** `check-docs.sh` is the **first
+step** of CI's check job, and `deploy.sh` refuses to ship a commit whose
+push-to-`main` run did not pass. So a document error already cannot reach
+production; the ruleset would have protected `main`'s tidiness, not the service.
+
+| | |
+| --- | --- |
+| **production** | **gated already** — `deploy.sh` requires the CI run for the exact commit |
+| **preview** | **not gated, deliberately.** Preview exists to look at anything at any time; a broken anchor is no reason to stop somebody looking at their change on a phone |
+| **a red `main`** | reported by a **check**, not prevented by a gate |
+
+##### Why not email
+
+Owner: *"I am not sure email is the best route as I get a few failure emails from
+GitHub, and I don't know if they are important."* A channel already carrying
+noise cannot carry a signal — the new message would arrive looking exactly like
+the ones being ignored, which is worse than not sending it, because it would
+look covered.
+
+**So it surfaces where he is already looking**: `deploy-preview.sh` and
+`status.sh` each run `check-docs.sh` at the end and print what failed, as a
+**check** in D9's strict sense — it reports, and nothing stops. Three seconds,
+and it appears at the moment somebody is about to look at something anyway.
+
+**The mechanism has to match how the person works**, which is the general point
+worth keeping: a notification is only a control if it lands somewhere it will be
+read.
 
 ### The criteria inform the judgement; the judgement decides
 
