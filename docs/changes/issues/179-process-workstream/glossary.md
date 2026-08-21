@@ -1209,6 +1209,63 @@ Taking #175, which is live and therefore a fair test:
 changed* would have recorded one line and missed the entire delivery — which is
 the same lesson the route axis taught, arriving here from a different direction.
 
+##### When it is written: early and wrong, then right
+
+Owner, 2026-08-21: *"The list may only be known accurately after the design is
+approved, and possibly test approach if we build test tooling. But it should be
+attempted as early as possible. One reason is to identify dependencies between
+issues which touch the same artefacts."*
+
+**So it is not written once.** It firms up as the project does:
+
+| when | what the list is |
+| --- | --- |
+| **raised** | a guess, and worth making anyway — it is the cheapest moment to discover the project overlaps something already in flight |
+| **scope and design** | argued and revised, because deciding *how* is largely deciding *what to touch* |
+| **design approved** | **accurate**, and this is the point at which it can be relied on |
+| **test approach settled** | accurate *again*, if the testing builds anything — see below |
+
+**Test tooling is an artefact**, and it is the one most often missed. A test
+approach that says *"a script on the rehearsal host asserts the limits"* has just
+created a script, which is new, lives somewhere, and needs deploying — exactly
+what `check-rate-limits.sh` is. So the list cannot close until the test approach
+does, and a project whose testing builds nothing simply finds this step empty.
+
+##### The earlier use: dependencies, not co-delivery
+
+**This is the stronger reason, and it is upstream of the one I gave.** Mine was a
+release-planning question — *may these two ride the same build?* The owner's is a
+planning question asked much earlier: **two issues that touch the same artefact
+are related whether or not anybody noticed.**
+
+Three things that overlap can mean, and they want different answers:
+
+| what the overlap means | what to do |
+| --- | --- |
+| they are the same piece of work seen twice | **one project** — this is D18's *"can one design be written without saying 'and separately'"*, now with a mechanical signal to prompt the question |
+| one needs the other's change to exist first | **sequence them**, and say so. A dependency discovered at merge time is a dependency discovered too late |
+| they genuinely touch different parts of one file | **do it once**, or accept a conflict somebody will resolve under time pressure |
+
+Which is why *"attempted as early as possible"* is the operative half of the
+rule. A list that is only accurate at design approval still earns its keep at
+issue-raising time, because a **wrong** list that names the right file finds the
+collision just as well as a right one.
+
+##### Two things this needs to work
+
+**Artefacts are named the same way in every list**, or the intersection is only
+findable by somebody who already knows both projects. A path where there is one —
+`docs/3.4-production-environment.md`, not *"the production doc"* — and the
+canonical name where there is not: `tile-lite-elite-backups`, not *"the bucket"*.
+The whole mechanical value rests on this and it costs nothing at the time.
+
+**A provisional list is marked provisional.** A guess that looks settled is worse
+than no list, by the same argument that makes a missing heading different from an
+empty one. The heading carries where it stands — *provisional* until design
+approval, *settled* after — and an individual entry nobody is sure of carries a
+`?`. List-level rather than per-entry as the default, because marking every line
+invites arguing each one instead of writing the list.
+
 ##### Keeping it true
 
 It will drift, and half of it can be checked mechanically:
