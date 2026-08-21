@@ -92,6 +92,7 @@ to read it.
 | **D21** | What does a branch belong to? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D22** | Is route an attribute of the issue? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D23** | Do document names repeat the project number? | **answered** | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) |
+| **D24** | What is a project branch's life? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1436,6 +1437,63 @@ Two obligations, both consequences rather than choices:
   that must both be present are one project, not two, because the second cannot
   then be descoped — which is the capability this whole model exists to keep
 
+#### D24 · What is a project branch's life? — **answered: created with the project, deleted when it is live**
+
+Owner, 2026-08-21, on PR #177: *"Everything stays on the branch until the branch
+is deleted. Things will be merged into the release branch (when there is one) and
+to main as part of testing and deploying the project, but all edits should be
+done in the branch. When it is live the project is closed and the branch is
+deleted."*
+
+| | |
+| --- | --- |
+| **created** | when the project starts |
+| **during** | **the only place edits happen** — code, documents, everything |
+| **merges out** | into a release branch, and to `main` as part of testing and deploying. More than once, if the project takes more than one release |
+| **deleted** | when the project is live and closed |
+
+##### The correction this makes: one place to *edit*, not one place to *exist*
+
+I read the one-place rule as being about where a project's content **lives**, and
+argued on PR #177 that merging the design would put #174's work in `main` and on
+a branch at once. **The recommendation was right and the reason was wrong.**
+
+A project's content reaches `main` every time it delivers, while the branch runs
+on. That is not the two-answers state, because there is still exactly one place
+where a change can be *made*. What the rule forbids is **editing in two places**,
+which is what produces a file whose two versions each look current.
+
+Worth being precise about, because the wrong reading forbids something ordinary:
+under it, no project could deliver twice.
+
+##### Deletion timing is required, not tidy
+
+[D21](#d21--what-does-a-branch-belong-to--answered-the-project-and-the-release-branch-is-rebuilt-from-them)
+says the release branch is always rebuildable from the project branches. **You
+cannot rebuild from a branch that has been deleted.** So keeping the branch until
+the project is live is not housekeeping preference — it is what makes descoping
+possible right up to the last release the project needs.
+
+Which also dates the deletion precisely: not at the first merge, not when the
+last pull request closes, but when the project is **live** and can no longer need
+rebuilding.
+
+##### And "merged" stops meaning "finished"
+
+Two consequences follow, both wanted:
+
+- **a project branch merges out repeatedly and carries on.** After each merge to
+  `main` it merges `main` back in — the currency obligation D21 already states,
+  now with a schedule attached rather than left to good intentions
+- **a pull request is a review surface, not a lifecycle.** #177's design is
+  agreed and stays on the branch; the pull request records that it was agreed,
+  which is the job it was opened for
+
+**The cost, stated plainly**: a design note is not readable from `main` while its
+project runs, which may be weeks. That is D20's argument accepted rather than
+avoided — documents are read in GitHub, where a branch is as readable as `main`
+and shows the version the work is actually producing.
+
 #### D22 · Is route an attribute of the issue? — **answered: no, of the delivery**
 
 Owner, 2026-08-21, answering the issue form's two-route gap: *"A project (which
@@ -2265,6 +2323,30 @@ design discussion has told you it should have been an issue.
 `./scripts/actions.py` gathers them across every open issue, grouped by
 workstream, so the record can stay where the argument is without becoming
 impossible to find.
+
+### Who typed it: the `Typed by` footer
+
+**Every comment ends with `Typed by Claude` or `Typed by Steve`.** We share one
+GitHub account, so nothing else distinguishes us — the author field says
+`SteveStyle` whoever wrote it.
+
+**This is not etiquette; two scripts key on the literal string.**
+`scripts/inbox.sh` uses it to decide whether a comment is marked `>` — *what
+Steve typed*, the ones worth reading — and the local `turn-check.sh` hook uses it
+to exclude Claude's own comments from "new since you last looked". A comment
+without the footer is **attributed to the owner and reported back to Claude as
+new activity**, which is both halves wrong at once.
+
+Owner, 2026-08-21: *"You missed the 'Typed by Claude' at the end of the comment.
+That is how we tell our comments apart."* Twenty comments over two days were
+missing it, and the failure was invisible in exactly the way an unstated
+convention is: the tooling did not complain, it silently mislabelled. They were
+backfilled on 2026-08-21.
+
+**Written down here because it was written down nowhere.** The rule existed only
+inside two scripts, one of which is gitignored — a convention enforced by
+tooling and stated in no document, which is the inverse of the failure `docs/3.3`
+usually worries about. It goes into 3.3 in the apply pass.
 
 ### What the tooling reads, and what it writes
 
