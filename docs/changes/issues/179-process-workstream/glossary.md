@@ -87,6 +87,7 @@ to read it.
 | **D16** | What is a *test approach*, and what satisfies the gate? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 | **D17** | Do we adopt the standard testing terminology? | **answered** | [Terminology](#terminology-our-words-and-the-industrys) |
 | **D18** | What does a project own, and what happens to the issues it absorbs? | **open** | [Projects](#projects-phases-and-gates) |
+| **D19** | Do we need a release object? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1230,6 +1231,80 @@ and anything not shipping leaves it before the deploy.*
 are how a two-line fix reaches users without waiting for a project of its own.
 The cost is that *"what was this release for?"* has an answer and a footnote —
 which the release log's *what it carried* column already accommodates.
+
+#### D19 · Do we need a release object? — **answered: no, the release is derived**
+
+Owner, 2026-08-21: *"Another grouping is projects from different workstreams
+being delivered together. All we need do is state it in each project, include all
+projects when we do the release build, and update the phase of all projects as we
+take the release through the environments to production. We don't need to track a
+release object separately."*
+
+**This extends [D12](#d12--can-a-release-carry-work-from-more-than-one-project--answered-one-owner-plus-small-passengers)
+from *owner plus passengers* to *peers*.** D12's case was one project explaining
+the release with small unrelated fixes riding along. This is two projects from
+different workstreams, each substantial, deliberately shipped on one build — and
+D12's criterion still governs which combinations are allowed: *not the same
+code*, so the risk stays additive.
+
+##### The release is a set of projects that name it
+
+Three mechanisms, no fourth:
+
+| | |
+| --- | --- |
+| **each project states the release it is going in** | membership lives with the project, so there is one place to change and no list to keep in step |
+| **the build includes all of them** | which it does anyway — the build is a commit of `main`, and everything merged is in it |
+| **their phases move together** | from the moment the release forms, every project in it is in the same phase: deployment, then post-deployment |
+
+**And the release itself is not a thing we maintain.** Its membership, its
+contents, its version and its date are all derivable from the projects and the
+tag. This is the fourth time the same answer has come out — route decides the
+mechanism, the process category is derived, the milestone is derived, and now the
+release. **We store what someone decided; we derive what follows from it.**
+
+**In GitHub, the milestone already is this.** *Stating the release in each
+project* means putting the project issue in the milestone, which `deploy.sh`
+already reads as the shipping list. So the mechanism exists and needs a name
+rather than a build.
+
+##### Not in conflict with the delivery log
+
+[D6](#d6--what-is-a-release-and-what-gets-logged-as-one--answered-the-log-records-deliveries)
+records one row per delivery, which sounds like the object this decision refuses.
+It is not: the log is written **after the fact** and answers *what changed in
+production, and when* — a record, not a thing managed in flight. Nothing consults
+it to decide what ships. The distinction is worth keeping sharp, because a log
+that starts being read as a plan becomes a second source of truth.
+
+##### What co-delivery costs, and the rule it needs
+
+Two projects on one build are coupled in two directions, and only one of them is
+obvious:
+
+- **forwards** — if one fails user testing, the release waits or the project is
+  pulled. With D12's owner-and-passenger there was an answer: pull the passenger.
+  Between peers there is no owner, so it needs stating
+- **backwards** — **a rollback takes back the whole release**, including the
+  project that was fine. That is the sharper cost, and it argues that a change
+  which must not be reverted, a security fix, should not ride with a risky one
+
+**Proposed rule:** a project may leave a release at any point **up to the release
+branch being cut**; after that, removing it means cutting a new branch, which is
+a decision to slip the release rather than a tidy-up. This matches what our
+release branches already are — the point at which the contents stop moving.
+
+##### Phases diverge, then converge
+
+A consequence worth writing down because it makes the `phase:` labels honest:
+projects in different workstreams run their own phases independently — one may be
+in development while another is in user testing — and from the moment they name
+the same release they are **in the same phase for the rest of it**. Deployment
+and post-deployment are properties of the release, and the projects in it share
+them.
+
+Which also means the phase update is scriptable rather than clerical: set the
+phase on every project in the milestone, one command per environment.
 
 #### D6 · What is a release, and what gets logged as one? — **answered: the log records deliveries**
 
