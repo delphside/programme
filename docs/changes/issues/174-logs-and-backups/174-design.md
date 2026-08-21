@@ -628,6 +628,48 @@ arrangement exists to prevent.
 an edit made in the same second as the previous build can be missed. General to
 cargo rather than to `include_str!`, and it resolves itself on the next build.
 
+#### Getting the schema right, and the field that must not be optional
+
+Owner, 2026-08-21: *"I presume amending the JSON schema would be straightforward,
+Rust would report parsing errors? It may take a few iterations to get the schema
+right. Also we would need to disallow unexpected fields
+(`additionalProperties: false`)."*
+
+**Yes, and the loop is `cargo test` rather than a deploy.** A malformed schema
+fails the test with `serde_json`'s line and column, not with something vague — and
+parsing into a **typed** structure rather than `serde_json::Value` makes the
+errors better again: *"missing field `properties`"* beats *"expected object"*.
+`serde_json` is already a dependency of `server-game`, so the iterating half
+costs nothing.
+
+##### `additionalProperties: false` is the whole point, so the test checks it too
+
+**Right, and it is the one line that carries the guarantee.** Without it a schema
+happily validates an event that has gained a `display_name`, which is precisely
+the leak this test exists to catch — the schema would pass and the log would be
+wrong.
+
+**Which makes forgetting it on one object the real risk.** JSON Schema is
+permissive by default, so the property has to be repeated on every event, and a
+single omission is a silent hole in exactly the place nobody looks.
+
+**So the test asserts it about the schema, not only with it:**
+
+| the test does | catches |
+| --- | --- |
+| validate each emitted event against its schema | a field that appears in the code and not the document |
+| **assert every object in the schema sets `additionalProperties: false`** | **a schema that has quietly stopped guarding** |
+
+The second is four lines and it is the difference between a control and the
+appearance of one.
+
+**The alternative, considered and not taken:** a plainer declaration — event name
+to a list of field names — compared by **set equality**, which has the same
+property by construction and needs no `additionalProperties` at all. It is
+smaller, and it was rejected because JSON Schema is the standard form, expresses
+types as well as names, and the meta-check above closes the only gap that made
+the simpler option attractive.
+
 **Its limit, which matters:** it proves the code and the document **agree**, not
 that the document is **right**. A `display_name` added to both would pass. The
 control for that is a person reading `docs/4.7` — so the schema is not a field
