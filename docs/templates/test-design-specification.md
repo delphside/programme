@@ -1,27 +1,31 @@
-# Test plan: *change*
+# Test design specification: *change*
 
 <!--
 Delete these comments as you go.
 
-Copy this file to docs/changes/ISSUE-NAME-test-plan.md prior to completing it.
+Copy it into the project's folder, named for the project number —
+  e.g. 174-test-design.md — before completing it.
 
-Guide to completion:  `docs/3.3`'s "How a test plan is built"
+Guide to completion:  `docs/3.3`'s "How a test design specification is built"
 
 Each of these ten parts is required.  Together they ensure the tests have good
 coverage.  
 
 Worked examples:
 
-  docs/changes/41-user-deletion-test-plan.md   functional, user-testable
-  docs/changes/25-rate-limiting-test-plan.md   non-functional, judged by a
+  docs/changes/41-user-deletion-test-design.md   functional, user-testable
+  docs/changes/25-rate-limiting-test-design.md   non-functional, judged by a
                                                script on the rehearsal host
 
-Test plans are at the level of Project, if there is one, otherwise issue.
+These are at the level of Project, if there is one, otherwise issue.
+
+This is NOT a test plan in the standards' sense — that is a management document
+of scope, schedule and resources, which we do not write.  See docs/3.3 §2.4.2.
 -->
 
-Issue: #N · type: `label` · lane: `fasttrack` / `minor` / `major`
+Issue: #N · type: `label` · release: `patch alone` / `minor` / `major`
 <!-- or 
-Project: #N · type: `label` · lane: `fasttrack` / `minor` / `major`
+Project: #N · type: `label` · release: `patch alone` / `minor` / `major`
 -->
 
 ## 1. Rules

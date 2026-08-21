@@ -96,6 +96,9 @@ to read it.
 | **D25** | Does the project issue list what it touches? | **answered** | [Projects](#projects-phases-and-gates) |
 | **D26** | A register of artefacts, or just a naming convention? | **answered** | [Projects](#projects-phases-and-gates) |
 | **D27** | What does the design document owe the artefact list? | **answered** | [Projects](#projects-phases-and-gates) |
+| **D28** | May a project have a branch per delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D29** | What does the deliveries heading hold? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D30** | Is triage written down, and where? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -286,6 +289,80 @@ once, deliberately — the half-done version is worse than the grouping it
 replaces, because a partial taxonomy still has to be searched.
 
 ---
+
+#### D30 · Is triage written down, and where? — **answered: yes, in `docs/3.3` §2.9.17**
+
+Owner, 2026-08-21: *"Do we need something on how issues are impact assessed,
+categorised, assigned to workstream, assigned to projects, and potentially folded
+and closed? I think the options for an issue, other than closing as rejected,
+are: pre-approved change implemented directly in main; small or urgent change
+which becomes a fasttrack project; folded into another project and closed."*
+And, on where: *"maybe this is in the development doc."*
+
+##### The fourth outcome
+
+Three were listed and there are four, because **an issue can become a project of
+its own without being fasttrack** — which is what #174 is: too large for a patch
+alone, not folded into anything, and owing a design, a test approach and an
+artefact list.
+
+| outcome | release |
+| --- | --- |
+| **pre-approved**, implemented directly on `main` | nothing, or a patch it rides with |
+| **a fasttrack project** — small or urgent | patch alone |
+| **a project of its own** | minor or major |
+| **folded into another project**, and closed | none of its own |
+
+**And a fifth state**, where most of the backlog sits: *not decided yet*. A real
+answer rather than a failure to answer, because it depends on what else turns out
+to be ready.
+
+**None of the four is new machinery**, which is the reassuring part: each is a
+combination of the type label, the release attribute, and whether the issue owns
+a project or joins one. Triage is the moment those get their first answers, not a
+new axis.
+
+##### The order matters, and one step earns its place by being wrong
+
+| | asked | why there |
+| --- | --- | --- |
+| 1 | do we want it? | everything below costs effort a rejected issue should not spend |
+| 2 | the **type** | cheapest question, answerable from the issue alone, and both the release attribute and the process follow from it |
+| 3 | the first guess at **impacted artefacts** | **wrong at this stage and worth writing anyway** — it is the step that discovers the issue overlaps work already in flight |
+| 4 | the **workstream** | an issue without one is not yet filed |
+| 5 | its own project, or folded into one? | answerable only after 3 and 4 |
+
+Step 3 before step 5 is the whole reason the order is stated: the artefact guess
+is what turns *"should this be its own project?"* from a judgement into something
+with evidence behind it.
+
+**Impact is not collected**, consistent with what was already decided: it follows
+from route and environment — *care scales with who a defect reaches, and how
+soon* — so triage **states** it where it is not obvious rather than asking for it.
+
+##### Where it went, and the question that raises
+
+**`docs/3.3` §2.9.17**, not `docs/3.2`. The development document is 138 lines of
+how to start the services, build the workspace and reset the database; putting
+process beside it would make it two unrelated documents. §2.9 already holds
+projects, folding, workstreams and closing, so triage completes that story rather
+than starting a second one somewhere else.
+
+**But the owner's instinct points at something real**, and it is the title rather
+than the contents: `docs/3.3` is called *Testing, CI & Release* and now owns the
+whole change lifecycle — types, triage, projects, workstreams, branching,
+closing, delivery. A reader looking for *"what happens when I raise an issue?"*
+has no reason to open a document about testing.
+
+| option | |
+| --- | --- |
+| **rename 3.3** to say what it holds — *The change lifecycle: testing, CI and release* | one line, no anchors broken, and the contents stop being a surprise |
+| split the lifecycle into a document of its own | truer to the numbering convention, and it moves several hundred lines and every link to them |
+| leave it | the title keeps misdirecting, quietly |
+
+**Recommended: the rename**, and split only if the lifecycle material keeps
+growing. It is the cheap half of the fix, and it makes the expensive half easy to
+judge later — a document that says what it holds is one you can see the shape of.
 
 #### D2 · Do we adopt capability workstreams, and when? — **answered: yes, one pass**
 
@@ -1813,6 +1890,90 @@ moment somebody actually decides.
 authoritative is worse than no field, because tooling reads it and people trust
 it.
 
+#### D28 · May a project have a branch per delivery? — **answered: yes, named for the delivery**
+
+Owner, 2026-08-21: *"If a project has two deliveries then it may have two
+branches, with the later branch based on the earlier branch… we can always wait
+until delivery 1 is live before starting on delivery 2, but having two branches
+seems fine as long as they are named as such."*
+
+**This relaxes [D21](#d21--what-does-a-branch-belong-to--answered-the-project-and-the-release-branch-is-rebuilt-from-them)
+and [D24](#d24--what-is-a-project-branchs-life--answered-created-with-the-project-deleted-when-it-is-live)**,
+which said one branch per project.
+
+##### Why a second branch is a requirement and not a preference
+
+It falls straight out of the release rule: *descoping a project from a release is
+done by recreating the release branch from the other project branches.*
+
+**Rebuilding from branch heads means whatever is on the head is in the release.**
+So if delivery 2's work sits on the same branch while delivery 1 is being
+released, a rebuild sweeps delivery 2 in — silently, and at exactly the moment
+nobody wants a surprise.
+
+**Only needed when the deliveries overlap in time.** If delivery 1 is live before
+delivery 2 starts, one branch is enough and a second is ceremony. The test is
+*"is a release being prepared from this branch right now?"*
+
+##### And not two projects, which was the alternative
+
+The git shape is identical either way — the later work is based on the earlier.
+What differs is the documents, and that decides it: **a project has one design,
+one test approach, one artefact list**. Splitting #174 would split the design, and
+logs and backups share the retention argument, the storage argument and the
+*expose a condition, let OCI alert* argument. Two projects would leave three
+cross-references where there is now one document.
+
+##### Naming
+
+`issue-<n>-<project>` for the first, and the delivery named in the second:
+`issue-174-logs-and-backups` then `issue-174-d2-backups`. The ordinal ties it to
+the runbook's numbering and the subject makes it readable in six months, when
+`-d2` alone would mean nothing. `status.sh` and `actions.py` both match on
+`issue-<n>-`, so a suffix costs nothing.
+
+#### D29 · What does the deliveries heading hold? — **answered: a runbook, written before and completed after**
+
+Owner, 2026-08-21: *"having the delivery runbooks in the project — they would
+specify which app version, or project delivery build, was deployed when."*
+
+So the *deliveries* heading is not a plan that is discarded once followed. **It is
+written before as a procedure and completed afterwards as a record**, and the
+second half is the part with no substitute.
+
+| written before | filled in after |
+| --- | --- |
+| the steps, in order, and the route each takes | **which app version or build carried it**, and **when** |
+
+##### Why the version-and-date half matters more than it looks
+
+Three uses, and the third is the one that is hard to reconstruct later:
+
+- **host and service steps have no other record.** A firewall rule applied on
+  Tuesday leaves nothing in git; the runbook line is the whole history
+- **a delivery may span more than one release**, so *"is this delivered?"* is only
+  answerable by knowing which release carried which step
+- **rollback.** If a host change was applied alongside 0.7.0 and production is
+  rolled back to 0.6.3, **is the host change still valid?** Sometimes yes and
+  sometimes catastrophically not — a journald drop-in survives, a script calling
+  an endpoint that no longer exists does not. The runbook is the only thing that
+  can answer it, because it is the only thing that recorded the pairing
+
+##### Not a second copy of the delivery log
+
+[D6](#d6--what-is-a-release-and-what-gets-logged-as-one--answered-the-log-records-deliveries)'s
+log records one row per delivery across the whole programme. The split is the
+same shape as [D27](#d27--what-does-the-design-document-owe-the-artefact-list--answered-the-same-artefacts-and-what-changes-in-each)'s:
+
+| | holds | reader |
+| --- | --- | --- |
+| **the project's runbook** | every step, its route, and what carried it when | somebody doing it, or undoing it |
+| **the delivery log** | one row: version, date, kind, where, what, outcome | somebody asking *what changed in production, and when* |
+
+The version and the date are in both, deliberately and bounded — and the log is
+**derivable** from the runbooks plus the tags, which is the direction the
+generation should run if it is ever automated.
+
 #### D6 · What is a release, and what gets logged as one? — **answered: the log records deliveries**
 
 Owner, 2026-08-20: *"These are attributes of the issue. We also need to
@@ -1994,7 +2155,7 @@ spectrum, not a separate requirement. And **the term is undefined**, which is
 #### D16 · What is a *test approach*, and what satisfies the gate? — **answered: in the issue, or in §8**
 
 New, 2026-08-20, arising from D14: the gate names a document we have never
-defined. A test plan we have — [`docs/templates/test-plan.md`](../../../templates/test-plan.md),
+defined. A test plan we have — [`docs/templates/test-design-specification.md`](../../../templates/test-design-specification.md),
 ten parts, written for #41 and deliberately thorough. A *test approach* is meant
 to be the smaller thing that usually suffices, and right now nothing says what it
 contains or where it lives.
@@ -2030,7 +2191,7 @@ the split, folding the approach into the plan as a *test strategy* clause.
 **So the approach is a section of the plan, not a lighter substitute for one** —
 IEEE 829's test plan has *Approach* as its section 6. Which is exactly the shape
 our own template already has, without anyone having planned it:
-[`docs/templates/test-plan.md`](../../../templates/test-plan.md) §8 is called
+[`docs/templates/test-design-specification.md`](../../../templates/test-design-specification.md) §8 is called
 **Approach**, and it asks *what runs and where · what is real and what is stubbed
 · how time is manipulated · what state each test starts from*. The criteria half
 of the owner's definition lives in §3 (outcomes) and §6 (refusals and successes).
@@ -2384,7 +2545,7 @@ gain:
 
 | what we have | what it is, in the standards' names | what happens |
 | --- | --- | --- |
-| `docs/templates/test-plan.md` — rules, conditions, outcomes, the matrix, scenarios, coverage both ways | a **test design specification**: techniques, conditions and pass/fail criteria | renamed, and its two worked examples with it — `41-user-deletion-*` and `25-rate-limiting-*` |
+| `docs/templates/test-design-specification.md` — rules, conditions, outcomes, the matrix, scenarios, coverage both ways | a **test design specification**: techniques, conditions and pass/fail criteria | renamed, and its two worked examples with it — `41-user-deletion-*` and `25-rate-limiting-*` |
 | §8 of that template, plus the criteria in §3 and §6 | a **test approach** | named as such, and it is what [D14](#d14--do-we-classify-the-process-a-delivery-must-go-through--answered-yes-derived)'s gate asks for |
 | `docs/3.3`'s testing sections | a **test strategy** — the levels we test at and the testing within them, holding across every change | named as such. **This is the term we gain**, and it is the one that pays |
 | *(nothing)* | a **test plan** — scope, schedule, resources, risks for one project's testing | we do not write one and should not start. One developer, no schedule to coordinate |
@@ -2658,7 +2819,7 @@ hardest — a tab, a search result, an attachment — are exactly the moments th
 path is not shown.
 
 Same rule as the existing test-plan examples, which already do this
-(`41-user-deletion-test-plan.md`), arrived at from the other direction. Applied
+(`41-user-deletion-test-design.md`), arrived at from the other direction. Applied
 to `174-design.md` on 2026-08-21; the rest follow in the folder move, since both
 are renames and one round of broken links is cheaper than two.
 
