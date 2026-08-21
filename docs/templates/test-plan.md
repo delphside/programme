@@ -1,22 +1,28 @@
 # Test plan: *change*
 
 <!--
-Copy this file to docs/changes/ISSUE-NAME-test-plan.md and fill it in.
+Delete these comments as you go.
 
-The ten parts below are what a plan must contain, and each is required — a
-part left out is a gap that looks like coverage. `docs/3.3`'s "How a test plan
-is built" carries the reasoning for each; this file carries only what to write.
+Copy this file to docs/changes/ISSUE-NAME-test-plan.md prior to completing it.
 
-Two worked examples, and they are the better guide once you have the shape:
+Guide to completion:  `docs/3.3`'s "How a test plan is built"
+
+Each of these ten parts is required.  Together they ensure the tests have good
+coverage.  
+
+Worked examples:
 
   docs/changes/41-user-deletion-test-plan.md   functional, user-testable
   docs/changes/25-rate-limiting-test-plan.md   non-functional, judged by a
                                                script on the rehearsal host
 
-Delete these comments as you go.
+Test plans are at the level of Project, if there is one, otherwise issue.
 -->
 
 Issue: #N · type: `label` · lane: `fasttrack` / `minor` / `major`
+<!-- or 
+Project: #N · type: `label` · lane: `fasttrack` / `minor` / `major`
+-->
 
 ## 1. Rules
 
