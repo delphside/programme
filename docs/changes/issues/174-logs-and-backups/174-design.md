@@ -586,18 +586,29 @@ one command — and it is the difference between *"we restored it in August"* an
 Owner, 2026-08-21: *"are these new scripts temporary or will we keep them after
 the project?"*
 
-**All three are permanent, and the test is not how useful they were during the
-project — it is whether the claim each asserts is permanent.** Every one of these
-is a property that must stay true for as long as the service runs, so a script
-that stops running is a property that stops being checked. A genuinely temporary
-test artefact asserts something true once: *"the migration converted all 412
-rows"* is a one-off; *"no address reaches the log"* is not.
+**All three are kept, and none of them is in the first category.** Against the
+three categories in `docs/3.6`:
 
-| script | kept because | runs |
-| --- | --- | --- |
-| the schema comparison test | the log's shape must keep matching what `4.7` declares | **CI, every push.** It costs nothing, so nothing else needs deciding |
-| `check-log-hygiene.sh` | personal data must keep out of the logs, and every future logging change is a chance to let it back in | **against rehearsal, in the release path, whenever a release touches the server's logging or auth paths** — and on demand |
-| `restore-backup.sh` | a backup that has not been restored recently is a backup nobody has tested | **quarterly, and after any change to the backup mechanism** — the project's own drill is its first run |
+| script | category | where it lives | when it runs |
+| --- | --- | --- | --- |
+| the schema comparison test | **part of regression testing** | `crates/server-game/tests/` | **every push**, in CI, without anybody deciding to |
+| `check-log-hygiene.sh` | **optional regression test** | `scripts/`, listed in `docs/3.0` | against rehearsal in the release path when a release touches the server's logging or auth paths — and on demand |
+| `restore-backup.sh` | **optional regression test** | `scripts/`, listed in `docs/3.0` | quarterly, and after any change to the backup mechanism. The project's own drill is its first run |
+
+**This project produces nothing in the first category** — no one-off migration
+check, nothing true once. Worth stating rather than leaving to be inferred from
+an absence.
+
+**Why the two are optional, since the third category owes that reason:** both
+need a **running stack on real hardware**. `check-log-hygiene.sh` drives auth
+flows and then reads the host's journal; `restore-backup.sh` needs somewhere to
+restore *to*. Neither can run on a CI runner as things stand.
+
+**And the first of those reasons could stop being true.** The e2e suite already
+stands up the preview stack in CI, so if the journal became readable from there,
+`check-log-hygiene.sh` belongs in the second category and should be moved — the
+personal-data claim is important enough that *"somebody remembers to run it"* is
+the weakest acceptable answer, not the preferred one.
 
 **Saying when each runs is not bookkeeping.** A kept script with no trigger
 becomes a script nobody has run since the release it was written for — and that
