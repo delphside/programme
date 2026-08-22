@@ -73,7 +73,7 @@ to read it.
 | **D2** | Do we adopt capability workstreams, and when? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
 | **D3** | Do project phases stay, and where do they apply? | **answered** | [Projects](#projects-phases-and-gates) |
 | **D4** | Is the post-implementation review built, and how? | **answered** | [Projects](#projects-phases-and-gates) |
-| **D5** | Does `main` get a ruleset? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
+| **D5** | Does `main` get a ruleset? — **re-answered 2026-08-21: no** | **open** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 | **D6** | What is a release, and what gets logged as one? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D7** | Should `docs/changes/issues/` be renamed, and to what? | **answered** | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) |
 | **D8** | How much to cite | **answered** | [Terminology](#terminology-our-words-and-the-industrys) |
@@ -100,6 +100,7 @@ to read it.
 | **D29** | What does the deliveries heading hold? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D30** | Is triage written down, and where? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
 | **D31** | What owns an artefact — the project, or a delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D32** | Does a workflow map the form's answers to labels? — **design, for agreement** | **open** | [Classifying a change](#classifying-a-change-type-route-release) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -503,6 +504,105 @@ most of the backlog and a list whose first option is a commitment invites one.
 **It does not ask for impacted artefacts.** That is triage's third question, not
 the raiser's — `docs/3.6` §2.18 keeps raising an issue a five-second act
 precisely so that nothing downstream depends on it being well formed.
+
+##### D32 · Does a workflow map the form's answers to labels? — **design, for agreement**
+
+Owner, 2026-08-22: *"the person raising the issue can assign the labels
+directly. Can you add fields to an issue, or do we have to put everything in
+labels?"* — and then, on the shortened form: *"but I think you have effectively
+built new fields into the template, which can be mapped to labels?"*
+
+**He is right, and I had briefly removed the dropdowns for a bad reason.** Seeing
+that they duplicated a field the raiser can already set, I took them out — which
+optimised away the *input* to avoid a duplicate *store*. They are not rivals:
+**the dropdown is the input, the label is the store**, and a workflow between
+them is the same shape as `docs.yml`'s comment commands, where a human-friendly
+thing to type becomes a machine-readable state and nothing else.
+
+###### First, what GitHub actually offers — and a correction
+
+I wrote that an issue's structured fields are *"labels, milestone, assignees,
+close reason — that is the list"*. **That is wrong.** The owner pointed at
+[Adding and managing issue fields](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/adding-and-managing-issue-fields):
+**issue fields** are a real feature — single-select, text, number and date, in
+the sidebar beside labels and type, in public preview since March 2026.
+
+**The mistake is worth naming.** I probed this repository's API, saw nothing, and
+reported the absence as the shape of the product. A repository that cannot have a
+feature returns the same silence as a feature that does not exist.
+
+| | |
+| --- | --- |
+| **issue fields** | single-select, text, number, date. **Organization-level only** — *"not for personal repositories, even on paid personal plans"* |
+| **issue types** | the same wall, which we met before |
+| custom fields in Projects v2 | our token is refused: `FORBIDDEN` on `viewer.projectsV2` |
+| a form setting a label or a field | **neither.** A form's `labels:` is a *fixed* list, and *"issue fields cannot… be set through issue templates"* |
+
+**Confirmed against this repository**, three ways: the owner is a `User`,
+`repository.issueTypes` is `null`, and `/issues/fields` returns 404.
+
+**So the bridge is needed either way.** Even with an organization, a form cannot
+populate a field — it would be set from the sidebar, the API, or a workflow. The
+design below writes a label; against an organization it would write a field
+instead, and nothing else about it would change.
+
+###### The bigger option: move the repository into an organization
+
+Worth naming rather than leaving as an unexamined constraint, because two things
+we have worked around are both on the other side of it.
+
+| | |
+| --- | --- |
+| **buys** | **issue fields** — a single-select for *type* and one for *release*, which is exactly the shape we have been forcing into labels and a milestone. Plus **issue types**, and organization-level Projects |
+| **costs** | creating the organization (free), transferring the repository (GitHub redirects the old URLs), re-issuing tokens and redoing the fine-grained permissions |
+| **risk** | issue fields are in **public preview for select organizations**. An organization is not a guarantee of getting them, and a preview can change under us |
+
+**Not recommended yet, and not dismissed.** The workaround below costs a small
+workflow; the move costs an afternoon and buys a data model that fits. What tips
+it is whether labels start straining — and the honest answer today is that they
+are not: seven type labels and a milestone have carried forty-five issues without
+anybody complaining.
+
+###### Why keep the dropdown at all, when the sidebar exists
+
+Three reasons, and the third is the one that decides it here:
+
+- **it prompts.** Required, so an issue cannot be raised without an answer. A
+  sidebar label is easy to skip, and skipping is silent
+- **it explains in place.** Seven options with a phrase each, against a list of
+  bare label names
+- **it is a tap on a phone**, where the sidebar is fiddly. The same argument that
+  gave the review commands their four-character forms
+
+###### The design
+
+A workflow on `issues: [opened, edited]` that reads the body, finds the two
+headings, and applies the matching label. **Labels only, nothing else** — the
+rule `docs.yml` already keeps, which is what makes anything it gets wrong a
+puzzled reader rather than an irreversible act.
+
+It also removes `needs-triage`, which the form applies to every issue, once both
+labels are on.
+
+**The known fragility, stated rather than discovered**: a form's body carries the
+*heading text*, not the field `id`. Parsing is therefore by heading, and renaming
+a label in the form breaks the mapping. Mitigated by both living in the same two
+files, so a change touches both in one commit — and by the test approach below,
+which fails loudly rather than silently doing nothing.
+
+###### Test approach
+
+| claim | how |
+| --- | --- |
+| each of the seven type answers maps to its label | a table-driven test over a rendered body per option, run in CI |
+| an unrecognised answer leaves the issue alone and says so | rather than guessing, or applying nothing silently |
+| a body with no headings is not an error | issues created by hand, and by `gh issue create`, do not use the form |
+| the label a person set by hand wins | the workflow runs on `edited` too, so it must not undo a triage decision |
+
+**The last row is the one worth building the test for.** The body records what
+was said when the issue was raised; the label records what is true now. They are
+*allowed* to differ, and the difference is usually a triage decision rather than
+drift — so the workflow sets a label only when there is none of that family.
 
 ##### The gap it leaves: the form writes text, the tooling reads labels
 
