@@ -1172,6 +1172,55 @@ a version that may move or split.
 
 The first real test will be #71, the one workstream that genuinely has projects.
 
+#### D33 · Does a project always get its own issue? — **answered: yes, always**
+
+Owner, 2026-08-22: *"it means the issue body will always be a historical record,
+which will become less relevant. It is an argument for always raising a new
+project issue, even if it only implements one requirement issue."*
+
+**This overturns half of [D18](#d18--what-does-a-project-own-and-what-happens-to-the-issues-it-absorbs--answered-four-headings-and-folded-sources).**
+D18 said a project is a state an issue enters, and that a lone issue may be run
+as a project in its own right. The first half stands. **The second does not**,
+and the reason is the one just settled about the body.
+
+##### The two bodies have opposite lifecycles
+
+| | the body is | edited |
+| --- | --- | --- |
+| **a requirement issue** | what somebody noticed, when they noticed it | **never.** It is the evidence of what was originally believed |
+| **a project issue** | five headings kept current — artefacts as they firm up, a runbook filled in as it is followed | **continuously.** A stale one is worse than none |
+
+**They cannot be the same object.** Turning a requirement issue into a project
+issue means overwriting the record with the working document, and the record is
+the thing we decided an hour ago never to edit.
+
+##### #174 is the worked example, and the damage is mine
+
+I did exactly this on 2026-08-21: replaced #174's body — the measurements, the
+options, the argument about what was actually wrong — with the five headings,
+noting that the original was *"in the design and in this issue's history"*.
+
+**Relying on GitHub's edit history is weaker than it sounds.** It is there, and
+nobody reads it; it does not appear in search, in `actions.py`, or to anyone
+scrolling the issue. A record that survives only in a revision viewer has been
+lost in every practical sense.
+
+##### The cost, stated plainly
+
+**Two issues where there was one**, for every project including the small ones.
+That is real, and it is smaller than it looks:
+
+- a **pre-approved** change never becomes a project at all, so the majority of
+  small changes are untouched
+- a small project's issue is short — a few lines under each heading, which is
+  the size rule doing its job
+- and the requirement issue is **folded and closed** at that moment, so the open
+  list does not grow
+
+**What is bought is that both documents get to be what they are.** The
+requirement stays as it was raised, and the project has a body it can rewrite
+without destroying anything.
+
 #### D11 · Do phases apply to a work package, or only to a project? — **answered: the project only**
 
 Left over from the phases section, and untested because there is no project
