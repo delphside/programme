@@ -478,16 +478,49 @@ body:
         restore, a rate limit owes a script, a document owes a reader.
 ```
 
-**Two things to fix before it is created**, both found by running real issues
-through it:
+##### Created 2026-08-22, with route gone entirely
+
+**Both gaps found here were dissolved rather than fixed.** They were:
 
 - **route needs a *not decided yet***, as release has. #40 and #175 do not know
-  their own shape — a firewall rule or a `Caddyfile` change; a script on the host
-  or one in the image — and the form currently forces a guess
+  their own shape, and the form forced a guess
 - **a change can have two routes.** #174 is JSON logging in the artifact **and** a
-  journald drop-in on the host. The tie-break picks the artifact, and nothing
-  records the half that stays manual. Either route becomes multi-select, or two
-  routes means two issues — the same shape as *one change, one type*
+  journald drop-in on the host, and nothing recorded the half that stays manual
+
+[D22](#d22--is-route-an-attribute-of-the-issue--answered-no-of-the-delivery)
+moved route to the delivery and
+[D26](#d26--a-register-of-artefacts-or-just-a-naming-convention--answered-both-and-route-is-derived-from-it)
+made it derived from the artefact, so **the form does not ask.** Both gaps were
+symptoms of asking a one-to-many question with a single-valued field, and neither
+needed answering once the question stopped being asked.
+
+**So the form is two dropdowns and two text areas**: what is wrong, type,
+release, and what would show it works. `.github/ISSUE_TEMPLATE/change.yml`.
+
+**Release leads with *not decided yet***, because it is the honest answer for
+most of the backlog and a list whose first option is a commitment invites one.
+
+**It does not ask for impacted artefacts.** That is triage's third question, not
+the raiser's — `docs/3.6` §2.18 keeps raising an issue a five-second act
+precisely so that nothing downstream depends on it being well formed.
+
+##### The gap it leaves: the form writes text, the tooling reads labels
+
+**Worth stating before somebody assumes otherwise.** A GitHub issue form records
+the dropdown answer as **text in the issue body**. Every tool here —
+`actions.py`, `status.sh`, `check-release-version.sh`, `deploy.sh`'s gates —
+reads **labels**. So the form asks the right question and nothing acts on the
+answer until a label is applied by hand at triage.
+
+| | |
+| --- | --- |
+| **a workflow reads the body and applies the label** | GitHub doing what we would otherwise do by hand, which is #160's whole point. Labels only, nothing else — the rule `docs.yml` already follows |
+| apply it at triage, by hand | free, and it is one more thing to remember at the moment attention is lowest |
+
+**Recommended: the workflow**, and it is not built here. It is `non-prod-tooling`,
+which under [D14](#d14--do-we-classify-the-process-a-delivery-must-go-through--answered-yes-derived)
+owes a design and a test approach agreed before it is built — and this note is the
+design half asking for the agreement.
 
 ##### The four axes, defined
 
