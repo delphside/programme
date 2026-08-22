@@ -1011,89 +1011,145 @@ host script exists to use it.
 
 ### Delivery 1 — logging and health
 
-#### Before any of it: three things the release needs
+**Four deploys, not eight.** Owner, 2026-08-22, on the two-round shape the
+documents implied: *"that is a better balance. It is more work if we hit an issue
+in Rehearsal, but that is unlikely since we have already tested things there and
+in preview."* The trade is stated because it is real: a problem found in
+rehearsal means fixing on the branch, re-merging and re-testing. It is accepted
+because preview from the branch has already exercised the same tree.
 
-Found in pre-flight, 2026-08-22, and **not in the first draft of this runbook** —
-which is what a pre-flight is for.
+#### 0 · Pre-flight
 
 ```bash
-# 0a — the work has to be on main. deploy.sh builds a commit of main, and this
-#      project's work is on its branch. PR #177 carries it; merge it first.
-#
-# 0b — the version. Dev is 0.6.3 and this carries `minor-function`, so it is a
-#      MINOR release: 0.7.0. check-release-version.sh refuses a patch that
-#      carries functional change, and it reads the milestone to decide.
-#
-#      Verified by asking it:
-#        ./scripts/check-release-version.sh 0.6.3   → "a patch release is right"
-#        ./scripts/check-release-version.sh 0.7.0   → "functional change is expected"
-#      The first is only true because milestone 0.6.3 is empty. Put #174 in a
-#      milestone and it changes its mind — which is the check doing its job.
-#
-# 0c — the milestone. Create 0.7.0 and put #174 in it. `deploy.sh` closes every
-#      open issue in the milestone when it ships, so the milestone is the
-#      shipping list.
+# The work is on a branch; deploy.sh builds a commit of main.
+git rev-list --count issue-174-logs-and-backups..main    # must be 0, so the
+#                                                          merge is a fast-forward
+#                                                          and the tested commit
+#                                                          IS the shipped commit
+
+# minor-function, so a MINOR release. Dev is 0.6.3; this is 0.7.0.
+# Create milestone 0.7.0 and put #174 in it — deploy.sh closes the milestone's
+# issues, so the milestone is the shipping list.
+./scripts/check-release-version.sh 0.7.0     # "functional change is expected"
 ```
 
-**Step 1 is on the host and comes first.** With the driver switched to journald
-but the old 50 M cap still in place, the size limit binds before the age rule and
-seven days silently becomes something less — the exact failure Part 4 describes,
-arrived at by doing things in the wrong order.
+Then bump the workspace version to `0.7.0` and commit it on the branch.
+
+#### 1 · Preview, from the branch
+
+**Not a gate — a cheap look before anything reaches `main`.** Two things here can
+stop a container starting: the new health check, and the journald driver.
 
 ```bash
-# 1 — on the host, before anything writes to journald
+./scripts/deploy-preview.sh at prod                       # today's production code
+./scripts/deploy-preview.sh at issue-174-logs-and-backups # the switch happens here
+./scripts/deploy-preview.sh at issue-174-logs-and-backups # and now the real test
+```
+
+**The middle deploy loses the log, correctly and once** — the lines before it
+were in the old driver's file, inside a container that dies. The third deploy is
+where *logs survive a deploy* becomes demonstrable.
+
+```bash
+journalctl CONTAINER_TAG=tle-preview-server -o cat | jq . | head
+journalctl CONTAINER_TAG=tle-preview-web --since "5 min ago" | wc -l   # ~0: silent
+TILE_LITE_ELITE_LOG_CAPTURE=/tmp/c.jsonl cargo test -p server-game --quiet \
+  && python3 scripts/check-log-hygiene.py /tmp/c.jsonl
+```
+
+#### 2 · Merge, fast-forward only
+
+```bash
+git checkout main && git merge --ff-only issue-174-logs-and-backups && git push origin main
+```
+
+**`--ff-only` rather than our usual written merge commit**, because a merge
+commit changes the sha and the commit tested would stop being the commit shipped.
+The branch's own messages carry the story. **The branch is not deleted** —
+Delivery 2 is still to come, and D24 keeps it until the project is live.
+
+Wait for CI on `main` before going further: `./scripts/ci-status.sh --run push:main --wait`
+
+#### 3 · Preview, from `main` — the user testing
+
+```bash
+./scripts/deploy-preview.sh          # HEAD of main
+```
+
+**There is almost nothing to look at, and that is the honest answer** (D15).
+Nobody can see JSON logging or a health probe. What a person judges here is that
+**the site still serves** — which is exactly what the health-check change could
+break.
+
+#### 4 · Rehearsal — the host step first, then the deploy
+
+**The drop-in is rehearsed before production sees it.** A host step applied for
+the first time on production is the one part of this delivery nobody has
+practised.
+
+```bash
+ssh tile-lite-elite-rehearsal
 sudo tee /etc/systemd/journald.conf.d/zz-tile-lite-elite.conf >/dev/null <<'EOF'
 [Journal]
 SystemMaxUse=100M
 MaxRetentionSec=7d
 EOF
-sudo sed -i 's/^SystemMaxUse=50M/SystemMaxUse=100M/' \
-  /etc/systemd/journald.conf.d/50-cap.conf
 sudo systemctl restart systemd-journald
 systemd-analyze cat-config systemd/journald.conf | grep -E 'SystemMaxUse|MaxRetention'
+exit
+
+./scripts/deploy-rehearsal.sh        # the deploy mechanism, on production's shape
 ```
 
-#### On preview: `at prod` first, then the branch — and expect the first switch to lose the log
-
-Owner, 2026-08-22: *"on preview — deploying at prod first, then at the branch."*
-Right, and for a reason beyond the usual one.
-
-**The usual reason does not apply here**: `at prod` normally exists so a
-migration meets production's schema on a non-empty database. **This release
-carries no migration** — schema stays at 7 — so that is not what it buys.
-
-**What it buys is the upgrade path.** Preview from a clean start would never
-exercise the thing most likely to break: switching an existing stack from
-`json-file` to `journald`, with a volume and containers already there. `at prod`
-then the branch is the only way to see that.
-
-##### And the first deploy after the switch still loses the history
-
-**This will look like a failure and is not.** The lines written before the switch
-were in the old driver's file inside the container, and that container dies. So:
-
-| | |
-| --- | --- |
-| `deploy-preview.sh at prod` | old code, `json-file`, real schema |
-| `deploy-preview.sh at <branch>` | **the switch. Everything before it is gone** — correctly, and once only |
-| `deploy-preview.sh` again | **the actual test.** Lines from the previous step must still be there |
-
-**Three deploys, not two**, and the claim is only demonstrable from the second
-onwards. Reading it wrong at the second step — *"I deployed the fix and the logs
-still vanished"* — is the obvious mistake, which is why it is written here rather
-than discovered at five o'clock.
+Then the technical tests, which is what rehearsal is for:
 
 ```bash
-# 2 — the release, from the development machine
-./scripts/deploy.sh
+ssh tile-lite-elite-rehearsal 'journalctl CONTAINER_TAG=tle-server -o cat -n 20' | jq -e . > /dev/null \
+  && echo "every line parses"
+ssh tile-lite-elite-rehearsal 'journalctl CONTAINER_TAG=tle-server -o cat' \
+  | python3 scripts/check-log-hygiene.py --source production -
+ssh tile-lite-elite-rehearsal 'journalctl CONTAINER_TAG=tle-web --since "10 min ago" | wc -l'
+```
 
-# 3 — confirm, which is the claim the project exists for
-ssh tile-lite-elite 'journalctl CONTAINER_TAG=tle-server -o cat -n 5 | jq .'
-./scripts/deploy.sh                    # a second time
-ssh tile-lite-elite 'journalctl CONTAINER_TAG=tle-server -o cat --since "10 min ago" \
-  | wc -l'                             # lines from before the redeploy are still there
-ssh tile-lite-elite 'journalctl CONTAINER_TAG=tle-web --since "5 min ago" | wc -l'
-#                                        ^ near zero: the health probe is silent now
+#### 5 · Production
+
+```bash
+ssh tile-lite-elite
+sudo tee /etc/systemd/journald.conf.d/zz-tile-lite-elite.conf >/dev/null <<'EOF'
+[Journal]
+SystemMaxUse=100M
+MaxRetentionSec=7d
+EOF
+sudo sed -i 's/^SystemMaxUse=50M/SystemMaxUse=100M/' /etc/systemd/journald.conf.d/50-cap.conf
+sudo systemctl restart systemd-journald
+systemd-analyze cat-config systemd/journald.conf | grep -E 'SystemMaxUse|MaxRetention'
+exit
+
+./scripts/deploy.sh
+```
+
+**The 50 M drop-in is raised on production and does not exist on rehearsal** —
+it was written by hand on 2026-07-30 and only production has it. Left at 50 M it
+would bind before the age rule and make seven days quietly untrue.
+
+#### 6 · Confirm
+
+```bash
+./scripts/verify.sh
+ssh tile-lite-elite 'journalctl CONTAINER_TAG=tle-server -o cat -n 5' | jq .
+ssh tile-lite-elite 'journalctl CONTAINER_TAG=tle-web --since "10 min ago" | wc -l'
+```
+
+**Not a second production deploy.** *Logs survive a deploy* was proved on preview,
+where a deploy costs nothing; on production the next release proves it again for
+free. What is confirmed here is that the lines are JSON, in journald, and that
+the web probe has gone quiet — 2,858 lines a day to nearly none.
+
+**A week later**, the one claim nothing can check today:
+
+```bash
+ssh tile-lite-elite 'journalctl CONTAINER_TAG=tle-server --since "8 days ago" -o cat | head -1'
+ssh tile-lite-elite 'journalctl --disk-usage'
 ```
 
 ### Delivery 2 — backups
