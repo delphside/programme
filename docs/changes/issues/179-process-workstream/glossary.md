@@ -3353,7 +3353,36 @@ a **Design Governance Meeting** and a sign-off chain, a **dependency** column, a
 **priority list**, **planned/achieved** dates, and a weekly **status report** of
 dated one-line updates per work package.
 
-### Where the two models agree
+### The fundamental difference: which way demand flows
+
+Owner, 2026-08-22, correcting an over-close reading of the mapping below: *"this
+was a plan for a team maintaining an application and delivering into many
+projects. A requirement was an IRIS raised by the external project, and possibly
+they would raise many for their different phases."*
+
+**Their projects were somebody else's, and upstream.** An external project raised
+an IRIS; the team quoted it, gated it, and delivered a work package into it. The
+team never owned a project — it owned an application and a queue of demand
+against it.
+
+| | theirs | ours |
+| --- | --- | --- |
+| where a requirement comes from | **an external project**, one of many, and one project might raise several across its phases | us, or a user |
+| what a *project* is | **the customer**, sitting upstream of the requirement | **ours**, created downstream of triage |
+| the team's unit of work | a **work package** serving somebody else's project | a **project** we own end to end |
+| what the pipeline was solving | **contention** — many customers, one team, finite capacity | **sequencing** — one person, one order |
+
+**That inversion explains most of the machinery.** Quotes, gates and a priority
+list exist because several customers are competing for one team's capacity and
+somebody is paying. Take the customers away and the same apparatus has nothing to
+arbitrate: **our pipeline problem is what to do next, theirs was whose work to do
+next**, and those need different tools.
+
+**So the mappings below are structural rather than functional.** A work package
+and a project are the same *shape* — bounded scope, fixed outcome, ends — and
+they answer to different masters.
+
+### Where the shapes still line up
 
 | theirs | ours |
 | --- | --- |
