@@ -609,7 +609,27 @@ second copy of CI's markdown lint: the cost of a small tool is never the writing
 | --- | --- |
 | the dropdowns still earn their place | they **prompt**, and somebody who has just answered *"what kind of change is this?"* is one click from the sidebar with the answer in mind |
 | `needs-triage` needs no workflow | the form applies it to every issue it creates, so *"raised, not yet classified"* is queryable from day one. That was most of the value |
-| nothing is silently wrong | the body records what was said at raising, the label records what is true now, and they are **allowed** to differ — a triage decision is not drift |
+| nothing is silently wrong | the body records what was said at raising, the label records what is true now, and they are **allowed** to differ — see below |
+
+###### Which one is authoritative, and which one triage changes
+
+**The label.** Every tool here reads it, so it is the store; the body is the
+record of what the raiser said, and **it is never edited.**
+
+| | |
+| --- | --- |
+| **the body** | what was thought when the issue was raised. History. Editing it would destroy the only evidence of what was originally believed, which is occasionally the most interesting thing on the issue |
+| **the label** | what is true now. Triage sets it, and changes it later if the answer changes |
+
+**And a change at triage owes a comment.** That is what makes a difference
+between the two a *decision* rather than drift: an issue raised as a `bug` and
+reclassified `minor-function` is interesting if somebody said why, and merely
+confusing if nobody did. Same rule as everywhere else here — settle it in the
+issue, not only in somebody's head.
+
+**If the two start disagreeing often, that is evidence rather than a nuisance.**
+Either the dropdown's wording is misleading people, or the workflow above is
+worth building after all.
 
 **The design and its test approach stay written down** so that agreeing to build
 it later is a decision rather than a fresh start.
