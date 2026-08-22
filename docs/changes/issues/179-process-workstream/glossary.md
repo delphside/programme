@@ -3340,6 +3340,71 @@ The costs stand and are worth restating: deeper paths, a move when an issue's
 workstream changes — rare — and one more round of broken links, which is the
 argument for doing **every** folder move in a single change.
 
+## Background: an integration domain's pipeline, 2011–2012
+
+Owner, 2026-08-22, pointing at a folder from a previous working life: *"from an
+old project I worked on. I am not sure we should copy it, but it may help to
+compare."* Read on that basis — comparison, not a source.
+
+**What it was.** A supplier's integration domain inside a large telecoms
+programme, tracked in Excel: a pipeline of **work packages**, each in a
+**portfolio**, moving through **gates 0 to 6**, with a **quote** per gate range,
+a **Design Governance Meeting** and a sign-off chain, a **dependency** column, a
+**priority list**, **planned/achieved** dates, and a weekly **status report** of
+dated one-line updates per work package.
+
+### Where the two models agree
+
+| theirs | ours |
+| --- | --- |
+| portfolio | programme |
+| domain | workstream |
+| work package | **project** — and ours reuses *work package* one level down |
+| dependency, as its own column | the relation recorded on a project. **It was a column there because prose could not carry it**, which is the argument we reached independently |
+| priority list | the roadmap |
+| status report: dated one-line updates per work package | **issue comments.** The same shape, and it worked there for years |
+
+**The last row is the most reassuring.** *"05/05 — IA for Gates 3-6 has been
+prepared and sent to Ramesh to review"* is what a comment on #174 looks like. A
+practice that survived a decade of real delivery is not a habit we invented last
+week.
+
+### Where they differ, and why ours is not simply smaller
+
+**Their gates carried money.** A supplier quoted per gate range, and a gate was
+where a client agreed to pay for the next stretch. That is what makes six gates
+worth having. **There is no client here and no money**, so the same structure
+would be ceremony in a governance costume — which is why our five phases have
+three gates, two of them scripts.
+
+**Their status was compiled; ours is derived.** A weekly report existed because
+the data lived in spreadsheets, in email and in several people's heads, and
+somebody had to gather it. `status.sh`, `actions.py` and `roadmap.sh` read GitHub
+and compute the same answers on demand. **That is not us being cleverer — it is
+the data being in one system**, which was not an option in 2011.
+
+**Their dates were planned and achieved. We have neither**, deliberately: a date
+needs an estimate, an estimate needs a rate of work, and there is one developer
+working when there is time.
+
+**Their approval was three deep** — presented at the governance meeting, approved
+by tech architects, signed off by a named person. Ours is one person and a label,
+and the earlier note stands: *you can have the same process and replace a CAB
+with a person saying yes.*
+
+### What it changes here
+
+**Nothing structural, and one confirmation worth having.** The dependency column
+is the strongest signal: a real pipeline, run by people who did this for a
+living, found that *what waits on what* has to be a field rather than a sentence.
+That is the thin part of our model, and this says the thin part is real rather
+than imagined.
+
+**And one caution.** The folder is mostly spreadsheets that had to be copied,
+mailed and reconciled. The failure mode there was not bad rules; it was **five
+versions of the truth** — which is what this workstream keeps designing against
+under other names.
+
 ## Background: how ITIL handles tooling, monitoring and instrumentation
 
 The owner's question, 2026-08-19. ITIL's answer is not a special case for
