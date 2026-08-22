@@ -73,7 +73,7 @@ to read it.
 | **D2** | Do we adopt capability workstreams, and when? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
 | **D3** | Do project phases stay, and where do they apply? | **answered** | [Projects](#projects-phases-and-gates) |
 | **D4** | Is the post-implementation review built, and how? | **answered** | [Projects](#projects-phases-and-gates) |
-| **D5** | Does `main` get a ruleset? — **re-answered 2026-08-21: no** | **open** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
+| **D5** | Does `main` get a ruleset? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 | **D6** | What is a release, and what gets logged as one? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D7** | Should `docs/changes/issues/` be renamed, and to what? | **answered** | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) |
 | **D8** | How much to cite | **answered** | [Terminology](#terminology-our-words-and-the-industrys) |
@@ -100,7 +100,7 @@ to read it.
 | **D29** | What does the deliveries heading hold? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D30** | Is triage written down, and where? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
 | **D31** | What owns an artefact — the project, or a delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
-| **D32** | Does a workflow map the form's answers to labels? — **design, for agreement** | **open** | [Classifying a change](#classifying-a-change-type-route-release) |
+| **D32** | Does a workflow map the form's answers to labels? | **answered** | [Classifying a change](#classifying-a-change-type-route-release) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -505,7 +505,7 @@ most of the backlog and a list whose first option is a commitment invites one.
 the raiser's — `docs/3.6` §2.18 keeps raising an issue a five-second act
 precisely so that nothing downstream depends on it being well formed.
 
-##### D32 · Does a workflow map the form's answers to labels? — **design, for agreement**
+##### D32 · Does a workflow map the form's answers to labels? — **answered: parked**
 
 Owner, 2026-08-22: *"the person raising the issue can assign the labels
 directly. Can you add fields to an issue, or do we have to put everything in
@@ -590,7 +590,31 @@ a label in the form breaks the mapping. Mitigated by both living in the same two
 files, so a change touches both in one commit — and by the test approach below,
 which fails loudly rather than silently doing nothing.
 
-###### Test approach
+###### Answered 2026-08-22: parked, and the reason is not only priority
+
+Owner: *"it's tempting to build our own tool and integrate via the API. But let's
+leave that for now."*
+
+**The design below stands and is not built.** What makes parking the right call
+rather than a deferral is the shape of the thing: **it is a bridge to a feature
+that already exists on the other side of an organization boundary.** Build it,
+and we own it until that boundary moves — and then we own removing it.
+
+That is the same instinct as #160 and as the morning `check-docs.sh` grew a
+second copy of CI's markdown lint: the cost of a small tool is never the writing.
+
+**What works without it**, which is why parking costs little:
+
+| | |
+| --- | --- |
+| the dropdowns still earn their place | they **prompt**, and somebody who has just answered *"what kind of change is this?"* is one click from the sidebar with the answer in mind |
+| `needs-triage` needs no workflow | the form applies it to every issue it creates, so *"raised, not yet classified"* is queryable from day one. That was most of the value |
+| nothing is silently wrong | the body records what was said at raising, the label records what is true now, and they are **allowed** to differ — a triage decision is not drift |
+
+**The design and its test approach stay written down** so that agreeing to build
+it later is a decision rather than a fresh start.
+
+###### Test approach, for when it is built
 
 | claim | how |
 | --- | --- |
@@ -2502,7 +2526,7 @@ Sources: [ISTQB glossary: test approach](https://istqb-glossary.page/test-approa
 [IEEE 829 test documentation](https://zetcode.com/terms-testing/ieee-829/) ·
 [ISO/IEC/IEEE 29119-3](https://www.iso.org/standard/56737.html)
 
-#### D5 · Does `main` get a ruleset? — **re-answered 2026-08-21: no**
+#### D5 · Does `main` get a ruleset? — **answered: no, re-answered 2026-08-21**
 
 **Decided 2026-08-20**, reviewing PR #184. Requiring CI's `check` job on `main`,
 and nothing more. Still to do: create the ruleset, which may need a token
