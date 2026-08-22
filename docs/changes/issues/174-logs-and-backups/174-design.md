@@ -1011,6 +1011,30 @@ host script exists to use it.
 
 ### Delivery 1 — logging and health
 
+#### Before any of it: three things the release needs
+
+Found in pre-flight, 2026-08-22, and **not in the first draft of this runbook** —
+which is what a pre-flight is for.
+
+```bash
+# 0a — the work has to be on main. deploy.sh builds a commit of main, and this
+#      project's work is on its branch. PR #177 carries it; merge it first.
+#
+# 0b — the version. Dev is 0.6.3 and this carries `minor-function`, so it is a
+#      MINOR release: 0.7.0. check-release-version.sh refuses a patch that
+#      carries functional change, and it reads the milestone to decide.
+#
+#      Verified by asking it:
+#        ./scripts/check-release-version.sh 0.6.3   → "a patch release is right"
+#        ./scripts/check-release-version.sh 0.7.0   → "functional change is expected"
+#      The first is only true because milestone 0.6.3 is empty. Put #174 in a
+#      milestone and it changes its mind — which is the check doing its job.
+#
+# 0c — the milestone. Create 0.7.0 and put #174 in it. `deploy.sh` closes every
+#      open issue in the milestone when it ships, so the milestone is the
+#      shipping list.
+```
+
 **Step 1 is on the host and comes first.** With the driver switched to journald
 but the old 50 M cap still in place, the size limit binds before the age rule and
 seven days silently becomes something less — the exact failure Part 4 describes,
