@@ -1085,19 +1085,35 @@ break.
 
 **The drop-in is rehearsed before production sees it.** A host step applied for
 the first time on production is the one part of this delivery nobody has
-practised.
+practised — and rehearsing it found two defects in this runbook, below.
 
 ```bash
-ssh tile-lite-elite-rehearsal
-sudo tee /etc/systemd/journald.conf.d/zz-tile-lite-elite.conf >/dev/null <<'EOF'
-[Journal]
-SystemMaxUse=100M
-MaxRetentionSec=7d
-EOF
-sudo systemctl restart systemd-journald
-systemd-analyze cat-config systemd/journald.conf | grep -E 'SystemMaxUse|MaxRetention'
-exit
+ssh tile-lite-elite-rehearsal 'sudo mkdir -p /etc/systemd/journald.conf.d && \
+  printf "[Journal]\nSystemMaxUse=100M\nMaxRetentionSec=7d\n" \
+  | sudo tee /etc/systemd/journald.conf.d/zz-tile-lite-elite.conf && \
+  sudo systemctl restart systemd-journald && \
+  systemd-analyze cat-config systemd/journald.conf | grep -E "SystemMaxUse|MaxRetention"'
+```
 
+**`mkdir -p` is not defensive — it is required.** `/etc/systemd/journald.conf.d/`
+**does not exist on rehearsal**. It exists on production only because
+`50-cap.conf` was put there by hand on 2026-07-30. `tee` cannot create a parent
+directory, so the first attempt at this step failed — and failed *quietly*, because
+the restart afterwards succeeded and printed nothing alarming. The one error line
+scrolled past and the step looked done.
+
+**One `ssh` with a quoted command, not a session followed by lines.** The first
+version opened an interactive session and left `exit` at the end. Pasted as a
+block that closed the operator's terminal, and left it unclear what had run.
+
+**`&&` throughout**, so a failed write stops before the restart. That is the
+difference between this failing loudly and failing the way it did the first time.
+
+**Read the last two lines of output** — that is the *effective* configuration
+after every drop-in is merged, not the file you just wrote. On rehearsal it is
+`SystemMaxUse=100M` and `MaxRetentionSec=7d`, after the commented-out defaults.
+
+```bash
 ./scripts/deploy-rehearsal.sh        # the deploy mechanism, on production's shape
 ```
 
@@ -1108,29 +1124,48 @@ ssh tile-lite-elite-rehearsal 'journalctl CONTAINER_TAG=tle-server -o cat -n 20'
   && echo "every line parses"
 ssh tile-lite-elite-rehearsal 'journalctl CONTAINER_TAG=tle-server -o cat' \
   | python3 scripts/check-log-hygiene.py --source production -
-ssh tile-lite-elite-rehearsal 'journalctl CONTAINER_TAG=tle-web --since "10 min ago" | wc -l'
+ssh tile-lite-elite-rehearsal 'journalctl CONTAINER_TAG=tle-web --since "3 min ago" | wc -l'
 ```
+
+**Take the web reading over a window that excludes the restart.** Caddy writes
+about twenty lines when a container starts, so a ten-minute window straight after
+a deploy reads as noise when the steady state is silence. Three minutes later it
+was **1**.
 
 #### 5 · Production
 
 ```bash
-ssh tile-lite-elite
-sudo tee /etc/systemd/journald.conf.d/zz-tile-lite-elite.conf >/dev/null <<'EOF'
-[Journal]
-SystemMaxUse=100M
-MaxRetentionSec=7d
-EOF
-sudo sed -i 's/^SystemMaxUse=50M/SystemMaxUse=100M/' /etc/systemd/journald.conf.d/50-cap.conf
-sudo systemctl restart systemd-journald
-systemd-analyze cat-config systemd/journald.conf | grep -E 'SystemMaxUse|MaxRetention'
-exit
+ssh tile-lite-elite 'sudo mkdir -p /etc/systemd/journald.conf.d && \
+  printf "[Journal]\nSystemMaxUse=100M\nMaxRetentionSec=7d\n" \
+  | sudo tee /etc/systemd/journald.conf.d/zz-tile-lite-elite.conf && \
+  sudo systemctl restart systemd-journald && \
+  systemd-analyze cat-config systemd/journald.conf | grep -E "SystemMaxUse|MaxRetention"'
+```
 
+**The same command as rehearsal, and `50-cap.conf` is not edited.** An earlier
+version of this runbook used `sed` to raise it from 50 M. That is unnecessary and
+riskier than it looks: drop-ins are applied in **lexical order** and later files
+win for the same key, which is why ours is named `zz-`. `SystemMaxUse=100M`
+overrides the 50 M without touching the older file, and adding a file is a safer
+operation than editing one in place.
+
+```text
+production's 50-cap.conf, unchanged:
+  [Journal]
+  SystemMaxUse=50M
+  RuntimeMaxUse=16M      ← the volatile /run journal; nothing to do with retention
+```
+
+**What to read in the output**: `50M` **then** `100M`, ours last. That order is
+the override working. If `50M` comes last, stop — the drop-in is not winning and
+seven days would be quietly untrue.
+
+```bash
 ./scripts/deploy.sh
 ```
 
-**The 50 M drop-in is raised on production and does not exist on rehearsal** —
-it was written by hand on 2026-07-30 and only production has it. Left at 50 M it
-would bind before the age rule and make seven days quietly untrue.
+This one is the release: `prod-0.7.0` tagged, milestone 0.7.0 closed, dev bumped
+to 0.7.1.
 
 #### 6 · Confirm
 
