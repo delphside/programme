@@ -590,6 +590,31 @@ a label in the form breaks the mapping. Mitigated by both living in the same two
 files, so a change touches both in one commit — and by the test approach below,
 which fails loudly rather than silently doing nothing.
 
+###### The stage that was hiding in the middle
+
+Owner, 2026-08-22, after settling the three-stage shape: *"or maybe there is
+another step — Requirements → Triage → Triaged Requirements → Project Planning →
+Projects."*
+
+**Two acts and a state were folded into one word.** Triage is *per requirement*
+and cheap — what is this, do we want it, what would it touch. **Project planning
+is across requirements and waits for appetite** — what do we do next, and what
+goes together. Between them sits a state with no activity in it at all: the
+**triaged requirement**, classified and filed and not yet scheduled, which is
+what the backlog actually is.
+
+**And it gives *pipeline management* a home.** That capability has been the thin
+one since it was named, and it was homeless because the model had no stage for
+it: triage was doing per-item work and a project was already committed. It is
+project planning. The rule is still missing — when the pipeline is looked at, who
+decides the order, where a dependency is recorded — but it now has somewhere to
+be written.
+
+**One thing the split corrects**: the artefact list. The guess is per requirement
+and belongs to triage; **the comparison is across requirements and belongs to
+planning**, which is where two projects discover they collide. I had both in
+triage.
+
 ###### Answered 2026-08-22: parked, and the reason is not only priority
 
 Owner: *"it's tempting to build our own tool and integrate via the API. But let's
