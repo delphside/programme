@@ -99,6 +99,7 @@ to read it.
 | **D28** | May a project have a branch per delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D29** | What does the deliveries heading hold? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D30** | Is triage written down, and where? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
+| **D31** | What owns an artefact — the project, or a delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1345,7 +1346,7 @@ approval, *settled* after — and an individual entry nobody is sure of carries 
 `?`. List-level rather than per-entry as the default, because marking every line
 invites arguing each one instead of writing the list.
 
-##### D26 · A register of artefacts, or just a naming convention? — **answered: both, and the register is small**
+##### D26 · A register of artefacts, or just a naming convention? — **answered: both, and route is derived from it**
 
 Owner, 2026-08-21: *"I agree with your two points. So maybe we need a list of
 artefacts, or at least a naming convention."*
@@ -1402,9 +1403,8 @@ repository file *and* a host file, giving {artifact, host}, which is exactly the
 two routes that made it awkward; #155 is repository files plus GitHub objects,
 giving {repository, service}.
 
-**Raised rather than decided**, because it changes an answered decision: if route
-is carried by the register, the artefact list is the only thing anybody writes and
-both route and the co-delivery test fall out of it.
+**Answered yes**, 2026-08-21 — see below. The artefact list becomes the only
+thing anybody writes, and both route and the co-delivery test fall out of it.
 
 ##### D27 · What does the design document owe the artefact list? — **answered: the same artefacts, and what changes in each**
 
@@ -1468,6 +1468,52 @@ A rule worth stating because it falls straight out of the route axis:
 Which is *done when their documentation is*, arriving for a fourth time — and the
 first time it has said something about how much to write rather than merely that
 one must.
+
+##### D26 answered: yes — route is derived from the artefact list
+
+Owner, 2026-08-21: *"Yes, on D26. The only complication is documents which might
+be edited in main or in a branch — but we can see that as one route with two
+variants."*
+
+**So route stops being written down anywhere.** A delivery's routes are the union
+of the routes of the artefacts it touches, and the artefact list — which the
+project already keeps — is the only thing anybody writes.
+
+| the artefact | its route |
+| --- | --- |
+| a path in the repository | **never leaves the repository**, or **in the artifact** where the build consumes it |
+| `production:/etc/…` | applied on the host |
+| `OCI bucket …` · `OCI alarm …` | applied to a service we use |
+| `github:label …` · `github:ruleset …` | applied to a service we use |
+
+##### The complication resolves into something already decided
+
+A repository document is delivered **on save** when it is edited on `main`, and
+**on merge** when it comes from a branch. One route, two moments — and *which*
+moment is not a new question, because
+[D24](#d24--what-is-a-project-branchs-life--answered-created-with-the-project-deleted-when-it-is-live)
+already answers it: **an issue with no branch edits on `main`; an issue with a
+branch edits on the branch.** The variant follows the branch, and the branch
+follows the standard-versus-normal decision.
+
+So nothing extra is recorded. The two variants are worth *naming* — a reader
+should know that *live* means different things on the two paths — but neither is
+a field anybody fills in.
+
+##### Which makes this the fifth thing to come out derived
+
+Route joins the list, and the pattern is now hard to miss: **we store what
+somebody decided, and derive what follows from it.**
+
+| | decided | derived |
+| --- | --- | --- |
+| the process category | type, and the standard-change criteria | what a change must pass through |
+| the milestone | which release a project is going in | what the release contains |
+| the release | which projects name it | the release branch, rebuilt from theirs |
+| **route** | **which artefacts a change touches** | **how each one reaches its consumer** |
+
+The one thing left stated on the form is what nobody can derive: what kind of
+change this is, and whether it needs a release.
 
 ##### Keeping it true
 
@@ -1945,6 +1991,28 @@ second half is the part with no substitute.
 | --- | --- |
 | the steps, in order, and the route each takes | **which app version or build carried it**, and **when** |
 
+##### Filled in three times, not written once
+
+Owner, 2026-08-21: *"the delivery runbook should be more detailed, giving all the
+information necessary to do the delivery, even the commands to type. But that
+detail may come later, when it is known, in time for the actual delivery."*
+
+| when | what it holds |
+| --- | --- |
+| **scope and design** | the outline — which artefacts, in what order, by which route |
+| **before the delivery** | the **commands**. This is the gate: a delivery does not start until its runbook is executable |
+| **after** | which version carried each step, and when |
+
+**Writing the commands out in advance is a design check.** It is where *"apply
+the drop-in on the host"* becomes a path, a `sudo` and a `systemctl` — and where
+a step nobody had thought through announces itself. **A step that cannot be
+written down yet is a step that is not understood yet**, and finding that out at
+the keyboard at eleven at night is how production incidents start.
+
+**And on the host and service routes it is the only record there will be.** A
+runbook written afterwards is a memory of what somebody thinks they did; written
+before and ticked off as it goes, it is what happened.
+
 ##### Why the version-and-date half matters more than it looks
 
 Three uses, and the third is the one that is hard to reconstruct later:
@@ -1973,6 +2041,70 @@ same shape as [D27](#d27--what-does-the-design-document-owe-the-artefact-list--a
 The version and the date are in both, deliberately and bounded — and the log is
 **derivable** from the runbooks plus the tags, which is the direction the
 generation should run if it is ever automated.
+
+#### D31 · What owns an artefact — the project, or a delivery? — **answered: a delivery**
+
+Owner, 2026-08-21: *"A project has deliveries. Each delivery has artefacts. Each
+artefact has a route. Each project delivery therefore has a runbook specifying
+each artefact and the route with other technical details."*
+
+**Four levels, and each one is a set of the next.** Written out, because the model
+has been assembled a piece at a time and this is the first sentence that holds all
+of it:
+
+```text
+project
+  └── delivery            one act of putting change in front of its consumer
+        └── artefact      what that act touches
+              └── route   how that artefact reaches its consumer — a property of
+                          the artefact, never stated (D26)
+```
+
+##### What changes: artefacts belong to a delivery, not to the project
+
+[D25](#d25--does-the-project-issue-list-what-it-touches--answered-yes-new-or-modified)
+put a flat list on the project issue. **It gains a delivery column**, and the
+project's list becomes the union of its deliveries'.
+
+That is not tidiness. Three things need the per-delivery set and cannot use the
+union:
+
+- **the runbook**, which is written per delivery and has to know which artefacts
+  *this* act touches, and in what order
+- **rollback.** *"What does undoing this delivery touch?"* is the union's wrong
+  answer — it names artefacts a different delivery put there
+- **"is it delivered?"** A project with two deliveries is half-delivered for a
+  while, and the union cannot express that. Per-delivery, it is obvious
+
+**The union still does the job it was invented for.** The collision test between
+two projects — do their artefact lists intersect? — works on the whole table, and
+is unaffected.
+
+##### The runbook is where artefact, route and detail meet
+
+[D29](#d29--what-does-the-deliveries-heading-hold--answered-a-runbook-written-before-and-completed-after)
+said the deliveries heading holds a runbook written before and completed after.
+D31 says what a row of it contains:
+
+| written before | filled in after |
+| --- | --- |
+| the artefact · its route · the technical detail — the command, the file, the console page | which version or build carried it, and **when** |
+
+##### Three places name an artefact, and each has a different reader
+
+Worth stating plainly, because it is the most duplication this process allows
+anywhere:
+
+| where | what it adds | who reads it |
+| --- | --- | --- |
+| **the project issue** | new or modified, and which delivery | somebody asking *what does this project touch?* — including a script asking whether two projects collide |
+| **the design** | what the artefact does afterwards that it did not before | a reviewer, and whoever implements it |
+| **the delivery runbook** | the route, the order, the command — and afterwards the version and date | somebody performing the delivery, or undoing it |
+
+**The name is the only thing repeated**, which is the same bargain
+[D27](#d27--what-does-the-design-document-owe-the-artefact-list--answered-the-same-artefacts-and-what-changes-in-each)
+struck, and it is mechanically checkable: the three either name the same
+artefacts or they do not.
 
 #### D6 · What is a release, and what gets logged as one? — **answered: the log records deliveries**
 
@@ -2237,7 +2369,7 @@ Sources: [ISTQB glossary: test approach](https://istqb-glossary.page/test-approa
 [IEEE 829 test documentation](https://zetcode.com/terms-testing/ieee-829/) ·
 [ISO/IEC/IEEE 29119-3](https://www.iso.org/standard/56737.html)
 
-#### D5 · Does `main` get a ruleset? — **answered: yes**
+#### D5 · Does `main` get a ruleset? — **re-answered 2026-08-21: no**
 
 **Decided 2026-08-20**, reviewing PR #184. Requiring CI's `check` job on `main`,
 and nothing more. Still to do: create the ruleset, which may need a token
@@ -2251,9 +2383,53 @@ permission we do not have.
 | **require the CI check** — *chosen* | a red push cannot land on `main` |
 | require CI and the review checklist | and a pull request for every change, which the merge lane deliberately does not ask for |
 
-**Agreed: require CI's `check` job, nothing else, and only after #184 merges.** It is the one gate whose answer is objective and whose
-failure is expensive. Requiring a review checklist with one author is ceremony,
-and requiring pull requests would undo the merge lane.
+**Agreed 2026-08-20: require CI's `check` job, nothing else.** It is the one gate
+whose answer is objective and whose failure is expensive.
+
+##### Re-answered 2026-08-21: no ruleset
+
+**The rule does not do what we assumed.** A required status check **blocks direct
+pushes**, because a check runs after a push and a direct push can never arrive
+with one already passing. GitHub's own documentation: *"this rule should only be
+added to rulesets that target branches where all changes to the branch are
+performed by pull requests."*
+
+**Which forbids the pre-approved lane** — *implemented directly on `main`: no
+branch, no project, no review* — that carried around twenty commits on the day
+the two decisions were made. They were made a day apart and only met when the
+token refused the API call.
+
+Owner, 2026-08-21: *"the CI checks are only needed for code releases, not
+document changes. A gate in `deploy.sh` is sufficient… for the document checks,
+they can run after the push has succeeded as a warning rather than a blocker."*
+
+**And the gate that matters already exists.** `check-docs.sh` is the **first
+step** of CI's check job, and `deploy.sh` refuses to ship a commit whose
+push-to-`main` run did not pass. So a document error already cannot reach
+production; the ruleset would have protected `main`'s tidiness, not the service.
+
+| | |
+| --- | --- |
+| **production** | **gated already** — `deploy.sh` requires the CI run for the exact commit |
+| **preview** | **not gated, deliberately.** Preview exists to look at anything at any time; a broken anchor is no reason to stop somebody looking at their change on a phone |
+| **a red `main`** | reported by a **check**, not prevented by a gate |
+
+##### Why not email
+
+Owner: *"I am not sure email is the best route as I get a few failure emails from
+GitHub, and I don't know if they are important."* A channel already carrying
+noise cannot carry a signal — the new message would arrive looking exactly like
+the ones being ignored, which is worse than not sending it, because it would
+look covered.
+
+**So it surfaces where he is already looking**: `deploy-preview.sh` and
+`status.sh` each run `check-docs.sh` at the end and print what failed, as a
+**check** in D9's strict sense — it reports, and nothing stops. Three seconds,
+and it appears at the moment somebody is about to look at something anyway.
+
+**The mechanism has to match how the person works**, which is the general point
+worth keeping: a notification is only a control if it lands somewhere it will be
+read.
 
 ### The criteria inform the judgement; the judgement decides
 
