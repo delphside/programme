@@ -1053,6 +1053,36 @@ sudo systemctl restart systemd-journald
 systemd-analyze cat-config systemd/journald.conf | grep -E 'SystemMaxUse|MaxRetention'
 ```
 
+#### On preview: `at prod` first, then the branch — and expect the first switch to lose the log
+
+Owner, 2026-08-22: *"on preview — deploying at prod first, then at the branch."*
+Right, and for a reason beyond the usual one.
+
+**The usual reason does not apply here**: `at prod` normally exists so a
+migration meets production's schema on a non-empty database. **This release
+carries no migration** — schema stays at 7 — so that is not what it buys.
+
+**What it buys is the upgrade path.** Preview from a clean start would never
+exercise the thing most likely to break: switching an existing stack from
+`json-file` to `journald`, with a volume and containers already there. `at prod`
+then the branch is the only way to see that.
+
+##### And the first deploy after the switch still loses the history
+
+**This will look like a failure and is not.** The lines written before the switch
+were in the old driver's file inside the container, and that container dies. So:
+
+| | |
+| --- | --- |
+| `deploy-preview.sh at prod` | old code, `json-file`, real schema |
+| `deploy-preview.sh at <branch>` | **the switch. Everything before it is gone** — correctly, and once only |
+| `deploy-preview.sh` again | **the actual test.** Lines from the previous step must still be there |
+
+**Three deploys, not two**, and the claim is only demonstrable from the second
+onwards. Reading it wrong at the second step — *"I deployed the fix and the logs
+still vanished"* — is the obvious mistake, which is why it is written here rather
+than discovered at five o'clock.
+
 ```bash
 # 2 — the release, from the development machine
 ./scripts/deploy.sh
