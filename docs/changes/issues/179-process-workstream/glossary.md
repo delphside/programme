@@ -100,6 +100,7 @@ to read it.
 | **D29** | What does the deliveries heading hold? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D30** | Is triage written down, and where? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
 | **D31** | What owns an artefact — the project, or a delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D32** | Does a workflow map the form's answers to labels? | **answered** | [Classifying a change](#classifying-a-change-type-route-release) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -478,16 +479,217 @@ body:
         restore, a rate limit owes a script, a document owes a reader.
 ```
 
-**Two things to fix before it is created**, both found by running real issues
-through it:
+##### Created 2026-08-22, with route gone entirely
+
+**Both gaps found here were dissolved rather than fixed.** They were:
 
 - **route needs a *not decided yet***, as release has. #40 and #175 do not know
-  their own shape — a firewall rule or a `Caddyfile` change; a script on the host
-  or one in the image — and the form currently forces a guess
+  their own shape, and the form forced a guess
 - **a change can have two routes.** #174 is JSON logging in the artifact **and** a
-  journald drop-in on the host. The tie-break picks the artifact, and nothing
-  records the half that stays manual. Either route becomes multi-select, or two
-  routes means two issues — the same shape as *one change, one type*
+  journald drop-in on the host, and nothing recorded the half that stays manual
+
+[D22](#d22--is-route-an-attribute-of-the-issue--answered-no-of-the-delivery)
+moved route to the delivery and
+[D26](#d26--a-register-of-artefacts-or-just-a-naming-convention--answered-both-and-route-is-derived-from-it)
+made it derived from the artefact, so **the form does not ask.** Both gaps were
+symptoms of asking a one-to-many question with a single-valued field, and neither
+needed answering once the question stopped being asked.
+
+**So the form is two dropdowns and two text areas**: what is wrong, type,
+release, and what would show it works. `.github/ISSUE_TEMPLATE/change.yml`.
+
+**Release leads with *not decided yet***, because it is the honest answer for
+most of the backlog and a list whose first option is a commitment invites one.
+
+**It does not ask for impacted artefacts.** That is triage's third question, not
+the raiser's — `docs/3.6` §2.18 keeps raising an issue a five-second act
+precisely so that nothing downstream depends on it being well formed.
+
+##### D32 · Does a workflow map the form's answers to labels? — **answered: parked**
+
+Owner, 2026-08-22: *"the person raising the issue can assign the labels
+directly. Can you add fields to an issue, or do we have to put everything in
+labels?"* — and then, on the shortened form: *"but I think you have effectively
+built new fields into the template, which can be mapped to labels?"*
+
+**He is right, and I had briefly removed the dropdowns for a bad reason.** Seeing
+that they duplicated a field the raiser can already set, I took them out — which
+optimised away the *input* to avoid a duplicate *store*. They are not rivals:
+**the dropdown is the input, the label is the store**, and a workflow between
+them is the same shape as `docs.yml`'s comment commands, where a human-friendly
+thing to type becomes a machine-readable state and nothing else.
+
+###### First, what GitHub actually offers — and a correction
+
+I wrote that an issue's structured fields are *"labels, milestone, assignees,
+close reason — that is the list"*. **That is wrong.** The owner pointed at
+[Adding and managing issue fields](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/adding-and-managing-issue-fields):
+**issue fields** are a real feature — single-select, text, number and date, in
+the sidebar beside labels and type, in public preview since March 2026.
+
+**The mistake is worth naming.** I probed this repository's API, saw nothing, and
+reported the absence as the shape of the product. A repository that cannot have a
+feature returns the same silence as a feature that does not exist.
+
+| | |
+| --- | --- |
+| **issue fields** | single-select, text, number, date. **Organization-level only** — *"not for personal repositories, even on paid personal plans"* |
+| **issue types** | the same wall, which we met before |
+| custom fields in Projects v2 | our token is refused: `FORBIDDEN` on `viewer.projectsV2` |
+| a form setting a label or a field | **neither.** A form's `labels:` is a *fixed* list, and *"issue fields cannot… be set through issue templates"* |
+
+**Confirmed against this repository**, three ways: the owner is a `User`,
+`repository.issueTypes` is `null`, and `/issues/fields` returns 404.
+
+**So the bridge is needed either way.** Even with an organization, a form cannot
+populate a field — it would be set from the sidebar, the API, or a workflow. The
+design below writes a label; against an organization it would write a field
+instead, and nothing else about it would change.
+
+###### The bigger option: move the repository into an organization
+
+Worth naming rather than leaving as an unexamined constraint, because two things
+we have worked around are both on the other side of it.
+
+| | |
+| --- | --- |
+| **buys** | **issue fields** — a single-select for *type* and one for *release*, which is exactly the shape we have been forcing into labels and a milestone. Plus **issue types**, and organization-level Projects |
+| **costs** | creating the organization (free), transferring the repository (GitHub redirects the old URLs), re-issuing tokens and redoing the fine-grained permissions |
+| **risk** | issue fields are in **public preview for select organizations**. An organization is not a guarantee of getting them, and a preview can change under us |
+
+**Not recommended yet, and not dismissed.** The workaround below costs a small
+workflow; the move costs an afternoon and buys a data model that fits. What tips
+it is whether labels start straining — and the honest answer today is that they
+are not: seven type labels and a milestone have carried forty-five issues without
+anybody complaining.
+
+###### Why keep the dropdown at all, when the sidebar exists
+
+Three reasons, and the third is the one that decides it here:
+
+- **it prompts.** Required, so an issue cannot be raised without an answer. A
+  sidebar label is easy to skip, and skipping is silent
+- **it explains in place.** Seven options with a phrase each, against a list of
+  bare label names
+- **it is a tap on a phone**, where the sidebar is fiddly. The same argument that
+  gave the review commands their four-character forms
+
+###### The design
+
+A workflow on `issues: [opened, edited]` that reads the body, finds the two
+headings, and applies the matching label. **Labels only, nothing else** — the
+rule `docs.yml` already keeps, which is what makes anything it gets wrong a
+puzzled reader rather than an irreversible act.
+
+It also removes `needs-triage`, which the form applies to every issue, once both
+labels are on.
+
+**The known fragility, stated rather than discovered**: a form's body carries the
+*heading text*, not the field `id`. Parsing is therefore by heading, and renaming
+a label in the form breaks the mapping. Mitigated by both living in the same two
+files, so a change touches both in one commit — and by the test approach below,
+which fails loudly rather than silently doing nothing.
+
+###### The stage that was hiding in the middle
+
+Owner, 2026-08-22, after settling the three-stage shape: *"or maybe there is
+another step — Requirements → Triage → Triaged Requirements → Project Planning →
+Projects."*
+
+**Two acts and a state were folded into one word.** Triage is *per requirement*
+and cheap — what is this, do we want it, what would it touch. **Project planning
+is across requirements and waits for appetite** — what do we do next, and what
+goes together. Between them sits a state with no activity in it at all: the
+**triaged requirement**, classified and filed and not yet scheduled, which is
+what the backlog actually is.
+
+**And it gives *pipeline management* a home.** That capability has been the thin
+one since it was named, and it was homeless because the model had no stage for
+it: triage was doing per-item work and a project was already committed. It is
+project planning. The rule is still missing — when the pipeline is looked at, who
+decides the order, where a dependency is recorded — but it now has somewhere to
+be written.
+
+**One thing the split corrects**: the artefact list. The guess is per requirement
+and belongs to triage; **the comparison is across requirements and belongs to
+planning**, which is where two projects discover they collide. I had both in
+triage.
+
+###### Answered 2026-08-22: parked, and the reason is not only priority
+
+Owner: *"it's tempting to build our own tool and integrate via the API. But let's
+leave that for now."*
+
+**The design below stands and is not built.** What makes parking the right call
+rather than a deferral is the shape of the thing: **it is a bridge to a feature
+that already exists on the other side of an organization boundary.** Build it,
+and we own it until that boundary moves — and then we own removing it.
+
+That is the same instinct as #160 and as the morning `check-docs.sh` grew a
+second copy of CI's markdown lint: the cost of a small tool is never the writing.
+
+**What works without it**, which is why parking costs little:
+
+| | |
+| --- | --- |
+| the dropdowns still earn their place | they **prompt**, and somebody who has just answered *"what kind of change is this?"* is one click from the sidebar with the answer in mind |
+| `needs-triage` needs no workflow | the form applies it to every issue it creates, so *"raised, not yet classified"* is queryable from day one. That was most of the value |
+| nothing is silently wrong | the body records what was said at raising, the label records what is true now, and they are **allowed** to differ — see below |
+
+###### Which one is authoritative, and which one triage changes
+
+**The label.** Every tool here reads it, so it is the store; the body is the
+record of what the raiser said, and **it is never edited.**
+
+| | |
+| --- | --- |
+| **the body** | what was thought when the issue was raised. History. Editing it would destroy the only evidence of what was originally believed, which is occasionally the most interesting thing on the issue |
+| **the label** | what is true now. Triage sets it, and changes it later if the answer changes |
+
+**And a change at triage owes a comment.** That is what makes a difference
+between the two a *decision* rather than drift: an issue raised as a `bug` and
+reclassified `minor-function` is interesting if somebody said why, and merely
+confusing if nobody did. Same rule as everywhere else here — settle it in the
+issue, not only in somebody's head.
+
+**If the two start disagreeing often, that is evidence rather than a nuisance.**
+Either the dropdown's wording is misleading people, or the workflow above is
+worth building after all.
+
+**The design and its test approach stay written down** so that agreeing to build
+it later is a decision rather than a fresh start.
+
+###### Test approach, for when it is built
+
+| claim | how |
+| --- | --- |
+| each of the seven type answers maps to its label | a table-driven test over a rendered body per option, run in CI |
+| an unrecognised answer leaves the issue alone and says so | rather than guessing, or applying nothing silently |
+| a body with no headings is not an error | issues created by hand, and by `gh issue create`, do not use the form |
+| the label a person set by hand wins | the workflow runs on `edited` too, so it must not undo a triage decision |
+
+**The last row is the one worth building the test for.** The body records what
+was said when the issue was raised; the label records what is true now. They are
+*allowed* to differ, and the difference is usually a triage decision rather than
+drift — so the workflow sets a label only when there is none of that family.
+
+##### The gap it leaves: the form writes text, the tooling reads labels
+
+**Worth stating before somebody assumes otherwise.** A GitHub issue form records
+the dropdown answer as **text in the issue body**. Every tool here —
+`actions.py`, `status.sh`, `check-release-version.sh`, `deploy.sh`'s gates —
+reads **labels**. So the form asks the right question and nothing acts on the
+answer until a label is applied by hand at triage.
+
+| | |
+| --- | --- |
+| **a workflow reads the body and applies the label** | GitHub doing what we would otherwise do by hand, which is #160's whole point. Labels only, nothing else — the rule `docs.yml` already follows |
+| apply it at triage, by hand | free, and it is one more thing to remember at the moment attention is lowest |
+
+**Recommended: the workflow**, and it is not built here. It is `non-prod-tooling`,
+which under [D14](#d14--do-we-classify-the-process-a-delivery-must-go-through--answered-yes-derived)
+owes a design and a test approach agreed before it is built — and this note is the
+design half asking for the agreement.
 
 ##### The four axes, defined
 
@@ -994,6 +1196,55 @@ a version that may move or split.
 | drop them | fall back to the derived three: not started, in progress, completed |
 
 The first real test will be #71, the one workstream that genuinely has projects.
+
+#### D33 · Does a project always get its own issue? — **answered: yes, always**
+
+Owner, 2026-08-22: *"it means the issue body will always be a historical record,
+which will become less relevant. It is an argument for always raising a new
+project issue, even if it only implements one requirement issue."*
+
+**This overturns half of [D18](#d18--what-does-a-project-own-and-what-happens-to-the-issues-it-absorbs--answered-four-headings-and-folded-sources).**
+D18 said a project is a state an issue enters, and that a lone issue may be run
+as a project in its own right. The first half stands. **The second does not**,
+and the reason is the one just settled about the body.
+
+##### The two bodies have opposite lifecycles
+
+| | the body is | edited |
+| --- | --- | --- |
+| **a requirement issue** | what somebody noticed, when they noticed it | **never.** It is the evidence of what was originally believed |
+| **a project issue** | five headings kept current — artefacts as they firm up, a runbook filled in as it is followed | **continuously.** A stale one is worse than none |
+
+**They cannot be the same object.** Turning a requirement issue into a project
+issue means overwriting the record with the working document, and the record is
+the thing we decided an hour ago never to edit.
+
+##### #174 is the worked example, and the damage is mine
+
+I did exactly this on 2026-08-21: replaced #174's body — the measurements, the
+options, the argument about what was actually wrong — with the five headings,
+noting that the original was *"in the design and in this issue's history"*.
+
+**Relying on GitHub's edit history is weaker than it sounds.** It is there, and
+nobody reads it; it does not appear in search, in `actions.py`, or to anyone
+scrolling the issue. A record that survives only in a revision viewer has been
+lost in every practical sense.
+
+##### The cost, stated plainly
+
+**Two issues where there was one**, for every project including the small ones.
+That is real, and it is smaller than it looks:
+
+- a **pre-approved** change never becomes a project at all, so the majority of
+  small changes are untouched
+- a small project's issue is short — a few lines under each heading, which is
+  the size rule doing its job
+- and the requirement issue is **folded and closed** at that moment, so the open
+  list does not grow
+
+**What is bought is that both documents get to be what they are.** The
+requirement stays as it was raised, and the project has a body it can rewrite
+without destroying anything.
 
 #### D11 · Do phases apply to a work package, or only to a project? — **answered: the project only**
 
@@ -2369,7 +2620,7 @@ Sources: [ISTQB glossary: test approach](https://istqb-glossary.page/test-approa
 [IEEE 829 test documentation](https://zetcode.com/terms-testing/ieee-829/) ·
 [ISO/IEC/IEEE 29119-3](https://www.iso.org/standard/56737.html)
 
-#### D5 · Does `main` get a ruleset? — **re-answered 2026-08-21: no**
+#### D5 · Does `main` get a ruleset? — **answered: no, re-answered 2026-08-21**
 
 **Decided 2026-08-20**, reviewing PR #184. Requiring CI's `check` job on `main`,
 and nothing more. Still to do: create the ruleset, which may need a token
@@ -3088,6 +3339,100 @@ nobody has asked for.
 The costs stand and are worth restating: deeper paths, a move when an issue's
 workstream changes — rare — and one more round of broken links, which is the
 argument for doing **every** folder move in a single change.
+
+## Background: an integration domain's pipeline, 2011–2012
+
+Owner, 2026-08-22, pointing at a folder from a previous working life: *"from an
+old project I worked on. I am not sure we should copy it, but it may help to
+compare."* Read on that basis — comparison, not a source.
+
+**What it was.** A supplier's integration domain inside a large telecoms
+programme, tracked in Excel: a pipeline of **work packages**, each in a
+**portfolio**, moving through **gates 0 to 6**, with a **quote** per gate range,
+a **Design Governance Meeting** and a sign-off chain, a **dependency** column, a
+**priority list**, **planned/achieved** dates, and a weekly **status report** of
+dated one-line updates per work package.
+
+### The fundamental difference: which way demand flows
+
+Owner, 2026-08-22, correcting an over-close reading of the mapping below: *"this
+was a plan for a team maintaining an application and delivering into many
+projects. A requirement was an IRIS raised by the external project, and possibly
+they would raise many for their different phases."*
+
+**Their projects were somebody else's, and upstream.** An external project raised
+an IRIS; the team quoted it, gated it, and delivered a work package into it. The
+team never owned a project — it owned an application and a queue of demand
+against it.
+
+| | theirs | ours |
+| --- | --- | --- |
+| where a requirement comes from | **an external project**, one of many, and one project might raise several across its phases | us, or a user |
+| what a *project* is | **the customer**, sitting upstream of the requirement | **ours**, created downstream of triage |
+| the team's unit of work | a **work package** serving somebody else's project | a **project** we own end to end |
+| what the pipeline was solving | **contention** — many customers, one team, finite capacity | **sequencing** — one person, one order |
+
+**That inversion explains most of the machinery.** Quotes, gates and a priority
+list exist because several customers are competing for one team's capacity and
+somebody is paying. Take the customers away and the same apparatus has nothing to
+arbitrate: **our pipeline problem is what to do next, theirs was whose work to do
+next**, and those need different tools.
+
+**So the mappings below are structural rather than functional.** A work package
+and a project are the same *shape* — bounded scope, fixed outcome, ends — and
+they answer to different masters.
+
+### Where the shapes still line up
+
+| theirs | ours |
+| --- | --- |
+| portfolio | programme |
+| domain | workstream |
+| work package | **project** — and ours reuses *work package* one level down |
+| dependency, as its own column | the relation recorded on a project. **It was a column there because prose could not carry it**, which is the argument we reached independently |
+| priority list | the roadmap |
+| status report: dated one-line updates per work package | **issue comments.** The same shape, and it worked there for years |
+
+**The last row is the most reassuring.** *"05/05 — IA for Gates 3-6 has been
+prepared and sent to Ramesh to review"* is what a comment on #174 looks like. A
+practice that survived a decade of real delivery is not a habit we invented last
+week.
+
+### Where they differ, and why ours is not simply smaller
+
+**Their gates carried money.** A supplier quoted per gate range, and a gate was
+where a client agreed to pay for the next stretch. That is what makes six gates
+worth having. **There is no client here and no money**, so the same structure
+would be ceremony in a governance costume — which is why our five phases have
+three gates, two of them scripts.
+
+**Their status was compiled; ours is derived.** A weekly report existed because
+the data lived in spreadsheets, in email and in several people's heads, and
+somebody had to gather it. `status.sh`, `actions.py` and `roadmap.sh` read GitHub
+and compute the same answers on demand. **That is not us being cleverer — it is
+the data being in one system**, which was not an option in 2011.
+
+**Their dates were planned and achieved. We have neither**, deliberately: a date
+needs an estimate, an estimate needs a rate of work, and there is one developer
+working when there is time.
+
+**Their approval was three deep** — presented at the governance meeting, approved
+by tech architects, signed off by a named person. Ours is one person and a label,
+and the earlier note stands: *you can have the same process and replace a CAB
+with a person saying yes.*
+
+### What it changes here
+
+**Nothing structural, and one confirmation worth having.** The dependency column
+is the strongest signal: a real pipeline, run by people who did this for a
+living, found that *what waits on what* has to be a field rather than a sentence.
+That is the thin part of our model, and this says the thin part is real rather
+than imagined.
+
+**And one caution.** The folder is mostly spreadsheets that had to be copied,
+mailed and reconciled. The failure mode there was not bad rules; it was **five
+versions of the truth** — which is what this workstream keeps designing against
+under other names.
 
 ## Background: how ITIL handles tooling, monitoring and instrumentation
 
