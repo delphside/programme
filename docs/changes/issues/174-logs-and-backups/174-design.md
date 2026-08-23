@@ -1210,6 +1210,10 @@ umask 077 && printf '%s\n' 'PASTE_THE_URL' > ~/.tile-lite-elite-backup-par
 
 # 2 — the scripts and their units. Three files travel together, because the
 #     validator is useless without the schema and there is no checkout here.
+# sqlite3 on the **host**, not just in the image. It was added to runtime-server
+# for #138; the backup's integrity check runs on the host against the copy it
+# pulled out, so the host needs it too. Missing this failed the first real run.
+sudo apt-get update -qq && sudo apt-get install -y sqlite3
 sudo install -d -o ubuntu -g ubuntu /opt/tile-lite-elite
 # from the development machine:
 scp scripts/backup-to-oci.sh scripts/check-log-hygiene-nightly.sh \
@@ -1229,12 +1233,27 @@ journalctl -u tile-lite-elite-backup.service -n 20 --no-pager
 ```
 
 ```text
-4  Console → Monitoring → Alarms, three of them, each on the age of an object:
+4  NOT BUILDABLE AS WRITTEN — see #201. Attempted 2026-08-23.
+
+   The intent stands: three alarms, each on the age of a marker object, all
+   firing on absence of success — which also catches a crashed script, a timer
+   nobody enabled, a host that is down, or an expired credential.
+
      backup did not arrive          marker-backup-ok    older than 26 hours
      no clean log check recently    marker-logcheck-ok  older than 36 hours
      no verified restore recently   marker-restore-ok   older than 100 days
-   All fire on **absence of success**, which also catches a crashed script, a
-   timer nobody enabled, a host that is down, or an expired credential.
+
+   OCI cannot express any of them. Object Storage publishes exactly two
+   metrics — Bucket Size and Number of Objects — both per *bucket*. No
+   object-level dimension, no age, and the three markers are indistinguishable
+   to OCI. The metrics were also observed lagging by over an hour.
+
+   This design said the alarms "use machinery already built for #136". That was
+   wrong: #136 works because oci_healthchecks and oci_computeagent publish the
+   exact quantity its alarms need. oci_objectstorage has no equivalent.
+
+   #201 carries the redesign; the recommendation there is a custom metric
+   posted by the host under an instance principal, alarmed on absent().
 ```
 
 ```bash
