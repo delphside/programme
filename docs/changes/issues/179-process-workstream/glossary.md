@@ -101,6 +101,7 @@ to read it.
 | **D30** | Is triage written down, and where? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
 | **D31** | What owns an artefact — the project, or a delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D32** | Does a workflow map the form's answers to labels? | **answered** | [Classifying a change](#classifying-a-change-type-route-release) |
+| **D34** | How is a delivery that ships no application code identified? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -292,7 +293,7 @@ replaces, because a partial taxonomy still has to be searched.
 
 ---
 
-#### D30 · Is triage written down, and where? — **answered: yes, in `docs/3.3` §2.9.17**
+#### D30 · Is triage written down, and where? — **answered: yes, in `docs/3.6` §2.18**
 
 Owner, 2026-08-21: *"Do we need something on how issues are impact assessed,
 categorised, assigned to workstream, assigned to projects, and potentially folded
@@ -1245,6 +1246,47 @@ That is real, and it is smaller than it looks:
 **What is bought is that both documents get to be what they are.** The
 requirement stays as it was raised, and the project has a body it can rewrite
 without destroying anything.
+
+#### D34 · How is a delivery that ships no application code identified? — **answered: the production version plus a letter**
+
+**Decided 2026-08-23**, recorded on #179 at the time and folded in here
+afterwards — which is itself the failing this decision was found by: it was
+agreed in conversation, recorded in an issue because that was cheap, and applying
+it was a separate act nobody was holding (#205).
+
+**The gap.** Milestones are application SemVer, so they exist only when
+application code changes. A host change, a console change or a drill had no
+identity and nothing that closed its issue — while *all deliveries should be
+logged and identifiable*.
+
+Owner: *"I suggest we label deliveries with no application changes as `0.7.0a`,
+where 0.7.0 is the latest app version. The `Cargo.toml` will be one ahead. We
+could write it into a file, so the tooling can read it, but I think we should
+just manually close issues in this case."*
+
+| | |
+| --- | --- |
+| **form** | `<production version><letter>` — `0.7.0a`, then `0.7.0b` |
+| **which version** | what **production is running**, not what `Cargo.toml` holds. `Cargo.toml` leads production by one, so a delivery made today is `0.7.0a` while the tree says `0.7.1` |
+| **tooling** | none. No file for a script to read, and no automatic close |
+| **closing** | by hand. A project whose *last* delivery is not a release cannot be closed by a milestone sweep at all |
+
+**`0.7.0a`, not `0.7.0-a`.** The hyphenated form is valid SemVer, and SemVer
+orders a prerelease *before* its release — backwards for something that happened
+after it. The plain form is better precisely because nothing will try to sort it.
+
+**The safety is structural rather than a convention.** `deploy.sh` reads its
+milestone from `Cargo.toml`, which can only hold real SemVer, so a lettered
+milestone **can never be matched by a deploy** and can never auto-close. Nobody
+has to remember not to let it.
+
+**This supersedes D6's** *"a dated row in the delivery log with no version"*. The
+row now carries an identifier. `docs/4.9-delivery-log.md` was created for the
+first one — `0.7.0a`, #174's second delivery, which was the first delivery in the
+programme with no `prod-*` tag to be found under.
+
+**What it does not solve**, recorded on #195: a project deliberately outside the
+milestones is indistinguishable from one nobody has triaged.
 
 #### D11 · Do phases apply to a work package, or only to a project? — **answered: the project only**
 
