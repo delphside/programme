@@ -102,6 +102,7 @@ to read it.
 | **D31** | What owns an artefact — the project, or a delivery? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D32** | Does a workflow map the form's answers to labels? | **answered** | [Classifying a change](#classifying-a-change-type-route-release) |
 | **D34** | How is a delivery that ships no application code identified? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
+| **D35** | Is *triaged* a finished state, or a working one? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1246,6 +1247,48 @@ That is real, and it is smaller than it looks:
 **What is bought is that both documents get to be what they are.** The
 requirement stays as it was raised, and the project has a body it can rewrite
 without destroying anything.
+
+#### D35 · Is *triaged* a finished state, or a working one? — **answered: a working one**
+
+**Raised by building the pipeline report**, 2026-08-24. Grouping open issues by
+where they are in the flow needed a rule for what *triaged* covers, and two
+readings fitted the data. Owner: *"I wonder if this is more than one step, we
+should work some through and see."* It was answered before that, by stating what
+the state is for:
+
+> *"The state change is from untriaged (not looked at yet) to triaged (in the
+> process of assessing) to planned (folded and closed). While a requirement issue
+> is in the state triaged it may go through many edits, because it hasn't yet
+> been closed its future still needs to be considered and decided."*
+
+| state | what it means | open? |
+| --- | --- | --- |
+| **untriaged** | nobody has looked at it | yes |
+| **in triage** | being assessed; may be edited many times; **its future is still undecided** | yes |
+| **planned** | folded into a project, and **closed** | no |
+
+**Two things follow, and both settle questions that were open.**
+
+**The backlog is the two open states.** *Planned* is not a third bucket of open
+issues — it is what leaving the backlog looks like. So an open requirement
+sitting under a project is an **anomaly**, not a state: folding should have
+closed it. One existed when this was decided (#155 under #179), which is how the
+question surfaced.
+
+**There is no separate *allocated to a workstream* state**, and no sub-states at
+all. Owner, 2026-08-24: *"you can't be prescriptive up front as to what
+categorisations you will make when or in what order. So just have a 'being
+worked on' state."* Type, release, workstream and impact are decided in whatever
+order the change makes possible — sometimes the workstream is obvious and the
+type is arguable, sometimes the reverse. Naming a state for each ordering would
+invent a sequence that does not exist. So the workstream is a **column**, not a
+heading.
+
+That had looked like a candidate because the pipeline report shows a workstream
+for some rows and not others. It is progress *within* the state, not a state.
+
+**Naming**: prefer *in triage* to *triaged*. The past participle reads as
+*finished being triaged*, which is the opposite of what the state means.
 
 #### D34 · How is a delivery that ships no application code identified? — **answered: the production version plus a letter**
 
