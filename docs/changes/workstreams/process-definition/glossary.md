@@ -3332,7 +3332,7 @@ a display has to be read, and the failure mode of reading is not noticing.
 
 ---
 
-#### D7 · Should `docs/changes/issues/` be renamed, and to what? — **answered: B, nested**
+#### D7 · Should `docs/changes/issues/` be renamed, and to what? — **answered: B, nested. Applied 2026-08-24**
 
 Owner, 2026-08-20: *"We should rename the issues folder as workstream, but
 presumably that will be done as part of applying the glossary."* Yes to the
@@ -3350,6 +3350,34 @@ to *production operations* and is not a workstream at all. Renaming to
 | **A. keep `issues/`** | folders named for the issue that owns them, whatever level that issue is | accurate today, and says nothing about the levels |
 | **B. rename to `workstreams/`, and nest** | `workstreams/179-process/`, with projects and issue notes inside | mirrors the model exactly, and every document has one path that reflects what owns it |
 | **C. three folders** | `workstreams/` · `projects/` · `issues/` | most precise, and three places to look instead of one |
+
+**Re-answered and applied 2026-08-24.** The move was deferred until #174 was
+live, which it now is. But the shape below names `process-and-tooling/`, and by
+then the workstreams had become **three** — process definition (#188), delivery
+tooling (#204) and operations (#189). Applying it as written would have filed the
+deployment scripts' documents under a folder name asserting they are the same
+thing as the process documents, which is precisely the distinction that morning
+had drawn.
+
+Owner: *"use the new workstream names, we want to organise everything in the new
+way."* So the applied shape is:
+
+```text
+docs/changes/
+  workstreams/
+    README.md                      what each folder is
+    process-definition/            #188
+      glossary.md                  documents the workstream owns
+      process-review.md
+    delivery-tooling/              #204 — empty, and accurately so
+    operations/                    #189
+      174-logs-and-backups/
+        174-design.md
+```
+
+That D7 needed re-answering four days after being decided is itself the argument
+for #205: a decision recorded and not applied goes stale against decisions made
+after it, and nothing notices.
 
 **Decided 2026-08-20: B.** Owner: *"yes, B. And it makes us think about which
 workstream an issue is in."* Which is the argument I had missed — the structure
