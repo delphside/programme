@@ -1257,10 +1257,24 @@ journalctl -u tile-lite-elite-backup.service -n 20 --no-pager
 ```
 
 ```bash
-# 5 — the restore drill, from the development machine, with a read PAR made in
-#     the console for the occasion and deleted afterwards.
-./scripts/restore-backup.sh 'READ_PAR_URL' --mark 'WRITE_PAR_URL'
+# 5 — the restore drill, from the DEVELOPMENT machine. Not the host: a read PAR
+#     on the production VM defeats the one property this design exists for.
+#     (It happened on the first drill, 2026-08-24. The habit comes from step 1,
+#     which does say ssh — for the *write* PAR, which belongs there.)
+umask 077 && printf '%s\n' 'PASTE_THE_READ_PAR' > ~/.tle-restore-par
+./scripts/restore-backup.sh "$(< ~/.tle-restore-par)"
+shred -u ~/.tle-restore-par        # then delete the PAR in the console
+
+# Refresh the marker from the host rather than with --mark, so the write PAR
+# stays in its 0600 file and never reaches a command line or a `ps` listing.
+ssh tile-lite-elite 'PAR="$(< ~/.tile-lite-elite-backup-par)"
+  printf "%s\n" "$(date -u +%Y%m%dT%H%M%SZ)" > /tmp/m
+  curl --fail -sS -T /tmp/m "${PAR}marker-restore-ok"; rm -f /tmp/m'
 ```
+
+**The procedure now lives in `docs/3.4`**, under *Restoring*, because it is
+operational and recurring rather than part of this delivery. What is here is the
+record of the drill; what is there is what to do next time.
 
 **Step 5 is not optional and not a follow-up.** A backup nobody has restored is a
 hypothesis, and the 100-day alarm exists to make the drill recur rather than to
