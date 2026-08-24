@@ -1005,9 +1005,28 @@ The existing test suites should pass unchanged; nothing here touches game logic.
 
 ## Part 9 — Deliveries
 
-**Two deliveries, each an ordered sequence rather than a set** (D22), because a
-host step assumes the artifact already deployed and a service step assumes the
+**Three deliveries, each an ordered sequence rather than a set** (D22), because
+a host step assumes the artifact already deployed and a service step assumes the
 host script exists to use it.
+
+**It was two until 2026-08-23**, when the restore drill was split out of
+Delivery 2. Owner: *"We can make the restore drill a 3rd delivery and update the
+scopes… better to close down what we have done tonight as a completed delivery
+than have it split over days."* The drill needs a read pre-authenticated request
+created in the console, and everything before it was finished and proven — so
+holding Delivery 2 open overnight would have left a delivery nobody could point
+at and say what it contained.
+
+| | id | what | |
+| --- | --- | --- | --- |
+| **1** | `0.7.0` | logging and health | 2026-08-22 |
+| **2** | `0.7.0a` | backups running | 2026-08-23 |
+| **3** | `0.7.0b` | the restore drill | 2026-08-24 |
+
+The lettered identifiers are D34: a delivery that ships no application code
+takes the production version plus a letter, and is closed by hand — `deploy.sh`
+reads its milestone from `Cargo.toml`, so a lettered milestone can never be
+matched by a deploy. Recorded in `docs/4.9-delivery-log.md`.
 
 ### Delivery 1 — logging and health
 
@@ -1256,6 +1275,28 @@ journalctl -u tile-lite-elite-backup.service -n 20 --no-pager
    posted by the host under an instance principal, alarmed on absent().
 ```
 
+### Delivery 3 — the restore drill
+
+*Split out of Delivery 2 on 2026-08-23, so that delivery could close the same
+evening rather than spanning days. Delivered `0.7.0b`, 2026-08-24.*
+
+**A backup nobody has restored is a hypothesis**, which is why this is a
+delivery rather than a follow-up. It restored `db-20260824T031435Z` — the
+backup the timer made **unattended** at 03:14, not one triggered by hand —
+reporting `integrity ok, 6 players, 26 games`.
+
+**It proved more than the restore path.** The two backups either side of that
+night differ by exactly one game, 27 at 18:45 and 26 at 03:14, and the journal
+names the cause at 20:19:47: *terminal game auto-deleted after 7 days*. A
+backup that faithfully records a change nobody made by hand is better evidence
+that it is real than any assertion about it.
+
+**The recurring procedure now lives in `docs/3.4` under *Restoring***, because
+it is operational rather than part of this delivery — including the dependency
+nobody had written down: **a restore starts in the OCI console, every time**,
+because no standing read credential exists anywhere. Whatever protects the
+Oracle account also protects the backups.
+
 ```bash
 # 5 — the restore drill, from the DEVELOPMENT machine. Not the host: a read PAR
 #     on the production VM defeats the one property this design exists for.
@@ -1280,10 +1321,12 @@ record of the drill; what is there is what to do next time.
 hypothesis, and the 100-day alarm exists to make the drill recur rather than to
 happen once in August.
 
-**Neither delivery is a release on its own.** Delivery 1's step 2 is; everything
-else is an application, and gets a dated row in the delivery log with no version
-(D6). That is what makes the log worth keeping — five of these seven steps leave
-no other trace.
+**Only Delivery 1 is a release.** Its step 2 is; everything else is an
+application, and gets a dated row in the delivery log — with an identifier
+rather than no version, since D34 superseded D6 on 2026-08-23. That is what
+makes the log worth keeping: most of these steps leave no other trace, and
+`0.7.0a` was the first delivery in the programme with no `prod-*` tag to be
+found under. `docs/4.9-delivery-log.md` was created for it.
 
 ### Sequencing against #71
 
