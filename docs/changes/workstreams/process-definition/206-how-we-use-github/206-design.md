@@ -235,6 +235,57 @@ that gap on 2026-08-23: *"in the absence of provisional approval, I can use
 | **C. a workflow reads the triage comment's table** | covers the case that actually failed | parsing a comment is fragile — though the standard reply now lists valid values, which is what makes it possible at all |
 | **D. fewer places to apply it** | if an attribute lives in one place, there is less to keep in step | not an option on its own; a consequence of 2.1 |
 
+## Part 2.7 — Decision: Option 3
+
+**Decided 2026-08-25.** Owner: *"we are spending time dealing with limitations
+that come from not having an org and not having a second account. I would rather
+spend the time setting them up. There may be other benefits we haven't thought
+of yet."*
+
+**So `2.2B` — an organisation — and `2.3B` — a second GitHub account.** The rest
+of Part 3's Option 3 follows from those two but is not settled by them; see
+*What is still open* below.
+
+### Why, in the order the arguments actually carried
+
+**The cost of not having them is already being paid.** Two sessions have gone on
+working around their absence: a review verdict that only works from one of five
+places a comment can be typed (#197), a parser maintaining what GitHub knows
+natively, an attribute that cannot be stored anywhere readable (#216), and a
+board that exists and cannot be read at all (2.1.1). None of that is
+hypothetical, and none of it goes away on its own.
+
+**The migration is smaller than the workarounds.** Measured in 2.2.1: four
+string literals, one `git remote`, one policy setting. The item that could have
+been expensive — Actions minutes — **costs nothing, because the repository is
+public**.
+
+**The alternatives got worse the more they were examined.** Option 2 needed a
+classic token, widening access from one repository to everything the account
+owns, and could then hold only *size* — because a Project field cannot be set
+when an issue is raised and is not visible on the issue page (2.1.2). Option 1
+works and leaves every one of R1 to R5 unmet except by hand.
+
+**Optionality was a stated reason, and is worth naming as one.** *"There may be
+other benefits we haven't thought of yet."* That is not measurable and should
+not pretend to be — but a structure that makes future choices available is worth
+something, and the measured cost of acquiring it is low enough that it does not
+have to carry the argument alone.
+
+### What is still open
+
+Choosing the account structure does not choose the rest:
+
+| | |
+| --- | --- |
+| **2.4** | whether native review fully replaces the parser, and what happens to `/prov` |
+| **2.5** | where release notes live |
+| **2.6** | **what applies an answer once decided** — still the choice with no good option, and an organisation does not solve it |
+| — | what happens to `pipeline.py`, and whether issue fields replace any existing label |
+
+**And one thing the decision does not license**: moving `release` off the
+milestone. `deploy.sh` reads it.
+
 ## Part 3 — Complete options
 
 Assembled from Part 2, in increasing order of change. Each is internally
