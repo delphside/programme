@@ -85,23 +85,44 @@ Each is a decision on its own. Part 3 combines them.
 **The constraint that does not move**: `deploy.sh` reads the milestone to decide
 what a deploy closes, so `release` stays B whatever else changes.
 
-#### A cost that applies to 2.1D and 2.1E, and is easy to miss
+#### 2.1.1 A fine-grained token cannot read a user-owned Project — measured
 
-**Our tooling cannot see Projects today.** The fine-grained token has no
-*Projects* account permission, so `gh api graphql` returns `FORBIDDEN` for
-`projectsV2`. That is not only an inconvenience while designing — **if a Project
-field or an issue field becomes a store, `pipeline.py` has to read it**, and the
-permission becomes permanent rather than temporary.
+**This is the constraint that reshapes the options**, and it is not in any of
+the option descriptions above.
+
+`gh api graphql` returns `FORBIDDEN` for `projectsV2`. The obvious fix — add the
+permission — **is not available**: the fine-grained token's *Account permissions*
+list has no **Projects** entry. Checked on 2026-08-25 by searching the picker
+for `project`, which returned nothing. Alphabetically it would sit between
+*Profile* and *SSH signing keys*, and there is nothing there.
+
+Fine-grained tokens grant Projects at **organisation** level. A **user-owned**
+Project — which is what `github.com/users/SteveStyle/projects/1` is — has no
+corresponding permission.
+
+| to read a user-owned Project | |
+| --- | --- |
+| **fine-grained PAT** | **not possible** |
+| **classic PAT** with `read:project` | works — and classic tokens are all-or-nothing across the whole account, where today's token is scoped to one repository |
+| an **organisation**-owned Project | fine-grained works, and per-repository scoping is kept |
+
+**So 2.1D is not the cheap middle option it appears to be.** Storing anything in
+a user-owned Project means either **widening the token to everything the account
+owns**, to solve a reporting problem — or creating an organisation, which is
+2.2B.
+
+**And it applies to reporting, not only to storing.** The board that already
+exists cannot be read by our tooling at all today, so even "leave the data where
+it is and just render it from a Project" is blocked by the same wall.
 
 | | needs |
 | --- | --- |
-| inspecting the board while designing | *Projects: Read-only* |
-| `pipeline.py` reporting from Project fields | *Projects: Read-only*, permanently |
-| trying fields out before deciding | *Projects: Read and write*, and a **throwaway project** rather than the real board — the same shape as the read PAR created for a restore drill and deleted after |
+| inspecting the board while designing | a classic token, or an org |
+| `pipeline.py` reporting from Project fields | the same, **permanently** |
+| trying fields out before deciding | write as well, and a **throwaway project** rather than the real board — the same shape as the read PAR made for a restore drill and deleted after |
 
-So an option that stores anything in a Project carries a standing token
-permission with it. Worth weighing against 2.1A, where a label needs nothing the
-token does not already have.
+**2.1A costs none of this.** A label needs nothing the token does not already
+have, which is a point in its favour that was invisible until this was measured.
 
 ### 2.2 Who owns the repository
 
@@ -189,6 +210,7 @@ and workstream stay where they are.
 | --- | --- |
 | **for** | R4 met without a migration; the table view is the spreadsheet asked for; the sub-issues progress column is a live workstream rollup we do not have |
 | **against** | a value in a Project is not on the issue — an issue outside the board has none, and something must keep the board complete. R1, R2, R3 all unmet |
+| **and the one that may kill it** | **our tooling cannot read a user-owned Project at all** (2.1.1). This option therefore requires a **classic token**, widening access from one repository to everything the account owns — to solve a reporting problem. That is a worse trade than it looked before it was measured |
 
 ### Option 3 — Move to an organisation
 
@@ -199,7 +221,7 @@ review replaces the parser; issue fields hold what labels handle badly.
 
 | | |
 | --- | --- |
-| **for** | every requirement met. The parser, the `approved` label and a whole class of silent failure are **deleted** rather than fixed. Attribution becomes structural |
+| **for** | every requirement met. The parser, the `approved` label and a whole class of silent failure are **deleted** rather than fixed. Attribution becomes structural. And it is the **only** way to store an attribute outside a label without widening the token (2.1.1) |
 | **against** | the largest change, and the only one with a migration. Two accounts to manage. `/prov` is lost and replaced by an extra lap. Nothing here is urgent, and this is not a small step |
 
 ### Option 4 — Organisation, but keep our own review
