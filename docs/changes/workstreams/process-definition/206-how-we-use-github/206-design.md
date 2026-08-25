@@ -482,8 +482,8 @@ a new GitHub account:  SteveStyle-typed-by-Claude
   → give it write access to tile-lite-elite
 ```
 
-#171's reasoning: the name *"states the relationship rather than implying an
-independent contributor."* Nothing depends on this account until Delivery 2, so
+The reasoning from #171: the name *"states the relationship rather than implying
+an independent contributor."* Nothing depends on this account until Delivery 2, so
 it can follow later without holding anything up.
 
 #### If it goes wrong
