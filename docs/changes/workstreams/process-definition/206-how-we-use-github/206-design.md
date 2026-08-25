@@ -212,6 +212,26 @@ removes the false costs from around it.
 | **B. GitHub's native review state** | one store; every client; no parser | needs 2.3B, and has no equivalent of `/prov` |
 | **C. both** | — | **rejected on sight**: two stores for one fact is the thing this project exists to stop |
 
+#### 2.4.1 Native Approve is available — confirmed 2026-08-25
+
+**Delivery 2 proved the premise the same day it was delivered.** PR #218, opened
+by `SteveStyle-typed-by-Claude` on `delphside/tile-lite-elite`, presents an
+**enabled Approve option** in GitHub's own review dialog. That has never been
+possible on this repository: every previous pull request was authored by the
+owner, and GitHub refuses self-approval.
+
+So **R1 is solved natively, not by fixing anything.** GitHub's review works in
+every client — the browser, the VS Code extension, the mobile app — because it
+is the native mechanism rather than a slash command a parser has to notice.
+**#197 may never need to be done**, which was the possibility this project was
+raised to test.
+
+**How the account is attached, and why it is right.** It has **write on the
+repository as a collaborator**, and is *not* an organisation member
+(`orgs/delphside/members` is empty). That is less privilege, not an oversight:
+it can reach this repository and nothing else in the organisation, which is what
+a machine account for one repository should have. Worth keeping deliberately.
+
 **`/prov` is the only outcome with no native equivalent**, and the owner closed
 that gap on 2026-08-23: *"in the absence of provisional approval, I can use
 [request] changes and approve when you say they are done."* Arguably better than
