@@ -85,6 +85,24 @@ Each is a decision on its own. Part 3 combines them.
 **The constraint that does not move**: `deploy.sh` reads the milestone to decide
 what a deploy closes, so `release` stays B whatever else changes.
 
+#### A cost that applies to 2.1D and 2.1E, and is easy to miss
+
+**Our tooling cannot see Projects today.** The fine-grained token has no
+*Projects* account permission, so `gh api graphql` returns `FORBIDDEN` for
+`projectsV2`. That is not only an inconvenience while designing — **if a Project
+field or an issue field becomes a store, `pipeline.py` has to read it**, and the
+permission becomes permanent rather than temporary.
+
+| | needs |
+| --- | --- |
+| inspecting the board while designing | *Projects: Read-only* |
+| `pipeline.py` reporting from Project fields | *Projects: Read-only*, permanently |
+| trying fields out before deciding | *Projects: Read and write*, and a **throwaway project** rather than the real board — the same shape as the read PAR created for a restore drill and deleted after |
+
+So an option that stores anything in a Project carries a standing token
+permission with it. Worth weighing against 2.1A, where a label needs nothing the
+token does not already have.
+
 ### 2.2 Who owns the repository
 
 | option | | |
