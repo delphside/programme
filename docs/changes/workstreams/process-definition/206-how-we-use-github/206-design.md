@@ -358,6 +358,47 @@ An organisation purely for issue fields, with the review machinery untouched.
    need one, and adding a Project field would not. **This design note does not**,
    which is why it is on `main`.
 
+## Part 4.5 — Deliveries
+
+**Owner, 2026-08-25: *"let's set them up, then decide how to use them from
+there."*** So the structure is delivered first and used later, and the split is
+deliberate: **"the organisation and the account exist and nothing is broken"** is
+a different claim from **"we now use them"**, and only the first is
+hard to reverse.
+
+### Delivery 1 — the structure exists, and nothing is broken
+
+Nothing changes about how we work. At the end of it every existing thing does
+what it did before, from a different URL.
+
+| | who |
+| --- | --- |
+| create the organisation, Free plan | owner |
+| transfer `tile-lite-elite` into it | owner — **the moment anything breaks, if it does** |
+| update the `git remote` | Claude |
+| update the four references: `Cargo.toml`'s `repository`, and a docs link in each issue template | Claude |
+| set the organisation's personal access token policy to **not require approval** | owner |
+| re-scope or reissue the fine-grained token against the organisation | owner |
+| create the second account and add it to the organisation | owner |
+| verify: CI runs, `deploy.sh`'s gates read CI, `actions.py` and `pipeline.py` still work | Claude |
+
+**Route**: `service` for the organisation and the account — neither leaves a
+trace in git, so both want rows in `docs/4.8`. `repository` for the four
+references.
+
+**No release.** Nothing ships in the application.
+
+### Delivery 2 onwards — how we use it
+
+Deliberately not planned yet. Each of these is a separate decision that the
+structure makes *available* rather than compulsory: issue fields for size (2.1E),
+native review replacing the parser (2.4B), release notes (2.5), and whatever
+answers 2.6.
+
+**The order matters less than the fact that none of them is forced.** If the
+organisation turns out to be uncomfortable, Delivery 1 can stand alone and
+nothing has been committed.
+
 ## Part 5 — Impacted artefacts
 
 *Provisional until the design is agreed.*
