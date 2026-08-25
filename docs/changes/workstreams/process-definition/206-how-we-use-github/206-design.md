@@ -167,6 +167,29 @@ second user — which is why they are in one project. Neither *requires* an
 organisation: 2.1D and 2.1A work without one, and a second personal account
 works without one.
 
+#### 2.2.1 What an organisation would actually cost — measured
+
+The commonly cited disadvantages, checked against this repository on 2026-08-25
+rather than taken as read. **Three are weaker than they appear and one does not
+apply at all.**
+
+| the claim | what is true here |
+| --- | --- |
+| **Actions minutes become a small shared pool** | **Does not apply.** This repository is **public**, so Actions are free and unlimited. It ran **1,104 workflow runs** in the last month — the one item that could have been a real cost is zero |
+| **Repository URLs change and links break** | **Four references**, in three files: `Cargo.toml`'s `repository` key and a docs link in each of the two issue templates. Plus one `git remote`. `actions.py` and `pipeline.py` **derive** the repository from `gh repo view`, so they need no change at all |
+| **Token approval overhead every few months** | Real by default, and a **one-time setting**: an organisation owner can set the personal access token policy to not require approval. It is administration, not recurring administration |
+| **Context switching, feature bloat** | True and subjective. Two settings dashboards instead of one, and an interface built for companies |
+
+**So the migration cost is four string literals, one remote, and one policy
+setting.** That is much smaller than the framing suggests, and it is worth
+recording because the argument against an organisation is usually made in the
+abstract.
+
+**What it does not measure** is the thing that actually matters: whether a
+second GitHub account and a second settings surface are worth maintaining
+forever, for a project with one developer. That is a judgement, and 2.2.1 only
+removes the false costs from around it.
+
 ### 2.3 How many GitHub users
 
 | option | | |
