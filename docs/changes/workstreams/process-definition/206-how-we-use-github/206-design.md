@@ -388,6 +388,111 @@ references.
 
 **No release.** Nothing ships in the application.
 
+### Delivery 1 runbook
+
+**Written 2026-08-25, before doing it.** Owner's steps are the console ones;
+Claude's follow the transfer.
+
+#### What will and will not break — checked before writing this
+
+| | |
+| --- | --- |
+| **git push/pull** | **keeps working.** The remote is SSH (`git@github.com:…`), which authenticates with your SSH key, not the token. Only the URL changes |
+| **CI** | **keeps working.** No workflow references `secrets.*`; `GITHUB_TOKEN` is automatic. The repository is public, so Actions stay free |
+| **`gh`, and everything Claude does with it** | **breaks at the transfer**, and stays broken until a new token exists. A fine-grained token is issued against a *resource owner*, and the repository will have a different one |
+| **web links to the old URL** | redirect automatically |
+| **`deploy.sh`** | its CI gates use `gh`, so it is unusable between the transfer and the new token. **Do not deploy during the migration** |
+
+#### 1 · Create the organisation — owner
+
+```text
+https://github.com/organizations/plan  →  Free
+  name     delphside
+  email    your own
+  belongs  "My personal account"
+```
+
+**Do not transfer anything yet.** Look around first: if the organisation is
+wrong in some way, it is far easier to fix while it holds nothing.
+
+#### 2 · Set the token policy before the repository moves — owner
+
+```text
+Organisation → Settings → Personal access tokens → Settings
+  ✅ Allow access via fine-grained personal access tokens
+  ⚪ Do not require administrator approval
+```
+
+**Before, not after.** Set afterwards, every token needs approving by hand at
+the moment you most want things to work.
+
+#### 3 · Issue the new token — owner, *before* the transfer
+
+```text
+Settings → Developer settings → Personal access tokens → Fine-grained tokens
+  Resource owner    delphside          ← the change that matters
+  Repository access Only select repositories → tile-lite-elite
+  Permissions       match the current token, plus **Projects: Read-only**
+  Expiry            your choice
+```
+
+Copy the token. It cannot be shown again.
+
+**Why before**: the moment the repository moves, `gh` stops working. Having the
+replacement already in hand turns an outage into a paste.
+
+#### 4 · Transfer the repository — owner
+
+```text
+Repository → Settings → General → Danger Zone → Transfer ownership
+  new owner   delphside
+```
+
+#### 5 · Point `gh` at the new token — owner
+
+```bash
+gh auth login --with-token          # paste, then Ctrl-D
+gh repo view delphside/tile-lite-elite --json name    # should answer
+```
+
+#### 6 · The repository's own references — Claude
+
+```bash
+git remote set-url origin git@github.com:delphside/tile-lite-elite.git
+```
+
+and four string literals: `Cargo.toml`'s `repository` key, and one docs link in
+each of `.github/ISSUE_TEMPLATE/requirement.yml` and `project.yml`.
+
+#### 7 · Verify — Claude
+
+| | |
+| --- | --- |
+| `git fetch` and a push | the SSH remote resolves |
+| `scripts/verify.sh` | CI status, milestones and branches all read through `gh` |
+| `scripts/actions.py` and `scripts/pipeline.py` | both derive the repository from `gh repo view` and should need no change — this proves it |
+| `gh api graphql` on `projectsV2` | should stop returning `FORBIDDEN` |
+| a trivial commit and push | CI runs under the new owner |
+
+#### 8 · The second account — owner, and it can wait
+
+```text
+a new GitHub account:  SteveStyle-typed-by-Claude
+  → invite it to the organisation
+  → give it write access to tile-lite-elite
+```
+
+#171's reasoning: the name *"states the relationship rather than implying an
+independent contributor."* Nothing depends on this account until Delivery 2, so
+it can follow later without holding anything up.
+
+#### If it goes wrong
+
+**The transfer is reversible** — transfer it back to `SteveStyle`. Nothing is
+deleted, issues and history move with the repository, and the old URL redirects
+either way. The only thing that cannot be undone by transferring back is a
+token you have already destroyed, which is why step 3 comes before step 4.
+
 ### Delivery 2 onwards — how we use it
 
 Deliberately not planned yet. Each of these is a separate decision that the
