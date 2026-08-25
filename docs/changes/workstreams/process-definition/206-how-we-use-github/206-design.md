@@ -115,6 +115,13 @@ owns**, to solve a reporting problem — or creating an organisation, which is
 exists cannot be read by our tooling at all today, so even "leave the data where
 it is and just render it from a Project" is blocked by the same wall.
 
+**Confirmed after the move to an organisation, 2026-08-25.** A token whose
+resource owner is the organisation still cannot read a **user-owned** project:
+`user(login:…).projectsV2` returns `totalCount: 1` and `nodes: [null]`. So the
+existing untitled board **did not come across** and remains unreadable. If
+Projects are used at all, the project must be **org-owned** and created fresh —
+the move does not rescue the old one.
+
 | | needs |
 | --- | --- |
 | inspecting the board while designing | a classic token, or an org |
@@ -176,7 +183,7 @@ apply at all.**
 | the claim | what is true here |
 | --- | --- |
 | **Actions minutes become a small shared pool** | **Does not apply.** This repository is **public**, so Actions are free and unlimited. It ran **1,104 workflow runs** in the last month — the one item that could have been a real cost is zero |
-| **Repository URLs change and links break** | **Four references**, in three files: `Cargo.toml`'s `repository` key and a docs link in each of the two issue templates. Plus one `git remote`. `actions.py` and `pipeline.py` **derive** the repository from `gh repo view`, so they need no change at all |
+| **Repository URLs change and links break** | **Five references** in four files: `Cargo.toml`'s `repository` key, a docs link in each of the two issue templates, and `docs/3.1-setup.md`'s `git clone` line. Plus one `git remote`. `actions.py` and `pipeline.py` **derive** the repository from `gh repo view`, so they needed no change — which the migration on 2026-08-25 proved rather than asserted. *Measured as four before the move; the listing that produced that number excluded `.md` files* |
 | **Token approval overhead every few months** | Real by default, and a **one-time setting**: an organisation owner can set the personal access token policy to not require approval. It is administration, not recurring administration |
 | **Context switching, feature bloat** | True and subjective. Two settings dashboards instead of one, and an interface built for companies |
 
