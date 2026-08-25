@@ -373,7 +373,7 @@ deliberate: **"the organisation and the account exist and nothing is broken"** i
 a different claim from **"we now use them"**, and only the first is
 hard to reverse.
 
-### Delivery 1 — the structure exists, and nothing is broken
+### Delivery 1 — the organisation, and nothing is broken — **done, `0.7.0c`, 2026-08-25**
 
 Nothing changes about how we work. At the end of it every existing thing does
 what it did before, from a different URL.
@@ -386,8 +386,14 @@ what it did before, from a different URL.
 | update the four references: `Cargo.toml`'s `repository`, and a docs link in each issue template | Claude |
 | set the organisation's personal access token policy to **not require approval** | owner |
 | re-scope or reissue the fine-grained token against the organisation | owner |
-| create the second account and add it to the organisation | owner |
 | verify: CI runs, `deploy.sh`'s gates read CI, `actions.py` and `pipeline.py` still work | Claude |
+
+**The second account moved out of this delivery** and became Delivery 2. It was
+step 8 of the runbook, marked *can wait* — and a delivery is *one act of putting
+change in front of whoever consumes it*. Creating an account, inviting it and
+granting it access is a separate act with its own verification, and leaving it
+inside Delivery 1 would have meant a delivery that was finished except for the
+part nobody had done.
 
 **Route**: `service` for the organisation and the account — neither leaves a
 trace in git, so both want rows in `docs/4.8`. `repository` for the four
@@ -500,7 +506,23 @@ deleted, issues and history move with the repository, and the old URL redirects
 either way. The only thing that cannot be undone by transferring back is a
 token you have already destroyed, which is why step 3 comes before step 4.
 
-### Delivery 2 onwards — how we use it
+### Delivery 2 — the second account exists
+
+| | who |
+| --- | --- |
+| create `SteveStyle-typed-by-Claude` | owner |
+| invite it to `delphside`, with write access to `tile-lite-elite` | owner |
+| decide what the commit trailer says once the author is genuinely different | both |
+| a pull request opened by it, approved natively by the owner — **the thing that proves it** | both |
+
+**Nothing depends on it until then**, which is why it is a delivery of its own
+rather than a prerequisite. The reasoning from #171 stands on the name: it
+*"states the relationship rather than implying an independent contributor."*
+
+**What it unlocks and does not yet do**: native Approve becomes possible. Whether
+the parser is then deleted is 2.4, and still open.
+
+### Delivery 3 onwards — how we use it
 
 Deliberately not planned yet. Each of these is a separate decision that the
 structure makes *available* rather than compulsory: issue fields for size (2.1E),
