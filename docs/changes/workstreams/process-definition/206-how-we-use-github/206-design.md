@@ -226,11 +226,22 @@ is the native mechanism rather than a slash command a parser has to notice.
 **#197 may never need to be done**, which was the possibility this project was
 raised to test.
 
-**How the account is attached, and why it is right.** It has **write on the
-repository as a collaborator**, and is *not* an organisation member
-(`orgs/delphside/members` is empty). That is less privilege, not an oversight:
-it can reach this repository and nothing else in the organisation, which is what
-a machine account for one repository should have. Worth keeping deliberately.
+**How the account is attached.** It is an **organisation member** of
+`delphside`, and has **write on `tile-lite-elite`**.
+
+*Corrected 2026-08-25.* This first said it was **not** a member, because
+`gh api orgs/delphside/members` returned `[]`. That endpoint lists **publicly
+listed** members only, to a caller that is not itself a member — and org
+membership is private by default. The token is owned by the organisation rather
+than being a member of it, so it saw nothing and I read nothing as *no*.
+**Absence of data from an API probe is not absence of the fact**, which is the
+second time that mistake has been made here.
+
+**The privilege question is still worth asking**, now on the real state: an org
+member can be given reach beyond this repository, where an outside collaborator
+cannot. With one repository the distinction is theoretical. It stops being
+theoretical the moment a second one exists — a stress harness (#91) or a bot
+client (#10) — so it is worth revisiting then rather than now.
 
 **`/prov` is the only outcome with no native equivalent**, and the owner closed
 that gap on 2026-08-23: *"in the absence of provisional approval, I can use
