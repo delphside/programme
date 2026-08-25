@@ -124,6 +124,37 @@ it is and just render it from a Project" is blocked by the same wall.
 **2.1A costs none of this.** A label needs nothing the token does not already
 have, which is a point in its favour that was invisible until this was measured.
 
+#### 2.1.2 What each field mechanism can actually do
+
+From GitHub's documentation, checked 2026-08-25 (via Gemini, whose summary
+matched the docs it cited — **not measured by us**, unlike 2.1.1):
+
+| | Project custom fields | Organisation issue fields |
+| --- | --- | --- |
+| types | single-select, text, number, date, **iteration** | single-select, text, number, date |
+| **visible on the issue page** | **no** — only inside the board | **yes**, in the sidebar beside labels and milestone |
+| **settable when raising an issue** | **no** — add it to the board first, then fill it in | **yes**, at creation |
+| scope | that one board | every repository in the organisation |
+| account needed | any | **organisation** |
+
+**Two consequences that matter more than the token constraint.**
+
+**A Project field cannot be answered at raise time.** Type and release are asked
+by the requirement form, at creation, and the whole point of the form is that
+raising is a five-second act. A Project field would have to be filled in later,
+on a board, after adding the issue to it. **So 2.1D can only ever hold
+attributes decided *after* raising** — size, and little else. It is not a
+candidate for type or release at all.
+
+**A Project field is invisible where people look.** An attribute nobody sees on
+the issue is an attribute that exists only for whoever opens the right board.
+That is tolerable for a planning aid and wrong for a classification the process
+depends on.
+
+**Neither point rules out a Project as a *report*.** They rule it out as the
+**store** for anything the form asks. Which is the storing/reporting split
+again: a board is a fine view and a poor home.
+
 ### 2.2 Who owns the repository
 
 | option | | |
@@ -211,6 +242,7 @@ and workstream stay where they are.
 | **for** | R4 met without a migration; the table view is the spreadsheet asked for; the sub-issues progress column is a live workstream rollup we do not have |
 | **against** | a value in a Project is not on the issue — an issue outside the board has none, and something must keep the board complete. R1, R2, R3 all unmet |
 | **and the one that may kill it** | **our tooling cannot read a user-owned Project at all** (2.1.1). This option therefore requires a **classic token**, widening access from one repository to everything the account owns — to solve a reporting problem. That is a worse trade than it looked before it was measured |
+| **and a second** | a Project field **cannot be set when an issue is raised** and **is not visible on the issue page** (2.1.2). So it could hold size, and never type or release — which narrows this option to one attribute |
 
 ### Option 3 — Move to an organisation
 
