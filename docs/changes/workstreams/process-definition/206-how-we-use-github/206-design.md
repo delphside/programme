@@ -624,16 +624,30 @@ existed.
 already held the answers, so search and the report agree about history as well
 as the present.
 
-### Delivery 4 onwards — how we use it
+### Delivery 4 onwards — what is left
 
-Deliberately not planned yet. Each of these is a separate decision that the
-structure makes *available* rather than compulsory: issue fields for size (2.1E),
-native review replacing the parser (2.4B), release notes (2.5), and whatever
-answers 2.6.
+**Most of what this section used to list has been done.** It named issue fields
+for size, native review replacing the parser, release notes and 2.6 — three of
+the four landed in Deliveries 2 and 3, and 2.6 was answered as **D36** and
+applied without needing a delivery at all. Revised 2026-08-26.
 
-**The order matters less than the fact that none of them is forced.** If the
-organisation turns out to be uncomfortable, Delivery 1 can stand alone and
-nothing has been committed.
+| | | |
+| --- | --- | --- |
+| 2.1 — where attributes are stored | **done** | Delivery 3 |
+| 2.4 — native review replaces the parser | **done** | Delivery 2, and the parser deleted in #220 |
+| 2.6 — what applies an answer once decided | **answered** as D36, applied in `docs/3.6` §2.18 | no delivery needed |
+
+**What remains:**
+
+| | |
+| --- | --- |
+| **delete the seven type labels**, and `index` / `workstream` / `project` | nothing reads them once Delivery 3 lands. A tidy-up, not a decision |
+| **2.5 — where release notes live** | `docs/4.9` alone, or a GitHub Release generated from it. Untouched, and the only original question still open |
+| **the requirement form** | it still asks type and release as **body text**, which the issue field now supersedes. That is D32's gap closing itself, and it changes `.github/ISSUE_TEMPLATE/requirement.yml` |
+| **whether `pipeline.py` survives** | issue types are searchable natively — `type:Requirement` in the issues list — so some of what the report does is now available without it. Worth deciding by using both rather than by arguing |
+
+**None of it is forced.** If the organisation turns out to be uncomfortable,
+Deliveries 1 to 3 stand and nothing further is committed to.
 
 ## Part 5 — Impacted artefacts
 
