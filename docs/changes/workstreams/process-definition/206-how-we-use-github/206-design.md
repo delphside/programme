@@ -76,9 +76,25 @@ Each is a decision on its own. Part 3 combines them.
 | **A. a label** | works today; free; queryable by `gh` and the API | one label per value, so a five-value attribute is five labels. No ordering, no numbers, and the list grows without structure |
 | **B. a milestone** | already how `release` works | **one per issue**, so exactly one attribute can use it. `deploy.sh` depends on this one |
 | **C. the sub-issue parent** | already how `workstream` works; structural, so it cannot disagree with itself | one parent, so again a single attribute |
-| **D. a Project single-select field** | made for this; sortable, filterable, groupable; available on a **personal** repo | the value lives in the Project, not the issue — an issue outside the Project has no value at all |
+| **D. a Project custom field** | sortable, filterable, groupable; available on a **personal** repo | the value lives in the Project, not the issue — an issue outside the Project has no value at all |
 | **E. an issue field** | on the issue itself, where it belongs | **organisation only** |
 | **F. free text in a comment** | costs nothing, says anything | not queryable, and drifts: `prod-tooling`, `prod tooling`, `production tooling` |
+
+**D and E are *mechanisms*, not data types — and this is easy to muddle.**
+*Single-select* is a **data type**, and **both** D and E offer it, along with
+text, number and date. What differs is where the field lives and who can see it:
+
+| | lives on | scope | data types it offers |
+| --- | --- | --- | --- |
+| **D. Project custom field** | a board | any account | single-select, text, number, date, **iteration** |
+| **E. issue field** | the issue | **organisation only** | single-select, text, number, date, **multi-select** |
+
+So *"a single-select field"* does not name an option. What we adopted in
+Delivery 3 is **E** — issue fields — three of which happen to have the
+`SINGLE_SELECT` data type: `Type of change`, `Effort` and `Priority`.
+
+*Corrected 2026-08-26, after the wording here caused exactly that confusion in
+review.*
 
 **Today**: type = A, release = B, workstream = C, size and artefacts = F.
 
