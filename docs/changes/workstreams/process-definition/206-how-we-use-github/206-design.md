@@ -583,7 +583,48 @@ rather than a prerequisite. The reasoning from #171 stands on the name: it
 **What it unlocks and does not yet do**: native Approve becomes possible. Whether
 the parser is then deleted is 2.4, and still open.
 
-### Delivery 3 onwards — how we use it
+### Delivery 3 — issue types and fields replace labels — **2026-08-26**
+
+**What is stored where, after it:**
+
+| attribute | store | enforced |
+| --- | --- | --- |
+| **level** | **issue type** — Requirement · Project · Workstream · Index | one only, natively |
+| **type of change** | **issue field**, single-select, 7 options | **one only** — labels allowed two, and #157 had two |
+| **effort** | issue field — High · Medium · Low, **empty means unknown** | R4's gap, closed |
+| **priority** | issue field (GitHub's own) | see §3.4, which reversed |
+| release | milestone, unchanged | `deploy.sh` reads it |
+| workstream | the sub-issue parent, unchanged | structural |
+
+**Two things a label could not do**, and they are why this was worth the churn:
+
+- **Set at creation.** An issue field appears when an issue is raised, so the
+  requirement form's answer *is* the stored value. Labels forced the form to put
+  the answer in the body for somebody to apply by hand afterwards — D32, parked,
+  and the gap that #215 records.
+- **One value.** Nothing stopped two type labels, and #157 carried `bug` and
+  `minor-function` until this exposed it.
+
+**A hazard that disappeared rather than being handled.** `status.sh` matched
+these as substrings of a comma-joined label string and carried a comment saying
+`non-prod-tooling` had to be tested before `prod-tooling`, because one contains
+the other. An exact field value removes the ordering entirely.
+
+**The tooling**: `pipeline.py`, `actions.py` and `status.sh` read the type and
+the field. `gh issue list --json` exposes neither, so `status.sh` moved to
+GraphQL — and `{owner}`/`{repo}` expand in a REST path but **not** in a GraphQL
+document, which cost a round of debugging.
+
+**Delivered projects now come from search**, not the issues connection: with
+190-odd closed issues returned newest-first in pages of 100, a project closed a
+while ago fell off the end, and the report showed **zero** delivered while two
+existed.
+
+**All 194 issues were backfilled** — open and closed — from the labels that
+already held the answers, so search and the report agree about history as well
+as the present.
+
+### Delivery 4 onwards — how we use it
 
 Deliberately not planned yet. Each of these is a separate decision that the
 structure makes *available* rather than compulsory: issue fields for size (2.1E),
