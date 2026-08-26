@@ -537,7 +537,37 @@ deleted, issues and history move with the repository, and the old URL redirects
 either way. The only thing that cannot be undone by transferring back is a
 token you have already destroyed, which is why step 3 comes before step 4.
 
-### Delivery 2 — the second account exists
+### Delivery 2 — the second account exists — **2026-08-26**
+
+#### How Claude authenticates as it, and why not by switching login
+
+`gh auth login` is **machine-wide**: switching it would make the owner's own
+`deploy.sh` and `verify.sh` runs act as the bot too. Instead the bot's token
+lives in `~/.gh-bot-token` (0600) and is passed per command:
+
+```bash
+GH_TOKEN="$(< ~/.gh-bot-token)" gh pr create ...
+```
+
+Plain `gh` remains the owner. Three properties follow, and all three were the
+reason for choosing it:
+
+| | |
+| --- | --- |
+| the owner's login is untouched | anything he runs still acts as him |
+| every bot action **says so in the command** | rather than depending on which account happens to be active |
+| reverting is deleting one file | there is no auth state to unpick |
+
+**The token's permissions**, deliberately minimal: Contents, Issues and Pull
+requests write; Actions and Commit statuses read; Metadata. **Not** granted:
+Administration, Secrets, Environments, Members. Workflows was left off — pushes
+go over SSH, so a token-authenticated push never modifies `.github/workflows/`.
+
+**Git still pushes as the owner**, over SSH with his key. That is not a gap: a
+pull request's author is whoever **created the pull request**, which is what
+gates self-approval — not who pushed the branch.
+
+#### The original delivery steps
 
 | | who |
 | --- | --- |
