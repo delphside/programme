@@ -76,9 +76,25 @@ Each is a decision on its own. Part 3 combines them.
 | **A. a label** | works today; free; queryable by `gh` and the API | one label per value, so a five-value attribute is five labels. No ordering, no numbers, and the list grows without structure |
 | **B. a milestone** | already how `release` works | **one per issue**, so exactly one attribute can use it. `deploy.sh` depends on this one |
 | **C. the sub-issue parent** | already how `workstream` works; structural, so it cannot disagree with itself | one parent, so again a single attribute |
-| **D. a Project single-select field** | made for this; sortable, filterable, groupable; available on a **personal** repo | the value lives in the Project, not the issue — an issue outside the Project has no value at all |
+| **D. a Project custom field** | sortable, filterable, groupable; available on a **personal** repo | the value lives in the Project, not the issue — an issue outside the Project has no value at all |
 | **E. an issue field** | on the issue itself, where it belongs | **organisation only** |
 | **F. free text in a comment** | costs nothing, says anything | not queryable, and drifts: `prod-tooling`, `prod tooling`, `production tooling` |
+
+**D and E are *mechanisms*, not data types — and this is easy to muddle.**
+*Single-select* is a **data type**, and **both** D and E offer it, along with
+text, number and date. What differs is where the field lives and who can see it:
+
+| | lives on | scope | data types it offers |
+| --- | --- | --- | --- |
+| **D. Project custom field** | a board | any account | single-select, text, number, date, **iteration** |
+| **E. issue field** | the issue | **organisation only** | single-select, text, number, date, **multi-select** |
+
+So *"a single-select field"* does not name an option. What we adopted in
+Delivery 3 is **E** — issue fields — three of which happen to have the
+`SINGLE_SELECT` data type: `Type of change`, `Effort` and `Priority`.
+
+*Corrected 2026-08-26, after the wording here caused exactly that confusion in
+review.*
 
 **Today**: type = A, release = B, workstream = C, size and artefacts = F.
 
@@ -583,16 +599,71 @@ rather than a prerequisite. The reasoning from #171 stands on the name: it
 **What it unlocks and does not yet do**: native Approve becomes possible. Whether
 the parser is then deleted is 2.4, and still open.
 
-### Delivery 3 onwards — how we use it
+### Delivery 3 — issue types and fields replace labels — **2026-08-26**
 
-Deliberately not planned yet. Each of these is a separate decision that the
-structure makes *available* rather than compulsory: issue fields for size (2.1E),
-native review replacing the parser (2.4B), release notes (2.5), and whatever
-answers 2.6.
+**What is stored where, after it:**
 
-**The order matters less than the fact that none of them is forced.** If the
-organisation turns out to be uncomfortable, Delivery 1 can stand alone and
-nothing has been committed.
+| attribute | store | enforced |
+| --- | --- | --- |
+| **level** | **issue type** — Requirement · Project · Workstream · Index | one only, natively |
+| **type of change** | **issue field**, single-select, 7 options | **one only** — labels allowed two, and #157 had two |
+| **effort** | issue field — High · Medium · Low, **empty means unknown** | R4's gap, closed |
+| **priority** | issue field (GitHub's own) | see §3.4, which reversed |
+| release | milestone, unchanged | `deploy.sh` reads it |
+| workstream | the sub-issue parent, unchanged | structural |
+
+**Two things a label could not do**, and they are why this was worth the churn:
+
+- **Set at creation.** An issue field appears when an issue is raised, so the
+  requirement form's answer *is* the stored value. Labels forced the form to put
+  the answer in the body for somebody to apply by hand afterwards — D32, parked,
+  and the gap that #215 records.
+- **One value.** Nothing stopped two type labels, and #157 carried `bug` and
+  `minor-function` until this exposed it.
+
+**A hazard that disappeared rather than being handled.** `status.sh` matched
+these as substrings of a comma-joined label string and carried a comment saying
+`non-prod-tooling` had to be tested before `prod-tooling`, because one contains
+the other. An exact field value removes the ordering entirely.
+
+**The tooling**: `pipeline.py`, `actions.py` and `status.sh` read the type and
+the field. `gh issue list --json` exposes neither, so `status.sh` moved to
+GraphQL — and `{owner}`/`{repo}` expand in a REST path but **not** in a GraphQL
+document, which cost a round of debugging.
+
+**Delivered projects now come from search**, not the issues connection: with
+190-odd closed issues returned newest-first in pages of 100, a project closed a
+while ago fell off the end, and the report showed **zero** delivered while two
+existed.
+
+**All 194 issues were backfilled** — open and closed — from the labels that
+already held the answers, so search and the report agree about history as well
+as the present.
+
+### Delivery 4 onwards — what is left
+
+**Most of what this section used to list has been done.** It named issue fields
+for size, native review replacing the parser, release notes and 2.6 — three of
+the four landed in Deliveries 2 and 3, and 2.6 was answered as **D36** and
+applied without needing a delivery at all. Revised 2026-08-26.
+
+| | | |
+| --- | --- | --- |
+| 2.1 — where attributes are stored | **done** | Delivery 3 |
+| 2.4 — native review replaces the parser | **done** | Delivery 2, and the parser deleted in #220 |
+| 2.6 — what applies an answer once decided | **answered** as D36, applied in `docs/3.6` §2.18 | no delivery needed |
+
+**What remains:**
+
+| | |
+| --- | --- |
+| **delete the seven type labels**, and `index` / `workstream` / `project` | nothing reads them once Delivery 3 lands. A tidy-up, not a decision |
+| **2.5 — where release notes live** | `docs/4.9` alone, or a GitHub Release generated from it. Untouched, and the only original question still open |
+| **the requirement form** | it still asks type and release as **body text**, which the issue field now supersedes. That is D32's gap closing itself, and it changes `.github/ISSUE_TEMPLATE/requirement.yml` |
+| **whether `pipeline.py` survives** | issue types are searchable natively — `type:Requirement` in the issues list — so some of what the report does is now available without it. Worth deciding by using both rather than by arguing |
+
+**None of it is forced.** If the organisation turns out to be uncomfortable,
+Deliveries 1 to 3 stand and nothing further is committed to.
 
 ## Part 5 — Impacted artefacts
 
