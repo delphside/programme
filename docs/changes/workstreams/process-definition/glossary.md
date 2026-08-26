@@ -103,6 +103,7 @@ to read it.
 | **D32** | Does a workflow map the form's answers to labels? | **answered** | [Classifying a change](#classifying-a-change-type-route-release) |
 | **D34** | How is a delivery that ships no application code identified? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D35** | Is *triaged* a finished state, or a working one? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
+| **D36** | What happens when a decision is marked decided? | **answered** | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1247,6 +1248,47 @@ That is real, and it is smaller than it looks:
 **What is bought is that both documents get to be what they are.** The
 requirement stays as it was raised, and the project has a body it can rewrite
 without destroying anything.
+
+#### D36 · What happens when a decision is marked decided? — **answered: applied in the same commit, or an issue is raised**
+
+**Decided 2026-08-26.** Owner: *"either the answer is applied in the same commit
+as the decision is marked decided, or an issue is raised."*
+
+**Recording a decision and applying it were two acts, and only the first had a
+home.** That gap bit four times in four days, every time found by accident:
+
+| | |
+| --- | --- |
+| **D34** superseded **D6** | the #174 design still quoted D6 days later |
+| **D7** decided 2026-08-20 | left unapplied, and its shape went stale against decisions made after it |
+| seven decisions from 23–24 August | existed only in issue comments until an audit went looking |
+| **D5** — no ruleset on `main` | applied to the documents and **not** to #160 and #144, which still assume otherwise |
+
+**The rule closes it by making the two acts one**, or by making the gap tracked
+work:
+
+> A decision marked **answered** is applied to the numbered documents **in the
+> same commit** that marks it answered — or an **issue is raised** and named in
+> the decision.
+
+**Nothing else is acceptable**, and that is the point. *"I will apply it
+later"* is the state this rule abolishes: later has no owner, no date and no
+record, and four times out of four it did not happen.
+
+**It also makes #215's check possible.** A checker could not previously tell a
+decision that had been applied from one that had not, because *applied* had no
+signature. Now it has two: a citation in a numbered document, or an issue
+number. Both are queryable, which a good intention is not.
+
+**Where an issue is the honest answer**: the decision needs design, or it is
+blocked on work that has not happened. D7 was exactly that — deferred until #174
+was live — and the failure was not the deferral, it was that the deferral lived
+nowhere a tool could see.
+
+**What it does not cover**, and #215 records it: a decision can also invalidate
+**open issues** and **tooling** that assume otherwise. D5 reached the documents
+and not #160, #144, `roadmap.sh` or `status.sh`. This rule catches the documents.
+Whether that is enough is #215's to decide.
 
 #### D35 · Is *triaged* a finished state, or a working one? — **answered: a working one**
 
