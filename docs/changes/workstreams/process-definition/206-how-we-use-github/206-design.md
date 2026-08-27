@@ -335,7 +335,7 @@ Choosing the account structure does not choose the rest:
 | **2.4** | whether native review fully replaces the parser, and what happens to `/prov` |
 | **2.5** | ~~where release notes live~~ — decided 2026-08-27: **both**, and they answer different questions. `deploy.sh` publishes a GitHub Release per `prod-` tag with generated notes; `docs/4.9` stays the delivery log, because a delivery that ships no code has no tag |
 | **2.6** | **what applies an answer once decided** — still the choice with no good option, and an organisation does not solve it |
-| — | ~~what happens to `pipeline.py`~~ — decided 2026-08-27: deleted, Delivery 5 |
+| — | ~~what happens to `pipeline.py`~~ — decided 2026-08-27: deleted, Delivery 4 Part 2 |
 
 **And one thing the decision does not license**: moving `release` off the
 milestone. `deploy.sh` reads it.
@@ -640,7 +640,20 @@ existed.
 already held the answers, so search and the report agree about history as well
 as the present.
 
-### Delivery 4 — the forms, and the field set — **2026-08-27**
+### Delivery 4 — the forms, the board, and release notes — **2026-08-27**
+
+**One delivery in three parts.** All three were designed, built and merged on
+the same day, in the same pull request (#227), and the repository route has
+**one delivery moment** — the push to `origin/main` ([3.6](../../../../3.6-change-lifecycle.md)
+§2.15). Owner, 2026-08-27: *"then the three changes went in one delivery."* They
+were drafted as Deliveries 4, 5 and 6, which is why the parts below still read
+as three separate arguments; what makes them one delivery is that nothing
+reached anybody until the merge, and then all of it did at once.
+
+It carries the identifier `0.7.0f` in [4.9](../../../../4.9-delivery-log.md), as
+one row.
+
+#### Part 1 — the forms, and the field set
 
 **What this section used to be.** It was called *Delivery 4 onwards — what is
 left*, and it listed three remaining things: 2.5, the requirement form, and
@@ -683,10 +696,10 @@ for it. `Type of change` and `Effort` are pinned to Requirement and Project,
 `Phase` and `Priority` to Project alone, and the two dates to nothing, which is
 how *kept but out of the way* is expressed.
 
-**2.5 was answered on the same day** — see Delivery 6. Nothing from the original
-six questions is now open.
+**2.5 was answered on the same day** — Part 3. Nothing from the original six
+questions is now open.
 
-### Delivery 5 — the board replaces the report — **2026-08-27**
+#### Part 2 — the board replaces the report
 
 **`pipeline.py` is decommissioned.** Owner, 2026-08-27, after a day of trialling
 the board: *"agreed, we have answered the question — we will use GH project views
@@ -733,7 +746,7 @@ plausible-looking results that are simply wrong. Fields are readable through
 GraphQL and project views only, which is why the board is now the only place
 some questions can be asked.
 
-### Delivery 6 — release notes have a home — **2026-08-27**
+#### Part 3 — release notes have a home
 
 **2.5, the last of the six original questions: both, because they answer
 different questions.** Owner, 2026-08-27: *"add `gh release create` to
@@ -771,7 +784,7 @@ The full account is in [3.3](../../../../3.3-testing-ci-and-release.md) §3.3.1.
 | --- | --- | --- |
 | `.github/workflows/docs.yml` — the `commands` job | modified, or **deleted** | repository |
 | `scripts/actions.py` — reads the `approved` label | modified | repository |
-| `scripts/pipeline.py` | **deleted** — Delivery 5 | repository |
+| `scripts/pipeline.py` | **deleted** — Delivery 4, Part 2 | repository |
 | `docs/3.6` §2.18 and §3.8 | modified | repository |
 | `docs/4.8-artefacts.md` | modified — a configured Project, an organisation and a second account are all artefacts under change control | repository |
 | `docs/4.9-delivery-log.md` | modified, if 2.5C | repository |
