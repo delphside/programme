@@ -1133,11 +1133,22 @@ phases — owner: *"scoping and design are done in the same phase for us."*
 | **deployment** | is it live? | the **release**: milestone, `prod-` tag, smoke test | `deploy.sh` exits 0 |
 | **post-deployment** | did it do what it was for? | a **review** — *not built* | the project closes |
 
-**Recorded as a `phase:` label** on the project's issue, hand-set. The
+**Recorded in the `Phase` issue field** on the project's issue, hand-set. The
 interesting boundaries are judgements — *"user testing is finished"* is not
 visible to a script — and a phase changes a handful of times per project, which
-is when hand-set state does not drift. A label rather than a body line, because
-a label is filterable where the work is done.
+is when hand-set state does not drift.
+
+**It was five `phase:` labels until 2026-08-27**, and became a field for the same
+reason the type labels did: one value, one home, a fixed list of values the
+sidebar offers rather than a name somebody types. The field also draws the
+projects board — `Column by: Phase`, swimlanes by parent — so the five phases are
+columns work moves across rather than a filter you have to remember.
+
+**There is no *ready to start* phase, and no *blocked*.** Owner, 2026-08-27:
+*"as it is just us we don't need to distinguish between ready to start, and
+started, which we would do if work was assigned to team members."* A project with
+no phase set has not been picked up; a project that is blocked says so in its
+issue, where the reason lives.
 
 ### Where the gates are, and why there are only three
 
@@ -3267,10 +3278,11 @@ as a section of its own, and the script rows join the table in `docs/3.0`.
 | **issue** | one change, or one project | the body is the conclusion, the comments are the argument |
 | **parent issue** · **sub-issue** | a workstream and its parts | real GitHub links, so structure is read rather than inferred |
 | **milestone** | a **release**, or a lane | `deploy.sh` closes the milestone and every open issue in it, which is why anything not shipping must leave first |
-| **type label** | what a change is, and what it owes | the seven: `bug`, `documentation`, `non-prod-tooling`, `prod-tooling`, `major-function`, `minor-function`, `appearance` |
-| **`phase:` label** | where a project is | five, hand-set — scope-and-design, development, user-testing, deployment, post-deployment |
-| **`awaiting-review`** | it is Steve's turn | set by hand or by `/ready`; the native draft flag cannot be set by our token |
-| **`approved`** | reviewed; the merge is Claude's to run | approving and merging are different decisions, so this never merges anything |
+| **issue type** | which level it is | `Index`, `Workstream`, `Project`, `Requirement` — set when the issue is raised |
+| **`Type of change` field** | what a change is, and what it owes | the seven: `bug`, `documentation`, `non-prod-tooling`, `prod-tooling`, `major-function`, `minor-function`, `appearance` |
+| **`Phase` field** | where a project is | five, hand-set — scope and design, development, user testing, deployment, post-deployment. Unset means not picked up |
+| **`Effort` field** | how big, roughly | `High`, `Medium`, `Low`. Unset means triage could not say |
+| **review state** | whose turn it is | native: GitHub's own review decision and requested reviewers. There are no review labels |
 | **task list in an issue body** | an **action** — the only surface that carries state | `(Steve)` / `(Claude)` prefix makes "waiting on whom" derivable |
 | **task list in a pull request body** | the **review checklist**, which is the review itself | a workflow fails the check while a box is unticked |
 | **pull request** | one change's passage: review, readiness, mechanics | frozen at merge, so conclusions are promoted to the issue body or a document before then |
