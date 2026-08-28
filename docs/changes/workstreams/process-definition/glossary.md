@@ -584,8 +584,10 @@ headings, and applies the matching label. **Labels only, nothing else** — the
 rule `docs.yml` already keeps, which is what makes anything it gets wrong a
 puzzled reader rather than an irreversible act.
 
-It also removes `needs-triage`, which the form applies to every issue, once both
-labels are on.
+It also removed `needs-triage`, which the form applied to every issue — until
+2026-08-28, when the queue became *a requirement with no workstream* and the
+label retired. The workstream is the one triage act that cannot happen at
+raising, so its absence needs no label to say so. See `docs/3.6` §2.18.
 
 **The known fragility, stated rather than discovered**: a form's body carries the
 *heading text*, not the field `id`. Parsing is therefore by heading, and renaming
@@ -636,7 +638,7 @@ second copy of CI's markdown lint: the cost of a small tool is never the writing
 | | |
 | --- | --- |
 | the dropdowns still earn their place | they **prompt**, and somebody who has just answered *"what kind of change is this?"* is one click from the sidebar with the answer in mind |
-| `needs-triage` needs no workflow | the form applies it to every issue it creates, so *"raised, not yet classified"* is queryable from day one. That was most of the value |
+| `needs-triage` needed no workflow (retired 2026-08-28) | the form applied it to every issue it created, so *"raised, not yet classified"* was queryable from day one. That was most of the value |
 | nothing is silently wrong | the body records what was said at raising, the label records what is true now, and they are **allowed** to differ — see below |
 
 ###### Which one is authoritative, and which one triage changes
@@ -3407,7 +3409,7 @@ section does not, because a second copy of a rule is the copy that goes stale.
 | question | script |
 | --- | --- |
 | where is every open change, and what is each environment running? | `status.sh` |
-| what is in each release, in release order? | `roadmap.sh` |
+| what is in each release? | the board — projects grouped by milestone. `roadmap.sh` until 2026-08-28 |
 | what is waiting on me? | `actions.py` |
 | what has been said on GitHub since I last looked? | `inbox.sh` |
 | is everything actually in place? (asserts, exits non-zero) | `verify.sh` |
