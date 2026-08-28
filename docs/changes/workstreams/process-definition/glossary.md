@@ -3509,16 +3509,20 @@ The costs stand and are worth restating: deeper paths, a move when an issue's
 workstream changes — rare — and one more round of broken links, which is the
 argument for doing **every** folder move in a single change.
 
-## Background: an integration domain's pipeline, 2011–2012
+## Background: a comparable pipeline from a previous programme
 
-Owner, 2026-08-22, pointing at a folder from a previous working life: *"from an
-old project I worked on. I am not sure we should copy it, but it may help to
-compare."* Read on that basis — comparison, not a source.
+Owner, 2026-08-22, on a process he had run before: *"I am not sure we should
+copy it, but it may help to compare."* Read on that basis — comparison, not a
+source.
 
-**What it was.** A supplier's integration domain inside a large telecoms
-programme, tracked in Excel: a pipeline of **work packages**, each in a
-**portfolio**, moving through **gates 0 to 6**, with a **quote** per gate range,
-a **Design Governance Meeting** and a sign-off chain, a **dependency** column, a
+**Described in shape only.** The programme itself is somebody else's and is not
+named or characterised here; what follows is the structure, because the
+structure is what the comparison is about.
+
+**What it was.** A team maintaining a set of systems and delivering into many
+external projects, tracked in a spreadsheet: a pipeline of **work packages**,
+each in a **portfolio**, moving through numbered **gates**, with a **quote** per
+gate range, a governance meeting and a sign-off chain, a **dependency** column, a
 **priority list**, **planned/achieved** dates, and a weekly **status report** of
 dated one-line updates per work package.
 
@@ -3526,11 +3530,11 @@ dated one-line updates per work package.
 
 Owner, 2026-08-22, correcting an over-close reading of the mapping below: *"this
 was a plan for a team maintaining an application and delivering into many
-projects. A requirement was an IRIS raised by the external project, and possibly
+projects. A requirement was a request raised by the external project, and possibly
 they would raise many for their different phases."*
 
 **Their projects were somebody else's, and upstream.** An external project raised
-an IRIS; the team quoted it, gated it, and delivered a work package into it. The
+a request; the team quoted it, gated it, and delivered a work package into it. The
 team never owned a project — it owned an application and a queue of demand
 against it.
 
