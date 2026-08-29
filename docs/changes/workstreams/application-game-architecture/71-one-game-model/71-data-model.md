@@ -109,6 +109,34 @@ pub struct CompositionKey {
 that could be forgotten, which is why it belongs inside the single handler
 rather than anywhere else.
 
+**Undo increments `board_version`; it does not restore it.** Asked directly,
+2026-08-29, and worth stating because the opposite is the natural thing to
+write: *"if there is an undo the board version would increment rather than
+return to what it had been?"* It increments.
+
+```text
+turn 8, board_version 41   a word is staged, keyed on 41
+undo                        turn 7, board_version 42   ← new, higher
+redo                        turn 8, board_version 43   ← new again
+```
+
+The board at `board_version 43` is byte-for-byte the board at 41. **The number
+is not**, and that is the point: the staged word is discarded at the undo and
+stays discarded through the redo, because it was composed against a board the
+player has since moved away from and back to. A key that restored to 41 would
+resurrect it.
+
+This is the note's own rule about `version` — *"a game can return to a state it
+already held, so anything derived from state repeats and a client comparing
+with `>` silently ignores the update"* — applied one level down. `turn` is a
+description of the game and repeats; `board_version` is an identifier for *when
+the board was last set* and cannot.
+
+**So restoring it would be the bug**, and it is the plausible mistake: undo
+restores the board, and restoring the field that describes the board looks
+consistent. It is not. Undo restores **content**; versions only ever count
+**changes**, and an undo is a change.
+
 **`turn` still earns its place**, as the note says: it is game state, it is what
 undo walks, and it is what a player is shown. It is simply not a key.
 
