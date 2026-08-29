@@ -1,0 +1,485 @@
+# 71 Data model, modules and message flows
+
+**The shapes behind [`71-design.md`](71-design.md).** That note argues what
+must be true; this says what is written. Nothing here overrides it — where they
+differ the note wins and this is wrong.
+
+**Everything below is proposed, not built.** Types are given as they would be
+written, so that reviewing them is reviewing the design rather than a summary
+of it.
+
+## What exists today, for comparison
+
+| | today | after |
+| --- | --- | --- |
+| the domain seat | `ParticipantState` — 11 flat fields, `resigned: bool`, `rack: Rack` always present | `Seat` — a state enum carrying what that state has |
+| a seat's invitation | folded on every read from `game_invitations` rows | a field on the seat |
+| freshness | `version: i64` on `GameSession`, moved by whoever remembers | moved by one handler, which is the only writer |
+| the turn | `turn_number: i64`, doubling as a version | `turn` and `version` are separate counters |
+| the client's rack | `racks: Vec<RackDto>`, a hidden rack sent as an empty one | `SeatRack::Hidden(u8)` on the seat |
+| a display name | copied into `ParticipantState` and `snapshot_json` | resolved when the DTO is built |
+| who may see what | `ViewerAccess::{Rejected, Creator, Participant{seat}}` — one seat | the set of seats an account holds |
+| engine turns | `run_engine_turns` loops to `MAX_ENGINE_TURNS_PER_TRIGGER` holding the write lock | a task per turn, holding nothing while it thinks |
+| the games map | `HashMap<String, GameSession>` under one `RwLock` | `HashMap<String, Arc<RwLock<GameSession>>>` |
+
+## 1 · Domain types
+
+### The seat
+
+`ParticipantState` is replaced. The fields that survive do so because they are
+true of every seat in every state; the rest move into the state that owns them.
+
+```rust
+pub struct Seat {
+    pub number: u8,
+    pub kind: SeatKind,                   // Human | Engine, as today
+    pub player: Option<PlayerId>,         // resolved when the seat is created
+    pub engine: Option<EngineId>,
+    pub invitation: Option<Invitation>,   // fixed at creation; None for own seat and bots
+    pub state: SeatState,
+    pub hidden_by_player: bool,           // "removed from my list" — per seat, not per game
+    pub reminder_sent_turn: Option<i64>,
+}
+```
+
+`display_name` is gone — that is the lookup rule. `resigned: bool` is gone:
+`SeatState::Departed { how: Departure::Resigned, .. }` says it, and says which
+of the three ways it happened. `score` and `rack` move inside the states that
+have them, which is what stops a `Claimed` seat carrying a rack it cannot have.
+
+`SeatState`, `Invitation`, `Departure` and `SeatRack` are as
+[`71-design.md`](71-design.md) gives them, and are not repeated here.
+
+### The session
+
+```rust
+pub struct GameSession {
+    pub id: GameId,
+    pub status: GameStatus,
+    // …variant, language, board_layout, rules, state, bag, moves, messages,
+    //   consecutive_scoreless_turns, move_time_limit_seconds, turn_started_at
+    //   are unchanged…
+    pub seats: Vec<Seat>,                 // was `participants: Vec<ParticipantState>`
+    pub current_seat: u8,
+    pub turn: i64,                        // was `turn_number`; a turn count again
+    pub version: i64,                     // every change, of any kind
+}
+```
+
+**Two counters, and the difference is the point.** `version` moves for anything
+a client can see, including a chat message and a rename. `turn` moves only when
+the board does. The client keys a half-composed move on `turn`, so an
+opponent's chat no longer discards it — the reason the note takes the turn back
+out of undo's hands.
+
+### The message
+
+`GameMessage` is in the note. What it needs alongside it is the result:
+
+```rust
+pub struct Applied {
+    pub version: i64,          // the version this change produced
+    pub event: GameEvent,      // what happened, structured — for the log and the client
+    pub finished: bool,        // the caller settles ratings and stats on the edge
+    pub next: Option<u8>,      // the seat now on turn, if any — the engine hook
+}
+
+pub enum ApplyError {
+    NotYourTurn { seat: u8 },
+    SeatNotPlaying { seat: u8 },
+    GameNotActive,
+    IllegalMove(rules_shared::MoveError),
+    Unknown(String),
+}
+```
+
+**`next` is how a bot's turn is noticed** without anybody searching for one. The
+handler already knows who is on turn after applying; returning it means the
+caller can hand that seat to the engine runner and return.
+
+### The one handler
+
+```rust
+impl GameSession {
+    /// The only method that mutates a game. Validates, applies, advances the
+    /// version, records the event — in that order.
+    pub fn apply(&mut self, message: GameMessage, now: i64)
+        -> Result<Applied, ApplyError>;
+}
+```
+
+Everything else on `GameSession` becomes a reader. The methods that mutate
+today — `maybe_run_engine_turn`, the action handlers, the invitation writers —
+either disappear into `apply` or become callers of it.
+
+**Enforced by visibility, not by discipline.** `seats`, `state`, `bag`,
+`version` and `turn` become private to the module holding `apply`, with readers
+for what the outside needs. A second writer then does not compile, which is the
+difference between this and `announce_invitation_change`.
+
+## 2 · The wire
+
+### The seat, on the wire
+
+```rust
+pub struct SeatDto {
+    pub number: u8,
+    pub kind: SeatKind,
+    pub player_id: Option<String>,
+    pub engine_id: Option<String>,
+    pub state: SeatStateDto,          // mirrors SeatState, tagged
+    pub rack: Option<SeatRackDto>,    // present only for Playing
+    pub score: Option<i32>,
+}
+
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SeatRackDto {
+    Visible { tiles: RackDto },
+    Hidden  { count: u8 },
+}
+```
+
+`ParticipantDto` loses `display_name`, `invitation_status`, `invited_email`,
+`resigned`, `rating_before`, `rating_after` and `current_rating`. The first four
+are now the seat's state; the last three are facts about an event or a
+projection, per the note.
+
+### The game, on the wire
+
+```rust
+pub struct GameStateDto {
+    pub id: String,
+    pub version: i64,
+    pub turn: i64,                    // new — the composition key
+    pub status: GameStatus,
+    // …variant, language, board_layout, current_seat, winner_seat,
+    //   final_bonus_*, bag_count, move_time_limit_seconds, turn_started_at,
+    //   board, moves, messages unchanged in shape…
+    pub seats: Vec<SeatDto>,          // was `participants`
+    pub players: Vec<PlayerRefDto>,   // new — the lookup, resolved at build
+}
+
+/// Everything about a person that a game refers to but does not own.
+pub struct PlayerRefDto {
+    pub id: String,
+    pub display_name: String,
+    pub current_rating: Option<f64>,
+}
+```
+
+**`players` is what makes the lookup rule renderable.** The game holds ids; the
+client needs names; resolving at DTO-build time is what makes a rename arrive
+without anything being copied into game data. It carries every player the game
+mentions — seats, chat authors, event subjects — so a client never has a
+dangling id.
+
+`racks: Vec<RackDto>` disappears from the top level: a rack belongs to a seat,
+and hiding one is `SeatRackDto::Hidden`, not an empty rack.
+
+### Structured descriptions
+
+`MoveRecordDto.description` and the prose in events are replaced:
+
+```rust
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum GameEventDto {
+    Placed        { seat: u8, main_word: String, score: i32 },
+    Passed        { seat: u8 },
+    Exchanged     { seat: u8, count: u8 },
+    Resigned      { seat: u8 },
+    ForceResigned { seat: u8, by: String },
+    TimedOut      { seat: u8 },
+    SeatInvited   { seat: u8 },
+    InvitationAccepted { seat: u8 },
+    InvitationDeclined { seat: u8 },
+    SeatWithdrawn { seat: u8 },
+    Started, Aborted, Finished { winner: Option<u8> },
+    UserDetailsUpdated { player: String },
+}
+```
+
+Seat numbers and player ids, not sentences. The client renders them, which is
+the only way any of it is readable in a language other than the one the server
+was written in — and this service already ships Spanish dictionaries.
+
+### The envelope
+
+```rust
+pub enum ServerMessageDto {
+    /// The whole state, redacted for this recipient. Sent on connect, on
+    /// reconnect, and after every change.
+    State { game: GameStateDto, because: Option<GameEventDto> },
+    Rejected { message: String },
+}
+```
+
+**Whole state, never a diff.** A diff needs the client to hold the prior
+version and needs the server to know which one it holds; the state is small,
+and `should_apply_update`'s version comparison already discards what a client
+has. `because` is what the log records and what a client shows in the move
+list — it is not applied.
+
+## 3 · The interface layer
+
+A new crate. `api` keeps depending on `serde` alone; `rules-shared` keeps
+knowing nothing about the wire.
+
+```text
+crates/api            DTOs and serde. No rules, no engine.
+crates/rules-shared   the domain: GameState, Rack, Tile, MoveCandidate.
+crates/game-wire      NEW. depends on both. The conversion, both directions.
+crates/server-game    depends on game-wire.
+crates/ui             depends on game-wire.
+crates/test-client    NEW. depends on game-wire.  (see 71-test-approach.md)
+```
+
+```rust
+// crates/game-wire
+pub fn game_to_dto(session: &GameSession, viewer: &ViewerAccess) -> GameStateDto;
+pub fn game_from_dto(dto: &GameStateDto) -> Result<GameView, WireError>;
+
+pub fn board_from_dto(cells: &[BoardCellDto]) -> Result<Board, WireError>;
+pub fn rack_from_dto(rack: &RackDto) -> Result<Rack, WireError>;
+pub fn move_candidate_from_dto(m: &MoveCandidateDto) -> Result<MoveCandidate, WireError>;
+```
+
+`board_from_dto`, `tile_from_dto` and `move_candidate_from_dto` exist today
+inside `server-game`, which is exactly why no other client can have them. They
+move here unchanged in behaviour.
+
+**`GameView` is what a client can rebuild** — the game as this viewer is
+entitled to see it, with `SeatRack::Hidden` where a rack was withheld. It is
+not `GameSession`: a client has no bag and no other player's tiles, and a type
+that pretended otherwise would be lying in the type system.
+
+**The identity is a property test over this crate**, which is the point of
+putting it here:
+
+```rust
+// for any session and viewer:
+game_from_dto(&game_to_dto(&session, &viewer))  ==  session.view_for(&viewer)
+```
+
+## 4 · Access
+
+```rust
+pub struct ViewerAccess {
+    pub player: Option<PlayerId>,
+    pub seats: Vec<u8>,        // every seat this account holds — not one
+    pub is_creator: bool,
+}
+```
+
+`Creator` stops being a rank below participant: an account can be the creator
+*and* hold two seats. What a viewer may see is the union over `seats`, which is
+the live defect the note names — today `.find(...)` returns one seat, so a
+player holding two has one of their own racks hidden from them.
+
+## 5 · Database
+
+| table | change |
+| --- | --- |
+| `games` | add `version integer not null default 0`, add `turn integer not null default 0`. `snapshot_json` changes shape |
+| `game_participants` | drop `display_name`. Add `state text not null`, `invitation_id text`, `hidden_by_player integer not null default 0`. Keep `outcome`, `bingo_count`, `score` — stats read them without loading a snapshot |
+| `game_invitations` | unchanged. It stays the record of who was asked and what they said, which DEL-2 reads |
+| `game_moves`, `game_messages` | drop `display_name` from messages; descriptions become structured |
+
+**`version` and `turn` become columns** rather than living only inside
+`snapshot_json`, because a sweep needs to find games by state without
+deserialising every snapshot, and because a column can be indexed.
+
+**Migration is a deletion.** The note settles this: existing games are deleted,
+users and ratings kept. So the migration is a schema rewrite plus
+`delete from games`, and the risk is entirely in what it must *not* delete —
+`players`, `player_ratings`, `rating_history`, `sessions`.
+
+## 6 · Modules
+
+| module | what happens to it |
+| --- | --- |
+| `game_state.rs` | `ParticipantState` → `Seat`; gains `apply`; loses every other mutator. Its private fields are what enforce the single writer |
+| `app/games.rs` (999 lines) | the action handlers become thin: parse, build a `GameMessage`, call `apply`, publish. `run_engine_turns` and `MAX_ENGINE_TURNS_PER_TRIGGER` go |
+| `app/roster.rs` (391) | seat add/remove/swap become `GameMessage`s |
+| `app/invitations.rs` (367) | send/accept/decline become `GameMessage`s; the table write stays, the seat write moves into `apply` |
+| `app/events.rs` (105) | gains `publish(Applied)` — persist, broadcast, one place |
+| `app/sweeps.rs` (268) | timeouts and retention go through `apply` rather than writing rows, which is what makes them visible to clients |
+| `app/admin.rs` (370) | force-resign and force-end become `GameMessage`s |
+| `app/stats.rs`, `ratings.rs` | unchanged in substance; read `Applied.finished` instead of inspecting status transitions |
+| `crates/ui/src/app.rs` (5,500) | section 7 |
+| `crates/engine-core` | **unchanged.** The trait already takes a request and returns an action; what changes is who calls it |
+
+## 7 · The client
+
+### Where the state lives
+
+```rust
+selected_game: Signal<Option<GameId>>,        // intent
+cache:         Signal<Option<GameStateDto>>,  // what the server last said
+composition:   Signal<Option<Composition>>,   // keyed, see below
+
+pub struct Composition {
+    pub key: CompositionKey,
+    pub staged: Vec<StagedPlacementView>,
+    pub cursor: Option<usize>,
+    pub direction: Option<DirectionDto>,
+    pub blank_letter: Option<String>,
+    pub exchange: Option<HashSet<usize>>,
+}
+
+pub struct CompositionKey {
+    pub game: GameId,
+    pub turn: i64,      // not `version` — chat must not void a half-typed word
+    pub seat: u8,
+}
+```
+
+The seven composer signals become one optional struct with a key. `selected_id`
+stops being read back out of the loaded DTO, which is what currently makes
+*deselect* and *clear the panes* the same action.
+
+### How updates are centralised
+
+**One entry point for anything the server says.** `apply_game_update` is called
+from **23 sites** in `app.rs` today; each is a place that could forget
+something. It becomes one:
+
+```rust
+/// The only function that writes `cache`. Every response and every socket
+/// frame arrives here.
+fn on_server_state(&mut self, incoming: GameStateDto, because: Option<GameEventDto>) {
+    if !should_apply(self.cache.peek().as_ref(), &incoming) { return; }  // as today
+    self.cache.set(Some(incoming));
+    // nothing else. No clearing, no cascade.
+}
+```
+
+**And nothing clears the composition.** It is filtered on read:
+
+```rust
+fn live_composition(&self) -> Option<Composition> {
+    let key = self.current_key()?;              // from selected_game + cache
+    self.composition.peek().clone().filter(|c| c.key == key)
+}
+```
+
+That is the note's *stop clearing, start matching*, made concrete: a writer that
+forgets cannot cause the failure, because no writer participates.
+
+**Two side effects stay explicit**, because they are not state: storing the
+session token, and tearing down the socket. Everything else is derived on
+render, which is what Dioxus does for free.
+
+### What this does not become
+
+Not a reducer over an event enum. Dioxus already propagates; a reducer would
+sit on top of that and duplicate it, at the cost of rewriting a 5,500-line
+component. The centralisation that is worth having is **one writer of the
+server cache**, not one writer of everything.
+
+## 8 · The engine
+
+### What does not change
+
+```rust
+pub trait GameEngine: Send + Sync {
+    fn metadata(&self) -> &EngineMetadata;
+    fn choose_action(&self, request: EngineRequest<'_>) -> EngineResponse;
+}
+```
+
+`EngineRequest` borrows `&GameState`, `&Rack`, `&VariantRules` — all
+`rules-shared` types, none of them server types. **That is why the engine can
+be lifted out at all**, and it is already true today.
+
+### What changes: who calls it
+
+```rust
+/// Same code in the server and in a client. Given a view of a game and an
+/// engine, decide whether it is this seat's turn and what to do about it.
+pub fn take_turn(
+    engine: &dyn GameEngine,
+    view:   &GameView,          // from game_wire::game_from_dto
+    seat:   u8,
+    budget: Option<Duration>,
+) -> Option<GameMessage>;
+```
+
+**In the server**, after `apply` returns `Applied { next: Some(seat), .. }` and
+that seat is an engine seat:
+
+1. the request returns — the human's move is already applied and broadcast
+2. a task is spawned holding **no lock**
+3. it builds the view, calls `take_turn`, and searches
+4. it submits the result through `apply`, exactly as a client would
+5. **the move is re-validated on arrival**, because the game may have moved —
+   aborted, or the seat retired. A rejection is normal, not an error
+
+**In a client**, the loop is the same three steps with a socket in the middle:
+
+```text
+connect, authenticate as the bot account
+on each State frame:
+    view  = game_from_dto(frame.game)
+    for seat in my_seats:
+        if view.current_seat == seat:
+            if let Some(msg) = take_turn(engine, &view, seat, budget) {
+                POST /games/{id}/actions   ← the same public route a person uses
+            }
+```
+
+**Nothing mediates.** There is no proxy and no bot-specific route: a bot posts
+the action a person posts, over the session of the bot's own account, and its
+rating moves because the account is the bot's.
+
+### What makes lifting it possible
+
+Three things, and two of them are this note's other sections:
+
+| | |
+| --- | --- |
+| the engine takes domain types, not server types | already true |
+| a client can rebuild those types from a DTO | `game_wire::game_from_dto` — §3 |
+| a hidden rack is distinguishable from an empty one | `SeatRack::Hidden(u8)` — otherwise an engine off the server reads an opponent's empty rack as fact and plays the endgame wrongly |
+
+**The third is the one that would have been missed.** An engine running in the
+server sees the whole game; the same engine in a client sees a redacted one, and
+today redaction is indistinguishable from an empty rack. Lifting the engine out
+without fixing that would give it a confident wrong answer rather than an
+absent one.
+
+### Where the engine runs is not in the data model
+
+A bot seat carries an account id whichever side runs the search. The server
+writes it without authenticating because it is the server; a harness
+authenticates as the same account. Nothing downstream — ratings, stats,
+DEL-2 — can tell the difference, and that is the goal at the top of the design
+note stated as a property of the schema.
+
+## Open questions this raises
+
+**Does `apply` persist, or does its caller?** Written above as: `apply` mutates
+in memory and returns `Applied`; `events::publish` persists and broadcasts.
+That keeps `GameSession` free of the database, and makes `apply` a pure
+function of state and message — which is what makes it testable without a
+pool. The cost is that a caller can forget to publish. Enforceable by making
+`Applied` `#[must_use]`, which is weaker than the type-level guarantee the
+server side otherwise gets.
+
+**Is `GameView` one type or two?** A server holds `GameSession`; a client holds
+`GameView`. `take_turn` needs only the second. Whether the server builds a
+`GameView` of its own game to call the same function, or `take_turn` is generic
+over a trait both satisfy, decides whether there is one code path or two that
+look alike. The first is simpler and copies; the second is cheaper and is a
+trait nobody else needs.
+
+**How does the harness discover its turn on startup?** The note settles this —
+polling on start, socket thereafter. What it does not settle is what the
+harness does with a game whose bot seat is on turn but whose socket frame was
+missed while it was down, which is the same reconnect question the human client
+has and should have the same answer.
+
+**Does `turn` need to be persisted separately from `moves.len()`?** It is one
+column and one field to keep in step, against a value already derivable. The
+note argues for the field on the grounds that deriving it is a coincidence
+rather than a fact. Worth confirming that is still the view once the column
+exists.

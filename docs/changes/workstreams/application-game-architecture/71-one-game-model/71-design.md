@@ -4,6 +4,12 @@ Design note for issues #9, #10, #26, #71 and #75, and the undo work in #73
 that depends on them. **Not yet implemented** — this records the shape agreed
 before code, per docs/3.3's rule for a `major-function` change.
 
+**The concrete shapes are in [`71-data-model.md`](71-data-model.md)** — the
+types as they would be written, the DTOs, the schema, which module changes, the
+message flows, the client's state and how the engine is invoked. This note
+argues what must be true; that one says what gets written. Where they differ,
+this one is right.
+
 One goal, from which everything here follows:
 
 > **Engine code cannot tell whether it is running in the server or in a
