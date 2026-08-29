@@ -159,6 +159,46 @@ word staged while waiting survives an opponent's pass, because the board it was
 composed against is unchanged. Under `turn` as the key it would have been
 discarded for nothing.
 
+### Three categories of change
+
+Owner, 2026-08-29: *"pass and exchange do move the game state on, especially
+exchange, as does resign. So we just need to be clear what is affected and what
+we are interested in."*
+
+| category | what is in it | changed by |
+| --- | --- | --- |
+| **board** | the tiles played on the board, and nothing else | a placement; undo or redo of one |
+| **the game** | the board, plus racks, scores, the turn, resignations and timeouts | everything above, plus pass, exchange, resign, force-resign, timeout, start, abort |
+| **periphery** | chat messages | posting a message |
+
+**Only two counters exist**, and the categories are not a third and fourth.
+`version` moves for all three categories — it answers *is what I hold stale*.
+`board_version` moves for the first — it answers *is a staged word still
+placeable*. Nothing needs a counter for the middle category, because a client
+that hears anything at all replaces the whole state.
+
+**What the categories are for is deciding what to do**, and that is a property
+of the **event**, not of a counter. The envelope already carries it —
+`State { game, because: Option<GameEventDto> }` — so a client classifies the
+event rather than comparing numbers:
+
+| the client is told | it does |
+| --- | --- |
+| a **board** event | redraw the board; a staged word is void, and the `board_version` check has already discarded it |
+| a **game** event | redraw the panes — racks, scores, whose turn. Notify if it is now this player's turn |
+| a **periphery** event | a chat badge. Nothing else moves |
+| **nothing** — a refetch or a reconnect | rebuild everything, because there is no event to classify |
+
+**Exchange is the case that proves the categories are not the counters.** It
+changes the game and not the board: `version` moves, `turn` moves,
+`board_version` does not. A staged word survives it — correctly, since the board
+is unchanged — but the *exchanging seat's* rack does not, which is why the rack
+is checked separately below rather than folded into `board_version`.
+
+**And it is why `board_version` is named for the board rather than for play.**
+An earlier draft of this document used it for both jobs, which would have
+discarded a staged word every time an opponent passed.
+
 ### What `board_version` does not cover
 
 The design note sets the requirement as *"same game, still this player's turn,
@@ -368,8 +408,29 @@ pub enum GameEventDto {
     SeatWithdrawn { seat: u8 },
     Started, Aborted, Finished { winner: Option<u8> },
     UserDetailsUpdated { player: String },
+    ChatPosted    { seat: Option<u8>, player: String },
 }
+
+impl GameEventDto {
+    /// Which of the three categories this change belongs to. The client reads
+    /// it to decide what to redraw; nothing on the server branches on it.
+    pub fn category(&self) -> ChangeCategory {
+        use GameEventDto::*;
+        match self {
+            Placed { .. }                          => ChangeCategory::Board,
+            ChatPosted { .. }                      => ChangeCategory::Periphery,
+            _                                      => ChangeCategory::Game,
+        }
+    }
+}
+
+pub enum ChangeCategory { Board, Game, Periphery }
 ```
+
+**Undo and redo are classified by what they undo**, not by being undo — undoing
+a placement is a board change, undoing a pass is a game change. That falls out
+if the event carries what it reversed, which it must anyway for the log to be
+readable.
 
 Seat numbers and player ids, not sentences. The client renders them, which is
 the only way any of it is readable in a language other than the one the server
