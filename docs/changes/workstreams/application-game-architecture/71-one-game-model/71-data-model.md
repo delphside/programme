@@ -199,7 +199,112 @@ is checked separately below rather than folded into `board_version`.
 An earlier draft of this document used it for both jobs, which would have
 discarded a staged word every time an opponent passed.
 
-### What `board_version` does not cover
+### Staged tiles are displaced by occupancy, not by change
+
+Owner, 2026-08-29: *"on staged tiles, they only need to be displaced if a tile
+is played in the same cell."*
+
+That is narrower than anything above, and it removes the field. A staged word
+does not care that the board changed; it cares whether **its own cells** are
+still free. An opponent playing in the far corner takes nothing away.
+
+So there is no board counter in the composition key at all:
+
+```rust
+pub struct CompositionKey {
+    pub game: GameId,
+    pub seat: u8,
+}
+
+fn live_composition(&self) -> Option<Composition> {
+    let game = self.cache.peek().as_ref()?;
+    let c    = self.composition.peek().clone()?;
+    (c.key.game == game.id
+        && c.staged.iter().all(|s| game.board[s.index].letter.is_none())
+        && staged_tiles_still_held(&c, game))
+        .then_some(c)
+}
+```
+
+**Both conditions are comparisons against the state the DTO already carries** —
+the cells are empty, the tiles are still in the rack. Nothing is stored, nothing
+is bumped, and nothing can be forgotten in a handler. This is the third time in
+this document that deriving has beaten a counter, and the first where it removes
+one already proposed.
+
+**`board_version` therefore goes.** It was invented two revisions ago to key the
+composition, survived one narrowing when a pass turned out not to move it, and
+does not survive this one. `version` and `turn` remain; the schema and the DTO
+lose a column and a field.
+
+**Validity is a separate question from survival**, and conflating them would
+throw work away. An opponent playing *adjacent* to a staged word leaves its
+cells free but may make the word illegal — a cross-word that no longer exists,
+or a connection that has become something else.
+
+| | |
+| --- | --- |
+| the cells are taken | the tiles come back to the rack. There is nowhere for them to be |
+| the cells are free but the word is now illegal | **the tiles stay**, and the client says so |
+
+The client already runs the rules engine — `client_rules.rs` validates and
+scores before sending — so it can re-validate on every board change and mark the
+word rather than silently dismantling it. Losing a half-built word because
+somebody played elsewhere is exactly the behaviour this design exists to remove.
+
+### Three tile states, and all three already exist
+
+Owner, 2026-08-29: *"we will need to make sure that staged, just played, and
+previously played tiles are easily distinguished"*, and *"we currently
+distinguish tile played in the last move."*
+
+Both are true, and this is a **requirement to preserve rather than to build**.
+An earlier revision of this section said the board could draw only two states,
+from reading the tile-face classes alone. The third is on the **cell**:
+
+| state | drawn as | driven by |
+| --- | --- | --- |
+| **staged** | `tile-face tile-face-staged` | the composition |
+| **just played** | `board-cell-last-move` on the cell | `last_move_cells: HashSet<usize>` |
+| **previously played** | `tile-face` | the board |
+
+So what this change owes is that all three survive it. Two things put that at
+risk, and neither is obvious from the type definitions:
+
+**`last_move_cells` is computed from the DTO's move list.** Once
+`MoveRecordDto.description` becomes structured and the seat model changes, the
+computation has to be checked rather than assumed — it is exactly the kind of
+derived value that keeps working until it quietly does not, and nothing
+currently asserts it.
+
+**The staged state must survive board changes that do not touch its cells.**
+That is the section above, and it interacts here: under the current *clear on
+any change* behaviour the staged class simply disappears, which no test would
+notice because disappearing is what it is supposed to do eventually.
+
+### An enhancement this makes cheap, not part of the change
+
+*"Just played"* means the **last move**. A player returning after several moves
+sees only the most recent one highlighted, and what they actually want is
+everything that happened while they were away.
+
+The client knows the version it held before the update — `should_apply_update`
+compares against it — so *"since the version I last held"* is derivable, **if
+move records carry the version they happened at**:
+
+```rust
+pub struct MoveRecordDto {
+    pub version: i64,      // new — which version this move produced
+    // …the rest as today; `description` becomes structured…
+}
+```
+
+One field, no server state, and the log wants it anyway. Worth listing
+separately rather than folding in: it is a change to what a player sees, and it
+should be somebody's decision rather than something that arrives with a
+refactor.
+
+### What `board_version` did not cover
 
 The design note sets the requirement as *"same game, still this player's turn,
 same board underneath"*. `board_version` answers the third. The other two are
