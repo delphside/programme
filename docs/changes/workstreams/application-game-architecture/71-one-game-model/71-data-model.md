@@ -137,6 +137,63 @@ restores the board, and restoring the field that describes the board looks
 consistent. It is not. Undo restores **content**; versions only ever count
 **changes**, and an undo is a change.
 
+### Which changes move which counter
+
+Asked 2026-08-29: *"if a player passes then the turn will increment, the version
+will increment: will the board version increment?"* No.
+
+| change | `version` | `turn` | `board_version` |
+| --- | --- | --- | --- |
+| a word placed | ✓ | ✓ | ✓ |
+| a pass | ✓ | ✓ | — |
+| an exchange | ✓ | ✓ | — |
+| a chat message | ✓ | — | — |
+| an invitation sent, accepted, declined | ✓ | — | — |
+| a rename (`UpdateUserDetails`) | ✓ | — | — |
+| a resignation, force-resign, timeout | ✓ | — | — |
+| undo, redo | ✓ | ✓ back / ✓ forward | ✓ |
+| a seat added, removed, reordered | ✓ | — | — |
+
+**A pass leaving `board_version` alone is the useful case**, not an edge one: a
+word staged while waiting survives an opponent's pass, because the board it was
+composed against is unchanged. Under `turn` as the key it would have been
+discarded for nothing.
+
+### What `board_version` does not cover
+
+The design note sets the requirement as *"same game, still this player's turn,
+same board underneath"*. `board_version` answers the third. The other two are
+comparisons against current state rather than parts of the key:
+
+```rust
+fn live_composition(&self) -> Option<Composition> {
+    let game = self.cache.peek().as_ref()?;
+    let c    = self.composition.peek().clone()?;
+    (c.key.game == game.id
+        && c.key.board_version == game.board_version
+        && staged_tiles_still_held(&c, game))
+        .then_some(c)
+}
+```
+
+**The rack is the gap `board_version` leaves.** A rack changes without the board
+changing — an exchange, and a timeout returning tiles to the bag. A composition
+names tiles by rack position, so a changed rack invalidates it even though the
+board is untouched.
+
+**No third counter is needed for that.** The staged tiles can be checked against
+the rack the DTO already carries — seven tiles, compared on read — and it is a
+check the composer needs anyway, since a tile you no longer hold cannot be
+placed. Deriving beats accumulating here too.
+
+**"Still this player's turn" is deliberately not in the test above**, and that
+is a decision waiting on #88. Today a composition is only submittable on your
+turn, so requiring `current_seat == key.seat` would be right. #88 asks for
+staging *out of turn* — provisionally arranging a word while waiting — and under
+that, holding a composition through the opponent's turn is the feature. The
+board and rack conditions are correct either way; whether the turn joins them
+is #88's to settle, and it is one clause.
+
 **`turn` still earns its place**, as the note says: it is game state, it is what
 undo walks, and it is what a player is shown. It is simply not a key.
 
