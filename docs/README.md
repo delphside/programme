@@ -20,6 +20,14 @@ This folder collects the design notes and operating guides for Tile Lite Elite, 
 - [2.6 Authentication Examples](2.6-authentication-examples.md) — worked request/response walkthroughs
 - [2.7 Authentication and Invitations](2.7-authentication-and-invitations.md)
 
+## Change notes
+
+[changes/](changes/) holds a working document per change in flight — the shape
+agreed before the code, describing a transition rather than an end state,
+which is the one thing the numbered documents never do. They are deleted once
+the change ships, with anything worth keeping moved into the numbered
+documents above. Not part of the reading order.
+
 ## 3.x — Lifecycle
 
 Run in this order for a typical change: Setup once, then Development → Testing, CI & Release → Deployment → Production Support & Maintenance repeatedly.
