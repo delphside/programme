@@ -759,8 +759,8 @@ because a session mutation happens to ride along in the same handler. Removing
 those is what this note is for; adding one on the client would be a poor trade
 for one saved field.
 
-This is a finding from the client chunk that changes the server design, which
-is what chunking is supposed to produce.
+This is a finding from the client work package that changes the server design,
+which is what splitting into work packages is supposed to produce.
 
 ### How we will know the client is right
 
@@ -780,7 +780,7 @@ The Remove case was mutation-tested: deleting `game.set(None)` from
 tiles still on screen, so the passing tests are holding something up rather
 than passing vacuously.
 
-### This is a chunk, not a prerequisite
+### This is a work package, not a prerequisite
 
 Raised as **#157**, which carries the reproduction and the two handlers it
 lands in. Client-only. No server change, no API version move, no migration. It does not

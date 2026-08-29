@@ -43,7 +43,7 @@ will look like it in a diff.
 | | why |
 | --- | --- |
 | **#73** undo | a capability built *on* the model rather than evidence of it, and the largest item in the workstream. The design says the same: *"Undo is not in this change, but this change is what it waits for."* |
-| **#157** staged tile survives removal | the design settles it as *"a chunk, not a prerequisite"* — client-only, no API move, shippable before or after |
+| **#157** staged tile survives removal | the design settles it as *"a work package, not a prerequisite"* — client-only, no API move, shippable before or after |
 
 ## Migration, and what it costs
 

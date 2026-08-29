@@ -109,7 +109,7 @@ without touching the engine at all.
 
 This is the most mechanical part of the change and the most widespread. It is
 also independently testable — the behaviour should not change at all — which
-makes it a good candidate for its own chunk.
+makes it a good candidate for its own work package.
 
 ### Seat state belongs to the seat
 
@@ -138,7 +138,7 @@ moves `API_VERSION` by a major**, because an old client cannot read the new
 shapes.
 
 *Worth noting for the plan*: the note calls the opponent tile count "UI work,
-not just a data fix" — so this chunk has a visible, user-testable component,
+not just a data fix" — so this work package has a visible, user-testable component,
 where the others largely do not. It is the one that earns a preview pass.
 
 ### The engine is a client
@@ -158,7 +158,7 @@ at once on the two-core production VM.
 search runs holding the *map's* write lock, so the semaphore is bounding
 something the lock has already serialised across games. Per-game locking is
 what makes "the engine is a client that takes as long as it takes" true rather
-than aspirational; this chunk then removes the remaining coupling.
+than aspirational; this work package then removes the remaining coupling.
 
 ### Migration, and the snapshot schema version
 
@@ -208,7 +208,7 @@ deletion-guard question. Depends on B being the single write path, or it
 multiplies the places to change.
 
 **D — DTOs and redaction.** `SeatRack`, the round-trip property test, the
-opponent tile count in the UI. Moves `API_VERSION` by a major. The only chunk
+opponent tile count in the UI. Moves `API_VERSION` by a major. The only work package
 with something for a person to look at.
 
 **E — the engine as a client.** Depends on A. Small in `engine-core`, mostly in
@@ -219,10 +219,10 @@ keyed to the game and turn it belongs to, and one transition per invariant. See
 *The client has the same defect* in the note. Client-only: no server change, no
 API move, no migration, and no dependency in either direction on A–E. It has a
 failing test already (`e2e/tests/ui-state.spec.ts`), which makes it the one
-chunk that can start without anything else moving first.
+work package that can start without anything else moving first.
 
 A, B and F are independent of the design's open questions and useful whatever
-the note concludes. They are the natural first chunks — and F is the one to
+the note concludes. They are the natural first work packages — and F is the one to
 take first if the point is to get familiar with the parts of the code that were
 not written by hand.
 

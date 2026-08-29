@@ -61,16 +61,103 @@ pub struct GameSession {
     //   are unchanged…
     pub seats: Vec<Seat>,                 // was `participants: Vec<ParticipantState>`
     pub current_seat: u8,
-    pub turn: i64,                        // was `turn_number`; a turn count again
-    pub version: i64,                     // every change, of any kind
+    pub turn: i64,                        // was `turn_number`; game state, walks back under undo
+    pub version: i64,                     // every change, of any kind. Never decreases
+    pub board_version: i64,               // the `version` at which the board last changed
+    pub last_scoring_turn: i64,           // see "Deriving beats accumulating"
+
 }
 ```
 
-**Two counters, and the difference is the point.** `version` moves for anything
-a client can see, including a chat message and a rename. `turn` moves only when
-the board does. The client keys a half-composed move on `turn`, so an
-opponent's chat no longer discards it — the reason the note takes the turn back
-out of undo's hands.
+**Three counters, and only one of them is monotonic.** Corrected 2026-08-29;
+an earlier draft of this section had two and used `turn` as the composition
+key, which undo breaks.
+
+| | what it counts | monotonic? |
+| --- | --- | --- |
+| `version` | every change a client can see, including chat and a rename | **yes, always** |
+| `turn` | turns taken since the game started — **game state** | **no**: undo takes it back, redo returns it |
+| `board_version` | the `version` at which the board last changed | **yes** |
+
+Owner, 2026-08-29: *"turn is part of game state, how many turns have been taken
+since the game started. As you know we intend to introduce undo/redo, so turn
+could go backwards. Version always increments."*
+
+**So `turn` cannot key the composition**, and the reason is the one this note
+already gives for `version` being a counter rather than a description: a game
+can **return to a value it already held**. Undo to turn 7, redo to turn 8, and a
+composition staged at turn 8 before the undo matches again — against a board
+that is no longer the one it was composed on. That is the same silent-wrong-
+answer this whole note exists to remove, reintroduced by the key I chose.
+
+**`board_version` is the key**: the version at the moment the board last
+changed. It is a `version`, so it never repeats; it moves only when the board
+does, so an opponent's chat leaves a half-typed word alone; and undo *does*
+move it, because undo changes the board and produces a new higher version.
+
+```rust
+pub struct CompositionKey {
+    pub game: GameId,
+    pub board_version: i64,   // not `turn` — turn repeats, this cannot
+    pub seat: u8,
+}
+```
+
+**One field, and it costs nothing to maintain**: `apply` sets
+`board_version = version` in the arms that touch the board — `Place`, `Pass`,
+`Exchange`, and undo — and leaves it alone in the others. It is the one place
+that could be forgotten, which is why it belongs inside the single handler
+rather than anywhere else.
+
+**`turn` still earns its place**, as the note says: it is game state, it is what
+undo walks, and it is what a player is shown. It is simply not a key.
+
+### Deriving beats accumulating, and the scoreless rule is the case
+
+Owner, 2026-08-29: *"is turn useful for the terminating condition where there
+are multiple non-scoring turns?"* Yes, and it is the better shape.
+
+Today the game carries an accumulator:
+
+```rust
+pub consecutive_scoreless_turns: u8,     // SCORELESS_TURN_LIMIT = 6
+```
+
+Replaced by a mark:
+
+```rust
+pub last_scoring_turn: i64,
+// the rule, at the point of use:
+let scoreless = self.turn - self.last_scoring_turn;
+```
+
+**Three things get better, and the third is the one that matters under undo.**
+
+**It is checkable.** `turn - last_scoring_turn` can be verified against the move
+log; `consecutive_scoreless_turns` is a number that can only be trusted. A
+count that nothing can contradict is a count that can be wrong for a long time.
+
+**The rule stops being baked into the stored value.** Changing the limit from
+six to eight is a comparison changing, not stored counters meaning something
+new.
+
+**And it survives undo without unwinding.** Undo produces a new higher version
+whose content is an earlier state — so every field is restored together, and a
+derived quantity is right the moment its inputs are. An accumulator restored the
+same way is also right; the difference appears if undo is ever implemented as
+*applying an inverse* rather than restoring, where every accumulator needs its
+own decrement and one that is forgotten is silently wrong. Deriving means there
+is nothing to forget.
+
+**The honest caveat**: as the note has undo — restore, not inverse — the
+accumulator would also survive, so this is not a fix for a bug that exists. It
+is choosing the shape that stays correct under a change of undo strategy, at a
+cost of nothing.
+
+**One thing it does not change.** *Scoreless* still means what it means today —
+a pass, an exchange, or a placement scoring zero — and each is a turn, so
+`turn` advances for all three. If any of those ever stops advancing the turn,
+this derivation breaks silently, which is worth a test rather than a comment.
 
 ### The message
 
@@ -150,7 +237,8 @@ projection, per the note.
 pub struct GameStateDto {
     pub id: String,
     pub version: i64,
-    pub turn: i64,                    // new — the composition key
+    pub turn: i64,                    // new — game state, shown to the player
+    pub board_version: i64,           // new — the composition key
     pub status: GameStatus,
     // …variant, language, board_layout, current_seat, winner_seat,
     //   final_bonus_*, bag_count, move_time_limit_seconds, turn_started_at,
@@ -279,7 +367,7 @@ player holding two has one of their own racks hidden from them.
 
 | table | change |
 | --- | --- |
-| `games` | add `version integer not null default 0`, add `turn integer not null default 0`. `snapshot_json` changes shape |
+| `games` | add `version`, `turn`, `board_version` and `last_scoring_turn`, all `integer not null default 0`. `snapshot_json` changes shape |
 | `game_participants` | drop `display_name`. Add `state text not null`, `invitation_id text`, `hidden_by_player integer not null default 0`. Keep `outcome`, `bingo_count`, `score` — stats read them without loading a snapshot |
 | `game_invitations` | unchanged. It stays the record of who was asked and what they said, which DEL-2 reads |
 | `game_moves`, `game_messages` | drop `display_name` from messages; descriptions become structured |
@@ -328,7 +416,7 @@ pub struct Composition {
 
 pub struct CompositionKey {
     pub game: GameId,
-    pub turn: i64,      // not `version` — chat must not void a half-typed word
+    pub board_version: i64,   // not `turn`: turn repeats under undo, this cannot
     pub seat: u8,
 }
 ```
@@ -478,8 +566,15 @@ harness does with a game whose bot seat is on turn but whose socket frame was
 missed while it was down, which is the same reconnect question the human client
 has and should have the same answer.
 
-**Does `turn` need to be persisted separately from `moves.len()`?** It is one
-column and one field to keep in step, against a value already derivable. The
-note argues for the field on the grounds that deriving it is a coincidence
-rather than a fact. Worth confirming that is still the view once the column
-exists.
+**Does `turn` need to be persisted separately from `moves.len()`?** Settled by
+undo, 2026-08-29: yes. Under undo `turn` walks backwards while `moves` does not
+necessarily — an undone move stays in the log, since the log is the record of
+what happened and undo is itself an event. So they diverge the first time undo
+is used, and `moves.len()` was only ever a coincidence.
+
+**Is `board_version` a fourth thing to keep in step?** It is set in the same
+handler, in the arms that touch the board, and it is the only field of the four
+whose maintenance is a rule rather than a consequence. If any of these is going
+to be forgotten it is this one — so it is worth a test that asserts
+`board_version` moves for `Place`, `Pass`, `Exchange` and undo, and does not
+move for chat, an invitation or a rename.
