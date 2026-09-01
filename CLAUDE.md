@@ -55,12 +55,12 @@ one of them has a defect: fix it, don't work around it.
   including document updates. A release is a new version of the application,
   delivered to production with a new semver. Projects define their
   deliveries with the updated assets and the route.
-- A milestone is a label for a project delivery: the semver of a release, or
-  the semver of the previous release with a letter appended. The project issue
-  carries its final delivery's milestone. An earlier delivery gets its own
-  Project Delivery issue only where a release carried it, because only a
-  release needs planning. Every other delivery is a row in the project's
-  deliveries table and a lettered row in the delivery log.
+- Every project delivery has a milestone, recorded in the delivery log: the
+  release semver if it includes a release, otherwise the previous semver with
+  a letter appended. The project issue sits in its last delivery's milestone.
+  An earlier delivery gets a Project Delivery issue only if it is a release,
+  so it can be planned and show in the release view; earlier non-releases get
+  none.
 - A release milestone is a shipping list. The deploy settles everything in
   it, so move out what is not shipping before deploying.
 - Deploys build a fresh worktree at the target commit, never the working
