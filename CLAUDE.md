@@ -58,8 +58,9 @@ one of them has a defect: fix it, don't work around it.
 - A milestone is a label for a project delivery: the semver of a release, or
   the semver of the previous release with a letter appended. The project issue
   carries its final delivery's milestone. An earlier delivery gets its own
-  Delivery sub-issue only where a release carried it; everything else stays a
-  row in the project's deliveries table.
+  Project Delivery issue only where a release carried it, because only a
+  release needs planning. Every other delivery is a row in the project's
+  deliveries table and a lettered row in the delivery log.
 - A release milestone is a shipping list. The deploy settles everything in
   it, so move out what is not shipping before deploying.
 - Deploys build a fresh worktree at the target commit, never the working
