@@ -104,6 +104,7 @@ to read it.
 | **D34** | How is a delivery that ships no application code identified? | **answered** | [Delivery](#delivery-releases-applications-and-merges) |
 | **D35** | Is *triaged* a finished state, or a working one? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
 | **D36** | What happens when a decision is marked decided? | **answered** | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) |
+| **D37** | Must a new check be shown to fail before it ships? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -2991,6 +2992,14 @@ Any **one** of these makes it a normal change:
 **This entry is itself a standard change**: it records a decision the owner just
 made, a defect in it reaches nobody but us, and reverting it is one commit. So it
 went straight to `main`, which is the rule demonstrating itself.
+
+#### D37 · Must a new check be shown to fail before it ships? — **answered: yes**
+
+Decided 2026-09-01, the owner's tick on PR #278. The rule lives in
+`CLAUDE.md`: a new check is shown to fail before it ships. The argument is on
+issue #276: this fortnight proved six checks by deliberately breaking things — a
+check that has never fired cannot distinguish *nothing to do* from *not
+looking*, which is the recurring defect the reviews kept finding.
 
 ## Terminology: our words and the industry's
 
