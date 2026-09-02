@@ -39,7 +39,8 @@ one of them has a defect: fix it, don't work around it.
 
 - A branch exists to hold a change back. Branch only when the old version is
   needed while the work is in progress; otherwise commit straight to main,
-  which is what pre-approved means. One branch per project, and everything
+  which is what pre-approved means. Approval is the issue's Pre-approved
+  field; unset means not pre-approved. One branch per project, and everything
   the project touches goes on it, documentation included.
 - The pull request body is the review surface. It defines the scope of this
   delivery given the project context, and does not duplicate the project
