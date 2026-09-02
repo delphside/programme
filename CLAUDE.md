@@ -10,6 +10,8 @@ one of them has a defect: fix it, don't work around it.
   it quickly. Discussion happens in the comments; the conclusions go in the
   body, which is edited to stay current. Where the project is already clear,
   raise the project instead and skip the requirement.
+- Make a tooling change when something first needs it, not when it occurs to
+  you. The requirement is still raised; the doing waits for the need.
 - Triage is done jointly with the owner, never alone. Minimum: clear short
   description, workstream, priority, type of change. Then scope (options,
   dependencies, effort), then project planning. Outcomes: solo project,
