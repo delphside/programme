@@ -8,7 +8,8 @@ one of them has a defect: fix it, don't work around it.
 
 - Something that should be true and is not becomes a Requirement issue. Raise
   it quickly. Discussion happens in the comments; the conclusions go in the
-  body, which is edited to stay current.
+  body, which is edited to stay current. Where the project is already clear,
+  raise the project instead and skip the requirement.
 - Triage is done jointly with the owner, never alone. Minimum: clear short
   description, workstream, priority, type of change. Then scope (options,
   dependencies, effort), then project planning. Outcomes: solo project,
