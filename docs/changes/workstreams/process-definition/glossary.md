@@ -105,6 +105,7 @@ to read it.
 | **D35** | Is *triaged* a finished state, or a working one? | **answered** | [Workstreams](#workstreams-the-capabilities-we-maintain) |
 | **D36** | What happens when a decision is marked decided? | **answered** | [How the process is managed](#how-the-process-is-managed-github-folders-scripts) |
 | **D37** | Must a new check be shown to fail before it ships? | **answered** | [Process and authorisation](#process-and-authorisation-what-a-change-must-pass-through) |
+| **D38** | How is a post-deployment check written, and how is it answered? | **answered** | [Projects](#projects-phases-and-gates) |
 
 ## The levels: programme, workstream, project, work package, release
 
@@ -1929,6 +1930,26 @@ the log it asked for is unbuilt and now the project's to deliver. **#183 was
 closed as delivered, not folded**, against the instruction and on the instruction's
 own logic: everything it asked for shipped, and `folded` would have said the work
 never happened. And #179 is now the project, with #188 the workstream above it.
+
+#### D38 · How is a post-deployment check written, and how is it answered? — **answered**
+
+Decided 2026-09-02, from #282's lessons learnt. A check **says how it is done**,
+not what is being checked, and is answered **passed**, **cannot be tested** or
+**failed**, with a note.
+
+The case that produced it: #282's R1 was written as *"JISMS is not playable by
+the bot in production"*. The greylist is compiled in and only steers which move
+the engine chooses, so the behavioural test needs a constructed rack and
+production deals at random. The check named a fact and no method existed.
+
+Where a check cannot be run, two pre-deployment facts carry it: the change was
+tested outside production per the test approach, and the change was identified
+as being in the build when the build was made. The owner's note on the second:
+*what is in the build* is answered today by the planning tools rather than
+derived from the build, which is the open half.
+
+Applied in the same commit that records it (D36): `docs/3.6` gains the rule and
+`.github/ISSUE_TEMPLATE/project.yml` asks for it.
 
 ## Delivery: releases, applications and merges
 
