@@ -60,9 +60,10 @@ one of them has a defect: fix it, don't work around it.
 - Every project delivery has a milestone, recorded in the delivery log: the
   release semver if it includes a release, otherwise the previous semver with
   a letter appended. The project issue sits in its last delivery's milestone.
-  An earlier delivery gets a Project Delivery issue only if it is a release,
-  so it can be planned and show in the release view; earlier non-releases get
-  none.
+  An earlier delivery gets a Project Delivery issue if it is a release, so it
+  can be planned and show in the release view, or if its Pre-approved answer
+  differs from its project's, so that answer has somewhere to live. Other
+  earlier deliveries get none.
 - A release milestone is a shipping list. The deploy settles everything in
   it, so move out what is not shipping before deploying.
 - Deploys build a fresh worktree at the target commit, never the working
