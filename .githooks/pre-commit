@@ -24,6 +24,16 @@ MERGING=0
 # silence. This way an unrecognised path is refused, which is noisy and visible
 # and fixed by adding one line here.
 #
+# The exclusions are about what reaches the binary, not about what looks like
+# code. `include_str!` compiles data in as surely as source: the four
+# dictionaries, the greylist and denylist and the stems they are generated
+# from, and the five email templates are all `.txt` under `crates/` and all
+# ship. They are refused, and the test suite says so by name.
+#
+# Markdown is allowed anywhere, including under `crates/`, because nothing
+# `include_str!`s a `.md`. The day something does, this line is the reason it
+# passed, and it should stop being true rather than be worked around.
+#
 # `crates/*/examples`, `tests` and `benches` are excluded because they are not
 # built into the image. `old-crates/` is **not** excluded, though nothing in it
 # is compiled into the binaries: the Dockerfile `COPY`s it into the build
