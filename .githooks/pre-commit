@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# pre-commit — refuse a commit that would break the documentation checks.
+#
+# `check-docs.sh` catches broken anchors, malformed tables and headings that a
+# line beginning `#123` accidentally creates. It was already run before most
+# commits — and on 2026-09-02 three commits went out that had failed it, because
+# running a check and gating on it are different things:
+#
+#     ./scripts/check-docs.sh && echo PASS     <- reports
+#     git commit -m "..."                      <- happens anyway
+#
+# So the gate goes here, where it cannot be forgotten.
+#
+# **Only when documentation is staged.** The check reads every markdown file and
+# takes a few seconds; paying that on a commit that touches no documents would
+# make it something people bypass, which is worse than not having it.
+
+if ! git diff --cached --name-only --diff-filter=ACMR | grep -qE '\.md$'; then
+  exit 0
+fi
+
+REPO="$(git rev-parse --show-toplevel)"
+if [[ ! -x "$REPO/scripts/check-docs.sh" ]]; then
+  exit 0
+fi
+
+if ! output="$("$REPO/scripts/check-docs.sh" 2>&1)"; then
+  printf '%s\n' "$output" >&2
+  cat >&2 <<'MSG'
+
+pre-commit: the documentation checks failed, so nothing was committed.
+
+Fix what is reported above, or commit with --no-verify if you are certain —
+which is worth explaining in the commit message, because the next person to
+read it will wonder.
+MSG
+  exit 1
+fi
