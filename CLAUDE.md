@@ -41,7 +41,8 @@ one of them has a defect: fix it, don't work around it.
 
 - A branch exists to hold a change back. Branch only when the old version is
   needed while the work is in progress; otherwise commit straight to main,
-  which is what pre-approved means. Approval is the issue's Pre-approved
+  which is what pre-approved means. A document-only change never takes a
+  branch: they live too long, main moves, and the review does not happen. Approval is the issue's Pre-approved
   field; unset means not pre-approved. One branch per project, and everything
   the project touches goes on it, documentation included.
 - A pull request is what gives a review mechanics: a diff, a place to comment,
