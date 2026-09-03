@@ -18,11 +18,26 @@ MERGING=0
 # and scripts are live when they are pushed and need neither; the image is what
 # production runs.
 #
-# Measured over 140 commits on `main`, this fires once — 0b18a66f, which changed
-# the Caddyfile and docker-compose.yml directly on main during #240. Squash
-# merges are made by GitHub and never reach this hook; a local merge is skipped.
+# The rule is inverted on purpose: it lists what does **not** ship, and refuses
+# everything else. Listing what does ship means a build asset nobody thought of
+# — a new compose file, a config the Dockerfile starts copying — is missed in
+# silence. This way an unrecognised path is refused, which is noisy and visible
+# and fixed by adding one line here.
+#
+# `crates/*/examples`, `tests` and `benches` are excluded because they are not
+# built into the image. `old-crates/` is **not** excluded, though nothing in it
+# is compiled into the binaries: the Dockerfile `COPY`s it into the build
+# context, so changing it changes the image that gets built. `Cargo.toml` is not excluded even though it carries
+# dev-dependencies: it is the file that decides what ships, and telling a dev
+# dependency from a real one means parsing it.
+#
+# Measured over 140 commits on `main`, the old form fired once — 0b18a66f, which
+# changed the Caddyfile and docker-compose.yml directly on main during #240.
+# Squash merges are made by GitHub and never reach this hook; a local merge is
+# skipped.
+NON_SHIPPING='^(docs/|scripts/|e2e/|\.github/|\.githooks/|\.claude/|crates/[^/]+/(examples|tests|benches)/|LICENSE|\.gitignore$|\.markdownlint|.*\.md$)'
 if [ "$MERGING" -eq 0 ] && [ "$BRANCH" = "main" ]; then
-  IMAGE="$(printf '%s\n' "$STAGED" | grep -E '^(crates/|Cargo\.(toml|lock)$|Dockerfile$|docker-compose|Caddyfile)' || true)"
+  IMAGE="$(printf '%s\n' "$STAGED" | grep -v '^$' | grep -vE "$NON_SHIPPING" || true)"
   if [ -n "$IMAGE" ]; then
     {
       echo "commit refused: this changes what ships in the image, on main."
@@ -30,11 +45,14 @@ if [ "$MERGING" -eq 0 ] && [ "$BRANCH" = "main" ]; then
       printf '  %s\n' $IMAGE
       echo
       echo "  An image change goes through a branch and a pull request — it is what"
-      echo "  production runs. Documents and scripts are live when pushed and need"
-      echo "  neither."
+      echo "  production runs. Documents, scripts, tests and examples are live when"
+      echo "  pushed and need neither."
       echo
       echo "  git switch -c <issue>-<name> and commit there, or --no-verify with"
       echo "  the reason in the message."
+      echo
+      echo "  If one of those genuinely does not ship, add it to NON_SHIPPING in"
+      echo "  .githooks/pre-commit and say why."
     } >&2
     exit 1
   fi
