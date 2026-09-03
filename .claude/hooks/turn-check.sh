@@ -27,15 +27,20 @@ STATE=".claude/.turn-check-state"
 # alone — that is what the `Stop` hook runs, so a body Claude edited during a
 # turn is recorded at the end of it and never announced back on the next one.
 # A full `--reseed` would also swallow comments Steve wrote while the turn ran.
+#
+# `--print-filter` prints the jq filter and exits, so the part of this script
+# that has broken twice can be tested against a fixture without calling GitHub.
 RESEED=0
 BODIES_ONLY=0
+PRINT_FILTER=0
 [[ "${1:-}" == "--reseed" ]] && RESEED=1
 [[ "${1:-}" == "--reseed-bodies" ]] && { RESEED=1; BODIES_ONLY=1; }
+[[ "${1:-}" == "--print-filter" ]] && PRINT_FILTER=1
 
 NOW="$(date -u +%s)"
 if [[ -f "$STATE" ]]; then
   LAST_RUN="$(stat -c %Y "$STATE" 2>/dev/null || echo 0)"
-  (( ! RESEED && NOW - LAST_RUN < 90 )) && exit 0
+  (( ! RESEED && ! PRINT_FILTER && NOW - LAST_RUN < 90 )) && exit 0
   SINCE="$(cat "$STATE" 2>/dev/null)"
 else
   SINCE=""
@@ -71,6 +76,8 @@ FILTER='.[] | select(.user.login != "__ME__")
             | select((.body | test("^\\[deploy.sh\\]")) | not)
             | "#\(.issue_url | split("/") | last)  \(.updated_at[11:16])  \((.body | gsub("\n"; " "))[0:160])"'
 FILTER="${FILTER/__ME__/${ME:-__no_such_login__}}"
+if (( PRINT_FILTER )); then printf '%s\n' "$FILTER"; exit 0; fi
+
 NEW="$(timeout 15 gh api "repos/{owner}/{repo}/issues/comments?since=$SINCE&sort=updated&direction=asc&per_page=30" \
   --jq "$FILTER" 2>/dev/null)"
 
