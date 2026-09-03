@@ -56,6 +56,11 @@ document that holds it, never both:
 | --- | --- | --- |
 ```
 
+**The design starts with the as-is.** How the thing works today, then how it
+will work. Owner, 2026-09-03: *"sometimes, especially with the scripts, I don't
+know how they currently work which makes it difficult to understand the
+change."* Reading the code to find out is the author's job, not the reviewer's.
+
 **The two test headings are matched literally** by `verify.sh`, which counts
 unticked boxes. Write "None." under one that does not apply rather than removing
 it.
