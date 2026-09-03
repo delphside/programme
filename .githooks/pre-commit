@@ -76,7 +76,11 @@ fi
 #
 # Five artefacts were created on 2-3 September and two were unregistered, both
 # within an hour of this being written.
-NEW="$(printf '%s\n' "$STAGED" | grep -E '^(scripts/[^/]+\.(sh|py)$|\.githooks/[^/]+$|\.claude/skills/[^/]+/)' || true)"
+# `.claude/*.sh` is here because tooling is an artefact whether it runs in
+# production or not (owner, 2026-09-03). Those two hooks were outside the
+# repository and outside this rule until then, which is how turn-check.sh came
+# to be filtering comments on a marker that nothing had written for weeks.
+NEW="$(printf '%s\n' "$STAGED" | grep -E '^(scripts/[^/]+\.(sh|py)$|\.githooks/[^/]+$|\.claude/([^/]+\.sh$|skills/[^/]+/))' || true)"
 if [ -n "$NEW" ]; then
   UNREGISTERED=""
   while read -r f; do
