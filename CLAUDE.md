@@ -44,6 +44,10 @@ one of them has a defect: fix it, don't work around it.
   which is what pre-approved means. Approval is the issue's Pre-approved
   field; unset means not pre-approved. One branch per project, and everything
   the project touches goes on it, documentation included.
+- A pull request is what gives a review mechanics: a diff, a place to comment,
+  a recorded approval, a merge that waits for a tick. Pre-approved does not mean
+  unreviewed — it means the discussion was the review, which is enough where a
+  change is cheap to reverse and is not, for the image.
 - The pull request body is the review surface. It defines the scope of this
   delivery given the project context, and does not duplicate the project
   body or documents. Add the owner as reviewer at creation. He ticks and
