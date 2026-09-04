@@ -48,13 +48,18 @@ document that holds it, never both:
 ## Dependencies and related work
 
 ## Deliveries
-| | | milestone |
-| --- | --- | --- |
+| # | what it delivers | milestone | steps |
+| --- | --- | --- | --- |
 
 ## Post-deployment checks against requirements
 | requirement | how the check is done | |
 | --- | --- | --- |
 ```
+
+**A delivery's steps live in one place.** An earlier delivery with its own
+Project Delivery issue keeps its runbook there and is linked from the table; the
+last delivery has no issue, so its runbook goes under the table. Never both
+(#283 R3).
 
 **The design starts with the as-is.** How the thing works today, then how it
 will work. Owner, 2026-09-03: *"sometimes, especially with the scripts, I don't
