@@ -110,7 +110,39 @@ if [ -n "$NEW" ]; then
   fi
 fi
 
-# --- 3. the documentation checks ----------------------------------------------
+# --- 3. Rust that rustfmt would change ----------------------------------------
+#
+# Conditional, like the documents check below: 535 ms, and only when a `.rs`
+# file is staged.
+#
+# CI's format check ran red on `main` for fourteen commits on 2026-09-04 before
+# anybody looked. Nothing local checked formatting, `cargo clippy` does not, and
+# the breakage was two `println!` calls over the line width in an example — the
+# cheapest possible defect, costing a day of red CI and a release gate that
+# would have refused every one of those commits.
+#
+# `--check` exits non-zero and writes a diff without touching the tree, so a
+# refusal here never rewrites what is about to be committed.
+# The `Cargo.toml` guard is not decoration: without it the hook runs `cargo fmt`
+# in any repository that happens to contain a `.rs` file, and cargo exits
+# non-zero outside a project — refusing the commit for a reason that has nothing
+# to do with formatting.
+if printf '%s\n' "$STAGED" | grep -qE '\.rs$' \
+   && [ -f "$REPO/Cargo.toml" ] && command -v cargo > /dev/null; then
+  if ! fmt_out="$(cargo fmt --all -- --check 2>&1)"; then
+    {
+      echo "commit refused: rustfmt would change staged Rust."
+      echo
+      printf '%s\n' "$fmt_out" | grep '^Diff in' | sed 's|.*/tile-lite-elite/|  |' | sort -u
+      echo
+      echo "  Run 'cargo fmt --all' and stage the result. CI denies this, so the"
+      echo "  alternative is a red build and a release gate that refuses the commit."
+    } >&2
+    exit 1
+  fi
+fi
+
+# --- 4. the documentation checks ----------------------------------------------
 #
 # The only conditional one: it reads every markdown file and takes a few
 # seconds, so a commit touching no documents does not pay for it. A check that
