@@ -114,7 +114,7 @@ gh api graphql -f query='mutation($i:ID!){setIssueFieldValue(input:{issueId:$i,i
 ```
 
 A new project takes `Workstream`, `Phase` (usually `Scope`), `Effort` and
-`Priority`. `Route` and `Pre-approved` when they are known.
+`Priority`. `Route` when it is known. Approval is the `pre-approved` **milestone**, not a field — there is no `Pre-approved` field, it was deleted on 2026-09-04.
 
 | `Workstream` | `IFSS_kgDOAsE6Iw` |
 | … Application & Game Architecture | `IFSSO_kgDOBNJpRg` |
@@ -165,9 +165,6 @@ A new project takes `Workstream`, `Phase` (usually `Scope`), `Effort` and
 | … Deployment | `IFSSO_kgDOBNDpVg` |
 | … Post-deployment | `IFSSO_kgDOBNDpVw` |
 | … Project Closedown | `IFSSO_kgDOBNU2qA` |
-| `Pre-approved` | `IFSS_kgDOAsP9IA` |
-| … Not Pre-approved | `IFSSO_kgDOBNdCkw` |
-| … Pre-approved | `IFSSO_kgDOBNdClA` |
 
 **To clear a field rather than set it**, the mutation is `deleteIssueFieldValue`
 — not `clearIssueFieldValue`, which does not exist. Needed when converting a

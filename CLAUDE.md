@@ -42,8 +42,8 @@ one of them has a defect: fix it, don't work around it.
 - A branch exists to hold a change back. Branch only when the old version is
   needed while the work is in progress; otherwise commit straight to main,
   which is what pre-approved means. A document-only change never takes a
-  branch: they live too long, main moves, and the review does not happen. Approval is the issue's Pre-approved
-  field; unset means not pre-approved. One branch per project, and everything
+  branch: they live too long, main moves, and the review does not happen. Approval is
+  the `pre-approved` milestone; anything else, including none, means not pre-approved. One branch per project, and everything
   the project touches goes on it, documentation included.
 - A pull request is what gives a review mechanics: a diff, a place to comment,
   a recorded approval, a merge that waits for a tick. Pre-approved does not mean
@@ -68,7 +68,7 @@ one of them has a defect: fix it, don't work around it.
   release semver if it includes a release, otherwise the previous semver with
   a letter appended. The project issue sits in its last delivery's milestone.
   An earlier delivery gets a Project Delivery issue if it is a release, so it
-  can be planned and show in the release view, or if its Pre-approved answer
+  can be planned and show in the release view, or if its pre-approved answer
   differs from its project's, so that answer has somewhere to live. Other
   earlier deliveries get none.
 - A release milestone is a shipping list. The deploy settles everything in
