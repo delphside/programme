@@ -169,6 +169,15 @@ A new project takes `Workstream`, `Phase` (usually `Scope`), `Effort` and
 | … Not Pre-approved | `IFSSO_kgDOBNdCkw` |
 | … Pre-approved | `IFSSO_kgDOBNdClA` |
 
+**To clear a field rather than set it**, the mutation is `deleteIssueFieldValue`
+— not `clearIssueFieldValue`, which does not exist. Needed when converting a
+requirement to a project: `Stage` is a requirement's journey and `Phase` is a
+project's, so a converted issue carries a `Stage` that no longer means anything.
+
+```bash
+gh api graphql -f query='mutation($i:ID!){deleteIssueFieldValue(input:{issueId:$i,fieldId:"IFSS_kgDOAsC7CA"}){clientMutationId}}' -f i="$id"
+```
+
 **These ids are a cache and can go stale.** If one is rejected, re-read them:
 
 ```bash
