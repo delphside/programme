@@ -51,8 +51,54 @@ MERGING=0
 # Squash merges are made by GitHub and never reach this hook; a local merge is
 # skipped.
 NON_SHIPPING='^(docs/|scripts/|e2e/|\.github/|\.githooks/|\.claude/|crates/[^/]+/(examples|tests|benches)/|LICENSE|\.gitignore$|\.markdownlint|.*\.md$)'
+
+# The one image change that belongs on `main`: the post-deploy version bump.
+#
+# `deploy.sh` writes it immediately after a successful production deploy, and
+# `CLAUDE.md` requires it — *"bump dev to the next patch straight after each
+# production deploy; dev leads production by one"*. It cannot take a branch,
+# because a branch holds a change back (§2.2) and this one records a version
+# that is **already live**. So the rule above has an exception that is generated
+# rather than authored, and #316 is the release where the two collided: 0.7.2
+# deployed, tagged and published, then failed on its own last step.
+#
+# Recognised rather than trusted. Two conditions, both required:
+#
+#   - the staged set is exactly `Cargo.toml`, optionally with `Cargo.lock`
+#   - every changed line in them is a `version = "X.Y.Z"` line
+#
+# So a dependency added to `Cargo.toml`, a lockfile that pulls a new crate, or
+# a bump with a `crates/**` file alongside it are all still refused. The
+# exemption cannot be widened by adding a file to the commit, which is the
+# property that makes it safe to have at all.
+#
+# `<<<` and not a pipe into `grep -q`: grep exits on its first match, the
+# writer takes SIGPIPE, and under `pipefail` the pipeline reports 141 — so the
+# test would silently invert. That defect has already cost this project a
+# production deploy; see scripts/issue-mentions.sh.
+version_bump_only() {
+  local files changed
+  files="$(printf '%s\n' "$STAGED" | grep -v '^$' | sort | tr '\n' ' ')"
+  case "$files" in
+    "Cargo.toml " | "Cargo.lock Cargo.toml ") ;;
+    *) return 1 ;;
+  esac
+  changed="$(git diff --cached -U0 -- Cargo.toml Cargo.lock \
+             | grep -E '^[-+]' | grep -vE '^(\+\+\+|---)' || true)"
+  # An empty diff is not a bump. Nothing should reach here with one, but
+  # "no changed lines" must not read as "no disallowed lines".
+  [ -n "$changed" ] || return 1
+  if grep -qvE '^[-+]version = "[0-9]+\.[0-9]+\.[0-9]+"$' <<< "$changed"; then
+    return 1
+  fi
+  return 0
+}
+
 if [ "$MERGING" -eq 0 ] && [ "$BRANCH" = "main" ]; then
   IMAGE="$(printf '%s\n' "$STAGED" | grep -v '^$' | grep -vE "$NON_SHIPPING" || true)"
+  if [ -n "$IMAGE" ] && version_bump_only; then
+    IMAGE=""
+  fi
   if [ -n "$IMAGE" ]; then
     {
       echo "commit refused: this changes what ships in the image, on main."
