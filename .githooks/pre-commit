@@ -50,7 +50,17 @@ MERGING=0
 # changed the Caddyfile and docker-compose.yml directly on main during #240.
 # Squash merges are made by GitHub and never reach this hook; a local merge is
 # skipped.
-NON_SHIPPING='^(docs/|scripts/|e2e/|\.github/|\.githooks/|\.claude/|crates/[^/]+/(examples|tests|benches)/|LICENSE|\.gitignore$|\.markdownlint|.*\.md$)'
+# The pattern lives in scripts/shipping-paths.sh, sourced here and by deploy.sh,
+# which marks the same commits in its build manifest (#288). Two copies is how
+# the same defect comes to exist in two places, and this one decides both
+# whether a commit is refused and whether a release is described correctly.
+#
+# Located relative to **this hook**, not to the repository being committed to.
+# The two ship together, and `git rev-parse --show-toplevel` points at whatever
+# repo is being committed in — which is the hook's own repo in normal use and a
+# fixture's temporary one under test.
+# shellcheck source=../scripts/shipping-paths.sh
+. "$(cd "$(dirname "$0")/.." && pwd)/scripts/shipping-paths.sh"
 
 # The one image change that belongs on `main`: the post-deploy version bump.
 #
