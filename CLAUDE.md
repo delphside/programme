@@ -64,6 +64,10 @@ one of them has a defect: fix it, don't work around it.
   including document updates. A release is a new version of the application,
   delivered to production with a new semver. Projects define their
   deliveries with the updated assets and the route.
+- A pre-approved change makes no delivery, so it takes no letter milestone
+  and no row in the delivery log; its record is the closed issue and the
+  commits. The two shapes are exclusive: either straight to main with none of
+  them, or a branch, a pull request, a delivery, a letter milestone and a row.
 - Every project delivery has a milestone, recorded in the delivery log: the
   release semver if it includes a release, otherwise the previous semver with
   a letter appended. The project issue sits in its last delivery's milestone.
