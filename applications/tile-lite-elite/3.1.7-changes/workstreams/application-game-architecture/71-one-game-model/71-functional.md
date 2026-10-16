@@ -50,7 +50,7 @@ flowchart LR
   creator -- "U4.4 leave a game in play (force-resign a seat),<br/>U4.5 abort a game" --- play
   time -- "U4.4 leave a game in play (time out),<br/>U4.6 remind the player on turn" --- play
   player -- "U5.1 see my games, ratings and history,<br/>U5.2 remove a game from my list" --- follow
-  admin -- "U6.1 force-end a game, U6.2 delete an account" --- administer
+  admin -- "U6.1 force-end a game, U6.2 delete an account,<br/>U6.4 delete a game, U6.5 sign a player out" --- administer
   time -- "U6.3 remove expired games" --- administer
 ```
 
@@ -59,7 +59,7 @@ flowchart LR
 - [U3 Join a game](#u3-join-a-game): [U3.1](#u31-accept-or-decline-an-invitation) Accept or decline an invitation, [U3.2](#u32-take-an-open-seat) Take an open seat, [U3.3](#u33-withdraw-from-my-seat) Withdraw from my seat
 - [U4 Play a game](#u4-play-a-game): [U4.1](#u41-take-a-turn) Take a turn, [U4.2](#u42-ask-for-a-suggested-move) Ask for a suggested move, [U4.3](#u43-chat-in-a-game) Chat in a game, [U4.4](#u44-leave-a-game-in-play) Leave a game in play, [U4.5](#u45-abort-a-game) Abort a game, [U4.6](#u46-remind-the-player-on-turn) Remind the player on turn
 - [U5 Follow my games](#u5-follow-my-games): [U5.1](#u51-see-my-games-ratings-and-history) See my games, ratings and history, [U5.2](#u52-remove-a-game-from-my-list) Remove a game from my list
-- [U6 Look after the service](#u6-look-after-the-service): [U6.1](#u61-force-end-a-game) Force-end a game, [U6.2](#u62-delete-an-account) Delete an account, [U6.3](#u63-remove-expired-games) Remove expired games
+- [U6 Look after the service](#u6-look-after-the-service): [U6.1](#u61-force-end-a-game) Force-end a game, [U6.2](#u62-delete-an-account) Delete an account, [U6.3](#u63-remove-expired-games) Remove expired games, [U6.4](#u64-delete-a-game) Delete a game, [U6.5](#u65-sign-a-player-out) Sign a player out
 
 ## Journeys
 
@@ -135,8 +135,9 @@ holds no copy of a player's details, [71-design.md](71-design.md#open-questions)
 
 ```mermaid
 flowchart TD
-  s0((start)) --> p1["Player: signed in, changes the User ID, the email or both<br/>ACC-1"]
+  s0((start)) --> p1["Player: signed in, changes the User ID, the email,<br/>or whether their stats and history are private<br/>ACC-1"]
   p1 --> d0{"Server: which?"}
+  d0 -- "privacy" --> t5["Server: stats and history private or public<br/>(no transition)<br/>RATE-5"]
   d0 -- "User ID" --> v1{"Server: not blank, and not another account's<br/>ignoring case?"}
   v1 -- no --> r1["refused, nothing changes"]
   v1 -- yes --> t1["Server: User ID changed (no transition)<br/>each game the player is in bumps its version<br/>and is announced; the game holds no copy of the name"]
@@ -224,7 +225,7 @@ flowchart TD
   c1 --> v1{"Server: the creator's game, still Not Started?"}
   v1 -- no --> r1["refused, nothing changes"]
   v1 -- yes --> d0{"which?"}
-  d0 -- add --> c2["Creator: names a bot, a player, an email or an open seat<br/>GAME-4"]
+  d0 -- add --> c2["Creator: names a bot, a player, an email or an open seat<br/>GAME-4, GAME-10"]
   c2 --> v2{"Server: a named player exists?<br/>GAME-9"}
   v2 -- no --> r2["refused, nothing changes"]
   v2 -- yes --> t1["Server: seat appended and numbered<br/>a bot's seat Claimed,<br/>any other Invited, its invitation sent<br/>the same player or bot may hold several seats<br/>GAME-4"]
@@ -273,11 +274,11 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  s0((start)) --> p1["Player: sees games with a seat open to anyone (reads)<br/>Q10"]
+  s0((start)) --> p1["Player: sees games with a seat open to anyone (reads)<br/>GAME-10"]
   p1 --> p2["Player: accepts the seat, whether or not already seated in that game<br/>GAME-4"]
   p2 --> v1{"Server: the game still Not Started,<br/>and the seat still unclaimed?<br/>INV-3, INV-7"}
   v1 -- no --> r1["refused: no longer available, nothing changes"]
-  v1 -- yes --> t1["Server: seat Invited → Claimed, named for the claimant<br/>version bumps, everyone watching is told<br/>of two at once, one wins<br/>INV-3"]
+  v1 -- yes --> t1["Server: seat Invited → Claimed, named for the claimant<br/>version bumps, everyone watching is told<br/>of two at once, one wins<br/>GAME-10"]
 ```
 
 #### U3.3 Withdraw from my seat
@@ -341,7 +342,7 @@ flowchart TD
 ```mermaid
 flowchart TD
   s0((start)) --> p1["Player: writes a message"]
-  p1 --> v1{"Server: the caller holds a seat in the game,<br/>and the message is not blank or too long?<br/>Q13"}
+  p1 --> v1{"Server: the caller holds a seat in the game or created it,<br/>and the message is neither blank nor over 1000 characters?<br/>GAME-12"}
   v1 -- no --> r1["refused, nothing changes"]
   v1 -- yes --> t1["Server: message recorded, on or off turn, in any game state<br/>version bumps, every client told (no transition)<br/>RET-1"]
 ```
@@ -404,8 +405,11 @@ flowchart TD
   v1 -- no --> r1["refused, asked to sign in"]
   v1 -- yes --> t1["Server: finished and aborted games over 7 days old<br/>Over → removed, with their invitations<br/>RET-1, RET-4"]
   t1 --> v2["Server: lists the games the player is seated in, was invited to<br/>or created, less those they hid, newest activity first (reads)<br/>DEL-5"]
-  v2 --> p2["Player: opens a rating or a rating history, their own or another's (reads)<br/>ACC-3, DEL-10, RET-2, Q14"]
-  p2 --> p3["Player: reads times in local time (reads)<br/>CLOCK-4"]
+  v2 --> p2["Player: opens a rating, stats or a rating history,<br/>their own, another player's or a bot's"]
+  p2 --> v3{"Server: their own, only the current rating,<br/>or the other player's or bot's are public? (reads)<br/>RATE-5"}
+  v3 -- no --> r3["shown the current rating only"]
+  v3 -- yes --> t3["shown (reads)<br/>ACC-3, DEL-10, RET-2"]
+  t3 --> p3["Player: reads times in local time (reads)<br/>CLOCK-4"]
 ```
 
 #### U5.2 Remove a game from my list
@@ -421,25 +425,32 @@ flowchart TD
 ### U6 Look after the service
 
 The administrator and the clock keep the service in order: ending games
-that cannot end, removing old games, and deleting accounts.
+that cannot end, removing old games and accounts, and signing a player out.
+The admin CLI tidies old data (ADM-2); closing your own account and
+suspending one are #296's.
 
 ```mermaid
 flowchart TD
   s0((start)) --> a1["U6.1 Force-end a game"]
   s0 --> a2["U6.2 Delete an account"]
   s0 --> a3["U6.3 Remove expired games"]
+  s0 --> a4["U6.4 Delete a game"]
+  s0 --> a5["U6.5 Sign a player out"]
 ```
 
-Journeys: [U6.1 Force-end a game](#u61-force-end-a-game), [U6.2 Delete an account](#u62-delete-an-account), [U6.3 Remove expired games](#u63-remove-expired-games).
+Journeys: [U6.1 Force-end a game](#u61-force-end-a-game), [U6.2 Delete an account](#u62-delete-an-account), [U6.3 Remove expired games](#u63-remove-expired-games), [U6.4 Delete a game](#u64-delete-a-game), [U6.5 Sign a player out](#u65-sign-a-player-out).
 
 #### U6.1 Force-end a game
 
 ```mermaid
 flowchart TD
-  s0((start)) --> a1["Administrator: names a game, on the machine hosting the service<br/>Q11"]
+  s0((start)) --> a1["Administrator: names a game, on the machine hosting the service<br/>ADM-1"]
   a1 --> v1{"Server: the game exists, and is not already<br/>Finished or Aborted?"}
   v1 -- no --> r1["refused, nothing changes"]
-  v1 -- yes --> t1["Server: game Not Started or Active → Finished<br/>seats frozen as they stand, a record of the force-end kept<br/>Q11"]
+  v1 -- yes --> d1{"Server: the game started?"}
+  d1 -- no --> t0["Server: game Not Started → Aborted<br/>a record of the force-end kept<br/>GAME-11"]
+  d1 -- yes --> t1["Server: game Active → Finished<br/>seats frozen as they stand, a record of the force-end kept<br/>GAME-11"]
+  t0 --> t2
   t1 --> t2["Server: no rating changes<br/>RATE-1"]
   t2 --> t3["Server: version bumps, every client told (no transition)"]
 ```
@@ -448,19 +459,21 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  s0((start)) --> a1["Administrator: names an account or gives its id, in the admin CLI<br/>on the machine hosting the service<br/>DEL-1, DEL-9"]
+  s0((start)) --> a1["Administrator: names an account or gives its id, in the admin CLI<br/>on the machine hosting the service<br/>ADM-1, DEL-1, DEL-9"]
   a1 --> v1{"Server: the account exists? (reads)<br/>DEL-8"}
   v1 -- no --> r1["reported as not found"]
   v1 -- yes --> v2{"Server: does any game refer to it: created, seated or invited,<br/>in any state, hidden by the player or not? (reads)<br/>DEL-2, DEL-3, DEL-5"}
   v2 -- yes --> r2["refused, naming the games<br/>DEL-6"]
-  r2 --> d3{"Administrator: waits, or deletes the blocking games?"}
+  r2 --> d3{"Administrator: waits, or deletes the blocking games<br/>that are not in play?"}
   d3 -- waits --> w1["Administrator: waits, because every game goes eventually<br/>DEL-4, RET-1, RET-3, TIME-2"]
-  d3 -- deletes --> g1["Server: each blocking game removed, with its chat,<br/>moves and invitations<br/>any state → removed, Q12"]
+  d3 -- deletes --> g1["Administrator: deletes them, as in Delete a game<br/>ADM-2"]
   g1 --> a1
   w1 --> a1
-  v2 -- no --> v3{"Server: a live session? (reads)<br/>Q12"}
-  v3 -- yes --> r3["refused until the session ends or the administrator signs it out"]
+  v2 -- no --> v3{"Server: a live session? (reads)<br/>DEL-11"}
+  v3 -- yes --> r3["refused until the session ends<br/>or the administrator signs it out<br/>DEL-11"]
   r3 --> w1
+  r3 --> s1["Administrator: signs it out, as in Sign a player out"]
+  s1 --> a1
   v3 -- no --> t1["Server: sessions, invitations sent and received,<br/>rating and rating history removed, nothing of anyone else's<br/>email Live → None, account closed<br/>DEL-7, ACC-3, DEL-10"]
 ```
 
@@ -476,6 +489,26 @@ flowchart TD
   d1 -- delete --> t3["Server: Not Started → removed, the game goes at once<br/>RET-3"]
   d1 -- keep --> t4["Server: counts as activity, thirty days start again (no transition)<br/>RET-3"]
   d1 -- nothing --> t5["Time: the countdown carries on, and thirty days after the last activity<br/>Not Started → removed<br/>RET-3"]
+```
+
+#### U6.4 Delete a game
+
+```mermaid
+flowchart TD
+  s0((start)) --> a1["Administrator: names a game, in the admin CLI<br/>ADM-1"]
+  a1 --> v1{"Server: the game exists, and is not in play?<br/>ADM-2"}
+  v1 -- no --> r1["refused, nothing changes: a game in play<br/>is left to end or time out"]
+  v1 -- yes --> t1["Server: Not Started or Over → removed,<br/>with its seats, chat, moves and invitations;<br/>rating history stays<br/>ADM-2, RET-2, DEL-10"]
+```
+
+#### U6.5 Sign a player out
+
+```mermaid
+flowchart TD
+  s0((start)) --> a1["Administrator: names an account, in the admin CLI<br/>ADM-1"]
+  a1 --> v1{"Server: the account exists? (reads)"}
+  v1 -- no --> r1["reported as not found"]
+  v1 -- yes --> t1["Server: every session of the account ended<br/>(no transition)<br/>DEL-11"]
 ```
 
 ### Questions the journeys raise
@@ -589,7 +622,8 @@ the three limits.
 
 #### Q10 A seat open to anyone
 
-`create_game` and `add_seat_to_game` accept an
+Answered: the open seat stays, GAME-10 (owner, 2026-10-16). What follows is
+the question as raised. `create_game` and `add_seat_to_game` accept an
 open claim, an invitation with neither a name nor an email has no invitee,
 `list_games` shows every such invitation to every signed-in player
 (`get_open_invitations`, relationship `InvitedOpen`), and
@@ -601,6 +635,9 @@ goes.
 
 #### Q11 An administrator's force-end has no arrow, and only DEL-1 says admin actions need the host
 
+Answered: a force-end aborts a game not started and finishes one in play,
+GAME-11, and every administrator action needs the host, ADM-1 (owner,
+2026-10-16). What follows is the question as raised.
 `admin_force_finish` (game_state.rs) takes a game
 `Waiting` or `Active` to `Finished`, so a game never started can finish
 with no racks dealt. The game lifecycle has no arrow for a force-end.
@@ -611,6 +648,12 @@ DEL-1 for the host restriction.
 
 #### Q12 Administrator actions with no use case
 
+Answered (owner, 2026-10-16): the admin CLI tidies old data, so it never
+deletes a game in play, ADM-2; deleting an account waits for its sessions or
+signs it out, DEL-11; "Delete a game" and "Sign a player out" are journeys.
+Removing a misbehaving player, a player closing their own account, an
+administrator resetting a password, and the support requests and complaints
+that lead to them are #296's. What follows is the question as raised.
 The admin CLI deletes a game
 (`admin_delete_game`, admin.rs:379, `DELETE /admin/games/{id}`), resets a
 player's password (`admin_reset_password`, admin.rs:266) and signs a player
@@ -628,6 +671,10 @@ still in play.
 
 #### Q13 Some steps change a game's record and move no seat, and the invariant does not treat them alike
 
+Answered: the seated players and the creator may chat, up to 1000
+characters, GAME-12 (owner, 2026-10-16); hiding a game and recording a
+reminder save without advancing the version, [71-design.md](71-design.md#one-version-moved-in-one-place).
+What follows is the question as raised.
 Chat and hiding a game bump the version
 (`mark_changed`), hiding without a broadcast on purpose; the reminder
 (`send_move_time_reminders`, sweeps_game.rs) sets `reminder_sent_turn` and
@@ -639,6 +686,10 @@ and the record of a reminder sent are exempt, and a rule for who may chat.
 
 #### Q14 Who may read a rating
 
+Answered: the current rating is always visible, and stats and history are
+public unless the player, or whoever runs a bot, makes them private, RATE-5 (owner, 2026-10-16). The
+private flag needs a column on `players`; which migration carries it is
+settled with WP C's schema. What follows is the question as raised.
 `get_player_stats` and
 `get_player_rating_history`, and for a bot `get_engine_stats` and
 `get_engine_rating_history` (ratings.rs), require only a signed-in caller.
@@ -648,6 +699,10 @@ rating and history.
 
 #### Q15 RET-3 has no definition of "last activity" for a game not started, and nothing implements it
 
+Answered: [docs/4.2.4](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.4-persistence.md) already said the roster
+and a keep count, and RET-3 now says so, with a chat, a hide, a reminder and
+a change of a player's details not counting (owner, 2026-10-16). Still not
+built: WP C. What follows is the question as raised.
 `expire_old_terminal_games` (sweeps_capacity.rs)
 removes only Finished and Aborted games, seven days after `ended_at`;
 `last_activity_by_game` is the latest move, or the creation time when there
@@ -693,8 +748,8 @@ stateDiagram-v2
     state "Game: Finished or Aborted<br/>seats frozen as they stand" as Over
 
     Claimed --> Playing: start, deal racks
-    NotStarted --> Over: creator aborts
-    Active --> Over: a seat goes out, or creator aborts
+    NotStarted --> Over: creator aborts, or administrator force-ends
+    Active --> Over: a seat goes out, creator aborts,<br/>or administrator force-ends
     NotStarted --> [*]: RET-3, 30 days
     Over --> [*]: RET-1, 7 days
 ```
