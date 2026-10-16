@@ -273,22 +273,120 @@ repository, and step 5 switches over in one pull request.
 
 ### Stage 2
 
-The application profile (R8), then the scripts and hooks move into the
-programme repository and this repository's copies are deleted; the steps
-are written when stage 1 is done. Left for it by stage 1's review:
+Stage 2 takes every fact about Tile Lite Elite out of the programme's tooling
+into two profiles, then moves the tooling into this repository. It also
+regroups Tile Lite Elite's own scripts, which were #447's work under #421 and
+were folded in by the owner on 2026-10-16 so that the boundary is designed
+once. The facts the tooling holds today are listed, with file and line, in
+the stage 2 inventory (`/mnt/project-files/notes/485/stage2-inventory.md`,
+2026-10-16).
 
-- the change-document placement check becomes a gate in the programme
-  repository's own CI; until then Tile Lite Elite's `check-docs.sh` only
-  reports it, so programme content cannot turn an application's CI red (T1);
-- the hook T1 names, refusing a commit inside the `programme/` submodule;
-- the activity, problem and improvement registers are read from the pinned
-  submodule, so a register edit reaches the digest only when the pin moves;
-  stage 2 decides whether they are records, read from the live checkout;
-- `repo.py`'s `NOTES` prefix now matches only history, and a pin bump naming
-  an issue would count as delivery evidence for it;
-- `board-records.py` (the records path, and the session-start check that the
-  live checkout is present, on main and current) gets a row in 1.1 when the
-  scripts move.
+#### As-is
+
+The tooling is in Tile Lite Elite: `scripts/programme/` (`board/`, `docs/`,
+`reports/`), `.githooks/` and the Claude hooks in `.claude/`. It holds Tile
+Lite Elite in three ways:
+
+- constants: the repository, the board and the application name
+  (`sources.py`, `records.py`);
+- shape: what ships (`shipping.py`), where the versions are read
+  (`commit-msg`, `board-check.py`), the environment URLs (`programme.py`),
+  the `prod-` tags and the CI-status script (`repo.py`);
+- location: every script finds the repository from its own path, which
+  stops working once it runs from the `programme/` submodule.
+
+Tile Lite Elite's own scripts sit flat in `scripts/`, 35 of them.
+
+#### Layout
+
+The repositories already say whose a script is, so no folder level does
+(owner, 2026-10-16):
+
+| repository | holds |
+| --- | --- |
+| `delphside/programme` | `scripts/board/`, `scripts/docs/`, `scripts/reports/`, `.githooks/`, `.claude/hooks/`, with their tests and CI |
+| `delphside/tile-lite-elite` | `scripts/develop/`, `scripts/deliver/`, `scripts/operate/`, `scripts/measure/` (#447's grouping, kept by the owner), its tests, `.claude/settings.json`, `cloud-setup.sh` and its technical profile |
+
+Tile Lite Elite runs the programme's tooling from the pinned submodule: the
+git hooks through `core.hooksPath programme/.githooks`, the Claude hooks
+through `settings.json` entries into `programme/.claude/hooks/`, and the
+board scripts as `programme/scripts/board/...`.
+
+What checks Tile Lite Elite's own code stays there rather than becoming a
+setting: `check-api-errors.py` and `check-run-log-events.py` (to
+`develop/`), `comment-inventory.py` (to `measure/`), the `cargo fmt` hook
+step, `cloud-setup.sh`, and check-docs's two application steps. The
+reference reviewer's file table moves into a Tile Lite Elite document the
+agent reads through the technical profile.
+
+#### Two profiles
+
+Owner, 2026-10-16: one profile holds what the programme's processes need, in
+a form every application shares; the other holds the technical facts.
+
+The **programme profile** is a record, `applications/<app>/3.n.6-profile.md`,
+made from a template: identity (name, code, number, repository, board view,
+document range), versioning scheme (semver and a commit stamp for Tile Lite
+Elite, dates for Infrastructure), environments in order with their purpose
+and URL, the routes its deliveries take, its target architecture, and where
+its records are. It is markdown like every record, in fixed tables the
+scripts parse.
+
+The **technical profile** is `programme.toml` at the application
+repository's root, changed on a project branch with the code it describes
+(owner: in the application's repository; TOML):
+
+| key | holds |
+| --- | --- |
+| `versions` | how each version is read, the stamp's pattern, and the files and line pattern of a version-only bump |
+| `ships` | the globs that do not reach a release; everything else does |
+| `environments` | for each environment the programme profile names, the command that prints its URL where it is not fixed |
+| `release` | the tag prefix, the deploy announcement marker, the CI-status command |
+| `documents` | generated documents, the document map's path, the tools register |
+| `source` | where the source is, for the test designer and the reviewers |
+| `hooks` | the application's own pre-commit and check-docs steps |
+
+Where the two overlap, the programme profile names a thing and the technical
+profile says how to reach it. What every application shares (the
+organisation and the board, issue types and field options, the accounts, the
+branch and title conventions, the live checkout's default) goes in one
+programme file in this repository.
+
+A script finds its application from the repository it runs in:
+`git rev-parse --show-superproject-working-tree` from inside the submodule,
+else `--show-toplevel`. Neither needs a git remote, so test fixtures keep
+working; `PROGRAMME_PROFILE` overrides, as `PROGRAMME_DIR` does. The tests
+replace their Tile Lite Elite literals (about 170 lines in 20 files) with
+fake profiles.
+
+Issue numbers across repositories (`owner/repo#N`) are kept out: the owner
+moved them to #383 as R13 on 2026-10-16, to be delivered before Dark
+Portal's first issue.
+
+#### Also in stage 2
+
+Left by stage 1's review:
+
+- the change-document placement check becomes a gate in this repository's
+  CI; until then Tile Lite Elite's `check-docs.sh` only reports it (T1);
+- a hook refusing a commit inside the `programme/` submodule;
+- whether the activity, problem and improvement registers are records, read
+  from the live checkout, or generic documents read from the pin;
+- `repo.py`'s `NOTES` prefix matches only history;
+- `board-records.py` gets its row in 1.1.
+
+Found by the inventory: `board-digest.py` names the weekly digest `TLE_WD_`,
+where 2.1 says `PRG_WD_`.
+
+#### Delivery
+
+One branch in each repository. This repository's carries the scripts,
+hooks, programme file and profile template, with their tests and CI, and
+merges first. Tile Lite Elite's carries the deletions, the regrouping, its
+technical profile, every caller's new path (scripts, workflows, `e2e/`, the
+shell aliases, documents) and the submodule pin; the owner reviews it, and
+it is tried from the branch on preview and rehearsal before it merges,
+because `deploy.sh` moves.
 
 **Found in stage 1's trials**: a cloud thread starts in a workspace folder
 with every project repository beside it and loads each one's `CLAUDE.md`,
@@ -330,3 +428,8 @@ to need a `Decision` issue.
 | T2 | how skills, agents and hooks arrive | through the submodule, not a plugin |
 | D1 | programme repository visibility | public |
 | D2 | history of moved files | kept, with `git filter-repo` |
+| stage 2 | where the application profile lives | split in two: a programme profile in the records folder, a technical profile in the application's repository |
+| stage 2 | script layout | no programme or application level; #447's grouping kept |
+| stage 2 | #447 | folded into stage 2 |
+| stage 2 | technical profile format | TOML |
+| stage 2 | issue numbers across repositories | later, #383 R13 |
