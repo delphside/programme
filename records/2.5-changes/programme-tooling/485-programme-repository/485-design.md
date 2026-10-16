@@ -136,7 +136,7 @@ answer in the non-functional design).
 **Decided by the owner on 2026-10-16: option 1, the issue number.**
 
 A project's issue stays on its application's board (R2); its change
-document moves to `applications/<app>/changes/`; its branch stays in the
+document moves to `applications/<app>/3.n.7-changes/`; its branch stays in the
 application's repository. Three things in two repositories must still be
 found from each other.
 
@@ -250,8 +250,8 @@ second, all of this design, is made in two stages, below.
 Tile Lite Elite keeps working throughout: steps 1 to 4 only add to the new
 repository, and step 5 switches over in one pull request.
 
-1. **owner**: create `delphside/programme`, give the Claude app and
-   `BOARD_TOKEN` access, and add the same required checks and branch
+1. **owner**: with `delphside/programme` created and the Claude app and
+   `BOARD_TOKEN` given access (delivery 1), add the same required checks and branch
    protection as this repository (F3). Today's organisation board becomes
    the programme board, with a view per application.
 2. **Claude**: trial T2 on a scratch branch: a submodule and `.claude/`

@@ -9,8 +9,7 @@ folder per project named `<number>-<name>`, as for an application's
 | folder | holds |
 | --- | --- |
 | `process-definition/` | the rules, and the documents that state them, including the glossary of the early decisions |
-| `programme-tooling/` | the programme's own scripts, hooks, skills and agents, and where they live |
-| `delivery-tooling/` | the board model (`383-one-board-model/`), whose scope is the programme's |
+| `programme-tooling/` | the programme's own scripts, hooks, skills and agents, where they live, and the board model (`383-one-board-model/`) |
 
 Like any change document, these are temporary and are records of a moment
 ([1.2 §2.4](../../docs/1.2-change-lifecycle.md#24-where-a-document-lives-about-the-work-or-a-product-of-it)).

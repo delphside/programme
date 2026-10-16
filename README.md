@@ -34,7 +34,7 @@ their indexes are in [2.1](records/2.1-applications.md).
   writes records here: a commit to `main` locally, a short-lived branch and
   pull request from a cloud session.
 - The one programme board will show every repository's issues, with a view per
-  application. It is set up in delivery 1 of delphside/tile-lite-elite#485; until then the board is
+  application. It is set up in stage 1 of delphside/tile-lite-elite#485; until then the board is
   Tile Lite Elite's.
 
 The design is in [485](records/2.5-changes/programme-tooling/485-programme-repository/485-design.md).

@@ -77,7 +77,7 @@ work is in progress. A document-only change never takes one: they live too long,
 `main` moves, and the review does not happen.*
 
 *The branch and PR columns answer **yes or no first**, then say which — `yes —
-rides the same branch`, `yes — rides delphside/tile-lite-elite#341`. A cell that only explains has not
+rides the same branch`, `yes — rides #341`. A cell that only explains has not
 answered the question the column asks.*
 
 *One branch serves the delivery, not one per row. Where a Production Release row
