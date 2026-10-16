@@ -105,6 +105,12 @@ be shown is a variant; there is no other way in.
 The handler applies the change, advances the version, records the event and
 broadcasts — in that order, in one place. Nothing else writes to a game.
 
+**Two messages save without advancing the version.** `Hide` changes one
+player's own list, not the game, and `ReminderSent` records that a reminder
+went so it is not sent twice. Neither is anything another client is shown,
+so each is saved under the same lock and nothing is broadcast; neither counts
+as activity for RET-3.
+
 **A rejected message changes nothing.** The handler validates against the game
 as it stands and applies only a message that will succeed, so a refused
 exchange or placement leaves the racks and the bag as they were.
@@ -912,8 +918,7 @@ reader. Because nothing is rewritten, `created_at` is when a change happened.
 That alone does not give RET-3 a true last activity, because a chat and a hide
 are logged too, and #460 found they should not count. So `games` carries
 `last_activity_at`, set by the one handler for the events that count and left
-alone by the rest; which events count is question 15 in
-[`71-functional.md`](71-functional.md). A keep (`KeepRequested`) sets it, as
+alone by the rest; which events count is RET-3's. A keep (`KeepRequested`) sets it, as
 RET-3's "keep" requires.
 
 [^d61]: Decision #461 (D61): Core lays down the append-only log and writes it.
