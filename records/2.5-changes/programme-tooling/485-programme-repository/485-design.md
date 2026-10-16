@@ -275,7 +275,28 @@ repository, and step 5 switches over in one pull request.
 
 The application profile (R8), then the scripts and hooks move into the
 programme repository and this repository's copies are deleted; the steps
-are written when stage 1 is done.
+are written when stage 1 is done. Left for it by stage 1's review:
+
+- the change-document placement check becomes a gate in the programme
+  repository's own CI; until then Tile Lite Elite's `check-docs.sh` only
+  reports it, so programme content cannot turn an application's CI red (T1);
+- the hook T1 names, refusing a commit inside the `programme/` submodule;
+- the activity, problem and improvement registers are read from the pinned
+  submodule, so a register edit reaches the digest only when the pin moves;
+  stage 2 decides whether they are records, read from the live checkout;
+- `repo.py`'s `NOTES` prefix now matches only history, and a pin bump naming
+  an issue would count as delivery evidence for it;
+- `board-records.py` (the records path, and the session-start check that the
+  live checkout is present, on main and current) gets a row in 1.1 when the
+  scripts move.
+
+**Found in stage 1's trials**: a cloud thread starts in a workspace folder
+with every project repository beside it and loads each one's `CLAUDE.md`,
+skills and agents natively, so in the cloud the programme's arrive from the
+checkout beside, and the submodule's symlinks serve local sessions. No
+repository's `settings.json` hooks run there; the project's cloud
+environment runs each repository's `cloud-setup.sh` instead
+([`.claude/cloud-environment-setup.sh`](../../../../.claude/cloud-environment-setup.sh)).
 
 ### Delivery decisions
 
