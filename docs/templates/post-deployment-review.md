@@ -6,11 +6,11 @@ Copy to the project's folder as `post-deployment-review.md` and fill it in.
 the work is worst placed to notice what it cost, and best placed to remember
 what happened.
 
-**Where:** a section of the issue body when the project has no other documents, otherwise this file in its folder, pointed to from the body (docs/5.1).
+**Where:** a section of the issue body when the project has no other documents, otherwise this file in its folder, pointed to from the body (docs/1.2).
 
 **When:** once the project's last release is live and has been used — not on
 the day it ships. A week is usually enough for the interesting failures to
-surface, and #67 is why: it was closed by a milestone, listed as deferred in the
+surface, and delphside/tile-lite-elite#67 is why: it was closed by a milestone, listed as deferred in the
 testing report, and genuinely broken.
 
 The shape follows the **After Action Review**, whose four questions are the
@@ -66,7 +66,7 @@ each has cost us something before.
 - **Scope** — did it change mid-project, and was the change recorded where the
   scope was fixed?
 - **The milestone** — did anything close that had not shipped? `deploy.sh`
-  closes every open issue in a milestone (#67)
+  closes every open issue in a milestone (delphside/tile-lite-elite#67)
 - **Testing** — was anything marked deferred and then released anyway? Did the
   tests derive from the rules, or from the code they were testing?
 - **Documentation** — is any numbered document now wrong? Did a rule end up in

@@ -1,8 +1,8 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
-Who holds each role for this application. The roles themselves are docs/5.7,
-which this fills in as its section "Who holds each role here". Delete these
-comments.
+Who holds each role for an application. The roles themselves are docs/1.7.
+Fill it in as the application's role holders, 3.n.5, with the programme-wide
+holders in 2.2. Delete these comments.
 -->
 
 ## Who holds each role here

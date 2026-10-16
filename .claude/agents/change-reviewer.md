@@ -25,7 +25,7 @@ diff, and decide for yourself whether it is done and done in the right place.
 
 1. `CLAUDE.md` and `AGENTS.md`.
 2. The work package's body and its parent's.
-3. The design map in 2.x for code, or `docs/1.6` for documents.
+3. The application design map (Tile Lite Elite's is in 4.2.x) for code, or the root README's layout and the application's document map (Tile Lite Elite's `docs/4.1.6`) for documents.
 4. The diff: `git -C <worktree> diff` and `git -C <worktree> status`, then each
    changed file whole, not only its hunks.
 
@@ -51,7 +51,7 @@ diff, and decide for yourself whether it is done and done in the right place.
 
 Your final message is the report, and nothing else is read.
 
-A review is judged by what it checked (#441 R11). Clean work is a legitimate
+A review is judged by what it checked (delphside/tile-lite-elite#441 R11). Clean work is a legitimate
 result, and every check is answered however many findings come first.
 
 - **Checks**: every check above, and every *Done when* item and question in

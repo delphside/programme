@@ -12,14 +12,14 @@ present the questions and wait.
 
 **Claude triages alone in Process Definition, Programme Tooling and Delivery
 Tooling, and for type `tooling` or `documentation` in any workstream** — D54, accepted
-2026-09-17. The limits are the job spec on #382, and the ones that bite here
+2026-09-17. The limits are the job spec on delphside/tile-lite-elite#382, and the ones that bite here
 are that anything reaching production, the product and game rules, and
 anything irreversible outside git still come to the owner whatever their
 workstream. Everything else in those areas is Claude's to classify, scope,
 group, fold and close.
 
 The rules live in [`CLAUDE.md`](../../../CLAUDE.md) and
-[`docs/5.1`](../../../docs/5.1-change-lifecycle.md). This is the order to ask
+[`docs/1.2`](../../../docs/1.2-change-lifecycle.md). This is the order to ask
 in, and the things that are got wrong.
 
 ## The three passes
@@ -37,11 +37,11 @@ to every view:
 **A title is a short, pithy, memorable name, not a teaser.** Owner, 2026-09-24:
 *"When I look at the board I want to quickly recall what each issue is about
 without reading the body, a short memorable name containing the key words
-related to the change would help."* #292's original title — *"The word lists:
+related to the change would help."* delphside/tile-lite-elite#292's original title — *"The word lists:
 one greylist for every edition, and a generated file nothing checks"* — reads
 like a hook for the body to resolve, where it should simply have named the
 file. Say what the thing is; curiosity belongs in a poster, not a board. This
-applies to a project's title as much as a requirement's — #400 was renamed
+applies to a project's title as much as a requirement's — delphside/tile-lite-elite#400 was renamed
 from a full sentence to *TLE Scheduler* the same day. Retitle on sight when an
 existing title fails this test, not only at raise.
 
@@ -50,12 +50,12 @@ Owner, 2026-09-24, tightening a round of retitles further:
 
 | issue | too long | short |
 | --- | --- | --- |
-| #224 | Monitoring and alarming: closing the remaining gaps | Monitoring and alarming gaps |
-| #241 | Disaster recovery: untested VM rebuild | Test VM rebuild |
-| #293 | Desktop client: is it a product, and where to get it | Desktop client download |
-| #301 | Display name rules | User name format |
-| #326 | Board tooling: verify matched field values still exist | Project Board: check field values exist |
-| #360 | Rehearsal and production: infrastructure drift, no update procedure | VM updates |
+| delphside/tile-lite-elite#224 | Monitoring and alarming: closing the remaining gaps | Monitoring and alarming gaps |
+| delphside/tile-lite-elite#241 | Disaster recovery: untested VM rebuild | Test VM rebuild |
+| delphside/tile-lite-elite#293 | Desktop client: is it a product, and where to get it | Desktop client download |
+| delphside/tile-lite-elite#301 | Display name rules | User name format |
+| delphside/tile-lite-elite#326 | Board tooling: verify matched field values still exist | Project Board: check field values exist |
+| delphside/tile-lite-elite#360 | Rehearsal and production: infrastructure drift, no update procedure | VM updates |
 
 Four things generalise from the set:
 
@@ -66,10 +66,10 @@ Four things generalise from the set:
   issues look the same.
 - **Fold a short answer into the noun phrase; keep the colon only for a
   genuine two-part subject.** *"X: closing the gaps"* → *"X gaps"*. The colon
-  survives in #326 because *"Project Board"* and *"check field values exist"*
+  survives in delphside/tile-lite-elite#326 because *"Project Board"* and *"check field values exist"*
   are still two different things to say — but each side is as short as it can
   be.
-- **Name the actionable subject, not the symptom.** #360 was a description of
+- **Name the actionable subject, not the symptom.** delphside/tile-lite-elite#360 was a description of
   *drift*; the title is the thing to do about it, *updates*. Ask what the
   issue is actually for, not what is currently wrong.
 - **Pick the word a reader recognises with no other context, even over this
@@ -80,7 +80,7 @@ Four things generalise from the set:
   disambiguation here — the body still carries the exact term.
 
 The `#N MAIN PROJECT:`/`#N WP A:` prefix is structural — its own convention,
-in [`docs/5.1`](../../../docs/5.1-change-lifecycle.md) — and is never cut;
+in [`docs/1.2`](../../../docs/1.2-change-lifecycle.md) — and is never cut;
 these rules apply to what follows it.
 
 **2 · Scope.** Options, dependencies, `Effort`. `Requirement State` moves to *Scope,
@@ -124,7 +124,7 @@ several has one sub-project each.
 
 **Which of the two, for a delivery:** did it have a **branch**? Then a letter —
 it delivered, and the delivery needs a name and a row in
-[`5.6`](../../../docs/5.6-delivery-log.md). No branch means it went straight to
+the delivery log ([`3.1.1`](../../../applications/tile-lite-elite/3.1.1-delivery-log.md) for Tile Lite Elite). No branch means it went straight to
 `main`, which is `pre-approved` and makes no delivery.
 
 **A Production Release always takes a branch, a pull request, a semver and a
@@ -139,7 +139,7 @@ carries none. The `folded` label is the signal.
 
 **Leaving `no-release` on.** Sixty closed issues carried it on 2026-09-08 —
 fifty-six requirements that should have had none, and four projects whose
-letters were already written in `5.6` and never set on the issue.
+letters were already written in the delivery log (`3.n.1`) and never set on the issue.
 
 **Triaging alone outside D54's scope.** Folding closes issues and un-folding
 is manual, so the cost of getting this wrong is asymmetric. Inside Process

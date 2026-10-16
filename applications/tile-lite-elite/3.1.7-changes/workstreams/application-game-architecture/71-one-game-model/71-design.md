@@ -19,7 +19,7 @@ this one is right.
 
 **Pending decisions.** Where the text below is not final it says so and names
 the Decision issue that will settle it. They are answered in the order
-[docs/5.1](../../../../5.1-change-lifecycle.md#decisions) sets. None is open as of
+[docs/5.1](../../../../../../docs/1.2-change-lifecycle.md#decisions) sets. None is open as of
 2026-10-14; the functional questions the journeys raise are in
 [`71-functional.md`](71-functional.md).
 
@@ -1294,26 +1294,26 @@ from the in-process bot rather than sitting between the game and the engines.
 
 | Document | What changes |
 | --- | --- |
-| [4.2 Database Schema](../../../../4.2-database-schema.md) | seat state columns; `game_invitations` reduced to the record of who was asked; `player_ratings.subject_kind` removed; `game_moves`; foreign keys and the delete behaviour they enforce, with `rating_history.game_id` set null when its game goes |
-| [4.3 API Schema](../../../../4.3-api-schema.md) | the seat and rack DTOs, `ViewerAccess`, structured events, `RatingPointDto.game_id` optional, the api major version |
-| [4.4 snapshot_json](../../../../4.4-snapshot-json-schema.md) | the schema version field, seat shape, the event log |
-| [4.5 Data Dictionary](../../../../4.5-data-dictionary.md) | every game field that moves between snapshot, DB and DTO |
+| [4.4.2 Database Schema](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.2-database-schema.md) | seat state columns; `game_invitations` reduced to the record of who was asked; `player_ratings.subject_kind` removed; `game_moves`; foreign keys and the delete behaviour they enforce, with `rating_history.game_id` set null when its game goes |
+| [4.4.3 API Schema](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.3-api-schema.md) | the seat and rack DTOs, `ViewerAccess`, structured events, `RatingPointDto.game_id` optional, the api major version |
+| [4.4.4 snapshot_json](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.4-snapshot-json-schema.md) | the schema version field, seat shape, the event log |
+| [4.4.5 Data Dictionary](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.5-data-dictionary.md) | every game field that moves between snapshot, DB and DTO |
 
 Each carries a freshness stamp, so each needs re-verifying against the code
 rather than editing from this note — the note says what was agreed, and the
 stamp claims what was checked.
 
 Four documents describe the current arrangement and will contradict this one
-until they are revised: [1.1 Architecture](../../../../1.1-architecture.md)'s
+until they are revised: [4.1.1 Architecture](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.1-architecture.md)'s
 *Engines*, which says engines run only on the server, in-process;
-[2.3 Engine Interface](../../../../2.3-engine-interface.md), which already
+[4.2.3 Engine Interface](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.3-engine-interface.md), which already
 points to this change for taking the engine out of the server;
-[2.4 Persistence](../../../../2.4-persistence.md) on how game state is written,
+[4.2.4 Persistence](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.4-persistence.md) on how game state is written,
 and foreign keys and the snapshot's schema version; and
-[2.7 Seats And Invitations](../../../../2.7-authentication-and-invitations.md)
+[4.2.7 Seats And Invitations](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.7-authentication-and-invitations.md)
 on invitations as their own lifecycle.
 
-And [1.0 Rules](../../../../1.0-rules.md) gains what this settles:
+And [4.1.0 Rules](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md) gains what this settles:
 
 - user details — name, email, rating — are always a lookup, never copied into
   game data, and changing them bumps and republishes every game that player is

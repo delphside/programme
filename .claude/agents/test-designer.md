@@ -30,15 +30,15 @@ do not show yet: treat those as rules.
 
 ## Read first
 
-1. `docs/1.0-rules.md`: the game's and the product's rules, by identifier.
+1. Tile Lite Elite's `docs/4.1.0-rules.md`: the game's and the product's rules, by identifier.
 2. The requirement or project: `gh issue view <N> --json body,comments`, and
    its work packages' bodies if any.
-3. The design documents in its folder under `docs/changes/`, if it has one.
-4. `docs/3.3-testing-ci-and-release.md` §2.2.3 (how a test design
+3. The design documents in its folder under the application's `3.n.7-changes/`, if it has one.
+4. Tile Lite Elite's `docs/4.3.3-testing-ci-and-release.md` §2.2.3 (how a test design
    specification is built) and §2.2.4 (what a unit test covers), and
    `docs/templates/test-design-specification.md`.
-5. The reference documents for the interfaces the change touches (`docs/4.3`
-   for the API, `docs/4.2` for the schema): these state intended shapes and are
+5. The reference documents for the interfaces the change touches (Tile Lite Elite's `docs/4.4.3`
+   for the API, Tile Lite Elite's `docs/4.4.2` for the schema): these state intended shapes and are
    documents, not code.
 
 ## What to produce

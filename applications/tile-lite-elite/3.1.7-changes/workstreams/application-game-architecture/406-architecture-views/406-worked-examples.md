@@ -7,7 +7,7 @@ options then include diagrams we don't intend to maintain."*
 **So some of these are here to be looked at and dropped.** Each says whether it
 earns a permanent home, and the ones that do not are worth more as a
 demonstration of what the level shows than as something to keep current. The set
-itself is [in the diagrams README](../../../../diagrams/README.md#which-view-a-diagram-takes-and-saying-so).
+itself is [in the diagrams README](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md#which-view-a-diagram-takes-and-saying-so).
 
 ## 1. System Context — who uses it, and what it uses
 

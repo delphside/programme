@@ -2,7 +2,7 @@
 
 **What a thread taking over #71 needs, and where it lives.** The role is the
 design authority for Application & Game Architecture, which runs #71
-because #71 dominates the workstream ([5.7](../../../../5.7-roles-and-responsibilities.md)).
+because #71 dominates the workstream ([1.7](../../../../../../docs/1.7-roles-and-responsibilities.md)).
 This file says where the state is and what is open; the state itself is in the
 documents and issues it names. Written 2026-10-14, at the handover after the
 decision backlog was cleared.

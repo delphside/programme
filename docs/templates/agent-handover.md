@@ -1,6 +1,6 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
-The handover Claude gives a subagent at launch, as its prompt (#441). The
+The handover Claude gives a subagent at launch, as its prompt (delphside/tile-lite-elite#441). The
 agent's definition in .claude/agents/ holds what does not change between runs;
 this holds what is particular to one job. The outside-review brief is the same
 shape, kept in a file because it runs in rounds.
@@ -19,7 +19,7 @@ documentation or tests.
 What finishes it, as checks the agent can run or read: the requirements it
 meets, the tests that pass, the documents that say so. Each says how it is
 proved, not only what: "same exit statuses" needs "and tested", or it is
-proved once by hand and nothing holds it (#441's first trial). For a review,
+proved once by hand and nothing holds it (delphside/tile-lite-elite#441's first trial). For a review,
 the questions answered.
 
 ## Subject

@@ -1,16 +1,16 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
 The workstream register: this application's workstreams, each an instance of
-a generic one. The rule is docs/5.2, "Generic workstreams" and "What makes
-something a workstream". Fill it in as the section "This application's
-workstreams" of 5.2, or as its own programme record. Delete these comments.
+a generic one. The rule is docs/1.3, "Generic workstreams" and "What makes
+something a workstream". Fill it in as the application's workstreams,
+3.n.4. Delete these comments.
 -->
 
 ## This application's workstreams
 
 | Workstream | instance of | owns |
 | --- | --- | --- |
-| *name* | *a generic workstream from 5.2, or "a domain workstream"* | *what it owns, then its main artefacts* |
+| *name* | *a generic workstream from 1.3, or "a domain workstream"* | *what it owns, then its main artefacts* |
 
 ### *Workstream name*
 

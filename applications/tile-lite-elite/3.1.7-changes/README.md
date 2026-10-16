@@ -6,9 +6,9 @@ wrong now, what replaces it, what migration does — which is the one thing the
 numbered documents in `docs/` deliberately never do.
 
 **These are temporary.** A change note is deleted when its change ships. What
-survives is in the numbered documents: the end state goes to 1.x/2.x, the
-as-built facts to 4.x, and any decision worth citing later becomes a rule in
-[1.0 Rules](../1.0-rules.md) with an id. If something in a note is still worth
+survives is in the numbered documents: the end state goes to the application's
+overview and design documents (Tile Lite Elite's 4.1 and 4.2), the as-built facts to its reference (4.4), and any decision worth citing later becomes a rule in
+[4.1.0 Rules](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md) with an id. If something in a note is still worth
 reading after the change has landed, it belonged in one of those and should be
 moved there rather than kept here.
 

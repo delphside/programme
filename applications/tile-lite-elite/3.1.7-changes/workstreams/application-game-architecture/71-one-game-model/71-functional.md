@@ -10,8 +10,8 @@ that. It comes before [`71-design.md`](71-design.md) and
 raised on #71 before any technical decision they touch.
 
 It is the **to-be**: the service as #71 leaves it. The views follow
-[docs/diagrams/README.md](../../../../diagrams/README.md). Rule ids are
-[docs/1.0](../../../../1.0-rules.md)'s.
+[docs/diagrams/README.md](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md). Rule ids are
+[docs/1.0](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md)'s.
 
 ## Use case
 
@@ -97,7 +97,7 @@ Journeys: [U1.1 Register and sign in](#u11-register-and-sign-in), [U1.2 Change m
 A new account is active once its email is verified, and every email is
 unique. Registering and signing in share the end of the journey.
 
-References: User IDs, [docs/2.5](../../../../2.5-authentication.md). Emails:
+References: User IDs, [docs/2.5](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.5-authentication.md). Emails:
 their rules are not yet in docs/1.0, [Q5](#q5-the-email-rules-are-not-in-docs10).
 
 ```mermaid
@@ -129,7 +129,7 @@ flowchart TD
 
 #### U1.2 Change my details
 
-References: User IDs, [docs/2.5](../../../../2.5-authentication.md). A game
+References: User IDs, [docs/2.5](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.5-authentication.md). A game
 holds no copy of a player's details, [71-design.md](71-design.md#open-questions)
 *User details are always a lookup*. Emails, [Q5](#q5-the-email-rules-are-not-in-docs10).
 

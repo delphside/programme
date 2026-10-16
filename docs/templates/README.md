@@ -25,25 +25,25 @@ inlines a form is one nobody can copy.
 
 | template | the numbered document that owns its rule |
 | --- | --- |
-| [test-design-specification.md](test-design-specification.md) | [3.3](../3.3-testing-ci-and-release.md), *How a test design specification is built* |
-| [post-deployment-review.md](post-deployment-review.md) | [5.1](../5.1-change-lifecycle.md), the `Post-deployment` phase and lessons learnt |
-| [capacity-plan.md](capacity-plan.md) | [5.1](../5.1-change-lifecycle.md), *Which document goes where* — reports |
-| [agent-handover.md](agent-handover.md) | [5.0](../5.0-programme-tooling.md), the agents' register (#441) |
-| [triage-comment.md](triage-comment.md) | [5.1](../5.1-change-lifecycle.md), *What triage asks* |
-| [workstream-register.md](workstream-register.md) | [5.2](../5.2-workstreams.md), *Generic workstreams* |
-| [artefact-register.md](artefact-register.md) | [5.1](../5.1-change-lifecycle.md) §2.13 and §2.15 |
-| [role-assignment.md](role-assignment.md) | [5.7](../5.7-roles-and-responsibilities.md), *The roles* |
-| [delivery-log.md](delivery-log.md) | [5.1](../5.1-change-lifecycle.md) §2.14, *The delivery log row* |
+| [test-design-specification.md](test-design-specification.md) | [Tile Lite Elite's 4.3.3](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md), *How a test design specification is built* |
+| [post-deployment-review.md](post-deployment-review.md) | [1.2](../1.2-change-lifecycle.md), the `Post-deployment` phase and lessons learnt |
+| [capacity-plan.md](capacity-plan.md) | [1.2](../1.2-change-lifecycle.md), *Which document goes where* — reports |
+| [agent-handover.md](agent-handover.md) | [1.1](../1.1-programme-tooling.md), the agents' register (delphside/tile-lite-elite#441) |
+| [triage-comment.md](triage-comment.md) | [1.2](../1.2-change-lifecycle.md), *What triage asks* |
+| [workstream-register.md](workstream-register.md) | [1.3](../1.3-workstreams.md), *Generic workstreams* |
+| [artefact-register.md](artefact-register.md) | [1.2](../1.2-change-lifecycle.md) §2.13 and §2.15 |
+| [role-assignment.md](role-assignment.md) | [1.7](../1.7-roles-and-responsibilities.md), *The roles* |
+| [delivery-log.md](delivery-log.md) | [1.2](../1.2-change-lifecycle.md) §2.14, *The delivery log row* |
 
 **A new template owes that row.** Until a numbered document links to it, it is a
 form nobody will find at the moment they need it.
 
 | template | copy it to | worked examples |
 | --- | --- | --- |
-| [test-design-specification.md](test-design-specification.md) | the project's folder — `docs/changes/projects/<name>/` — else the issue's | [user deletion](../changes/41-user-deletion-test-design.md) (#41, functional) · [rate limiting](../changes/25-rate-limiting-test-design.md) (#25, non-functional) |
+| [test-design-specification.md](test-design-specification.md) | the project's folder in the application's change documents (`3.n.7-changes/`), else the issue's | [user deletion](../../applications/tile-lite-elite/3.1.7-changes/41-user-deletion-test-design.md) (delphside/tile-lite-elite#41, functional) · [rate limiting](../../applications/tile-lite-elite/3.1.7-changes/25-rate-limiting-test-design.md) (delphside/tile-lite-elite#25, non-functional) |
 | [post-deployment-review.md](post-deployment-review.md) | the project's folder, once its last release has been live and used | none yet — the first project to finish writes it |
-| [capacity-plan.md](capacity-plan.md) | `docs/reports/capacity_plan/TLE_CP_<yyyy>_<mm>.md`, monthly | [TLE_CP_2026_09](../reports/capacity_plan/TLE_CP_2026_09.md) (#291 R1, the first) |
-| [workstream-register.md](workstream-register.md) · [artefact-register.md](artefact-register.md) · [role-assignment.md](role-assignment.md) · [delivery-log.md](delivery-log.md) | a new application's programme records, once each, when the programme takes it on | this application's: [5.2's workstreams](../5.2-workstreams.md#this-applications-workstreams) · [4.8](../4.8-artefacts.md) · [5.7's role holders](../5.7-roles-and-responsibilities.md#who-holds-each-role-here) · [5.6](../5.6-delivery-log.md) |
+| [capacity-plan.md](capacity-plan.md) | the application's capacity plans (`3.n.3-capacity-plan/<CODE>_CP_<yyyy>_<mm>.md`), monthly | [TLE_CP_2026_09](../../applications/tile-lite-elite/3.1.3-capacity-plan/TLE_CP_2026_09.md) (delphside/tile-lite-elite#291 R1, the first) |
+| [workstream-register.md](workstream-register.md) · [artefact-register.md](artefact-register.md) · [role-assignment.md](role-assignment.md) · [delivery-log.md](delivery-log.md) | a new application's programme records, once each, when the programme takes it on | Tile Lite Elite's: [3.1.4](../../applications/tile-lite-elite/3.1.4-workstreams.md) · [3.1.2](../../applications/tile-lite-elite/3.1.2-artefacts.md) · [3.1.5](../../applications/tile-lite-elite/3.1.5-roles.md) · [3.1.1](../../applications/tile-lite-elite/3.1.1-delivery-log.md) |
 
 ## The other half, and why it is not here
 
@@ -54,8 +54,8 @@ Neither can be moved.
 
 | template | offered when |
 | --- | --- |
-| [`Requirement`](../../.github/ISSUE_TEMPLATE/requirement.yml) · [`Project`](../../.github/ISSUE_TEMPLATE/project.yml) · [`Decision`](../../.github/ISSUE_TEMPLATE/decision.yml) | raising an issue of that type |
-| [`PULL_REQUEST_TEMPLATE.md`](../../.github/PULL_REQUEST_TEMPLATE.md) | opening a pull request |
+| [`Requirement`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/requirement.yml) · [`Project`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/project.yml) · [`Decision`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/decision.yml) | raising an issue of that type |
+| [`PULL_REQUEST_TEMPLATE.md`](https://github.com/delphside/tile-lite-elite/blob/main/.github/PULL_REQUEST_TEMPLATE.md) | opening a pull request |
 
 **So the split is by who fills it in, not by what it is.** GitHub fills those
 four in front of you; these ones you copy into the repository yourself. Listed
@@ -64,7 +64,7 @@ one place, whichever half they land on first.
 
 ## Notes
 
-**Why a template rather than the prose that describes it.** `docs/3.3`'s "How a
+**Why a template rather than the prose that describes it.** Tile Lite Elite's `docs/4.3.3`'s "How a
 test design specification is built" explains the ten parts and why each earns its place. That is
 the right document to read once; it is the wrong thing to work from every time,
 because turning a description into a document is work repeated at every use, and

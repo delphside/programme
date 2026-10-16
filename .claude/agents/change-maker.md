@@ -23,8 +23,8 @@ show yet: treat those as true.
 2. The work package's body and its parent's:
    `gh issue view <N> --json body -q .body`. The requirements table is the
    scope; the parent's design is the argument you do not reopen.
-3. For where a thing lives: the application design map in 2.x for code, and
-   `docs/1.6` with the `change-a-document` skill for documents. Read the owning
+3. For where a thing lives: the application design map (Tile Lite Elite's is in 4.2.x) for code, and
+   the root README's layout (and the application's document map; Tile Lite Elite's is `docs/4.1.6`) with the `change-a-document` skill for documents. Read the owning
    section before writing.
 4. The files the handover names, whole.
 
@@ -32,10 +32,10 @@ show yet: treat those as true.
 
 | kind | you produce | the rule that matters most |
 | --- | --- | --- |
-| design | the design documents in the project's folder under `docs/changes/` | start from how it works today, read from the code; name the one place each piece of logic will live |
-| code | the change, and the tests that prove it | fix where the design map says the rule lives, and remove copies rather than patch them; one Python model for the tooling (`scripts/programme/board/`); comments as `docs/5.4` *Comments in code* says |
+| design | the design documents in the project's folder under the application's `3.n.7-changes/` (the programme's own: `records/2.5-changes/`) | start from how it works today, read from the code; name the one place each piece of logic will live |
+| code | the change, and the tests that prove it | fix where the design map says the rule lives, and remove copies rather than patch them; one Python model for the tooling (`scripts/programme/board/`); comments as `docs/1.5` *Comments in code* says |
 | documentation | edits to the owning documents | one fact, one home; what is true now, with the history left in the issue |
-| tests | tests from a test design, and a run of them | derive them from `docs/1.0` and the requirements, not the code; show each one red by breaking what it tests, then restore it |
+| tests | tests from a test design, and a run of them | derive them from Tile Lite Elite's `docs/4.1.0` and the requirements, not the code; show each one red by breaking what it tests, then restore it |
 
 ## Strings stored outside the repository
 
@@ -43,7 +43,7 @@ A string the tooling writes into GitHub (a marker in an issue body, a field or
 option name, a label) is an identifier, not text to keep current. Renaming it
 in the code makes the tooling blind to every copy already written. Never
 change one as part of a rename or a move; if one must change, say so as a
-decision in your report. #441's second trial nearly doubled the context
+decision in your report. delphside/tile-lite-elite#441's second trial nearly doubled the context
 header on 36 projects this way.
 
 ## Running things

@@ -25,7 +25,7 @@ do not show yet: treat those as true.
    scope, and they outrank the design documents where the two disagree.
 3. Each work package's body, if the project has them:
    `gh issue view <N> --json subIssues`.
-4. The design folder, `docs/changes/workstreams/<workstream>/<N>-<name>/`,
+4. The design folder, `3.n.7-changes/…/<N>-<name>/` in the application's folder (the programme's own: `records/2.5-changes/<workstream>/<N>-<name>/`),
    every file, whole. Note when each was last changed:
    `git log -1 --format=%cs -- <file>`.
 5. `git log <that date>..HEAD --oneline -- crates/` for what has changed in the
@@ -41,7 +41,7 @@ do not show yet: treat those as true.
 - **Other projects that overlap**: search open issues for the same tables,
   files and behaviour (`gh issue list --search`).
 - **Terms and process**: anything the documents call by a name `CLAUDE.md` or
-  `docs/5.1` has retired.
+  `docs/1.2` has retired.
 - **Branches**: any branch named for the project or its packages, and how far
   behind `main` it is.
 

@@ -6,7 +6,7 @@ description: Raise a project issue with the seven headings, set its fields, and 
 # Raising a project
 
 The mechanics only. **What goes in the project is a judgement and is not here** —
-the rules are in `CLAUDE.md` and `docs/5.1`, and the groupings are agreed with the
+the rules are in `CLAUDE.md` and `docs/1.2`, and the groupings are agreed with the
 owner, never assumed.
 
 ## Before anything
@@ -54,7 +54,7 @@ both:
 ## Impacted artefacts
 
 *One table per delivery, a row per route. `Route` is a property of the
-artefact (`docs/5.1` §2.15) and a delivery has one route, so a table with two
+artefact (`docs/1.2` §2.15) and a delivery has one route, so a table with two
 routes marked yes is a delivery that needs splitting. Say `no` and a dash rather
 than dropping a row: an absent row and an empty one read the same, and only one
 of them means "nothing here".*
@@ -77,7 +77,7 @@ work is in progress. A document-only change never takes one: they live too long,
 `main` moves, and the review does not happen.*
 
 *The branch and PR columns answer **yes or no first**, then say which — `yes —
-rides the same branch`, `yes — rides #341`. A cell that only explains has not
+rides the same branch`, `yes — rides delphside/tile-lite-elite#341`. A cell that only explains has not
 answered the question the column asks.*
 
 *One branch serves the delivery, not one per row. Where a Production Release row
@@ -129,7 +129,7 @@ statement of the work and does.
 
 **A decision is not a source requirement.** It routes work — it raises or adds
 requirements and is then closed — so it is named in the `from` column of the
-rows it produced, never in the source list. #301 listed decision #332 there on
+rows it produced, never in the source list. delphside/tile-lite-elite#301 listed decision delphside/tile-lite-elite#332 there on
 2026-09-09 and `board-check.py` reported it as a source with no parent
 link, which is exactly right: nothing folds a decision.
 
@@ -139,8 +139,8 @@ told from an unanswered one, which is the same reason a test approach that does
 not apply says *"None."*
 
 **The two must agree with the sub-issues.** A requirement parented here but not
-listed, or listed but parented elsewhere, is the defect that put #130 and #151
-under #294 while #290 claimed them.
+listed, or listed but parented elsewhere, is the defect that put delphside/tile-lite-elite#130 and delphside/tile-lite-elite#151
+under delphside/tile-lite-elite#294 while delphside/tile-lite-elite#290 claimed them.
 
 **A work package is a sub-project; a milestone is what groups them** (D51). A
 work package is a `Project` whose parent is this one, carrying its own milestone,
@@ -152,7 +152,7 @@ the design and the documents, carries no milestone, and lists its deliveries:
 each row names the work packages it carries, or says `pre-approved`.
 
 **Four cases decide whether a sub-project is needed at all** — the owner's, and
-`docs/5.1` carries them:
+`docs/1.2` carries them:
 
 | | work packages | sub-projects |
 | --- | --- | --- |
@@ -184,7 +184,7 @@ The parent's number is repeated in every child so a title sort groups the family
 not `400-…`. Commits say `Refs` the branch's number, and the board credits a
 work package only with commits naming it. **Splitting a project that already has a
 branch means renaming the branch to the package it now carries**, before the next
-commit. Scheduler core (#414) was built on `400-scheduler-mechanism`, so all
+commit. Scheduler core (delphside/tile-lite-elite#414) was built on `400-scheduler-mechanism`, so all
 seventeen of its commits named the parent and `board-status.py` reported it *not
 started* after it had merged. The post-merge hook finds the package from the pull
 request and moves its Project State anyway; the commits it cannot fix.
@@ -239,12 +239,12 @@ id=$(gh api graphql -f query="{repository(owner:\"delphside\",name:\"tile-lite-e
 `--type Requirement` for a requirement. The name, not the id — `gh` resolves it.
 
 **This used to be a second step and that is how twenty issues came to be
-untyped**, found by #361 on 2026-09-09. A `updateIssue` mutation after creation
+untyped**, found by delphside/tile-lite-elite#361 on 2026-09-09. A `updateIssue` mutation after creation
 works, but it is a separate action that can be forgotten, interrupted or fail
 quietly, and an issue with no type is skipped by every rule keyed on type rather
 than reported — `board-check.py` branches on the three names and judges an
 untyped issue by nothing at all. Worse, a typed filter drops it silently: the
-source-requirements check reported *"#252 parents no requirements"* while #331
+source-requirements check reported *"delphside/tile-lite-elite#252 parents no requirements"* while delphside/tile-lite-elite#331
 **was** parented, because `select(.issueType.name == "Requirement")` excluded it.
 
 To change the type of an issue that already exists — converting a requirement to
@@ -393,7 +393,7 @@ the trail survives), the losing project records that it has gone and where.
 **Move the sub-issue link with it**, using `replaceParent:true`. A folded
 requirement is a sub-issue of the project that owns it, so leaving the link
 behind puts the requirement under a project whose body no longer claims it —
-which is where #130 and #151 sat until 2026-09-08, parented to #294 while #290
+which is where delphside/tile-lite-elite#130 and delphside/tile-lite-elite#151 sat until 2026-09-08, parented to delphside/tile-lite-elite#294 while delphside/tile-lite-elite#290
 carried them as R5 and R6.
 
 ```bash
@@ -407,19 +407,19 @@ the same work seen twice, *not planned* otherwise. Owner, 2026-09-08: *"just
 closing it because the requirements have moved to other named projects is
 enough."*
 
-**What must not happen to it**, both of which did to #294 on 2026-09-06:
+**What must not happen to it**, both of which did to delphside/tile-lite-elite#294 on 2026-09-06:
 
 | | why |
 | --- | --- |
-| `addSubIssue` on the project itself | **a `Project` sub-issue means a work package, and nothing else** — owner, 2026-09-08. It claims work still to come under that parent, with its own milestone and delivery. The title check reported #294 as a malformed package until the parent was removed. A `Requirement` sub-issue is a fold and is fine; a `Project` one is a structural claim |
-| the `folded` label, and closing as **completed** | `folded` marks a requirement, and nothing was completed. #294's two requirements are unstarted today, and the wrong comment they exist to fix is still in `app.rs` |
+| `addSubIssue` on the project itself | **a `Project` sub-issue means a work package, and nothing else** — owner, 2026-09-08. It claims work still to come under that parent, with its own milestone and delivery. The title check reported delphside/tile-lite-elite#294 as a malformed package until the parent was removed. A `Requirement` sub-issue is a fold and is fine; a `Project` one is a structural claim |
+| the `folded` label, and closing as **completed** | `folded` marks a requirement, and nothing was completed. delphside/tile-lite-elite#294's two requirements are unstarted today, and the wrong comment they exist to fix is still in `app.rs` |
 
 ## Afterwards
 
 ```bash
 ./scripts/programme/board/board-context.py --write N    # the context header, for N's whole family
 ./scripts/programme/board/board-check.py                # has it done what its phase claims?
-./scripts/programme/board/roadmap-diagram.py --write    # regenerate docs/1.5
+./scripts/programme/board/roadmap-diagram.py --write    # regenerate Tile Lite Elite's docs/4.1.5
 ```
 
 **Never write the context header by hand.** It is generated from the family's
@@ -427,7 +427,7 @@ fields, milestones, pull requests and dependency links, and rewritten whole, so
 a hand edit inside its markers is lost on the next run. Set the facts and
 regenerate.
 
-Commit the regenerated `docs/1.5` — the diagram is derived, so it should not sit
+Commit the regenerated Tile Lite Elite's `docs/4.1.5` — the diagram is derived, so it should not sit
 stale in the working tree.
 
 ## What goes wrong

@@ -210,7 +210,7 @@ That last clause is the whole reason this report exists. GitHub records dependen
 
 **Every bar is the same width.** A Gantt bar's width means duration and this chart has none, so letting them vary would imply one. Position is the only thing that carries meaning.
 
-**Drawn as SVG, not Mermaid.** Mermaid has no swimlane primitive: a `flowchart` with one `subgraph` per lane draws in-lane dependencies top to bottom, and a single edge between lanes makes it lay the lanes out side by side as columns. Both were found by rendering, and [`docs/diagrams/README.md`](../../../../diagrams/README.md) records them with the rest of what rendering has taught this repository.
+**Drawn as SVG, not Mermaid.** Mermaid has no swimlane primitive: a `flowchart` with one `subgraph` per lane draws in-lane dependencies top to bottom, and a single edge between lanes makes it lay the lanes out side by side as columns. Both were found by rendering, and [`docs/diagrams/README.md`](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md) records them with the rest of what rendering has taught this repository.
 
 *Today: `roadmap-diagram.py`, which drew structure — what belongs to what — rather than sequence.*
 

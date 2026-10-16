@@ -1,28 +1,19 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
-Copy to `docs/reports/capacity_plan/<YYYY-MM>.md` and fill it in.
-
-Paragraphs marked *(this application)* are this application's answers, not
-the template's generic shape.
-
-*(this application)* **Claude measures and writes it; Steve reviews it.** #291 R2, and the recurrence
-that raises it is a date in #291's body — `Next capacity plan due: <date>`.
-Doing this moves that date on a month.
+Copy to the application's capacity plans, `3.n.3-capacity-plan/<CODE>_CP_<yyyy>_<mm>.md`
+(`<CODE>` is the application's code in records/2.1), and fill it in. The
+application's own answers (who measures it, where the numbers come from, its
+resources and the commands that read them) are in a README beside its plans.
 
 **A report, not a document.** It records what was true on the day it was
 measured and is never edited afterwards. Last month's is not superseded by this
 month's: the series is what says whether a number is moving, which is the one
-question a single measurement cannot answer. docs/5.1, "Which document goes
+question a single measurement cannot answer. docs/1.2, "Which document goes
 where".
 
-**Named `TLE_CP_<yyyy>_<mm>.md`**, because a report gets mailed, pasted and
+**Named `<CODE>_CP_<yyyy>_<mm>.md`**, because a report gets mailed, pasted and
 dropped on desktops, and the name has to mean something once it is off the
 path.
-
-*(this application)* **Where the numbers come from.** The application posts nothing — D49, because
-the instance principal is a host credential. Host figures are read on the box;
-games and accounts come from the admin CLI over loopback, which is the owner's
-to run (CLAUDE.md, "Production access is the owner's to run").
 
 Delete these comments as you go.
 -->
@@ -35,24 +26,13 @@ elsewhere or estimated, and say which.
 ## What is consumed, against what ceiling
 
 Every resource with a ceiling, and every resource without one — an absent
-ceiling is a finding, not an omission. The indented rows, the snapshot
-ceiling and the last two rows are this application's; another application
-lists its own.
+ceiling is a finding, not an omission. The rows are the application's own, from
+its README beside its plans.
 
 | | consumed | ceiling | headroom |
 | --- | --- | --- | --- |
-| **memory** | | | |
-| — server container | | | |
-| — web container | | | |
-| **disk** | | | |
-| — the database volume | | | |
-| — pre-deploy snapshots | | `SNAPSHOT_KEEP` (5) | |
-| — Docker images | | | |
-| — `/var/log/syslog*`, the journal's plain-file copy ([3.4](../3.4-production-environment.md#journald-not-the-container), #438) | | logrotate: 4 weekly, gzipped | |
-| **journal** | | | |
-| **CPU** | | | |
-| **games in the database** | | | |
-| **accounts** | | | |
+| **a resource** | | | |
+| — a part of it | | | |
 
 One sentence on whether anything is close to a ceiling. If nothing is, say so
 plainly: the value of the plan is knowing which number moves first, not
@@ -120,11 +100,15 @@ forward, and the ceiling marked.** Owner, 2026-09-22. Generated, never drawn —
 a chart maintained beside its data is stale the first time the data moves and
 stale in a way nobody can see.
 
+The chart paths below are placeholders. Copy this table into the plan, beside its `charts/` folder:
+
+```markdown
 | | |
 | --- | --- |
 | ![memory](charts/memory.svg) | ![disk](charts/disk.svg) |
 | ![journal](charts/journal.svg) | ![games](charts/games.svg) |
 | ![games waiting](charts/games-waiting.svg) | ![accounts](charts/accounts.svg) |
+```
 
 The ceiling is drawn even when nothing is near it: a threshold that appears only
 once it matters teaches the reader there is no threshold.
@@ -146,10 +130,10 @@ column.
 
 ## Transaction thresholds and throttle limits
 
-*Empty until #405 lands. Scaffolded now so the first report that can fill it
+*Empty until delphside/tile-lite-elite#405 lands. Scaffolded now so the first report that can fill it
 in has a shape to fill rather than a decision to make about where it goes.*
 
-The six-step chain #405 builds: the hardware ceiling, the owner's utilisation
+The six-step chain delphside/tile-lite-elite#405 builds: the hardware ceiling, the owner's utilisation
 threshold, the workload threshold (the ceiling inverted into transactions per
 second), the peak at the chosen service level, the owner's spike allowance,
 and the throttle limits that follow.
@@ -174,14 +158,5 @@ disagreement is read here rather than discovered by an incident.
 ## How this was measured
 
 The commands, so the next one is comparable. Name who ran what, where a figure
-needed production access.
-
-The disk rows, on the VM (a production read):
-
-```bash
-df -h /
-docker system df
-sudo du -sh /var/lib/docker/volumes/tile-lite-elite-data ~/tile-lite-elite/snapshots
-du -ch /var/log/syslog* | tail -1
-journalctl --disk-usage
-```
+needed production access. The application's README beside its plans lists the
+commands for its rows.

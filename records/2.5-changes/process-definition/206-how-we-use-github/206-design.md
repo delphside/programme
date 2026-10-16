@@ -644,13 +644,13 @@ as the present.
 
 **One delivery in three parts.** All three were designed, built and merged on
 the same day, in the same pull request (#227), and the repository route has
-**one delivery moment** — the push to `origin/main` ([5.1](../../../../5.1-change-lifecycle.md)
+**one delivery moment** — the push to `origin/main` ([1.2](../../../../docs/1.2-change-lifecycle.md)
 §2.15). Owner, 2026-08-27: *"then the three changes went in one delivery."* They
 were drafted as Deliveries 4, 5 and 6, which is why the parts below still read
 as three separate arguments; what makes them one delivery is that nothing
 reached anybody until the merge, and then all of it did at once.
 
-It carries the identifier `0.7.0f` in [5.6](../../../../5.6-delivery-log.md), as
+It carries the identifier `0.7.0f` in [3.1.1](../../../../applications/tile-lite-elite/3.1.1-delivery-log.md), as
 one row.
 
 #### Part 1 — the forms, and the field set
@@ -726,13 +726,13 @@ can triage from it, and a row clicks through to the issue it describes.
 continue to tweak the project views as pre-approved work which doesn't need any
 record."* A view is a saved filter over data that lives elsewhere; getting one
 wrong loses nothing and is visible immediately. This is the clearest case yet of
-[5.1](../../../../5.1-change-lifecycle.md) §2.2's *blast radius, not size*.
+[1.2](../../../../docs/1.2-change-lifecycle.md) §2.2's *blast radius, not size*.
 
 **The licence stops at the view.** Owner, same day: *"anything recorded against
 issues which is used by the tooling needs to be documented and can't be changed
 without a record."* A field, an option value, an issue type, a label or a
 milestone lane is read by scripts that match it literally —
-[4.8](../../../../4.8-artefacts.md) now lists which, and what each one breaks.
+[3.1.2](../../../../applications/tile-lite-elite/3.1.2-artefacts.md) now lists which, and what each one breaks.
 
 **One trap found and worth keeping.** An invalid view filter renders an **empty
 view**, not an error — so a broken *Needs triage* filter is indistinguishable
@@ -774,7 +774,7 @@ when*.
 there isn't one* — because a Release takes file attachments, which is a download
 site with no hosting to run.
 
-The full account is in [3.3](../../../../3.3-testing-ci-and-release.md) §3.3.1.
+The full account is in [4.3.3](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md) §3.3.1.
 
 ## Part 5 — Impacted artefacts
 

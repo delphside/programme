@@ -6,21 +6,22 @@ Delete these comments as you go.
 Copy it into the project's folder, named for the project number —
   e.g. 174-test-design.md — before completing it.
 
-Guide to completion:  `docs/3.3`'s "How a test design specification is built"
+Guide to completion:  Tile Lite Elite's `docs/4.3.3`'s "How a test design specification is built"
 
 Each of these ten parts is required.  Together they ensure the tests have good
 coverage.  
 
 Worked examples:
 
-  docs/changes/41-user-deletion-test-design.md   functional, user-testable
-  docs/changes/25-rate-limiting-test-design.md   non-functional, judged by a
-                                               script on the rehearsal host
+  applications/tile-lite-elite/3.1.7-changes/41-user-deletion-test-design.md
+      functional, user-testable
+  applications/tile-lite-elite/3.1.7-changes/25-rate-limiting-test-design.md
+      non-functional, judged by a script on the rehearsal host
 
 These are at the level of Project, if there is one, otherwise issue.
 
 This is NOT a test plan in the standards' sense — that is a management document
-of scope, schedule and resources, which we do not write.  See docs/3.3 §2.2.3.
+of scope, schedule and resources, which we do not write.  See Tile Lite Elite's docs/4.3.3 §2.2.3.
 -->
 
 Issue: #N · type: `label` · release: `patch alone` / `minor` / `major`
@@ -31,7 +32,7 @@ Project: #N · type: `label` · release: `patch alone` / `minor` / `major`
 ## 1. Rules
 
 <!-- Intent, before anything derives from it. Written from what the system is
-supposed to do — docs/1.0-rules.md, the issue, the design note — not from the
+supposed to do — Tile Lite Elite's docs/4.1.0-rules.md, the issue, the design note — not from the
 code, or the plan inherits the code's mistakes. Number them; everything below
 refers back. -->
 

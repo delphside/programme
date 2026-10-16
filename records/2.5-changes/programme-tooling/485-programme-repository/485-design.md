@@ -40,27 +40,25 @@ Decided by the owner on 2026-10-16: one folder per application, the same files i
 ```text
 delphside/programme/
   CLAUDE.md                  the generic rules; each application's CLAUDE.md imports it
-  docs/                      the generic process documents, keeping their numbers (5.0 to 5.7, 1.7)
-  docs/templates/            the templates, unchanged
-  plugin/                    skills, agents and hooks, published as a Claude Code plugin
-  scripts/, githooks/        the programme tooling (delivery 2)
-  records/                   records about the whole programme
-    applications.md          the applications the programme manages, and their repositories
-    roles.md                 who holds each programme-wide role
-    activity-log.csv         the programme activity log
-    weekly_digest/           the weekly digests
+  README.md                  the layout, and the lookup until 1.8 exists
+  docs/1.0 … 1.7             the programme's definition and processes (were 1.7, 5.0 to 5.7)
+  docs/templates/            the templates
+  .claude/skills/, agents/   reached by each application through the submodule (T2)
+  scripts/, githooks/        the programme tooling (later in this delivery)
+  records/                   programme-wide records
+    2.1-applications.md      the applications, their index, code and repository
+    2.2-roles.md             programme-wide role holders
+    2.3-activity-log.csv     the programme activity log
+    2.4-weekly-digest/       the weekly digests
+    2.5-changes/             change documents for programme-wide work
+    2.6-workstreams.md       the programme's own workstreams
   applications/
-    tile-lite-elite/         one folder per application
-      README.md              how it fits the programme: its repository, board, profile and owners
-      profile.toml           the application profile (#476, delivery 2)
-      workstreams.md         its workstream list
-      roles.md               who holds each of its roles
-      artefacts.md           its artefact register
-      delivery-log.md        its delivery log
-      capacity_plan/         its capacity plans
-      changes/               its projects' change documents, today's docs/changes/
-    infrastructure/          the same shape (#489)
-    dark-portal/             the same shape: the WoW tool, Dark Portal
+    tile-lite-elite/         application 1
+      README.md              how it fits the programme
+      3.1.1-delivery-log.md  and 3.1.2 artefacts, 3.1.3 capacity plans, 3.1.4 workstreams,
+                             3.1.5 role holders, 3.1.6 profile (to come), 3.1.7 changes
+    dark-portal/             application 2, the same shape
+    infrastructure/          application 3, the same shape (#489)
 ```
 
 **One programme board for every repository.** Decided by the owner on
@@ -70,8 +68,8 @@ application. Issue types and fields are the organisation's, so every
 repository has them already; project fields such as PR State are defined
 once, on the one board.
 
-**Each application folder has the same shape**, one file per generic asset,
-named for the asset rather than numbered. A record is found by asking "which
+**Each application folder has the same shape**, one numbered file per
+generic asset, the suffix the same in every application. A record is found by asking "which
 application, which asset", and a new application starts from a copy of the
 templates.
 
@@ -84,14 +82,14 @@ repository, so the two numbers point at each other.
 
 | range | holds | where |
 | --- | --- | --- |
-| 1.x | the programme's definition and processes: 1.0 overview (today 1.7), 1.1 tooling (5.0), 1.2 change lifecycle (5.1), 1.3 workstreams (5.2), 1.4 programme activities (5.3), 1.5 writing documents (5.4), 1.6 the board (5.5), 1.7 roles (5.7), 1.8 document map (1.6's generic part) | programme |
-| 2.x | programme-wide records: 2.1 applications, 2.2 programme role holders, 2.3 activity log, 2.4 weekly digests | programme |
+| 1.x | the programme's definition and processes: 1.0 overview (today 1.7), 1.1 tooling (5.0), 1.2 change lifecycle (5.1), 1.3 workstreams (5.2), 1.4 programme activities (5.3), 1.5 writing documents (5.4), 1.6 the board (5.5), 1.7 roles (5.7), 1.8 document map (comes with the scripts) | programme |
+| 2.x | programme-wide records: 2.1 applications, 2.2 programme role holders, 2.3 activity log, 2.4 weekly digests, 2.5 programme-wide change documents, 2.6 the programme's own workstreams | programme |
 | 3.n.x | application *n*'s records, the same suffix for every application: 3.n.1 delivery log, 3.n.2 artefact register, 3.n.3 capacity plans, 3.n.4 workstreams, 3.n.5 role holders, 3.n.6 application profile, 3.n.7 change documents | programme, `applications/<app>/` |
 | 4.x | Tile Lite Elite's documents: 4.1 overview, 4.2 design, 4.3 development and operation, 4.4 reference, each with today's documents beneath (1.1 architecture becomes 4.1.1) | tile-lite-elite |
 | 5.x | Dark Portal's documents, the same four groups (5.1.1 architecture) | dark-portal |
 | 6.x | Infrastructure's documents, the same four groups | infrastructure |
 
-Applied in delivery 1, as a commit of its own after the move (owner, 2026-10-16). A fourth application takes 3.4 and 7.x. The document tooling (`document-map.py`,
+Applied in the delivery that moves the files, as a commit of its own after the move (owner, 2026-10-16). A fourth application takes 3.4 and 7.x. The document tooling (`document-map.py`,
 `check-docs.sh`) reads two-level numbers today and learns three.
 
 **What leaves each generic document is its labelled section** for this
@@ -161,7 +159,7 @@ session. A cloud session cannot push to main, so it does what it does today
 for records: a short-lived branch and a pull request it merges itself once
 the required checks pass (docs/5.1 §2.2). Nothing new to decide; noted so
 that the programme repository gets the same required checks and branch
-protection as this one, in delivery 1.
+protection as this one, in stage 1.
 
 ## How
 
@@ -208,7 +206,7 @@ run there (claude-code-on-the-web).
    and hook paths in `settings.json`), so they come from the pinned commit
    T1 chose. Constrains: the submodule must be initialised before skills are
    read at session start, which the cloud clone may not do; to be shown by a
-   trial at the start of delivery 1, with the existing SessionStart hook as
+   trial at the start of stage 1, with the existing SessionStart hook as
    the fallback. R3 is reworded to drop the plugin. Recommended: one
    mechanism, one pin, and no install step anywhere.
 2. **A plugin installed by a SessionStart hook.** The hook adds the
@@ -238,13 +236,16 @@ globs `docs/changes/`, `repo.py` excludes it as not a delivery, and
 `documents.py` lists the paths that change on main. After the move those
 paths are in another repository, so the three ask the records path instead,
 and `documents.py`'s list shrinks to "anything in the programme repository".
-Because the records move in delivery 1 and the scripts only in delivery 2,
-**this records-path change is in delivery 1**, made in the scripts where they
+Because the records move in stage 1 and the scripts only in stage 2,
+**this records-path change is in stage 1**, made in the scripts where they
 still are.
 
 ## Delivery
 
-### Delivery 1, in order
+### Stage 1, in order
+
+#485 has two deliveries: the first created the repository by hand, and the
+second, all of this design, is made in two stages, below.
 
 Tile Lite Elite keeps working throughout: steps 1 to 4 only add to the new
 repository, and step 5 switches over in one pull request.
@@ -270,11 +271,11 @@ repository, and step 5 switches over in one pull request.
    rewrites every link.
 6. **Claude**: run the post-deployment checks R1, R2, R4 and R6.
 
-### Delivery 2
+### Stage 2
 
 The application profile (R8), then the scripts and hooks move into the
 programme repository and this repository's copies are deleted; the steps
-are written when delivery 1 is done.
+are written when stage 1 is done.
 
 ### Delivery decisions
 
@@ -300,7 +301,7 @@ to need a `Decision` issue.
 | | question | answer |
 | --- | --- | --- |
 | structure | layout of the programme repository | a folder per application, the same files in each |
-| structure | document numbering | one programme-wide scheme, applied in delivery 1 |
+| structure | document numbering | one programme-wide scheme, applied in stage 1 |
 | F1 | what a session has without set-up | both repositories, read and write |
 | F2 | what ties a change document to its branch | the issue number |
 | R2 | boards | one programme board, a view per application |

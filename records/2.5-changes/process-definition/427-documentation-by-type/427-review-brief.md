@@ -1,7 +1,7 @@
 # 427 Documentation by type: review brief
 
 For an outside reviewer (GitHub Copilot or another agent), asked by the owner
-to review #427's changes. Read [`AGENTS.md`](../../../../../AGENTS.md) first.
+to review #427's changes. Read [`AGENTS.md`](https://github.com/delphside/tile-lite-elite/blob/main/AGENTS.md) first.
 This file is how the reviewer and Claude talk to each other directly: Claude
 writes each round's scope and questions, the reviewer writes its findings into
 the round, and Claude writes a response under each. Earlier rounds stay as the
@@ -26,9 +26,9 @@ request.
 - Separate what you verified against the code or the files from what you
   inferred.
 
-The standards, in order of authority: [`CLAUDE.md`](../../../../../CLAUDE.md),
-[`docs/5.4`](../../../../5.4-writing-documents.md) (what a document may hold),
-[`docs/README.md`](../../../../README.md), and the `change-a-document` skill in
+The standards, in order of authority: [`CLAUDE.md`](../../../../CLAUDE.md),
+[`docs/1.5`](../../../../docs/1.5-writing-documents.md) (what a document may hold),
+[`docs/README.md`](https://github.com/delphside/tile-lite-elite/blob/main/docs/README.md), and the `change-a-document` skill in
 `.claude/skills/`.
 
 ## Round 1, 2026-09-27

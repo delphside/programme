@@ -1,8 +1,8 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
 The delivery log: one row per project delivery, appended, oldest first. The
-rule is docs/5.1 §2.14, "The delivery log row is part of the delivery", and
-the identifiers are 5.1, "A delivery that ships no application code". The
+rule is docs/1.2 §2.14, "The delivery log row is part of the delivery", and
+the identifiers are 1.2, "A delivery that ships no application code". The
 instance is a programme record. Delete these comments.
 -->
 

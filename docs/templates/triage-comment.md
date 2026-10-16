@@ -1,7 +1,7 @@
 # Triage comment
 
 The comment triage leaves on an issue. The rule is
-[5.1 §2.17](../5.1-change-lifecycle.md#217-triage-what-happens-to-an-issue-when-it-is-raised).
+[1.2 §2.17](../1.2-change-lifecycle.md#217-triage-what-happens-to-an-issue-when-it-is-raised).
 Copy it into a GitHub saved reply (Settings → Saved replies) to paste it.
 
 ````markdown

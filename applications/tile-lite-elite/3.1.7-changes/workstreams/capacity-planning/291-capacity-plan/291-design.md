@@ -14,7 +14,7 @@ Owner, 2026-09-22:
 
 **So the plan lives in `docs/reports/capacity_plan/`, one file per month**, and
 this document keeps the argument rather than the numbers. The first is
-[`TLE_CP_2026_09.md`](../../../../reports/capacity_plan/TLE_CP_2026_09.md),
+[`TLE_CP_2026_09.md`](../../../../3.1.3-capacity-plan/TLE_CP_2026_09.md),
 measured on production 2026-09-21.
 
 **That is a third kind of document and it did not exist before.** A numbered
@@ -408,7 +408,7 @@ and (from *4a* above) enough peak/average and peak/total pairs to fit `λ` and
 `W` rather than guess them. #405 is where the model is worked out properly and
 turned into limits. **And it does not stop there**: refining it as real data
 accumulates is the ongoing job, which is why *capacity-plan* is a row in
-[docs/5.3](../../../../5.3-programme-activities.md) rather than a one-time
+[docs/5.3](../../../../../../docs/1.4-programme-activities.md) rather than a one-time
 derivation — the sketch above is this month's starting point, not the answer the
 practice on #407 exists to keep re-checking.
 

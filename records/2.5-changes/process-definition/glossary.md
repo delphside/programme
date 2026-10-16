@@ -2722,7 +2722,7 @@ spectrum, not a separate requirement. And **the term is undefined**, which is
 #### D16 · What is a *test approach*, and what satisfies the gate? — **answered: in the issue, or in §8**
 
 New, 2026-08-20, arising from D14: the gate names a document we have never
-defined. A test plan we have — [`docs/templates/test-design-specification.md`](../../../templates/test-design-specification.md),
+defined. A test plan we have — [`docs/templates/test-design-specification.md`](../../../docs/templates/test-design-specification.md),
 ten parts, written for #41 and deliberately thorough. A *test approach* is meant
 to be the smaller thing that usually suffices, and right now nothing says what it
 contains or where it lives.
@@ -2758,7 +2758,7 @@ the split, folding the approach into the plan as a *test strategy* clause.
 **So the approach is a section of the plan, not a lighter substitute for one** —
 IEEE 829's test plan has *Approach* as its section 6. Which is exactly the shape
 our own template already has, without anyone having planned it:
-[`docs/templates/test-design-specification.md`](../../../templates/test-design-specification.md) §8 is called
+[`docs/templates/test-design-specification.md`](../../../docs/templates/test-design-specification.md) §8 is called
 **Approach**, and it asks *what runs and where · what is real and what is stubbed
 · how time is manipulated · what state each test starts from*. The criteria half
 of the owner's definition lives in §3 (outcomes) and §6 (refusals and successes).
@@ -3181,7 +3181,7 @@ one would be ceremony — but *saying* we do not write one is different from not
 having heard of it, and the difference is exactly what this row records.
 
 **Cost**: three file renames, the references in
-[`docs/templates/README.md`](../../../templates/README.md) and `docs/3.3`
+[`docs/templates/README.md`](../../../docs/templates/README.md) and `docs/3.3`
 (§2.4.2 *How a test plan is built*, and the document-ownership row in §2.9.4.1),
 and a heading pass over 3.3's testing sections. All inside the apply pass.
 
