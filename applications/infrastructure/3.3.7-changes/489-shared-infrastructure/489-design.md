@@ -28,7 +28,7 @@ documents:
 | | target |
 | --- | --- |
 | **who** | the infrastructure application, owned by Operations & Infrastructure, with its own repository `delphside/infrastructure` and its own GitHub project and board |
-| **what it holds** | the hosts, networking (domain, DNS, ports, firewall), host security and the combined capacity plan. Its programme records live in its folder in `delphside/programme` (#485, R6) |
+| **what it holds** | the hosts, networking (domain, DNS, ports, firewall), host security and the hosts' capacity plan. Its programme records live in its folder in `delphside/programme` (#485, R6) |
 | **what it serves** | each hosted application, which depends on it only as its host. No hosted application depends on another |
 | **how it changes** | a host change is its delivery. Afterwards each hosted application runs its own `verify.sh` |
 | **how it coordinates** | a project that affects a hosted application, by a change or only by its regression testing, raises a requirement in that application's repository and coordinates the work. One team runs every board, so a requirement and its dependency link are enough |
@@ -58,11 +58,20 @@ parts would measure nothing. To apply to docs/5.1's letter-milestone rule and
 §2.2.1's routine-update table, which assume host work rides an application's
 version.
 
+### Who plans which capacity: both, at different levels
+
+Capacity is planned at two levels (owner, 2026-10-16). The infrastructure
+application plans the VMs' resources: memory, CPU and disk on each host,
+against every hosted application's measured footprint. Each application plans
+its own: rate limiting, its bottlenecks, and what its users can drive it to.
+So Tile Lite Elite keeps a capacity plan, without the host totals, and the
+hosts' plan takes each application's footprint from it.
+
 ## Options
 
 ### What happens if the second application does not fit
 
-Measured first, against the combined plan's ceiling.
+Measured first, against the hosts' plan's ceiling.
 
 1. **Stay on the shared hosts** if the measured footprint fits.
 2. **Move the second application to a free-tier arm64 VM**, building for arm64
@@ -77,7 +86,7 @@ open.
 
 | question | answer |
 | --- | --- |
-| capacity | the combined capacity plan carries every hosted application against each host's 954 MB ceiling. The second application is measured on rehearsal before production |
+| capacity | the hosts' capacity plan carries every hosted application's footprint against each host's 954 MB ceiling; each application's own plan covers its rate limits and bottlenecks. The second application is measured on rehearsal before production |
 | failure | none shared, because no component sits in front of both applications; each fails alone |
 | limits and timeouts | none new, because nothing is added between a user and an application |
 | secrets and access | the second application's deploy and tunnel use SSH, as Tile Lite Elite's do; whether each application gets its own Linux user is still to design. Production access stays the owner's to run |
@@ -86,7 +95,7 @@ open.
 
 - which documents and scripts move from this repository to
   `delphside/infrastructure`: docs/3.4's host sections, `check-hosts.sh`, the
-  host rows of docs/4.8, the capacity plan;
+  host rows of docs/4.8, and the host-level part of the capacity plan;
 - how `verify.sh` in each application is triggered after a host delivery;
 - the test approach for a host delivery that two applications sit on;
 - whether each application gets its own Linux user and deploy key, with an
