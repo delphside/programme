@@ -7,6 +7,9 @@ This file says where the state is and what is open; the state itself is in the
 documents and issues it names. Written 2026-10-14, at the handover after the
 decision backlog was cleared.
 
+Issue numbers here are Tile Lite Elite's (`delphside/tile-lite-elite`) unless
+written otherwise.
+
 ## Read first
 
 1. #71's body: the allocation table, the Decisions table, and the code-review
@@ -15,19 +18,19 @@ decision backlog was cleared.
    then the work-package sections.
 3. [`71-delivery.md`](71-delivery.md): `release/1.0.0` for #268 and #269.
 4. [`71-functional.md`](71-functional.md): the use case, the journeys, the
-   lifecycles, and *Questions the journeys raise*.
-5. D72 (#479) and `docs/1.0` *Invitations by address*.
+   lifecycles, and *Questions the journeys raise* (Q1 to Q15, all answered).
+5. Tile Lite Elite's [4.1.0 rules](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md),
+   which the journeys cite.
 
 ## Where state lives
 
-- **This folder** is a change document. It reaches `main` through a short-lived
-  `claude/` branch with one pull request, merged by the thread once the
-  required checks pass, with a *Review* section saying none is needed (owner,
-  2026-10-14). The pre-commit hook refuses `docs/changes/` on a branch, so these
-  commits use `--no-verify` and say why.
-- **Living documents** (`docs/1.0` and the numbered documents) change on the
-  project branch, PR #501 for now, which the owner reviews and approves before
-  it merges.
+- **This folder** is a change document in `delphside/programme`. A web session
+  changes it through a short-lived `claude/` branch with one pull request,
+  merged by the thread once the required checks pass, with a *Review* section
+  saying none is needed ([1.2](../../../../../../docs/1.2-change-lifecycle.md) §2.2).
+- **Living documents** (Tile Lite Elite's `docs/4.x`) change in
+  `delphside/tile-lite-elite`, on the project branch, with a pull request the
+  owner reviews and approves before it merges.
 - **Decisions** are issues D56 to D72 (#442 to #479), applied in the documents
   and closed once applied.
 - **Single writer.** This thread writes this folder, #71's body and the D-issues
@@ -38,13 +41,13 @@ decision backlog was cleared.
 
 | item | waits on |
 | --- | --- |
-| PR #501: RATE-4, ACC-4 to ACC-6, GAME-8, GAME-9, the reshaped journeys and Q5's settled email rules; merge once approved | owner's approval |
-| Q10 to Q15 in `71-functional.md`, *Questions the journeys raise* (Q1 to Q9 are answered) | owner |
-| Q5's email rules move to `docs/1.0` when #439 lands | #439 |
-| #406's four diagram-format questions, and #428 | owner |
+| how a player who is not looking hears of a change (#87): sound and email, Web Push, or the page only; it sets WP C's schema, settled before #268's migration is written (D64). RET-3's question is shown in the games list, not sent (4.2.4), so it needs no column | owner, on a card |
+| RATE-5's private-stats column on `players`: which migration carries it | with WP C's schema |
+| #406's four design-map questions (`406-map-format.md`), and #428 | owner, 1 and 2 on cards |
+| Q5's email rules move to 4.1.0 when #439 lands | #439 |
 | DEL-2 refusing to close an account while a passed invitation names it: principle 9 calls it acceptable | owner, on #439 |
-| #439's open rows: whether the old address is told of a change; closing your own account; friends and blocking | owner, on #439 |
-| WP C's schema, which waits on how #87 reaches a player who is not looking (Web Push or not), and whether RET-3's question is sent; settle before #268's migration is written (D64) | owner |
+| #439's open rows: whether the old address is told of a change; friends and blocking | owner, on #439 |
+| closing your own account, suspension, support requests and complaints | #296 (R1 to R5) |
 
 ## A tooling defect met on the way
 
