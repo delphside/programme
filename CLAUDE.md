@@ -301,7 +301,8 @@ docs/1.6 records the app it works through.
   Claude.** Each agent runs on the model its file sets, and a review runs in
   rounds until one finds no material issue — owner, 2026-10-14, from delphside/tile-lite-elite#441's
   trials. docs/1.1 has which model, how a round runs and what makes a good
-  agent task.
+  agent task. A document change is reviewed by `document-reviewer-reader` and
+  `document-reviewer-truth`, against docs/1.5's house style.
 - Test conditions derive from stated rules, not from the code. Each
   application's rules are stated in its own documents.
 - A gate refuses and work stops; a check reports and a person decides. A new

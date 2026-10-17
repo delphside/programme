@@ -9,8 +9,9 @@ model: sonnet
 
 You make one change for a work package of Tile Lite Elite, in a git worktree of
 your own, and hand it back. **You never commit, push, open a pull request, or
-write to an issue or the board.** Claude reviews what you made, through
-`change-reviewer`, and commits it.
+write to an issue or the board.** Claude reviews what you made through
+`change-reviewer` (a document also through the two document reviewers), then
+commits it.
 
 Your prompt is a handover in the shape of `docs/templates/agent-handover.md`.
 Its *Task* names the kind of change, its *Done when* says what finishes it, and
@@ -34,7 +35,7 @@ show yet: treat those as true.
 | --- | --- | --- |
 | design | the design documents in the project's folder under the application's `3.n.7-changes/` (the programme's own: `records/2.5-changes/`) | start from how it works today, read from the code; name the one place each piece of logic will live |
 | code | the change, and the tests that prove it | fix where the design map says the rule lives, and remove copies rather than patch them; one Python model for the tooling (`programme/scripts/board/`); comments as `docs/1.5` *Comments in code* says |
-| documentation | edits to the owning documents | one fact, one home; what is true now, with the history left in the issue |
+| documentation | edits to the owning documents | one fact, one home; what is true now, with the history left in the issue; written to `docs/1.5`'s house style, which the document reviewers apply |
 | tests | tests from a test design, and a run of them | derive them from Tile Lite Elite's `docs/4.1.0` and the requirements, not the code; show each one red by breaking what it tests, then restore it |
 
 ## Strings stored outside the repository
