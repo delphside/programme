@@ -355,6 +355,10 @@ docs/1.6 records the app it works through.
   reason to keep one.
 - One fact, one home. The rule lives in its owning document, the argument in
   the issue, and every other mention is a link.
+- **Every setting is listed in the application's (3+n).4.1.** Deployment
+  settings (addresses, keys, hosts) are environment variables; product
+  settings (defaults, rate limits, retention, time limits) are one code module
+  per area. Owner, 2026-10-17; docs/1.5 has the rule.
 - **Each numbered document covers one scope**, set by its number (docs/1.5
   owns the scheme). A document says what is true now with at most a
   line of reason. History, argument and quotations go in the issue or the
