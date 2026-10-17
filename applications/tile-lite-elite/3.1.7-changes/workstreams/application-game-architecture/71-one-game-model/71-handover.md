@@ -41,7 +41,6 @@ written otherwise.
 
 | item | waits on |
 | --- | --- |
-| #406 R6's four questions are answered (`406-map-format.md`); #428, the functional design docs gap | Claude, to bring #428 as a card |
 | Q5's email rules move to 4.1.0 when #439 lands | #439 |
 | DEL-2 refusing to close an account while a passed invitation names it: principle 9 calls it acceptable | owner, on #439 |
 | #439's open rows: whether the old address is told of a change; friends and blocking | owner, on #439 |
