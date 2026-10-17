@@ -41,8 +41,7 @@ written otherwise.
 
 | item | waits on |
 | --- | --- |
-| how a player who is not looking hears of a change (#87): sound and email, Web Push, or the page only; it sets WP C's schema, settled before #268's migration is written (D64). RET-3's question is shown in the games list, not sent (4.2.4), so it needs no column | owner, on a card |
-| RATE-5's private-stats column on `players`: which migration carries it | with WP C's schema |
+| which events ping a player by Web Push by default (#87; the schema is in `71-data-model.md` §5 and needs no change whichever) | owner, on a card |
 | #406's four design-map questions (`406-map-format.md`), and #428 | owner, 1 and 2 on cards |
 | Q5's email rules move to 4.1.0 when #439 lands | #439 |
 | DEL-2 refusing to close an account while a passed invitation names it: principle 9 calls it acceptable | owner, on #439 |
