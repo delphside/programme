@@ -105,12 +105,12 @@ workspace extends model.dsl {
 
 ## What the prototype shows the format lacks
 
-1. **A removed relationship has no way to be written.** WP A removes the
-   roster, invitations and scheduler writing the game directly, and the game
-   model asking the proxy. The DSL can tag an element found by its identifier,
-   but a relationship has no identifier unless the model gives it one. The
-   checked edit needs the model to name every relationship it may remove, or
-   the tooling to find one by its source and destination.
+1. **A removed relationship has no way to be written.** WP A removes the roster,
+   invitations and scheduler writing the game directly, and the game service
+   running engine turns through the proxy. The DSL can tag an element found
+   by its identifier, but a relationship has no identifier unless the model
+   gives it one. The checked edit needs the model to name every relationship
+   it may remove, or the tooling to find one by its source and destination.
 2. **The Mermaid export draws no relationship styles.** A `new` relationship
    comes out like every other line. The tooling could prefix the label with
    its change state instead.
