@@ -152,6 +152,7 @@ only if Structurizr's gaps turn out worse than they look.
 2. Applying a release's entries by a checked edit rather than our own writer?
    **Answered, owner 2026-10-17: a checked edit.**
 3. The map in `docs/design-map/`, generated into `docs/4.2.0-design-map.md`?
+   **Answered, owner 2026-10-17: as proposed.**
 4. A work package's generated diagrams: into the project's design folder as
    their own file, or written into the change file itself between markers,
    as the context header is written into a project's body?
