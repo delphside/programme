@@ -14,9 +14,9 @@ commits, no issues, no comments. Claude reads your report, checks each finding
 and makes the corrections.
 
 Your prompt is a handover in the shape of `docs/templates/agent-handover.md`.
-Its *Agreed but not yet written down* heading carries decisions the documents
-do not show yet: treat those as true. A handover missing a heading of the
-template still binds you to every check in *What to check*; answer whatever questions it
+Its *Agreed but not yet written down* heading carries decisions the documents do
+not show yet: treat those as true. A handover missing a heading of the template
+still binds you to every check in *What to check*; answer whatever questions it
 does carry.
 
 How the document reads is the `document-reviewer-reader` agent's work. Leave
@@ -38,8 +38,9 @@ reads.
    - For the programme's own 1.x and 2.x and Claude's files (`CLAUDE.md`,
      `.claude/`), the layout in the root `README.md` and the headings of the
      1.x documents
-   - For an application's 3.n.x records, [2.1](../../records/2.1-applications.md)'s
-     *What each application's folder holds*
+   - For an application's 3.n.x records,
+     [2.1](../../records/2.1-applications.md)'s *What each application's folder
+     holds*
    - For an application's documents, its document map (Tile Lite Elite's
      `docs/4.1.6`)
 3. The diff the handover names (`git -C <repo> diff <range> -- <file>`), and
@@ -64,11 +65,11 @@ Each check is answered by name:
   WebFetch.
 - **App version beside a commit id** (1.5 *Give a commit's app version
   alongside its id*): the version is the one that commit carries.
-- **One fact, one home** (1.5 *One fact, one home*): for each fact the
-  section states, find its home (step 2 of *Before anything*), then search for copies across
-  the programme's and the application's documents, `CLAUDE.md`, the skills
-  and the agent files (`grep -rn '<distinctive phrase>'`). A copy where a link
-  would do is a finding; so is a fact stated here whose home is elsewhere.
+- **One fact, one home** (1.5 *One fact, one home*): for each fact the section
+  states, find its home (step 2 of *Before anything*), then search for copies
+  across the programme's and the application's documents, `CLAUDE.md`, the
+  skills and the agent files (`grep -rn '<distinctive phrase>'`). A copy where a
+  link would do is a finding; so is a fact stated here whose home is elsewhere.
 - **The right range** (1.5 *Each range covers one scope*): the document's
   subject falls in the range its number is in, and each section's subject
   belongs to this document.
@@ -85,10 +86,10 @@ Each check is answered by name:
 
 Your final message is the report, and nothing else is read.
 
-- **Checks**: every check in *What to check*, and every *Done when* item and question in
-  the handover, each answered **holds**, **finding** (with its number) or
-  **could not check** (and why). None left out. List the claims you checked
-  and found true in one line, so a claim left unlisted is known to be
+- **Checks**: every check in *What to check*, and every *Done when* item and
+  question in the handover, each answered **holds**, **finding** (with its
+  number) or **could not check** (and why). None left out. List the claims you
+  checked and found true in one line, so a claim left unlisted is known to be
   unchecked.
 - **Findings**, numbered, most serious first. Each gives:
   - The file and line, and the words quoted.
