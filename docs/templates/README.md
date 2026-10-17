@@ -34,6 +34,7 @@ inlines a form is one nobody can copy.
 | [artefact-register.md](artefact-register.md) | [1.2](../1.2-change-lifecycle.md) §2.13 and §2.15 |
 | [role-assignment.md](role-assignment.md) | [1.7](../1.7-roles-and-responsibilities.md), *The roles* |
 | [delivery-log.md](delivery-log.md) | [1.2](../1.2-change-lifecycle.md) §2.14, *The delivery log row* |
+| [application-profile.md](application-profile.md) | [1.3](../1.3-workstreams.md), *The generic assets, and an application's instances* |
 
 **A new template owes that row.** Until a numbered document links to it, it is a
 form nobody will find at the moment they need it.
@@ -43,7 +44,7 @@ form nobody will find at the moment they need it.
 | [test-design-specification.md](test-design-specification.md) | the project's folder in the application's change documents (`3.n.7-changes/`), else the issue's | [user deletion](../../applications/tile-lite-elite/3.1.7-changes/41-user-deletion-test-design.md) (delphside/tile-lite-elite#41, functional) · [rate limiting](../../applications/tile-lite-elite/3.1.7-changes/25-rate-limiting-test-design.md) (delphside/tile-lite-elite#25, non-functional) |
 | [post-deployment-review.md](post-deployment-review.md) | the project's folder, once its last release has been live and used | none yet — the first project to finish writes it |
 | [capacity-plan.md](capacity-plan.md) | the application's capacity plans (`3.n.3-capacity-plan/<CODE>_CP_<yyyy>_<mm>.md`), monthly | [TLE_CP_2026_09](../../applications/tile-lite-elite/3.1.3-capacity-plan/TLE_CP_2026_09.md) (delphside/tile-lite-elite#291 R1, the first) |
-| [workstream-register.md](workstream-register.md) · [artefact-register.md](artefact-register.md) · [role-assignment.md](role-assignment.md) · [delivery-log.md](delivery-log.md) | a new application's programme records, once each, when the programme takes it on | Tile Lite Elite's: [3.1.4](../../applications/tile-lite-elite/3.1.4-workstreams.md) · [3.1.2](../../applications/tile-lite-elite/3.1.2-artefacts.md) · [3.1.5](../../applications/tile-lite-elite/3.1.5-roles.md) · [3.1.1](../../applications/tile-lite-elite/3.1.1-delivery-log.md) |
+| [workstream-register.md](workstream-register.md) · [artefact-register.md](artefact-register.md) · [role-assignment.md](role-assignment.md) · [delivery-log.md](delivery-log.md) · [application-profile.md](application-profile.md) | a new application's programme records, once each, when the programme takes it on | Tile Lite Elite's: [3.1.4](../../applications/tile-lite-elite/3.1.4-workstreams.md) · [3.1.2](../../applications/tile-lite-elite/3.1.2-artefacts.md) · [3.1.5](../../applications/tile-lite-elite/3.1.5-roles.md) · [3.1.1](../../applications/tile-lite-elite/3.1.1-delivery-log.md) · [3.1.6](../../applications/tile-lite-elite/3.1.6-profile.md) |
 
 ## The other half, and why it is not here
 

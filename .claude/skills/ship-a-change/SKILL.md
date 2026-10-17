@@ -62,8 +62,13 @@ burst of 3 and the suite registers an account per test:
 **Clean up after a remote run**, or the next one inherits the accounts:
 
 ```bash
-./scripts/clean-test-accounts.sh --prefix T- --target https://rehearsal.tileliteelite.com
+./scripts/clean-test-accounts.sh --prefix T- --target <the rehearsal URL>
 ```
+
+The rehearsal URL is not fixed: it is the variable the application's technical
+profile (`programme.toml`) names in `environments.rehearsal.url_variable`, set by
+the script in `environments.rehearsal.url_from` (or the override in
+`environments.rehearsal.env`).
 
 **Read the milestone before deploying.** `deploy.sh` closes **every open issue in
 it**, shipped or not. Move out anything that is not shipping first.
@@ -96,7 +101,7 @@ either can fail alone and the record must say which did.
 
 ## An emergency
 
-**Cut from the last `prod-*` tag, never from `main`** — `main` accumulates
+**Cut from the last release tag (the technical profile's `release.tag_prefix`, then the version), never from `main`** — `main` accumulates
 tested-but-unshipped image changes, and deploying it ships all of them beside the
 fix. Tile Lite Elite's `docs/4.3.3` §1.13 has the commands. It took **12 minutes 7 seconds** when it
 was walked, of which 6 minutes was CI, which is not skipped. `rollback.sh` first:

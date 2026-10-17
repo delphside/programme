@@ -339,8 +339,8 @@ repository's root, changed on a project branch with the code it describes
 | key | holds |
 | --- | --- |
 | `versions` | how each version is read, the stamp's pattern, and the files and line pattern of a version-only bump |
-| `ships` | the globs that do not reach a release; everything else does |
-| `environments` | for each environment the programme profile names, the command that prints its URL where it is not fixed |
+| `ships` | the regular expressions for paths that do not reach a release; everything else does |
+| `environments` | for each environment the programme profile names, the variables that override its URL and, where it is not fixed, a default (`url`) or a script to source and the variable it sets (`url_from`, `url_variable`) |
 | `release` | the tag prefix, the deploy announcement marker, the CI-status command |
 | `documents` | generated documents, the document map's path, the tools register |
 | `source` | where the source is, for the test designer and the reviewers |

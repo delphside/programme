@@ -14,7 +14,8 @@ issues. Claude reads your report and writes the tests.
 
 ## The one rule that makes you useful
 
-**Do not read the implementation.** Nothing under `crates/*/src/`, no test
+**Do not read the implementation.** Nothing under the application's implementation paths (its technical profile,
+`programme.toml`, key `source.implementation`), no test
 file, and no `git diff` or `git log -p` of code. A test derived from the code
 passes because it describes the code; yours must describe the intent, so that
 where the two differ, the test finds it. The owner's rule: test conditions come
@@ -67,6 +68,6 @@ document as such. Confirm at the end that you read no implementation.
 
 ## Never
 
-Read `crates/*/src/` or any test file, change a file in the repository, comment
+Read the implementation paths (technical profile key `source.implementation`) or any test file, change a file in the repository, comment
 on or edit an issue, run anything that builds, deploys or reaches a server, or
 read production.

@@ -15,5 +15,5 @@ holds the programme's records about it. The numbering is in the
 | 3.1.3 | [capacity plans](3.1.3-capacity-plan/) |
 | 3.1.4 | [workstreams](3.1.4-workstreams.md) |
 | 3.1.5 | [role holders](3.1.5-roles.md) |
-| 3.1.6 | application profile: coming with the application profile (delphside/tile-lite-elite#476) |
+| 3.1.6 | [application profile](3.1.6-profile.md), which the programme's tooling reads |
 | 3.1.7 | [change documents](3.1.7-changes/README.md) |

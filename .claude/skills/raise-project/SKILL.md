@@ -230,9 +230,11 @@ the shell, which has silently swallowed whole spans twice.
 window in which the issue exists untyped:
 
 ```bash
-NUM=$(gh issue create -R delphside/tile-lite-elite --type Project \
+# The repository is the one in the application's programme profile (identity table).
+REPO=$(./scripts/programme/board/board-profile.py get profile.identity.repository)   # owner/name
+NUM=$(gh issue create -R "$REPO" --type Project \
         --title "..." --body-file /tmp/body.md | grep -o '[0-9]*$')
-id=$(gh api graphql -f query="{repository(owner:\"delphside\",name:\"tile-lite-elite\"){issue(number:$NUM){id}}}" \
+id=$(gh api graphql -f query="{repository(owner:\"${REPO%/*}\",name:\"${REPO#*/}\"){issue(number:$NUM){id}}}" \
        -q '.data.repository.issue.id')
 ```
 
@@ -361,7 +363,7 @@ gh api graphql -f query='{__type(name:"IssueFieldCreateOrUpdateInput"){inputFiel
 **These ids are a cache and can go stale.** If one is rejected, re-read them:
 
 ```bash
-gh api graphql -f query='{repository(owner:"delphside",name:"tile-lite-elite"){issueFields(first:30){nodes{... on IssueFieldSingleSelect{id name options{id name}}}}}}'
+gh api graphql -f query='{repository(owner:"'"${REPO%/*}"'",name:"'"${REPO#*/}"'"){issueFields(first:30){nodes{... on IssueFieldSingleSelect{id name options{id name}}}}}}'
 ```
 
 ## Folding the requirements it takes
@@ -372,8 +374,8 @@ For each one: make it a sub-issue, label it `folded`, close it as completed with
 a comment naming the project.
 
 ```bash
-pid=$(gh api graphql -f query='{repository(owner:"delphside",name:"tile-lite-elite"){issue(number:'"$NUM"'){id}}}' -q '.data.repository.issue.id')
-cid=$(gh api graphql -f query='{repository(owner:"delphside",name:"tile-lite-elite"){issue(number:NNN){id}}}' -q '.data.repository.issue.id')
+pid=$(gh api graphql -f query='{repository(owner:"'"${REPO%/*}"'",name:"'"${REPO#*/}"'"){issue(number:'"$NUM"'){id}}}' -q '.data.repository.issue.id')
+cid=$(gh api graphql -f query='{repository(owner:"'"${REPO%/*}"'",name:"'"${REPO#*/}"'"){issue(number:NNN){id}}}' -q '.data.repository.issue.id')
 gh api graphql -f query='mutation($p:ID!,$c:ID!){addSubIssue(input:{issueId:$p,subIssueId:$c}){issue{number}}}' -f p="$pid" -f c="$cid"
 gh issue edit NNN --add-label folded
 gh issue close NNN --reason completed --comment "Folded into #$NUM, which owns this requirement from here."

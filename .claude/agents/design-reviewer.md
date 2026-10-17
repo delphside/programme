@@ -28,8 +28,9 @@ do not show yet: treat those as true.
 4. The design folder, `3.n.7-changes/…/<N>-<name>/` in the application's folder (the programme's own: `records/2.5-changes/<workstream>/<N>-<name>/`),
    every file, whole. Note when each was last changed:
    `git log -1 --format=%cs -- <file>`.
-5. `git log <that date>..HEAD --oneline -- crates/` for what has changed in the
-   code since.
+5. `git log <that date>..HEAD --oneline -- <source>` for what has changed in the
+   code since, where `<source>` is the application's source globs (its technical
+   profile, `programme.toml`, key `source.globs`).
 
 ## What to check
 

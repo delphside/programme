@@ -11,6 +11,7 @@ keeps its own code and technical documents in a repository of its own.
 | `CLAUDE.md` | the generic rules on one page; each application's `CLAUDE.md` imports it |
 | `docs/` | the programme's processes, `1.x`, starting at [1.0](docs/1.0-programme.md) |
 | `docs/templates/` | the forms for the records below |
+| `config/programme.toml` | what every application shares: the organisation, the board, the accounts, the programme repository and the paths of its registers |
 | `.claude/` | the skills and agents every application uses |
 | `records/` | records about the whole programme, `2.x`: [2.1 applications](records/2.1-applications.md), [2.2 role holders](records/2.2-roles.md), [2.3 activity log](records/2.3-activity-log.csv), [2.4 weekly digests](records/2.4-weekly-digest/), [2.5 change documents](records/2.5-changes/), [2.6 programme workstreams](records/2.6-workstreams.md) |
 | `applications/<app>/` | one folder per application, with the same records in each, `3.n.x` |

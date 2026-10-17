@@ -1,0 +1,51 @@
+# What every application in the programme shares. Read by the programme's
+# tooling through scripts/programme/board/profile.py (delphside/tile-lite-elite#485,
+# stage 2). An application's own facts are in its programme profile
+# (applications/<app>/3.n.6-profile.md) and its technical profile
+# (programme.toml at its repository's root).
+#
+# Issue types, field names and option strings are still in the tooling's model.
+
+[organisation]
+# The GitHub organisation that owns every repository and the board.
+login = "delphside"
+
+[board]
+# The one programme board.
+project_id = "PVT_kwDOEyOvmc4BhpOl"
+
+[accounts]
+# The owner's GitHub account: the default reviewer of a pull request.
+owner = "SteveStyle"
+# The account Claude's `gh` authenticates as, so a comment's author says who typed it.
+machine_user = "SteveStyle-typed-by-Claude"
+# The bot that opens the scheduled workflows' reports.
+bot = "github-actions"
+# How the hook messages name the owner.
+owner_name = "Steve"
+
+[programme]
+# The programme repository, the default place of its live checkout relative to
+# an application's main worktree, and the submodule path in an application.
+repository = "delphside/programme"
+live_default = "../programme"
+submodule = "programme"
+
+[records]
+# Paths inside the programme repository. The register is read from the pinned
+# submodule; the log and the digests are records, read from the live checkout.
+activity_register = "docs/1.4-programme-activities.md"
+activity_log = "records/2.3-activity-log.csv"
+weekly_digest = "records/2.4-weekly-digest"
+# A weekly digest is programme-wide: <code>_<yyyy>_W<ww>.md.
+weekly_digest_code = "PRG_WD"
+
+[programme_documents]
+# The programme's documents that an application's repository holds, which change
+# on main and never on a project's branch. The tooling adds the submodule (the
+# pin) and everything inside it; an application adds its own in its technical
+# profile (`documents.programme_exact`, `documents.programme_prefixes`).
+exact = ["CLAUDE.md", "AGENTS.md", "docs/README.md"]
+# The programme's register of tooling, inside the programme repository: a new
+# script or skill must be named in it or in the application's.
+tools_register = "docs/1.1-programme-tooling.md"
