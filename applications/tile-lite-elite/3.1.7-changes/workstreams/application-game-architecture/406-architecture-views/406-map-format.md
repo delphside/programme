@@ -98,7 +98,7 @@ docs/design-map/
   lifecycles.md  the state machines, activity and use case diagrams, Mermaid
 ```
 
-`docs/2.0-design-map.md` is generated: each C4 view exported from `map.dsl`,
+`docs/4.2.0-design-map.md` is generated: each C4 view exported from `map.dsl`,
 and the diagrams from `lifecycles.md`, with the prose that says what each
 view is for. The entity-relationship diagram stays in 4.2, which 2.0 links to.
 Generated, like 1.5 and 1.6, so it is never edited by hand.
@@ -151,7 +151,7 @@ only if Structurizr's gaps turn out worse than they look.
    **Answered, owner 2026-10-17: Structurizr.**
 2. Applying a release's entries by a checked edit rather than our own writer?
    **Answered, owner 2026-10-17: a checked edit.**
-3. The map in `docs/design-map/`, generated into `docs/2.0-design-map.md`?
+3. The map in `docs/design-map/`, generated into `docs/4.2.0-design-map.md`?
 4. A work package's generated diagrams: into the project's design folder as
    their own file, or written into the change file itself between markers,
    as the context header is written into a project's body?
