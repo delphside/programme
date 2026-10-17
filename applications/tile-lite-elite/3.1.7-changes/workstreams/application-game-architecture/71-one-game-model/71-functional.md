@@ -380,7 +380,7 @@ flowchart TD
   s0((start)) --> t0["Time: the hourly pass looks at each Active game (reads)"]
   t0 --> v1{"Server: limit longer than a day, a third of it or less remaining,<br/>and the seat on turn a claimed player not yet reminded this turn?<br/>TIME-4"}
   v1 -- yes --> t1["Server: records that this turn was reminded (no transition)<br/>Q13"]
-  t1 --> t2["Server: emails the player on turn, once, at their Live email address<br/>TIME-4"]
+  t1 --> t2["Server: notifies the player on turn, once, on their devices<br/>TIME-4, NOTE-1"]
 ```
 
 ### U5 Follow my games
