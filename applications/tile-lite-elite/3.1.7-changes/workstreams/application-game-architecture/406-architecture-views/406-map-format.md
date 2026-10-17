@@ -156,3 +156,4 @@ only if Structurizr's gaps turn out worse than they look.
 4. A work package's generated diagrams: into the project's design folder as
    their own file, or written into the change file itself between markers,
    as the context header is written into a project's body?
+   **Answered, owner 2026-10-17: their own file.**
