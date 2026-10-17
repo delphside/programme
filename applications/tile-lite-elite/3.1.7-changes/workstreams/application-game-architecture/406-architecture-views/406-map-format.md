@@ -148,6 +148,7 @@ only if Structurizr's gaps turn out worse than they look.
 ## Questions for the owner
 
 1. Structurizr for the C4 views, with the four gaps filled as above?
+   **Answered, owner 2026-10-17: Structurizr.**
 2. Applying a release's entries by a checked edit rather than our own writer?
 3. The map in `docs/design-map/`, generated into `docs/2.0-design-map.md`?
 4. A work package's generated diagrams: into the project's design folder as
