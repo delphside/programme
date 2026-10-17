@@ -13,5 +13,5 @@ applications in [2.1](../../records/2.1-applications.md).
 | 3.2.3 | capacity plans: not yet written |
 | 3.2.4 | workstreams: not yet written |
 | 3.2.5 | role holders: not yet written |
-| 3.2.6 | application profile: coming with the application profile (delphside/tile-lite-elite#476) |
+| 3.2.6 | application profile: not yet written, from [the template](../../docs/templates/application-profile.md) |
 | 3.2.7 | change documents: not yet written |

@@ -25,8 +25,9 @@ Read these, in this order:
    method. What each document is compared with is this file's table.
 2. The document you were asked to check, whole.
 3. Its stamp, the italic line under the title, gives the commit it was last
-   verified at. `git log <that commit>..HEAD --stat -- crates/` shows what has
-   changed since. Concentrate on those changes, then check the rest.
+   verified at. `git log <that commit>..HEAD --stat -- <source>` shows what has
+   changed since, where `<source>` is the application's source globs (its technical
+   profile, `programme.toml`, key `source.globs`). Concentrate on those changes, then check the rest.
 
 ## Where each document's facts live
 
