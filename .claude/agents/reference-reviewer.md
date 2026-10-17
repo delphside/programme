@@ -21,13 +21,14 @@ do not show yet: treat those as true.
 
 Read these, in this order:
 
-1. `docs/1.5-writing-documents.md`, section *The reference freshness stamp*: the
-   method. What each document is compared with is this file's table.
+1. `docs/1.5-writing-documents.md`, section *The reference freshness stamp*,
+   and the `reference-review` paragraph in `docs/1.4-programme-activities.md`:
+   the method. What each document is compared with is this file's table.
 2. The document you were asked to check, whole.
 3. Its stamp, the italic line under the title, gives the commit it was last
    verified at. `git log <that commit>..HEAD --stat -- <source>` shows what has
-   changed since, where `<source>` is the application's source globs (its technical
-   profile, `programme.toml`, key `source.globs`). Concentrate on those changes, then check the rest.
+   changed since, where `<source>` is the files in the document's row of
+   *Where each document's facts live*. Concentrate on those changes, then check the rest.
 
 ## Where each document's facts live
 

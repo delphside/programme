@@ -57,26 +57,9 @@ whole procedure exists to prevent.
 
 ## What belongs in it, once you have the right section
 
-**The guidelines are written down already, in
-[`docs/1.5`](../../../docs/1.5-writing-documents.md).** Read them there rather than from a copy here — that is this skill's
-own rule applied to itself. In short: each numbered range covers one scope, set out there;
-what is true now, with the history in the issue or the commit; the command or
-the rule first and the
-reasoning below it; reference says *what is there* and *what to type*, never
-*why*; imply the rationale rather than narrating it; say what we do rather than
-what we rejected; say what is rather than what should be.
-
-**Every section has an audience and a use case**, and they decide what belongs.
-`docs/1.5` states them per range. The test for a sentence is not *is this
-true* but *would this reader do the wrong thing without it* — history earns its
-place only when a rule would otherwise look arbitrary and get tidied away by
-somebody who has never been bitten.
-
-**Issue numbers are the one to watch**, because they are the easiest thing to
-add while writing and the hardest to justify later. Owner, 2026-09-07: *"mainly
-we are describing what is there, not how it got there."* A number earns its
-place only when a reader would **change the thing wrongly without it** — not
-because it is where the fact came from.
+[`docs/1.5`](../../../docs/1.5-writing-documents.md) is the house style: what
+each range holds, who reads it, how it is written and where it differs from
+Google's guide. Write to it; the two document reviewers apply it.
 
 ## Which document owns what
 
@@ -103,9 +86,6 @@ Elite's own, in its repository, numbered 4.x.y.
 | `3.1.1-delivery-log` | one row per delivery |
 | `1.1-programme-tooling` | the two kinds of tooling, and every script and tool acting on the programme's records. **A new programme script is registered here** |
 | `1.6-github-project-board` | the GitHub objects the programme runs on, which fields each issue carries, **and every string the tooling matches literally** |
-
-**The argument goes in the issue; the conclusion goes in the document.** A
-document says what is true now, not how it was decided.
 
 **A project body links, it does not restate.** `raise-project`: *the content or
 a link to the design document that holds it, never both*.
