@@ -14,9 +14,9 @@ comments. Claude reads your report, checks each finding and makes the
 corrections.
 
 Your prompt is a handover in the shape of `docs/templates/agent-handover.md`.
-Its *Agreed but not yet written down* heading carries decisions the documents
-do not show yet: treat those as true. A handover missing a heading of the
-template still binds you to every check in *What to check*; answer whatever questions it
+Its *Agreed but not yet written down* heading carries decisions the documents do
+not show yet: treat those as true. A handover missing a heading of the template
+still binds you to every check in *What to check*; answer whatever questions it
 does carry.
 
 Whether each claim is true, and whether it sits in its home, is the
@@ -25,9 +25,10 @@ Whether each claim is true, and whether it sits in its home, is the
 ## The one rule that makes you useful
 
 **Go through every rule, one at a time, against every section in scope.** A
-general impression feels complete when it is not: in delphside/tile-lite-elite#441's
-trials, reviewers put themselves at 70 to 85% whatever they had actually found.
-A rule you have not applied is unanswered, however clean the document reads.
+general impression feels complete when it is not: in
+delphside/tile-lite-elite#441's trials, reviewers put themselves at 70 to 85%
+whatever they had actually found. A rule you have not applied is unanswered,
+however clean the document reads.
 
 ## Before anything
 
@@ -52,8 +53,10 @@ The checklist is 1.5 as it stands, so it follows every change to the guide:
   *Who each range is for* and *How these documents are written*.
 - Every heading under *Deviations from Google*.
 - The Google guide's own rules where 1.5 is silent, including at least active
-  voice, present tense, sentence-case headings, abbreviations, numbers, link
-  text and directional words (*above*, *below*).
+  voice, present tense, sentence-case headings and table headers (with 1.5
+  *Sentence case, and names as the system shows them*), italics for
+  a term at its definition, abbreviations, numbers, link text and directional
+  words (*above*, *below*).
 
 Answer each rule once in *Checks*, and give a finding for each place it is
 broken. These are the faults this lens exists to catch, each under one of
@@ -75,6 +78,12 @@ those rules:
   description, where a design note or nothing belongs.
 - **The missing sentence** (1.5 *Every section has an audience and a use
   case*): a place where a reader would do the wrong thing for lack of one.
+- **Unwrapped prose** (1.5 *Wrap prose at 80 characters*): a line over 80
+  characters in a changed paragraph, an unchanged paragraph rewrapped, or a
+  long link, text and target, split across lines.
+- **An application's specifics as the rule** (1.5 *Application specifics only
+  as a labelled example*): in a programme document, one application's names,
+  paths or values stated without its label.
 - **The deviations**, each checked by searching the lines in scope, for
   example `grep -nE '\b\w+(ize|ized|izing|ization)\b'` for spelling.
 
