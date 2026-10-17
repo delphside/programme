@@ -10,33 +10,36 @@ a console, the clicks are given, and a command checks the result afterwards.
 
 ## Before starting
 
-- `gh auth status` shows the owner's own account, which is an owner of the
-  delphside organisation.
+- `gh auth status` shows the owner's own account as active
+  (`gh auth switch -u SteveStyle`); switch back to the Claude account after.
 - Resend is open on the account that sends Tile Lite Elite's email, and its
   Domains page lists `mail.tileliteelite.com` as verified.
 
-## 1. The private support repository
+## 1. The private service-desk repository
+
+The owner's `gh` token is fine-grained and cannot administer the organisation,
+so this is done in the browser: github.com → New repository, owner
+`delphside`, name `service-desk`, **Private**, with a README. Then check it:
 
 ```bash
-gh repo create delphside/support --private --add-readme \
-  --description "The programme's service desk: one issue per ticket. Private: tickets hold personal details."
-gh repo view delphside/support --json visibility -q .visibility   # PRIVATE
+gh repo view delphside/service-desk --json visibility -q .visibility   # PRIVATE
 ```
 
 Then give Claude access to it:
 
 - If the Claude GitHub App is limited to selected repositories, go to
   github.com → delphside → Settings → GitHub Apps → Claude → Configure, and add
-  `support` under *Repository access*.
+  `service-desk` under *Repository access*.
 - In the Claude project, open Project settings → resources and add
-  `delphside/support`.
+  `delphside/service-desk`.
 
 ## 2. The Ticket issue type
 
+In the browser, for the same reason as step 1: github.com → delphside →
+Settings → Planning → Issue types → create `Ticket`, described as "A request
+for help: an incident, a service request or a complaint". Then check it:
+
 ```bash
-gh api -X POST orgs/delphside/issue-types \
-  -f name=Ticket -f color=orange -F is_enabled=true \
-  -f description="A request for help: an incident, a service request or a complaint"
 gh api orgs/delphside/issue-types --jq '.[].name'   # lists Ticket
 ```
 
@@ -85,12 +88,13 @@ dig +short MX tileliteelite.com         # unchanged from before
    **Full access**, because sending-only access cannot read received mail.
    Don't reuse production's key: this key lives in GitHub, and production's
    should stay on the VM alone.
-2. Store it in the support repository. The command prompts for the key, so the
-   key never appears in shell history:
+2. Store it in the service-desk repository. The command prompts for the key,
+   so the key never appears in shell history. If the token is refused, use the
+   repository's Settings → Secrets and variables → Actions instead:
 
 ```bash
-gh secret set RESEND_API_KEY -R delphside/support
-gh secret list -R delphside/support     # lists RESEND_API_KEY
+gh secret set RESEND_API_KEY -R delphside/service-desk
+gh secret list -R delphside/service-desk     # lists RESEND_API_KEY
 ```
 
 ## 6. Check it end to end
