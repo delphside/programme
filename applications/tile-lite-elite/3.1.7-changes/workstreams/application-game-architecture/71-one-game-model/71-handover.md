@@ -41,8 +41,7 @@ written otherwise.
 
 | item | waits on |
 | --- | --- |
-| which events ping a player by Web Push by default (#87; the schema is in `71-data-model.md` §5 and needs no change whichever) | owner, on a card |
-| #406's four design-map questions (`406-map-format.md`), and #428 | owner, 1 and 2 on cards |
+| #406's design-map questions 3 and 4 (`406-map-format.md`; 1 Structurizr and 2 a checked edit are answered), and #428 | owner, 3 and 4 on cards |
 | Q5's email rules move to 4.1.0 when #439 lands | #439 |
 | DEL-2 refusing to close an account while a passed invitation names it: principle 9 calls it acceptable | owner, on #439 |
 | #439's open rows: whether the old address is told of a change; friends and blocking | owner, on #439 |
