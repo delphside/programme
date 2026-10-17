@@ -43,7 +43,7 @@ written otherwise.
 | --- | --- |
 | Q5's email rules move to 4.1.0 when #439 lands | #439 |
 | DEL-2 refusing to close an account while a passed invitation names it: principle 9 calls it acceptable | owner, on #439 |
-| #439's open rows: whether the old address is told of a change; friends and blocking | owner, on #439 |
+| #439's open rows: friends and blocking (the old address is told of a change: R6, NOTE-1) | owner, on #439 |
 | closing your own account, suspension, support requests and complaints | #296 (R1 to R5) |
 
 ## A tooling defect met on the way
