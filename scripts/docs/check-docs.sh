@@ -295,6 +295,18 @@ else
   "$SELF/doc-signals.py"
 fi
 
+# 8. design map -- delphside/tile-lite-elite#406. The generated design map is
+# current when the hash of docs/design-map/ in its header matches. Plain
+# Python, no Docker: only `design-map.py --write` runs the Structurizr image.
+echo
+bold "8. design map"
+if (( PROGRAMME_ONLY )); then
+  echo "  not applicable here: it reads an application's design map"
+elif ! "$SELF/design-map/design-map.py" --check; then
+  echo "          → run programme/scripts/docs/design-map/design-map.py --write and commit it"
+  FAILED=1
+fi
+
 echo
 if (( FAILED )); then
   bold "FAILED"
