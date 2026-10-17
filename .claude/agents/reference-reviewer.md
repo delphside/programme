@@ -33,7 +33,7 @@ Read these, in this order:
 
 | document | read |
 | --- | --- |
-| 4.4.1 Configuration | every `env::var`, `option_env!` and `*_from_env` in `crates/`; `docker-compose.yml`, `docker-compose.preview.yml`, `Dockerfile`, `Caddyfile`; `crates/server-game/src/persistence.rs` (`connect`); `crates/server-game/src/app/throttle.rs`; for sqlx defaults, `sqlx-sqlite`'s `src/options/mod.rs` under `~/.cargo/registry/src/` at the version in `Cargo.lock` |
+| 4.4.1 Configuration | every setting, so none is missing ([1.5](../../docs/1.5-writing-documents.md#where-an-applications-settings-live)): every `env::var`, `option_env!` and `*_from_env` in `crates/`; each area's product-settings module; `docker-compose.yml`, `docker-compose.preview.yml`, `Dockerfile`, `Caddyfile`; `crates/server-game/src/persistence.rs` (`connect`); `crates/server-game/src/app/throttle.rs`; for sqlx defaults, `sqlx-sqlite`'s `src/options/mod.rs` under `~/.cargo/registry/src/` at the version in `Cargo.lock` |
 | 4.4.2 Database Schema | `crates/server-game/migrations/*.sql`, applied in order to a scratch SQLite database with Python's `sqlite3` module, then `pragma table_info` per table; `persistence.rs` for how columns are written |
 | 4.4.3 API Schema | the `.route(` calls in `crates/server-game/src/app.rs` and `app/*.rs` (not test modules); each handler's body for how it authenticates; `crates/api/src/lib.rs` for every DTO |
 | 4.4.4 snapshot_json Schema | `PersistedGame` and `PersistedVariantRules` in `persistence.rs`; `ParticipantState`, `MoveRecord`, `ChatMessageRecord` in `game_state.rs`; `VariantRules::EDITION_NAMES` in `crates/rules-shared/src/model.rs` |
