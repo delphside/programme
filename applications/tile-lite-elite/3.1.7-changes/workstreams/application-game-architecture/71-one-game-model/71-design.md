@@ -1157,13 +1157,22 @@ WP A.
 message reaching a player who is not looking — each through the one handler,
 as *Arrows with no command* requires.
 
+**A player who is not looking is reached by Web Push** (#87; owner,
+2026-10-17). It is the W3C Push API with VAPID (RFC 8292): the client's
+service worker subscribes, the server stores the subscription and sends to it
+when an event the player has chosen happens, and a send the push service
+answers with 404 or 410 removes the subscription, as RFC 8030 says it is gone.
+On iPhone it works only once the site is added to the home screen, which is
+the client's to explain (WP D). The VAPID key pair is a server secret, held
+like the others the server already has.
+
 **Schema needs**, which ship in WP A's migration (D64): `games.last_activity_at`,
-already in WP A's schema. The rest depends on how a message reaches a player who
-is not looking (#87). Web Push would need a table of each player's device
-subscriptions and a per-player choice of which events notify; sound or the
-browser's Notifications API need nothing. If RET-3's question to the creator is
-also sent rather than only shown in the games list, it needs a once-only marker
-on the game. Both are settled before WP A's migration is written.
+already in WP A's schema; `push_subscriptions` and `notification_preferences`
+for Web Push; and `players.stats_private` for RATE-5. Which events ping is data
+in `notification_preferences`, keyed by event kind, so choosing or adding one
+changes no schema. RET-3's question to the creator is shown in the games list
+and not sent ([4.2.4](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.4-persistence.md)),
+so it needs no marker. Columns in [`71-data-model.md`](71-data-model.md) §5.
 
 **Waits on**: WP A. Its tests: [`71-test-wp-c.md`](71-test-wp-c.md).
 
