@@ -7,11 +7,11 @@ delivery milestone. Parent projects deliver nothing and so have no bar.
 Dependencies are drawn, because GitHub records them and the project board has
 no column that can show them.
 
-    scripts/programme/board/roadmap-diagram.py                        # the whole roadmap
-    scripts/programme/board/roadmap-diagram.py --parent 71            # one project's packages
-    scripts/programme/board/roadmap-diagram.py --workstream "Client UI"
-    scripts/programme/board/roadmap-diagram.py --write                # into the roadmap document (documents.roadmap)
-    scripts/programme/board/roadmap-diagram.py --project 71           # one project's allocation
+    programme/scripts/board/roadmap-diagram.py                        # the whole roadmap
+    programme/scripts/board/roadmap-diagram.py --parent 71            # one project's packages
+    programme/scripts/board/roadmap-diagram.py --workstream "Client UI"
+    programme/scripts/board/roadmap-diagram.py --write                # into the roadmap document (documents.roadmap)
+    programme/scripts/board/roadmap-diagram.py --project 71           # one project's allocation
 
 **Derived, never maintained.** Generated from the issues each time it is asked
 for. A hand-drawn diagram is stale the first time something moves and stale in
@@ -20,7 +20,7 @@ independent existence — the same reasoning as the programme's 3.1.1's "change 
 derived from git".
 
 Reads the board model, so "is this a delivery" is answered in one place
-(`scripts/programme/board/model.py`) rather than re-derived here. Design:
+(`programme/scripts/board/model.py`) rather than re-derived here. Design:
 programme/records/2.5-changes/programme-tooling/383-one-board-model/
 """
 

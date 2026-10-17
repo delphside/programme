@@ -5,6 +5,7 @@
     board-profile.py version app|api      # the version the tree holds now
     board-profile.py registers            # the registers a new script is named in, one path per line
     board-profile.py json-string <text>   # the text as a JSON string literal, for splicing into a jq filter
+    board-profile.py grandfathered <file> # the change documents a programme profile file lists, one per line
     board-profile.py -C <dir> ...         # against the application at <dir>
 
 Keys are dotted. The first part says which file answers:
@@ -23,7 +24,7 @@ does not know, stops with a message naming it and exits 70
 exits 0, when the tree holds no such version (a repository that is not the
 application's).
 
-The loader is `scripts/programme/board/profile.py` (#485).
+The loader is `programme/scripts/board/profile.py` (#485).
 """
 
 from __future__ import annotations
@@ -52,6 +53,15 @@ def main(argv: list[str]) -> int:
     if argv[0] == "json-string" and len(argv) == 2:
         print(json.dumps(argv[1]))
         return 0
+    if argv[0] == "grandfathered" and len(argv) == 2:
+        # Needs no application: the programme repository asks it of each profile it holds.
+        try:
+            text = Path(argv[1]).read_text(encoding="utf-8")
+        except OSError as err:
+            raise profile.ProfileError(f"cannot read the programme profile {argv[1]}: {err}")
+        for line in profile.grandfathered_changes(text):
+            print(line)
+        return 0
     if argv == ["registers"]:
         for line in profile.tools_registers():
             print(line)
@@ -67,4 +77,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(profile.run(main, sys.argv[1:]))

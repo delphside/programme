@@ -15,7 +15,7 @@ so nothing can widen it to pull requests; adding them here is idempotent.
 then says Drafting, so nothing tells the owner a review is waiting. It is
 reported, never fixed: requesting a review notifies somebody.
 
-Run by `scripts/programme/board/board-pr-state.py`. The decision is here, apart from GitHub,
+Run by `programme/scripts/board/board-pr-state.py`. The decision is here, apart from GitHub,
 so it can be tested on its own.
 """
 

@@ -17,7 +17,9 @@ set -euo pipefail
 # What the stamp looks like, and where the versions it claims are read, are the
 # application's: its technical profile's `versions` table (#485), asked through
 # `board-profile.py` rather than held here.
-PROFILE="$(dirname "$0")/../scripts/programme/board/board-profile.py"
+# The hook is in the programme (`.githooks/`, run through `core.hooksPath` from an
+# application's `programme/` submodule), so the board scripts are one level up.
+PROFILE="$(dirname "$0")/../scripts/board/board-profile.py"
 HERE="$(git rev-parse --show-toplevel)"
 
 MSG_FILE="$1"
@@ -89,13 +91,34 @@ fi
 # A branch named for an issue (`214-build-once`, `290-dioxus-07`) says which
 # project owns it. If the message names a different one, that is the mistake.
 BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
-# Both rules are the model's (`scripts/programme/board/refs.py`, #421), asked through
+# Both rules are the model's (`programme/scripts/board/refs.py`, #421), asked through
 # `board-refs.py` rather than copied here: which issue a branch is for, and
 # which a message names.
-REFS="$(dirname "$0")/../scripts/programme/board/board-refs.py"
-BRANCH_ISSUE="$(python3 "$REFS" branch "$BRANCH" 2>/dev/null || true)"
+REFS="$(dirname "$0")/../scripts/board/board-refs.py"
+# "No issue found" is empty output and exit 0. Anything else is the rule not
+# running (70: it crashed, `profile.run`; 2: the script is not there), which is
+# not "no issue" and must not skip the check, so it refuses with what it said.
+ask_refs() {   # <args...> [< input]: the answer on stdout; refuses the commit on a failed run
+  local out err rc=0
+  err="$(mktemp)"
+  out="$(python3 "$REFS" "$@" 2>"$err")" || rc=$?
+  if (( rc != 0 )); then
+    {
+      echo "commit refused: board-refs.py $1 could not run (status $rc), so the branch check cannot say yes or no."
+      echo
+      sed 's/^/  /' "$err"
+      echo
+      echo "  --no-verify skips it, if you are sure."
+    } >&2
+    rm -f "$err"
+    exit 1
+  fi
+  rm -f "$err"
+  printf '%s' "$out"
+}
+BRANCH_ISSUE="$(ask_refs branch "$BRANCH")" || exit 1
 if [[ -n "$BRANCH_ISSUE" ]]; then
-  MENTIONED="$(python3 "$REFS" named < "$MSG_FILE" 2>/dev/null || true)"
+  MENTIONED="$(ask_refs named < "$MSG_FILE")" || exit 1
   if [[ -n "$MENTIONED" ]] && ! printf '%s\n' "$MENTIONED" | grep -qx "$BRANCH_ISSUE"; then
     echo "commit refused: this is branch $BRANCH, but the message names #$(printf '%s' "$MENTIONED" | head -1)." >&2
     echo >&2

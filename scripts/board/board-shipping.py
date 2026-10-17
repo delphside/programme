@@ -6,10 +6,11 @@
     board-shipping.py paths < path-list      # print the paths, of those given, that reach it
     board-shipping.py ships <sha>            # exit 0 if it reaches the image and is more than a version bump
     board-shipping.py version-bump --staged  # exit 0 if what is staged is only the app version moving
+    board-shipping.py application-tooling < path-list   # print the paths, of those given, in the application's script folders
     board-shipping.py check                  # exit 0 if the profile holds what the others read
     board-shipping.py -C <dir> ...           # against the repository at <dir>
 
-The rule is `scripts/programme/board/shipping.py`'s. This is the command the bash tooling
+The rule is `programme/scripts/board/shipping.py`'s. This is the command the bash tooling
 calls instead of keeping a copy of it: `shipping-paths.sh`'s functions, the
 pre-commit hook, `deploy.sh`, `verify.sh` and CI (#421). An unknown commit
 changed nothing, so it answers 1.
@@ -27,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from board import shipping  # noqa: E402
+from board import profile, shipping  # noqa: E402
 from board.repo import (changed_paths, changed_paths_between,  # noqa: E402
                         staged, version_lines)
 
@@ -51,6 +52,11 @@ def main(argv: list[str]) -> int:
     if cmd == "check" and not args:
         shipping.reaches_image("")
         shipping.version_bump_only([], [])
+        shipping.application_tooling([])
+        return 0
+    if cmd == "application-tooling" and not args:
+        for path in shipping.application_tooling(line.strip() for line in sys.stdin):
+            print(path)
         return 0
     if cmd == "paths" and not args:
         for path in shipping.image_paths(line.strip() for line in sys.stdin):
@@ -62,4 +68,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(profile.run(main, sys.argv[1:]))

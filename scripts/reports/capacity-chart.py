@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """capacity-chart.py — a bar chart per metric, with a trend and its ceiling.
 
-    scripts/programme/reports/capacity-chart.py                 # every metric, to stdout as a list
-    scripts/programme/reports/capacity-chart.py --write         # SVGs into the report's charts/
-    scripts/programme/reports/capacity-chart.py --table         # the history table, as markdown
-    scripts/programme/reports/capacity-chart.py --horizon 6     # periods to project (default 6)
+    programme/scripts/reports/capacity-chart.py                 # every metric, to stdout as a list
+    programme/scripts/reports/capacity-chart.py --write         # SVGs into the report's charts/
+    programme/scripts/reports/capacity-chart.py --table         # the history table, as markdown
+    programme/scripts/reports/capacity-chart.py --horizon 6     # periods to project (default 6)
 
 **A capacity plan is read for its direction, not its figures.** #291 R1 asks
 what is consumed against what ceiling; the owner's addition, 2026-09-22, is that

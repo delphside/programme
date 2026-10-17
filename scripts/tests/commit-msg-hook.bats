@@ -22,7 +22,7 @@ setup() {
   mkdir -p "$R/crates/api/src" "$R/scripts"
   printf '[workspace.package]\nversion = "0.5.2"\n' > "$R/Cargo.toml"
   printf 'pub const API_VERSION: ApiVersion = ApiVersion { major: 2, minor: 10 };\n' > "$R/crates/api/src/lib.rs"
-  cp "$BATS_TEST_DIRNAME/../read-api-version.sh" "$R/scripts/"
+  fake_api_version_script "$R/scripts/read-api-version.sh"
 }
 
 hook() {   # <message> [CLAUDECODE value]: run the hook on it, in the scratch repository
@@ -134,4 +134,50 @@ hook() {   # <message> [CLAUDECODE value]: run the hook on it, in the scratch re
   PROGRAMME_PROFILE="$BATS_TEST_TMPDIR/nowhere.toml" hook "app 0.5.2 api 2.10: a real subject"
   assert_failure
   assert_output --partial "$BATS_TEST_TMPDIR/nowhere.toml"
+}
+
+# --- the branch check does not skip when its rule did not run -------------------------
+# `board-refs.py branch` once ran with `|| true`: a crash, which Python reports as
+# a status and nothing on stdout, read as "this branch is for no issue" and the
+# check was skipped without a word. `profile.run` makes a crash exit 70.
+
+refs_hook() {   # <stub body> <message>: the hook beside a board-refs.py that does this
+  local pg="$BATS_TEST_TMPDIR/pg"
+  rm -rf "$pg"; mkdir -p "$pg/.githooks" "$pg/scripts/board"
+  cp "$HOOK" "$pg/.githooks/commit-msg"
+  ln -s "$BATS_TEST_DIRNAME/../board/board-profile.py" "$pg/scripts/board/board-profile.py"
+  printf '%s\n' "$1" > "$pg/scripts/board/board-refs.py"
+  git -C "$R" -c user.email=t@t -c user.name=t commit -q --allow-empty -m base
+  git -C "$R" switch -q -c 399-x
+  printf '%s\n' "$2" > "$R/msg"
+  run bash -c 'cd "$1" && env -u CLAUDECODE "$2" "$1/msg"' _ "$R" "$pg/.githooks/commit-msg"
+}
+
+@test "branch check: a board-refs.py that crashes (status 70) refuses the commit, saying what it said" {
+  refs_hook 'import sys
+print("Traceback: boom", file=sys.stderr)
+sys.exit(70)' "app 0.5.2 api 2.10: a real subject"
+  assert_failure
+  assert_output --partial "board-refs.py branch could not run (status 70)"
+  assert_output --partial "boom"
+}
+
+@test "branch check: a board-refs.py that is not there refuses it too" {
+  refs_hook 'raise SystemExit(0)' "app 0.5.2 api 2.10: a real subject"
+  rm "$BATS_TEST_TMPDIR/pg/scripts/board/board-refs.py"
+  run bash -c 'cd "$1" && env -u CLAUDECODE "$2" "$1/msg"' _ "$R" "$BATS_TEST_TMPDIR/pg/.githooks/commit-msg"
+  assert_failure
+  assert_output --partial "(status 2)"
+}
+
+@test "branch check: no issue found is still advisory, and a correct commit goes through" {
+  refs_hook 'raise SystemExit(0)' "app 0.5.2 api 2.10: a real subject"
+  assert_success
+}
+
+@test "branch check: the real board-refs.py, crashing, exits 70 with its traceback" {
+  run python3 "$BATS_TEST_DIRNAME/../board/board-refs.py" count HEAD not-a-number
+  assert_equal "$status" 70
+  assert_output --partial "Traceback"
+  assert_output --partial "the command crashed"
 }

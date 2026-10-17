@@ -6,7 +6,7 @@ testing: the Phase table in CLAUDE.md puts a merged image change in
 change past it (the merge *was* its deployment). Owner, 2026-09-26: *"We need
 to indicate when a wp has moved beyond testing and been merged into main."*
 
-Called from `.githooks/post-merge` by way of `scripts/programme/board/board-merged.py`. The
+Called from `.githooks/post-merge` by way of `programme/scripts/board/board-merged.py`. The
 decision is here, apart from git and GitHub, so it can be tested on its own.
 """
 

@@ -146,7 +146,7 @@ docs/1.6 records the app it works through.
   the `pre-approved` milestone; anything else, including none, means not pre-approved. One branch per project, and everything
   the project touches goes on it, its technical documentation included. Programme
   documents, generic assets and records alike (docs/1.3; the list is
-  `scripts/programme/board/documents.py`'s), belong to no project and change on main.
+  `programme/scripts/board/documents.py`'s), belong to no project and change on main.
 - A pull request is what gives a review mechanics: a diff, a place to comment,
   a recorded approval, a merge that waits for a tick. Pre-approved does not mean
   unreviewed — it means the discussion was the review, which is enough where a
@@ -396,7 +396,7 @@ docs/1.6 records the app it works through.
 | artefacts outside git | each application's artefact register (3.n.2), and docs/1.6 for GitHub's |
 | the fields each issue carries, and the strings tooling matches | docs/1.6 |
 | agents: which work, which model, how a review runs | docs/1.1 *Claude's tooling* |
-| daily state | scripts/programme/board/board-inbox.py, scripts/programme/board/board-status.py, scripts/programme/board/board-actions.py |
+| daily state | programme/scripts/board/board-inbox.py, programme/scripts/board/board-status.py, programme/scripts/board/board-actions.py |
 | where a fact belongs, before writing it | the layout in the root README, and the change-a-document skill |
 | how a document is written, and what it may hold | docs/1.5 |
 | raising or retitling any issue | the triage skill |

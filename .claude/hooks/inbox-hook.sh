@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # inbox-hook.sh — SessionStart summary of GitHub activity, for Claude's context.
 #
-# Wraps scripts/programme/board/board-inbox.py. Lives in .claude/ (gitignored) rather than scripts/,
-# because it is about how Claude is driven, not about the project.
+# Wraps programme/scripts/board/board-inbox.py. Lives in the programme's
+# `.claude/hooks/`, not in `scripts/`, because it is about how Claude is driven,
+# not about the project; an application's `.claude/settings.json` runs it from
+# its `programme/` submodule, and its cache and log stay in the application's `.claude/`.
 #
 # **A summary, not a replay.** The full seven-day output is ~25KB, most of it
 # Claude's own comments being read back to itself. This emits which issues have
-# comments from Steve and what opened or closed; `./scripts/programme/board/board-inbox.py` gives the
+# comments from Steve and what opened or closed; `programme/scripts/board/board-inbox.py` gives the
 # detail on demand.
 #
 # Note the counts are only reliable from 2026-08-16, when Claude started
@@ -32,7 +34,8 @@
 # a session with no hook can be told from a hook that ran and was ignored.
 set -uo pipefail
 
-cd "$(dirname "$0")/.." || exit 0
+# shellcheck source=application-root.sh
+source "$(dirname "$0")/application-root.sh"
 CACHE=.claude/.inbox-cache
 LOCK=.claude/.inbox-build.lock
 LOG=.claude/.inbox-hook.log
@@ -46,7 +49,7 @@ cache_age() { echo $(( $(date +%s) - $(stat -c %Y "$CACHE" 2>/dev/null || echo 0
 
 # Plain text, with the cache's age so a stale one is never mistaken for live.
 cache_text() {
-  printf 'GitHub activity in the last 7 days (from a cache %s min old; ./scripts/programme/board/board-inbox.py for current detail).\n\n' "$(( $(cache_age) / 60 ))"
+  printf 'GitHub activity in the last 7 days (from a cache %s min old; programme/scripts/board/board-inbox.py for current detail).\n\n' "$(( $(cache_age) / 60 ))"
   cat "$CACHE"
 }
 
@@ -86,7 +89,7 @@ log "sid=${SID:-?} start"
 # The live programme checkout missing, off main or behind: one line, or nothing.
 # Local git only, never changes the checkout, and never fails the session.
 NOTE=""
-[[ "$MODE" != "--build" ]] && NOTE="$(timeout 10 ./scripts/programme/board/board-records.py check 2>/dev/null || true)"
+[[ "$MODE" != "--build" ]] && NOTE="$(timeout 10 "$BOARD"/board-records.py check 2>/dev/null || true)"
 with_note() { if [[ -n "$NOTE" ]]; then printf '%s\n\n%s' "$NOTE" "$1"; else printf '%s' "$1"; fi; }
 # Leave without a summary, still saying so if the checkout has a problem.
 bail() { [[ -n "$NOTE" ]] && emit_json "$NOTE" && mark_delivered "$SID"; exit 0; }
@@ -119,7 +122,7 @@ if [[ "$MODE" == "--build" ]]; then
   trap 'rmdir "$LOCK" 2> /dev/null' EXIT
 fi
 
-RAW="$(./scripts/programme/board/board-inbox.py 7 --no-colour 2>/dev/null)" || bail
+RAW="$("$BOARD"/board-inbox.py 7 --no-colour 2>/dev/null)" || bail
 [[ -z "$RAW" ]] && bail
 
 # **The to-do half is `board-inbox.py --open`** (#454), run with the others below:
@@ -160,10 +163,10 @@ SUMMARY="$(printf '%s\n' "$RAW" | awk '
 # one failing leaves the others, and all of them failing leaves the inbox
 # summary, which is what this hook did before.
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"; [[ "$MODE" == "--build" ]] && rmdir "$LOCK" 2> /dev/null' EXIT
-( timeout 25 ./scripts/programme/board/board-actions.py --claude --no-colour 2>/dev/null > "$TMP/actions" ) &
-( timeout 25 ./scripts/programme/board/board-check.py --no-colour 2>/dev/null > "$TMP/trans" ) &
-( timeout 10 ./scripts/programme/board/board-practices.py 2> "$TMP/practices.err" > "$TMP/practices" ) &
-( timeout 60 ./scripts/programme/board/board-inbox.py --open --no-colour 2>/dev/null > "$TMP/open" ) &
+( timeout 25 "$BOARD"/board-actions.py --claude --no-colour 2>/dev/null > "$TMP/actions" ) &
+( timeout 25 "$BOARD"/board-check.py --no-colour 2>/dev/null > "$TMP/trans" ) &
+( timeout 10 "$BOARD"/board-practices.py 2> "$TMP/practices.err" > "$TMP/practices" ) &
+( timeout 60 "$BOARD"/board-inbox.py --open --no-colour 2>/dev/null > "$TMP/open" ) &
 wait
 
 # Only the findings. A clean run says nothing is missing, which is worth
@@ -193,16 +196,16 @@ REPORTS="$(printf '%s\n' "$RAW" | sed -n '/^REPORTS FROM THE SCHEDULED WORKFLOWS
 OPEN="$(grep -E '^(#[0-9]+|  > |\.\.\.[0-9]+ earlier)' "$TMP/open" 2>/dev/null || true)"
 
 # How the owner is named is the programme file's; a hook must not fail.
-OWNER_NAME="$(python3 ./scripts/programme/board/board-profile.py get accounts.owner_name 2>/dev/null)" || OWNER_NAME="the owner"
+OWNER_NAME="$(python3 "$BOARD"/board-profile.py get accounts.owner_name 2>/dev/null)" || OWNER_NAME="the owner"
 
 EXTRA=""
-[[ -n "$OPEN" ]] && EXTRA="$EXTRA"$'\n\n'"Waiting on Claude: comments from $OWNER_NAME not yet answered, of any age (./scripts/programme/board/board-inbox.py --open --all):"$'\n'"$OPEN"
-[[ -n "$REPORTS" ]] && EXTRA="$EXTRA"$'\n\n'"For Claude to read: reports from the scheduled workflows, opened, updated or closed (./scripts/programme/board/board-inbox.py):"$'\n'"$REPORTS"
-[[ -n "$ACTIONS" ]] && EXTRA="$EXTRA"$'\n\n'"Waiting on Claude: actions on the board (./scripts/programme/board/board-actions.py --claude for the detail):"$'\n'"$ACTIONS"
-[[ -n "$TRANS" ]] && EXTRA="$EXTRA"$'\n\n'"For Claude to fix: incomplete for their type and step (./scripts/programme/board/board-check.py):"$'\n'"$TRANS"
-[[ -n "$PRACTICES" ]] && EXTRA="$EXTRA"$'\n\n'"Programme activities overdue, whose move is the activity's owner in the programme's docs/1.4 (./scripts/programme/board/board-practices.py):"$'\n'"$PRACTICES"
+[[ -n "$OPEN" ]] && EXTRA="$EXTRA"$'\n\n'"Waiting on Claude: comments from $OWNER_NAME not yet answered, of any age (programme/scripts/board/board-inbox.py --open --all):"$'\n'"$OPEN"
+[[ -n "$REPORTS" ]] && EXTRA="$EXTRA"$'\n\n'"For Claude to read: reports from the scheduled workflows, opened, updated or closed (programme/scripts/board/board-inbox.py):"$'\n'"$REPORTS"
+[[ -n "$ACTIONS" ]] && EXTRA="$EXTRA"$'\n\n'"Waiting on Claude: actions on the board (programme/scripts/board/board-actions.py --claude for the detail):"$'\n'"$ACTIONS"
+[[ -n "$TRANS" ]] && EXTRA="$EXTRA"$'\n\n'"For Claude to fix: incomplete for their type and step (programme/scripts/board/board-check.py):"$'\n'"$TRANS"
+[[ -n "$PRACTICES" ]] && EXTRA="$EXTRA"$'\n\n'"Programme activities overdue, whose move is the activity's owner in the programme's docs/1.4 (programme/scripts/board/board-practices.py):"$'\n'"$PRACTICES"
 
-[[ -n "$PRACTICES_ERR" ]] && EXTRA="$EXTRA"$'\n\n'"Programme activities could not be judged (./scripts/programme/board/board-practices.py):"$'\n'"$PRACTICES_ERR"
+[[ -n "$PRACTICES_ERR" ]] && EXTRA="$EXTRA"$'\n\n'"Programme activities could not be judged (programme/scripts/board/board-practices.py):"$'\n'"$PRACTICES_ERR"
 
 [[ -z "$SUMMARY" && -z "$EXTRA" ]] && bail
 
@@ -211,7 +214,7 @@ printf '%s\n' "$SUMMARY$EXTRA" > "$CACHE.tmp" && mv "$CACHE.tmp" "$CACHE"
 if [[ "$MODE" == "--build" ]]; then
   log "build end"
 else
-  emit_json "$(with_note "GitHub activity in the last 7 days. Run ./scripts/programme/board/board-inbox.py for the detail.
+  emit_json "$(with_note "GitHub activity in the last 7 days. Run programme/scripts/board/board-inbox.py for the detail.
 
 $SUMMARY$EXTRA")" && mark_delivered "$SID"
   log "sid=${SID:-?} end (built)"

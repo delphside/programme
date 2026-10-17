@@ -231,7 +231,7 @@ window in which the issue exists untyped:
 
 ```bash
 # The repository is the one in the application's programme profile (identity table).
-REPO=$(./scripts/programme/board/board-profile.py get profile.identity.repository)   # owner/name
+REPO=$(programme/scripts/board/board-profile.py get profile.identity.repository)   # owner/name
 NUM=$(gh issue create -R "$REPO" --type Project \
         --title "..." --body-file /tmp/body.md | grep -o '[0-9]*$')
 id=$(gh api graphql -f query="{repository(owner:\"${REPO%/*}\",name:\"${REPO#*/}\"){issue(number:$NUM){id}}}" \
@@ -419,9 +419,9 @@ enough."*
 ## Afterwards
 
 ```bash
-./scripts/programme/board/board-context.py --write N    # the context header, for N's whole family
-./scripts/programme/board/board-check.py                # has it done what its phase claims?
-./scripts/programme/board/roadmap-diagram.py --write    # regenerate Tile Lite Elite's docs/4.1.5
+programme/scripts/board/board-context.py --write N    # the context header, for N's whole family
+programme/scripts/board/board-check.py                # has it done what its phase claims?
+programme/scripts/board/roadmap-diagram.py --write    # regenerate Tile Lite Elite's docs/4.1.5
 ```
 
 **Never write the context header by hand.** It is generated from the family's

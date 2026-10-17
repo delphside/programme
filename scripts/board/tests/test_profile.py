@@ -36,7 +36,7 @@ def command(*args, cwd=None, **env):
             merged.pop(name, None)
         else:
             merged[name] = str(value)
-    return run("programme/board/board-profile.py", *args, env=merged, cwd=cwd)
+    return run("board/board-profile.py", *args, env=merged, cwd=cwd)
 
 
 def git(cwd, *args):
@@ -147,7 +147,7 @@ class TheMissingKey(Cases):
 
     def test_the_wrong_kind_of_value_is_refused(self):
         path = self.write("t.toml", 'application = "widget"\n[ships]\nnon_shipping = "docs/"\n')
-        result = run("programme/board/board-shipping.py", "paths", stdin="docs/a.md\n",
+        result = run("board/board-shipping.py", "paths", stdin="docs/a.md\n",
                      env={**os.environ, "PROGRAMME_PROFILE": str(path)})
         self.expect("exits non-zero", True, result.returncode != 0)
         self.expect("names the key", True, "ships.non_shipping" in result.stderr)
@@ -182,7 +182,7 @@ class TheValues(Cases):
                     "programme" in exact and "programme/" in prefixes and "docs/9.1.4-" in prefixes)
 
     def test_the_registers_combine_both_files(self):
-        out = run("programme/board/board-profile.py", "registers").stdout.split()
+        out = run("board/board-profile.py", "registers").stdout.split()
         self.expect("the application's, then the programme's under the submodule",
                     ["docs/9.3.0-tools.md", "programme/docs/1.1-programme-tooling.md"], out)
 
@@ -228,6 +228,22 @@ class TheProgrammeProfile(Cases):
         self.expect("target architecture", "https://example.invalid/widget/docs/9.1.1-architecture.md",
                     got["target_architecture"])
         self.expect("records by their suffix", ["1", "2", "3", "4", "5", "6", "7"], list(got["records"]))
+
+    def test_the_grandfathered_change_documents_are_its_optional_table(self):
+        self.expect("the fixture's list", ["old-design.md"],
+                    profile.application_profile()["grandfathered_changes"])
+        self.expect("through the loader, one per line", "old-design.md\n",
+                    get("profile.grandfathered_changes").stdout)
+        self.expect("no section is an empty list, not an error", [],
+                    profile.grandfathered_changes("# 3.n.6\n\n## Identity\n\n| a | b |\n| - | - |\n| c | d |\n"))
+
+    def test_a_programme_profile_file_is_read_for_its_list_without_an_application(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "3.1.6-profile.md"
+            path.write_text("# p\n\n## Grandfathered change documents\n\n| document | why |\n"
+                            "| --- | --- |\n| `a.md` | x |\n| `b.md` | y |\n")
+            out = command("grandfathered", str(path), cwd=tmp)
+        self.expect("one name per line, no application needed", "a.md\nb.md\n", out.stdout)
 
     def test_the_repository_is_split_into_owner_and_name(self):
         self.expect("owner and name", ("fakeorg", "widget"), profile.repository())
@@ -281,7 +297,7 @@ class TheApplicationsRoot(Cases):
         subprocess.run(["git", "init", "-q", str(app)], check=True)
         shutil.copy(profiles.CONFIG, app / "programme" / "config" / "programme.toml")
         env = {k: v for k, v in os.environ.items() if k != "PROGRAMME_CONFIG"}
-        result = run("programme/board/board-profile.py", "get", "accounts.owner", cwd=app, env=env)
+        result = run("board/board-profile.py", "get", "accounts.owner", cwd=app, env=env)
         self.expect("exit", 0, result.returncode)
         self.expect("read from the pin", "fake-owner\n", result.stdout)
 
@@ -294,8 +310,13 @@ class TheVersions(Cases):
         subprocess.run(["git", "init", "-q", str(self.app)], check=True)
         (self.app / "crates" / "api" / "src").mkdir(parents=True)
         (self.app / "scripts").mkdir()
-        shutil.copy(Path(__file__).resolve().parents[3] / "read-api-version.sh",
-                    self.app / "scripts" / "read-api-version.sh")
+        # Stands in for the application's script, which the profile's `command` names
+        # and this repository does not hold: it reads `major` and `minor` from the
+        # constant, wrapped or not, as the real one does.
+        script = self.app / "scripts" / "read-api-version.sh"
+        script.write_text("#!/usr/bin/env bash\n"
+                          "tr '\\n' ' ' | sed -nE 's/.*API_VERSION[^=]*=[^{]*\\{[^}]*major: *([0-9]+)[^}]*minor: *([0-9]+).*/\\1.\\2/p' | head -1\n")
+        script.chmod(0o755)
 
     def test_the_app_version_is_the_first_match_in_the_profiles_file(self):
         (self.app / "Cargo.toml").write_text('[package]\nname = "x"\nversion = "1.2.3"\n[dep]\nversion = "9"\n')
@@ -322,3 +343,31 @@ class TheVersions(Cases):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ACrashIsNotAnAnswer(Cases):
+    """A traceback exits 1, which the shell tooling reads as "no". `profile.run`
+    makes it 70, for every command a hook or script asks yes or no of."""
+
+    def test_board_shipping_with_a_malformed_regex_exits_70_with_the_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            broken = Path(tmp) / "broken.toml"
+            broken.write_text(profiles.TECHNICAL.read_text().replace(
+                "non_shipping = [", "non_shipping = [\n  'docs/(',", 1))
+            env = {**os.environ, "PROGRAMME_PROFILE": str(broken)}
+            out = run("board/board-shipping.py", "paths", stdin="crates/a.rs\n", cwd=tmp, env=env)
+        self.expect("status", 70, out.returncode)
+        self.assertIn("Traceback", out.stderr)
+        self.assertEqual("", out.stdout)
+
+    def test_board_refs_crashing_exits_70(self):
+        out = run("board/board-refs.py", "count", "HEAD", "not-a-number")
+        self.expect("status", 70, out.returncode)
+        self.assertIn("Traceback", out.stderr)
+
+    def test_a_usage_error_stays_2_and_a_real_answer_stays_its_own(self):
+        self.expect("usage", 2, run("board/board-refs.py", "bogus").returncode)
+        self.expect("usage", 2, run("board/board-shipping.py", "bogus").returncode)
+        self.expect("an answer", 0, run("board/board-refs.py", "branch", "399-x").returncode)
+        self.expect("a no", 1, run("board/board-shipping.py", "version-bump", "--staged",
+                                   cwd=profiles.FIXTURES).returncode)

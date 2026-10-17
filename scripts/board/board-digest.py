@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """board-digest.py — D54's weekly digest.
 
-    scripts/programme/board/board-digest.py                      # the last seven days, printed
-    scripts/programme/board/board-digest.py --since <tag>        # since a tag, sha or date
-    scripts/programme/board/board-digest.py --write              # <PROGRAMME_DIR>/records/2.4-weekly-digest/PRG_WD_<year>_W<week>.md
+    programme/scripts/board/board-digest.py                      # the last seven days, printed
+    programme/scripts/board/board-digest.py --since <tag>        # since a tag, sha or date
+    programme/scripts/board/board-digest.py --write              # <PROGRAMME_DIR>/records/2.4-weekly-digest/PRG_WD_<year>_W<week>.md
 
 The brake's two measures, what landed, what was deleted, and anything decided
 that the owner might have decided differently. #382 asked for an issue comment

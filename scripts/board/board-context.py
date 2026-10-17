@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """board-context.py — R10 of #383: write the context header on every open project.
 
-    scripts/programme/board/board-context.py              # show which headers would change
-    scripts/programme/board/board-context.py 400          # print the header #400 should carry
-    scripts/programme/board/board-context.py --write      # rewrite every stale header
-    scripts/programme/board/board-context.py --write 414  # just that one family's members
+    programme/scripts/board/board-context.py              # show which headers would change
+    programme/scripts/board/board-context.py 400          # print the header #400 should carry
+    programme/scripts/board/board-context.py --write      # rewrite every stale header
+    programme/scripts/board/board-context.py --write 414  # just that one family's members
 
 The header opens `## Context as of <date>`, the day its facts last changed,
 and the text below it is titled `## Introduction` where it opened with prose.

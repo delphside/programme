@@ -1,0 +1,71 @@
+name: CI
+
+# The programme repository's own checks (delphside/tile-lite-elite#485, stage 2).
+# It runs from this repository alone: no application, no submodule, no second
+# checkout. An application's CI runs the programme's tooling from its pinned
+# copy; this is where the tooling itself is tested, so a change to it is judged
+# here before any application takes it by moving its pin.
+#
+# Three kinds of check, as three steps so a failure reads as one:
+#
+#   - the board model's unit tests (`scripts/board/tests/`), which read fake
+#     profiles for a fake application, never a real one's;
+#   - the scripts' tests: Python (`scripts/tests/test_*.py`) and bats
+#     (`scripts/tests/*.bats`), which run the hooks, the Claude hooks and the
+#     docs gate as git and Claude Code run them, in scratch repositories;
+#   - the documents gate over this repository's own markdown.
+#
+# **What needs an application is tested, not skipped.** The document map and the
+# history signals read an application's numbered `docs/` through its technical
+# profile, and so does the application's own list of checks. This repository
+# has no application, so `check-docs.sh --programme` says "not applicable here"
+# for each rather than passing in silence, and `check-docs-placement.bats` runs
+# the whole script against a fixture application, which is where those steps are
+# proved. The mermaid parse is silent where `mermaid` and `jsdom` are not
+# installed (#340); the step prints that it did not run.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels a run that is already superseded,
+# except on main, where every commit is one an application may pin.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  check:
+    name: board model · scripts · documents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Every test reads the fakes under `scripts/board/tests/fixtures/`
+      # (`PROGRAMME_PROFILE`, `PROGRAMME_CONFIG`, `PROGRAMME_DIR`), set by the
+      # test packages on import. Two runs, so the model's tests and the
+      # scripts' read as separate steps; both import the model as `board`
+      # from `scripts/`.
+      - name: Board model tests
+        run: python3 -m unittest discover -s scripts/board/tests -t scripts -v
+
+      - name: Scripts' Python tests
+        run: python3 -m unittest discover -s scripts/tests -t scripts -v
+
+      # bats-core with the standard bats-support and bats-assert helpers, none
+      # on the image. Every *.bats in the directory, not a list.
+      - name: Scripts' shell tests (bats)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bats bats-support bats-assert
+          bats scripts/tests
+
+      # The same script an application runs over its own documents, here over
+      # this repository's (`--programme`): markdownlint (`.markdownlint.jsonc`),
+      # every `](#anchor)` and relative link, and the placement of change
+      # documents, which is a gate here and only a report in an application.
+      - name: Documents
+        run: ./scripts/docs/check-docs.sh --programme

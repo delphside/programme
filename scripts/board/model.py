@@ -406,7 +406,7 @@ class Issue:
         """What must finish first, as GitHub records it.
 
         The project board has no column for this, so it is invisible until
-        something draws it: `scripts/programme/board/roadmap-diagram.py` is that something.
+        something draws it: `programme/scripts/board/roadmap-diagram.py` is that something.
         """
         return self.raw.blocked_by
 

@@ -12,7 +12,17 @@ setup() {
   bats_load_library bats-assert
   load fixtures
   use_fake_profiles
-  HOOK="$BATS_TEST_DIRNAME/../../.githooks/pre-commit"
+  # The hook finds the board scripts and the docs gate from its own path, so it
+  # runs from a copy of the programme's layout whose docs gate is a stub that
+  # passes: markdown is staged in several cases, and the real gate reads every
+  # document. `docs_check` below replaces the stub.
+  PG="$BATS_TEST_TMPDIR/programme-copy"
+  mkdir -p "$PG/.githooks" "$PG/scripts/docs"
+  cp "$BATS_TEST_DIRNAME/../../.githooks/pre-commit" "$PG/.githooks/pre-commit"
+  ln -s "$BATS_TEST_DIRNAME/../board" "$PG/scripts/board"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$PG/scripts/docs/check-docs.sh"
+  chmod +x "$PG/scripts/docs/check-docs.sh"
+  HOOK="$PG/.githooks/pre-commit"
   R="$BATS_TEST_TMPDIR/repo"
   git init -q "$R"
   git -C "$R" config user.email t@t
@@ -226,7 +236,7 @@ commit_exec_on_main() {   # <file>: a base on main, then <file> staged as execut
 }
 
 @test "a new executable script in a folder under scripts/, unregistered, is refused on main" {
-  commit_exec_on_main scripts/programme/board/board-brand-new.py
+  commit_exec_on_main scripts/tools/board-brand-new.py
   assert_equal "$status" 1
   assert_output --partial "not in the register"
 }
@@ -234,27 +244,27 @@ commit_exec_on_main() {   # <file>: a base on main, then <file> staged as execut
 @test "a new executable script in a folder, registered in the programme's 1.1, is allowed" {
   mkdir -p "$R/programme/docs"
   printf '| `board-brand-new.py` | x |\n' > "$R/programme/docs/1.1-programme-tooling.md"
-  commit_exec_on_main scripts/programme/board/board-brand-new.py
+  commit_exec_on_main scripts/tools/board-brand-new.py
   assert_success
 }
 
 @test "a new non-executable module in a folder under scripts/ is not asked to be registered" {
-  commit_on main scripts/programme/board/brand_new.py
+  commit_on main scripts/tools/brand_new.py
   assert_success
 }
 
 @test "an executable script moved into a folder, unregistered, is refused" {
   mkdir -p "$R/scripts"; printf 'x\n' > "$R/scripts/old-name.sh"; chmod +x "$R/scripts/old-name.sh"
   base
-  mkdir -p "$R/scripts/programme/board"
-  git -C "$R" mv scripts/old-name.sh scripts/programme/board/old-name.sh
+  mkdir -p "$R/scripts/tools"
+  git -C "$R" mv scripts/old-name.sh scripts/tools/old-name.sh
   hook
   assert_equal "$status" 1
   assert_output --partial "not in the register"
 }
 
 @test "a new executable test in a folder under scripts/ is not asked to be registered" {
-  commit_exec_on_main scripts/programme/board/tests/test_brand_new.py
+  commit_exec_on_main scripts/tools/tests/test_brand_new.py
   assert_success
 }
 
@@ -411,19 +421,95 @@ fmt_case() {   # <cargo-fmt-exit> <file>
   refute_output --partial "application documents"
 }
 
+# --- the application's scripts are tried where they run, on a branch (1d) -------------
+# Owner, 2026-09-29, 2026-09-30: a warning, with flexibility. The folders are the
+# technical profile's `scripts.groups` (the fake's are scripts/make/ and
+# scripts/ship/), never a list in the hook (#485 R10).
+
+@test "main: an application script is committed, with a note" {
+  commit_on main scripts/make/build.sh
+  assert_success
+  assert_output --partial "application scripts committed to main"
+  assert_output --partial "scripts/make/build.sh"
+}
+
+@test "main: any of the profile's folders, at any depth" {
+  commit_on main scripts/ship/deep/er/release.sh
+  assert_success
+  assert_output --partial "scripts/ship/deep/er/release.sh"
+}
+
+@test "main: the folders are the profile's, so Tile Lite Elite's develop/ is not one here" {
+  commit_on main scripts/develop/build.sh
+  assert_success
+  refute_output --partial "application scripts"
+}
+
+@test "main: other scripts and their tests get no note" {
+  commit_on main scripts/tools/x.sh scripts/tests/x.bats scripts/top-level.sh.tmp
+  assert_success
+  refute_output --partial "application scripts"
+}
+
+@test "main: deleting an application script is noted too" {
+  base
+  mkdir -p "$R/scripts/make"; printf 'x\n' > "$R/scripts/make/old.sh"
+  git -C "$R" add -A; git -C "$R" commit -qm "app 0.0.0 api 0.0: add"
+  git -C "$R" rm -q scripts/make/old.sh
+  hook
+  assert_success
+  assert_output --partial "application scripts committed to main"
+  assert_output --partial "scripts/make/old.sh"
+}
+
+@test "main: moving an application script out of its folder is noted" {
+  base
+  mkdir -p "$R/scripts/make" "$R/scripts/tools"; printf 'x\n' > "$R/scripts/make/old.sh"
+  git -C "$R" add -A; git -C "$R" commit -qm "app 0.0.0 api 0.0: add"
+  git -C "$R" mv scripts/make/old.sh scripts/tools/old.sh
+  hook
+  assert_success
+  assert_output --partial "scripts/make/old.sh"
+}
+
+@test "branch: an application script on its branch gets no note" {
+  commit_on 399-x scripts/make/build.sh
+  assert_success
+  refute_output --partial "application scripts"
+}
+
+@test "main: a merge landing application scripts gets no note" {
+  base
+  git -C "$R" switch -q -c 399-x
+  stage scripts/make/build.sh
+  git -C "$R" commit -qm "app 0.0.0 api 0.0: on the branch"
+  git -C "$R" switch -q main
+  stage scripts/make/other.sh
+  # git leaves MERGE_HEAD while a merge is being concluded; the hook is asked then
+  git -C "$R" rev-parse 399-x > "$R/.git/MERGE_HEAD"
+  hook
+  assert_success
+  refute_output --partial "application scripts"
+}
+
+@test "main: a profile with no scripts.groups is not read as none, and the commit is refused" {
+  grep -v '^groups = ' "$FAKES/programme.toml" | grep -v '^\[scripts\]$' > "$BATS_TEST_TMPDIR/no-groups.toml"
+  PROGRAMME_PROFILE="$BATS_TEST_TMPDIR/no-groups.toml" commit_on main scripts/make/build.sh
+  assert_equal "$status" 1
+  assert_output --partial "commit refused: the profile the rules read cannot be used"
+  assert_output --partial "scripts.groups"
+}
+
 # --- the documentation checks (4) ---------------------------------------------------
-# The one conditional rule: it runs the repository's own scripts/programme/docs/check-docs.sh,
-# and only when markdown is staged, because it reads every document and takes
-# seconds. Untested until 2026-09-27: every other fixture keeps markdown out so
-# the slow check is skipped, which also meant nothing showed it could refuse.
+# The one conditional rule: it runs the programme's docs/check-docs.sh (the hook's own,
+# found from the hook's path), and only when markdown is staged, because it reads every
+# document and takes seconds. Untested until 2026-09-27: every other fixture keeps markdown
+# out so the slow check is skipped, which also meant nothing showed it could refuse.
 # check-docs.sh is a stub here, so the rule is tested, not the documents.
 
 docs_check() {   # <check-docs exit> <file to stage>
-  mkdir -p "$R/scripts/programme/docs"
-  printf '#!/usr/bin/env bash\necho "docs: a check failed" >&2\nexit %s\n' "$1" > "$R/scripts/programme/docs/check-docs.sh"
-  chmod +x "$R/scripts/programme/docs/check-docs.sh"
+  printf '#!/usr/bin/env bash\necho "docs: a check failed" >&2\necho "ran in $PWD" >> "%s/docs-ran"\nexit %s\n' "$BATS_TEST_TMPDIR" "$1" > "$PG/scripts/docs/check-docs.sh"
   base
-  printf '#!/usr/bin/env bash\necho ran >> "%s/docs-ran"\nexit %s\n' "$BATS_TEST_TMPDIR" "$1" > "$R/scripts/programme/docs/check-docs.sh"
   stage "$2"
   hook
 }
@@ -438,6 +524,8 @@ docs_check() {   # <check-docs exit> <file to stage>
   docs_check 0 docs/notes.md
   assert_success
   assert [ -e "$BATS_TEST_TMPDIR/docs-ran" ]
+  # run in the repository being committed to, not the programme's
+  grep -qx "ran in $R" "$BATS_TEST_TMPDIR/docs-ran"
 }
 
 @test "docs: a commit staging no markdown does not run them" {
@@ -537,6 +625,8 @@ requires_command = ""
 requires_file = ""
 staged = '\.rs$'
 name = "fake"
+[scripts]
+groups = []
 [documents]
 generated = []
 programme_exact = []
@@ -560,6 +650,8 @@ non_shipping = ['crates/[^/]+/examples/']
 [[hooks.pre_commit]]
 name = "broken"
 staged = '\.rs$'
+[scripts]
+groups = []
 [documents]
 generated = []
 programme_exact = []
@@ -572,4 +664,62 @@ TOML
   PROGRAMME_PROFILE="$BATS_TEST_TMPDIR/t.toml" hook
   assert_equal "$status" 1
   assert_output --partial "lacks its name, staged or command"
+}
+
+# A rule that did not run is not a rule that said no: python3 exits 2 for a script
+# it cannot find, and the hook once read anything but 70 as an empty answer.
+@test "a board script that cannot be run refuses the commit, whatever its status" {
+  base
+  rm "$PG/scripts/board"
+  mkdir -p "$PG/scripts/board"
+  git -C "$R" switch -q -c 399-x
+  stage docs/9.3.0-tools.md
+  hook
+  assert_failure
+  assert_output --partial "could not decide (status 2)"
+}
+
+@test "a board script that crashes with another status refuses it too" {
+  base
+  rm "$PG/scripts/board"
+  mkdir -p "$PG/scripts/board"
+  for f in board-shipping.py board-documents.py; do
+    printf 'import sys\nprint("boom", file=sys.stderr)\nsys.exit(3)\n' > "$PG/scripts/board/$f"
+  done
+  git -C "$R" switch -q -c 399-x
+  stage docs/9.3.0-tools.md
+  hook
+  assert_failure
+  assert_output --partial "status 3"
+  assert_output --partial "boom"
+}
+
+# A malformed regular expression in the profile makes the model raise, and Python
+# reports an uncaught exception as status 1, which the hook read as an answer: an
+# image change was committed to main. `profile.run` makes it 70, and `run_board`
+# takes 1 as an answer only from `version-bump`.
+broken_regex_profile() {
+  sed "s|^non_shipping = \[|non_shipping = [\n  'docs/(',|" "$FAKES/programme.toml" > "$BATS_TEST_TMPDIR/broken.toml"
+  grep -q "'docs/('" "$BATS_TEST_TMPDIR/broken.toml"
+}
+
+@test "main: an image change is refused when the profile's ships regex is malformed, not committed" {
+  broken_regex_profile
+  PROGRAMME_PROFILE="$BATS_TEST_TMPDIR/broken.toml" commit_on main crates/api/src/lib.rs
+  assert_failure
+  assert_output --partial "commit refused"
+  assert_output --partial "Traceback"
+}
+
+@test "a command answering 1 other than version-bump is a failure to run, not an answer" {
+  base
+  rm "$PG/scripts/board"
+  mkdir -p "$PG/scripts/board"
+  for f in board-shipping.py board-documents.py; do
+    printf 'import sys\nsys.exit(1)\n' > "$PG/scripts/board/$f"
+  done
+  stage crates/api/src/lib.rs
+  hook
+  assert_failure
+  assert_output --partial "could not decide"
 }

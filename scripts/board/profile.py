@@ -72,6 +72,28 @@ class ProfileError(SystemExit):
         print(f"profile: {message}", file=sys.stderr)
 
 
+def run(main, argv: list[str]) -> int:
+    """Runs a command's `main`, and turns a crash into `EXIT_PROFILE_ERROR`.
+
+    A Python traceback exits 1, and the commands the shell tooling asks answer
+    yes with 0 and no with 1, so a crash (a malformed regular expression in the
+    profile, a value of the wrong kind) read as "no" and an image change was
+    committed. The answers are the command's, and its usage error (2) and every
+    `SystemExit` it raises, a `ProfileError` among them, pass through; anything
+    else prints its traceback on stderr and exits 70, which no caller reads as an
+    answer."""
+    import traceback
+    try:
+        return main(argv)
+    except SystemExit:
+        raise
+    except Exception:
+        traceback.print_exc()
+        print("profile: the command crashed, so it cannot answer (see the traceback above)",
+              file=sys.stderr)
+        return EXIT_PROFILE_ERROR
+
+
 # --------------------------------------------------------------------------
 # where the application is
 # --------------------------------------------------------------------------
@@ -265,7 +287,20 @@ def parse_profile(text: str, source: str) -> dict:
     if not records:
         raise ProfileError(f"{source}: the `Records` table has no `3.n.x` rows")
     out["records"] = records
+    out["grandfathered_changes"] = grandfathered_changes(text)
     return out
+
+
+GRANDFATHERED_HEADING = "Grandfathered change documents"
+
+
+def grandfathered_changes(text: str) -> list[str]:
+    """The names in a programme profile's optional `## Grandfathered change documents`
+    table: change documents that stay in the top of the application's `3.n.7-changes/`
+    folder, because GitHub does not follow a rename and issue comments point at them.
+    Empty when the profile has no such section. Read from the file alone, so the
+    programme repository can ask it of every application without any of them."""
+    return [_clean(r[0]) for r in _tables(text).get(GRANDFATHERED_HEADING, []) if r and _clean(r[0])]
 
 
 def application_folder(root: Path | None = None) -> str:

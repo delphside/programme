@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """board-status.py — R3: where the programme stands.
 
-    scripts/programme/board/board-status.py            # the four blocks
-    scripts/programme/board/board-status.py --fetch    # git fetch first, for accurate ancestry
+    programme/scripts/board/board-status.py            # the four blocks
+    programme/scripts/board/board-status.py --fetch    # git fetch first, for accurate ancestry
 
 What is in flight, what a release would ship, and what is behind — without
 opening GitHub. Runs beside `status.sh` rather than replacing it, and a

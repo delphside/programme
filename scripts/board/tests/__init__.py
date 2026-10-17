@@ -1,6 +1,6 @@
 """The Python model's tests, run by unittest (docs/4.3.3 §2.2):
 
-    python3 -m unittest discover -s scripts/programme -t scripts/programme
+    python3 -m unittest discover -s scripts -t scripts
 """
 
 from board.tests.profiles import use_fakes

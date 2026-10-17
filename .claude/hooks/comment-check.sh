@@ -15,8 +15,9 @@
 # matching can be tested without GitHub.
 set -uo pipefail
 
-cd "$(dirname "$0")/.." || exit 0
-INBOX="${COMMENT_CHECK_INBOX:-./scripts/programme/board/board-inbox.py}"
+# shellcheck source=application-root.sh
+source "$(dirname "$0")/application-root.sh"
+INBOX="${COMMENT_CHECK_INBOX:-$BOARD/board-inbox.py}"
 
 CMD="$(timeout 2 cat 2>/dev/null | python3 -c '
 import sys, json
@@ -38,7 +39,7 @@ OPEN="$(timeout 20 "$INBOX" --open --issue "$N" --no-colour 2>/dev/null | grep -
 
 # How the owner is named is the programme file's (`accounts.owner_name`); a hook
 # must not fail, so an unreadable file says "the owner".
-NAME="$(python3 ./scripts/programme/board/board-profile.py get accounts.owner_name 2>/dev/null)" || NAME="the owner"
+NAME="$(python3 "$BOARD"/board-profile.py get accounts.owner_name 2>/dev/null)" || NAME="the owner"
 
 python3 -c '
 import sys, json

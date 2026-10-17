@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """board-records.py — where the programme's files are, for shell scripts.
 
-    scripts/programme/board/board-records.py live       # the live checkout, for records
-    scripts/programme/board/board-records.py generic    # the pinned submodule
-    scripts/programme/board/board-records.py change-documents  # this application's change documents, in the live checkout
-    scripts/programme/board/board-records.py check      # one line if the live checkout needs attention
+    programme/scripts/board/board-records.py live       # the live checkout, for records
+    programme/scripts/board/board-records.py generic    # the pinned submodule
+    programme/scripts/board/board-records.py change-documents  # this application's change documents, in the live checkout
+    programme/scripts/board/board-records.py check      # one line if the live checkout needs attention
 
 One definition of the default and the override (`records.py`), asked rather
 than repeated in each shell script. A missing live checkout prints the path

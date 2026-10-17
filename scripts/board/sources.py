@@ -87,7 +87,7 @@ def pr_state(draft: bool, review: str | None, reviewers: int,
              state: str | None = None) -> str:
     """GitHub's own state, read as the board's `PR State`: the one ladder.
 
-    The model reads pull requests with it and `scripts/programme/board/board-pr-state.py`
+    The model reads pull requests with it and `programme/scripts/board/board-pr-state.py`
     writes the field with it, so the board and the action list cannot disagree
     about whose turn it is. Merged and closed come before anything else, then
     draft, the review decision, and whether a review is requested.

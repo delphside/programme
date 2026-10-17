@@ -13,8 +13,8 @@
 // not a gate, until the dependency is a decided cost. `--require` makes their
 // absence a failure, which is what CI would pass once that is settled.
 //
-//   node scripts/programme/docs/mermaid/check.mjs [--require] [path ...]
-//   node scripts/programme/docs/mermaid/check.mjs --help
+//   node programme/scripts/docs/mermaid/check.mjs [--require] [path ...]
+//   node programme/scripts/docs/mermaid/check.mjs --help
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
@@ -41,7 +41,7 @@ given on the command line does not exist.`);
 }
 
 // The programme submodule is the programme's documents, checked in its own repository (#485);
-// skipped by path, because `scripts/programme/` is ours.
+// skipped by path.
 const SUBMODULE = join(ROOT, "programme");
 
 function walk(dir, out = []) {
@@ -84,7 +84,7 @@ function diagrams(path) {
 //
 // **Above the dependency guard, deliberately.** It sat below until a review on
 // 2026-09-22 pointed out that the guard exits first: on a checkout without
-// `npm install --prefix scripts/programme/docs/mermaid`, a typo'd path printed *mermaid/jsdom
+// `npm install --prefix programme/scripts/docs/mermaid`, a typo'd path printed *mermaid/jsdom
 // not installed* and exited 0, so a bad argument read as success. Validating an
 // argument needs no renderer, and a check that cannot run should still refuse
 // a question it cannot answer.
@@ -108,7 +108,7 @@ try {
   mermaid.initialize({ startOnLoad: false });
 } catch {
   console.log("  mermaid/jsdom not installed — diagrams not parsed");
-  console.log("  npm install --prefix scripts/programme/docs/mermaid mermaid jsdom");
+  console.log("  npm install --prefix programme/scripts/docs/mermaid mermaid jsdom");
   process.exit(require_deps ? 1 : 0);
 }
 

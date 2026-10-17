@@ -8,7 +8,7 @@ setup() {
   bats_load_library bats-assert
   load fixtures
   use_fake_profiles
-  SCRIPT="$BATS_TEST_DIRNAME/../programme/board/create-pr.sh"
+  SCRIPT="$BATS_TEST_DIRNAME/../board/create-pr.sh"
   export STUB_DIR="$BATS_TEST_TMPDIR"
   # gh stubbed for the one call this script makes, `pr create`. It records the
   # whole argument list, so the reviewer default and passthrough are checkable.
@@ -65,7 +65,7 @@ created() { cat "$STUB_DIR/CREATED" 2>/dev/null || true; }
   run "$SCRIPT" --base main --head x --title t --body-file /dev/null
   refute_output --partial 'FAILED'
   refute_output --partial 'error'
-  assert_output --partial 'run scripts/programme/board/board-pr-state.py'
+  assert_output --partial 'run programme/scripts/board/board-pr-state.py'
 }
 
 @test "with no programme file there is no default reviewer, and nothing is created" {

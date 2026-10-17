@@ -19,7 +19,8 @@
 # Never fails a turn: every path exits 0.
 set -uo pipefail
 
-cd "$(dirname "$0")/.." || exit 0
+# shellcheck source=application-root.sh
+source "$(dirname "$0")/application-root.sh"
 STATE=".claude/.turn-check-state"
 
 # `--reseed` records the current state without reporting. `--reseed-bodies`
@@ -52,10 +53,10 @@ PRINT_FILTER=0
 if (( ! RESEED && ! PRINT_FILTER )); then
   if [[ ! -t 0 ]]; then
     PSID="$(timeout 2 cat 2>/dev/null | sed -n 's/.*"session_id" *: *"\([^"]*\)".*/\1/p' | head -1)"
-    [[ -n "$PSID" ]] && .claude/inbox-hook.sh --backstop "$PSID" 2>/dev/null
+    [[ -n "$PSID" ]] && "$PROG"/.claude/hooks/inbox-hook.sh --backstop "$PSID" 2>/dev/null
   fi
 else
-  (( BODIES_ONLY )) && .claude/inbox-hook.sh --refresh-if-stale 2>/dev/null
+  (( BODIES_ONLY )) && "$PROG"/.claude/hooks/inbox-hook.sh --refresh-if-stale 2>/dev/null
 fi
 
 NOW="$(date -u +%s)"
@@ -94,14 +95,14 @@ fi
 # going quiet.
 # The marker is the technical profile's `release.deploy_marker`. This hook never
 # fails a turn, so an unreadable profile is reported in the turn and ends it.
-if ! DEPLOY_MARKER="$(python3 ./scripts/programme/board/board-profile.py get release.deploy_marker 2>&1)"; then
+if ! DEPLOY_MARKER="$(python3 "$BOARD"/board-profile.py get release.deploy_marker 2>&1)"; then
   echo "turn-check: $DEPLOY_MARKER"
   exit 0
 fi
-OWNER_NAME="$(python3 ./scripts/programme/board/board-profile.py get accounts.owner_name 2>/dev/null)" || OWNER_NAME="the owner"
+OWNER_NAME="$(python3 "$BOARD"/board-profile.py get accounts.owner_name 2>/dev/null)" || OWNER_NAME="the owner"
 ME="${ME:-__no_such_login__}"
-ME_J="$(python3 ./scripts/programme/board/board-profile.py json-string "$ME")" || exit 0
-MARKER_J="$(python3 ./scripts/programme/board/board-profile.py json-string "$DEPLOY_MARKER")" || exit 0
+ME_J="$(python3 "$BOARD"/board-profile.py json-string "$ME")" || exit 0
+MARKER_J="$(python3 "$BOARD"/board-profile.py json-string "$DEPLOY_MARKER")" || exit 0
 FILTER='.[] | select(.user.login != '"$ME_J"')
             | select((.body | startswith('"$MARKER_J"')) | not)
             | "#\(.issue_url | split("/") | last)  \(.updated_at[11:16])  \((.body | gsub("\n"; " "))[0:160])"'
@@ -190,9 +191,9 @@ if (( ! RESEED && ! PRINT_FILTER )); then
   [[ -f "$SWEEP" ]] && LAST_SWEEP="$(stat -c %Y "$SWEEP" 2>/dev/null || echo 0)"
   if (( NOW - LAST_SWEEP >= SWEEP_EVERY )); then
     SDIR="$(mktemp -d)"
-    ( timeout 20 ./scripts/programme/board/board-actions.py --claude --no-colour 2>/dev/null \
+    ( timeout 20 "$BOARD"/board-actions.py --claude --no-colour 2>/dev/null \
         | grep -cE '^  #[0-9]+' > "$SDIR/a" ) 2>/dev/null &
-    ( timeout 20 ./scripts/programme/board/board-check.py --no-colour 2>/dev/null \
+    ( timeout 20 "$BOARD"/board-check.py --no-colour 2>/dev/null \
         | grep -cE '^#[0-9]+' > "$SDIR/t" ) 2>/dev/null &
     wait
     A="$(cat "$SDIR/a" 2>/dev/null || echo 0)"; T="$(cat "$SDIR/t" 2>/dev/null || echo 0)"
@@ -201,7 +202,7 @@ if (( ! RESEED && ! PRINT_FILTER )); then
     # hours is noise with a schedule.
     if [[ "$A" =~ ^[0-9]+$ && "$T" =~ ^[0-9]+$ ]] && (( A + T > 0 )); then
       SWEPT="  $A action(s) waiting on you, $T issue(s) further along than their content supports"$'\n'
-      SWEPT="$SWEPT  ./scripts/programme/board/board-actions.py --claude   ./scripts/programme/board/board-check.py"$'\n'
+      SWEPT="$SWEPT  programme/scripts/board/board-actions.py --claude   programme/scripts/board/board-check.py"$'\n'
     fi
     touch "$SWEEP"
   fi

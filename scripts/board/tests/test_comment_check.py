@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .cases import Cases
 
-HOOK = Path(__file__).resolve().parents[4] / ".claude" / "comment-check.sh"
+HOOK = Path(__file__).resolve().parents[3] / ".claude" / "hooks" / "comment-check.sh"
 
 
 class BeforeCommenting(Cases):

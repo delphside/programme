@@ -19,7 +19,7 @@ from board.tests.cases import Cases
 from board.tests.cli import run
 
 SPEC = importlib.util.spec_from_file_location(
-    "document_map", Path(__file__).resolve().parents[1] / "programme" / "docs" / "document-map.py")
+    "document_map", Path(__file__).resolve().parents[1] / "docs" / "document-map.py")
 docmap = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(docmap)
 
@@ -58,12 +58,12 @@ class Numbering(Cases):
     def test_the_documents_of_an_application_are_all_in_the_scheme(self):
         with tempfile.TemporaryDirectory() as tmp:
             app = make_application(Path(tmp) / "widget")
-            self.expect("the command", 0, run("programme/docs/document-map.py", "--names", cwd=app).returncode)
+            self.expect("the command", 0, run("docs/document-map.py", "--names", cwd=app).returncode)
 
     def test_a_document_outside_the_scheme_fails_the_command_and_names_the_range(self):
         with tempfile.TemporaryDirectory() as tmp:
             app = make_application(Path(tmp) / "widget", ("9.1.1-overview.md", "4.1.1-architecture.md"))
-            result = run("programme/docs/document-map.py", "--names", cwd=app)
+            result = run("docs/document-map.py", "--names", cwd=app)
             self.expect("exit status", 1, result.returncode)
             self.expect("names the document", True, "4.1.1-architecture.md" in result.stderr)
             self.expect("and the range it wanted", True, "expected 9.G.N-name.md" in result.stderr)
@@ -74,7 +74,7 @@ class TheMap(Cases):
         self.expect("file", "9.1.6-document-map.md", docmap.OUT.name)
         with tempfile.TemporaryDirectory() as tmp:
             app = make_application(Path(tmp) / "widget")
-            written = run("programme/docs/document-map.py", "--write", cwd=app)
+            written = run("docs/document-map.py", "--write", cwd=app)
             self.expect("writes", 0, written.returncode)
             text = (app / "docs" / "9.1.6-document-map.md").read_text()
             self.expect("title", "# 9.1.6 Document map", text.splitlines()[0])
@@ -86,11 +86,11 @@ class TheMap(Cases):
     def test_it_is_current_after_it_is_written_and_stale_after_a_change(self):
         with tempfile.TemporaryDirectory() as tmp:
             app = make_application(Path(tmp) / "widget")
-            self.expect("absent is stale", 1, run("programme/docs/document-map.py", "--check", cwd=app).returncode)
-            run("programme/docs/document-map.py", "--write", cwd=app)
-            self.expect("current", 0, run("programme/docs/document-map.py", "--check", cwd=app).returncode)
+            self.expect("absent is stale", 1, run("docs/document-map.py", "--check", cwd=app).returncode)
+            run("docs/document-map.py", "--write", cwd=app)
+            self.expect("current", 0, run("docs/document-map.py", "--check", cwd=app).returncode)
             (app / "docs" / "9.1.1-overview.md").write_text("# new\n\n## Another\n")
-            self.expect("stale", 1, run("programme/docs/document-map.py", "--check", cwd=app).returncode)
+            self.expect("stale", 1, run("docs/document-map.py", "--check", cwd=app).returncode)
 
 
 if __name__ == "__main__":

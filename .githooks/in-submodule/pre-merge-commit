@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# A merge commit in the pinned programme is a commit: the same refusal as pre-commit.
+exec "$(dirname "$0")/pre-commit" "$@"

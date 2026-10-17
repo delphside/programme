@@ -90,7 +90,7 @@ class TheCommandAgainstARealHistory(unittest.TestCase):
         cls._dir.cleanup()
 
     def refs(self, *args, stdin=""):
-        return run("programme/board/board-refs.py", "-C", str(self.repo), *args, stdin=stdin)
+        return run("board/board-refs.py", "-C", str(self.repo), *args, stdin=stdin)
 
     def test_count_commits_naming_7_not_the_prose_in_8s_commit(self):
         self.assertEqual("2", self.refs("count", "main", "7").stdout.strip())
@@ -112,16 +112,16 @@ class TheCommandAgainstARealHistory(unittest.TestCase):
         self.assertEqual((0, "0"), (result.returncode, result.stdout.strip()))
 
     def test_named_from_a_message_on_stdin(self):
-        self.assertEqual(["3", "4"], run("programme/board/board-refs.py", "named", stdin="x\n\nRefs #4\nCloses #3\nfixes #5\n").stdout.split())
+        self.assertEqual(["3", "4"], run("board/board-refs.py", "named", stdin="x\n\nRefs #4\nCloses #3\nfixes #5\n").stdout.split())
 
     def test_branch(self):
-        self.assertEqual("415", run("programme/board/board-refs.py", "branch", "415-x").stdout.strip())
+        self.assertEqual("415", run("board/board-refs.py", "branch", "415-x").stdout.strip())
 
     def test_an_unnumbered_branch_prints_nothing(self):
-        self.assertEqual("", run("programme/board/board-refs.py", "branch", "tidy-up").stdout.strip())
+        self.assertEqual("", run("board/board-refs.py", "branch", "tidy-up").stdout.strip())
 
     def test_an_unknown_command_is_refused(self):
-        self.assertEqual(2, run("programme/board/board-refs.py", "frobnicate").returncode)
+        self.assertEqual(2, run("board/board-refs.py", "frobnicate").returncode)
 
 
 if __name__ == "__main__":

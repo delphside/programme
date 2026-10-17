@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """board-merged.py — move a merged work package's Project State on.
 
-    scripts/programme/board/board-merged.py <branch>            # what `.githooks/post-merge` runs
-    scripts/programme/board/board-merged.py <branch> --dry-run  # say what it would do
+    programme/scripts/board/board-merged.py <branch>            # what `.githooks/post-merge` runs
+    programme/scripts/board/board-merged.py <branch> --dry-run  # say what it would do
 
 Run by the post-merge hook when a project branch fast-forwards into `main`.
 Finds the work package the branch delivered, from its pull request as well as
@@ -13,7 +13,7 @@ Post-deployment (a repository route, which the merge delivered).
 Never fails the merge: anything it cannot do is printed, with what to set by
 hand, and it exits 0. The merge has already happened by the time it runs.
 
-Design: scripts/programme/board/merge.py.
+Design: programme/scripts/board/merge.py.
 """
 
 from __future__ import annotations

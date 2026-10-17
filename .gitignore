@@ -1,0 +1,8 @@
+# Python's bytecode, from running the tests.
+__pycache__/
+# Claude Code's per-machine state: the hooks' caches and logs (`.claude/.inbox-cache`,
+# `.gh-login` and the rest) when they run with this repository as the application,
+# agents' worktrees and one machine's permissions. The skills, agents and hooks are tracked.
+.claude/.*
+.claude/worktrees/
+.claude/settings.local.json

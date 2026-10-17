@@ -16,7 +16,7 @@ from .cli import run
 
 
 def of(which: str, *paths: str) -> list[str]:
-    return run("programme/board/board-documents.py", which, stdin="".join(p + "\n" for p in paths)).stdout.split()
+    return run("board/board-documents.py", which, stdin="".join(p + "\n" for p in paths)).stdout.split()
 
 
 class ProgrammeDocuments(unittest.TestCase):
@@ -45,7 +45,7 @@ class ProgrammeDocuments(unittest.TestCase):
 
     def test_an_application_document_is_not_one(self):
         self.assertEqual([], of("programme", "docs/9.4.3-api-schema.md", "docs/9.3.0-tools.md",
-                                "scripts/programme/board/documents.py"))
+                                "scripts/board/documents.py"))
 
     def test_the_lists_are_the_profiles_not_a_built_in_one(self):
         # The real application's roadmap is not this application's.
@@ -74,13 +74,13 @@ class NeitherSide(unittest.TestCase):
         self.assertEqual([], of("application", *paths))
 
     def test_kind_names_each(self):
-        out = run("programme/board/board-documents.py", "kind", "CLAUDE.md", "docs/9.4.1-configuration.md",
+        out = run("board/board-documents.py", "kind", "CLAUDE.md", "docs/9.4.1-configuration.md",
                   "docs/9.1.6-document-map.md", "scripts/x.sh").stdout.split("\n")
         self.assertEqual(["CLAUDE.md\tprogramme", "docs/9.4.1-configuration.md\tapplication",
                           "docs/9.1.6-document-map.md\tgenerated", "scripts/x.sh\tnone"], out[:4])
 
     def test_an_unknown_command_is_refused(self):
-        self.assertEqual(2, run("programme/board/board-documents.py", "frobnicate").returncode)
+        self.assertEqual(2, run("board/board-documents.py", "frobnicate").returncode)
 
 
 if __name__ == "__main__":

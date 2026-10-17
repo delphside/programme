@@ -17,7 +17,7 @@ set -euo pipefail
 # `gh pr create` from here on, the same way `merge-to-release.sh` is used
 # instead of a bare `gh pr merge`.
 #
-#   scripts/programme/board/create-pr.sh --base main --head <branch> \
+#   programme/scripts/board/create-pr.sh --base main --head <branch> \
 #     --title "..." --body-file /path/to/body.md
 #
 # `--reviewer` defaults to the owner's account (`accounts.owner` in the programme
@@ -83,6 +83,6 @@ SYNC_PR_STATE="${SYNC_PR_STATE:-$HERE/board-pr-state.py}"
 if [[ -x "$SYNC_PR_STATE" ]]; then
   echo "==> Correcting the board's PR State"
   if ! "$SYNC_PR_STATE"; then
-    echo "note: the board was not corrected — run scripts/programme/board/board-pr-state.py" >&2
+    echo "note: the board was not corrected — run programme/scripts/board/board-pr-state.py" >&2
   fi
 fi

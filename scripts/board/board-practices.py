@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """board-practices.py — R3: which programme activities are overdue.
 
-    scripts/programme/board/board-practices.py          # every activity, frequency and last actioned
-    scripts/programme/board/board-practices.py --json   # the same, machine-readable
-    scripts/programme/board/board-practices.py --exit-code  # non-zero when anything is overdue
+    programme/scripts/board/board-practices.py          # every activity, frequency and last actioned
+    programme/scripts/board/board-practices.py --json   # the same, machine-readable
+    programme/scripts/board/board-practices.py --exit-code  # non-zero when anything is overdue
 
 Reads the register (`docs/1.4-programme-activities.md` in the pinned `programme/`
 submodule) for what exists and how often it is owed, and the log

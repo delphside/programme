@@ -20,7 +20,7 @@ lock-file lines for another platform, change the manifest and lock file and so
 count as reaching the image though the bytes do not change (#404, #421).
 
 Owned here since 2026-09-26; it was `shipping-paths.sh`'s `NON_SHIPPING`, which
-now asks `scripts/programme/board/board-shipping.py` (#421). Paths in, answers
+now asks `programme/scripts/board/board-shipping.py` (#421). Paths in, answers
 out; the profile is the only thing read.
 """
 
@@ -58,6 +58,20 @@ def touches_image(paths: Iterable[str]) -> bool:
     No paths is *no*: a change that touched nothing changed nothing.
     """
     return bool(image_paths(paths))
+
+
+def application_tooling(paths: Iterable[str]) -> list[str]:
+    """The paths, of these, that are the application's own scripts, in the order given.
+
+    The folders are the technical profile's `scripts.groups` (#485 stage 2, #447's
+    grouping): what acts on the application and the environments it runs in. A
+    change there is tried where it runs, on a branch, because `main` is where every
+    script is run from, so a commit to `main` touching one is warned about (the
+    pre-commit hook; warns, never refuses). The programme's tooling is in the
+    programme repository and its tests beside it, and neither is in these folders.
+    """
+    folders = tuple(profile.technical().strings("scripts.groups"))
+    return [p for p in paths if p and p.startswith(folders)]
 
 
 def version_bump_only(files: Sequence[str], changed_lines: Sequence[str]) -> bool:

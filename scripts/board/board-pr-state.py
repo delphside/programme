@@ -2,12 +2,12 @@
 """board-pr-state.py — put every pull request on the board, and set `PR State`
 from what GitHub already knows.
 
-    scripts/programme/board/board-pr-state.py            # add what is missing, set what is wrong
-    scripts/programme/board/board-pr-state.py --check    # report the drift and change nothing
+    programme/scripts/board/board-pr-state.py            # add what is missing, set what is wrong
+    programme/scripts/board/board-pr-state.py --check    # report the drift and change nothing
 
 The field is derived, never typed: if it disagrees with reviewDecision, the
 field is wrong. The ladder is `sources.pr_state`; which pull requests need
-adding or correcting, and why, is `scripts/programme/board/pr_sync.py`.
+adding or correcting, and why, is `programme/scripts/board/pr_sync.py`.
 
 Refuses (exit 2) when:
   - the project has no `PR State` single-select field, or it cannot be read
