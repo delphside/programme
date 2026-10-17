@@ -48,9 +48,10 @@ organisation settings, in the same place as `Workstream`:
 
 | | |
 | --- | --- |
-| name | `Ticket kind` |
+| name | `Ticket Kind` |
 | type | single select |
-| options | `incident`, `service request`, `complaint` |
+| options | `Service Request`, `Incident`, `Complaint` |
+| pinned to | `Ticket` |
 
 ## 3. Receiving in Resend
 
@@ -74,8 +75,13 @@ GoDaddy → My Products → `tileliteelite.com` → DNS → Add New Record:
 | Priority | the priority from step 3, usually `10` |
 | TTL | the default |
 
-Check that no other MX record is named `mail`. Then go to Resend → Domains and
-click **Verify DNS Records**. The record can take up to 72 hours to propagate.
+Check that no other MX record is named `mail`. Resend checks the record by itself, and the
+domain's receiving row moves from *Pending* to verified with no button to
+press. The record can take up to 72 hours to propagate.
+
+`dig` comes with `sudo apt install bind9-dnsutils`. Without it, Google's DNS
+answers over HTTPS:
+`curl -s "https://dns.google/resolve?name=mail.tileliteelite.com&type=MX" | jq .Answer`.
 
 ```bash
 dig +short MX mail.tileliteelite.com    # shows the value from step 3
@@ -89,8 +95,11 @@ dig +short MX tileliteelite.com         # unchanged from before
    Don't reuse production's key: this key lives in GitHub, and production's
    should stay on the VM alone.
 2. Store it in the service-desk repository. The command prompts for the key,
-   so the key never appears in shell history. If the token is refused, use the
-   repository's Settings → Secrets and variables → Actions instead:
+   so the key never appears in shell history. A fine-grained token answers 404
+   unless it lists the repository, which one made before the repository never
+   does, so the browser is the usual route: the repository's Settings →
+   Secrets and variables → Actions → New repository secret, named exactly
+   `RESEND_API_KEY`:
 
 ```bash
 gh secret set RESEND_API_KEY -R delphside/service-desk
@@ -113,6 +122,6 @@ can stay in place until they are wanted.
 
 | | |
 | --- | --- |
-| done on | |
-| by | |
-| delivery-log row | |
+| done on | 2026-10-17 |
+| by | the owner |
+| delivery-log row | [`0.9.1b`](../../../../applications/tile-lite-elite/3.1.1-delivery-log.md#the-deliveries) |
