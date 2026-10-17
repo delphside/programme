@@ -12,12 +12,12 @@ keeps its own code and technical documents in a repository of its own.
 | `docs/` | the programme's processes, `1.x`, starting at [1.0](docs/1.0-programme.md) |
 | `docs/templates/` | the forms for the records below |
 | `config/programme.toml` | what every application shares: the organisation, the board, the accounts, the programme repository and the paths of its registers |
-| `.claude/` | the skills and agents every application uses |
+| `scripts/` | the board model and its commands (`board/`), the documents' checks (`docs/`), the reports (`reports/`), and the tests of all of them (`board/tests/`, `tests/`) |
+| `.githooks/` | the git hooks an application runs through its `.githooks` shim, and `in-submodule/`, which refuses a commit inside the submodule |
+| `.claude/` | the skills and agents every application uses, and `hooks/`, the three Claude Code hooks its `settings.json` runs |
+| `.github/workflows/ci.yml` | this repository's CI: the model's tests, the scripts' tests and the documents gate |
 | `records/` | records about the whole programme, `2.x`: [2.1 applications](records/2.1-applications.md), [2.2 role holders](records/2.2-roles.md), [2.3 activity log](records/2.3-activity-log.csv), [2.4 weekly digests](records/2.4-weekly-digest/), [2.5 change documents](records/2.5-changes/), [2.6 programme workstreams](records/2.6-workstreams.md) |
 | `applications/<app>/` | one folder per application, with the same records in each, `3.n.x` |
-
-The scripts and git hooks are still in the Tile Lite Elite repository
-(`scripts/programme/`, `.githooks/`) and move here in a later step of delphside/tile-lite-elite#485.
 
 ## Numbering
 
@@ -29,8 +29,9 @@ their indexes are in [2.1](records/2.1-applications.md).
 
 - The application's repository carries this one as a pinned git submodule at
   `programme/`. Its `CLAUDE.md` imports `programme/CLAUDE.md` and adds its own
-  lines; its `.claude/` skills and agents point into `programme/.claude/`. The
-  pin moves by a commit of the application's own.
+  lines; its `.claude/` skills and agents point into `programme/.claude/` and its
+  hooks into `programme/.claude/hooks/`; its git hooks are `programme/.githooks`.
+  The pin moves by a commit of the application's own.
 - Every session has this repository checked out beside the application's, and
   writes records here: a commit to `main` locally, a short-lived branch and
   pull request from a cloud session.

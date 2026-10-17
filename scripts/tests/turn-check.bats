@@ -20,7 +20,7 @@ setup_file() {
   load fixtures
   use_fake_profiles
   export FILTER ME
-  FILTER="$("$BATS_TEST_DIRNAME/../../.claude/turn-check.sh" --print-filter)"
+  FILTER="$("$BATS_TEST_DIRNAME/../../.claude/hooks/turn-check.sh" --print-filter)"
   # The bot login is whatever the filter was built with, so the fixture is
   # written against the filter rather than against a hardcoded name.
   ME="$(printf '%s' "$FILTER" | sed -n 's/.*select(.user.login != "\([^"]*\)").*/\1/p' | head -1)"
@@ -71,7 +71,7 @@ JSON
 # The announcement a deploy makes is the technical profile's `release.deploy_marker`
 # (#485), so another profile's marker is the one excluded.
 @test "the deploy's marker is the profile's" {
-  other="$(PROGRAMME_PROFILE="$FAKES/programme-other.toml" "$BATS_TEST_DIRNAME/../../.claude/turn-check.sh" --print-filter)"
+  other="$(PROGRAMME_PROFILE="$FAKES/programme-other.toml" "$BATS_TEST_DIRNAME/../../.claude/hooks/turn-check.sh" --print-filter)"
   run jq -r "$other" <<< "$(fixture)"
   assert_success
   assert_line --regexp '^#3 '
@@ -84,7 +84,7 @@ JSON
 @test "a marker with a quote or a backslash is a value, not part of the filter" {
   sed 's/^deploy_marker = .*/deploy_marker = "\\"] \\\\ ("/' "$FAKES/programme.toml" > "$BATS_TEST_TMPDIR/odd.toml"
   grep -q 'deploy_marker = ' "$BATS_TEST_TMPDIR/odd.toml"
-  odd="$(PROGRAMME_PROFILE="$BATS_TEST_TMPDIR/odd.toml" "$BATS_TEST_DIRNAME/../../.claude/turn-check.sh" --print-filter)"
+  odd="$(PROGRAMME_PROFILE="$BATS_TEST_TMPDIR/odd.toml" "$BATS_TEST_DIRNAME/../../.claude/hooks/turn-check.sh" --print-filter)"
   grep -qF 'startswith("\"] \\ (")' <<< "$odd"
   run jq -r "$odd" <<< "$(fixture)"
   assert_success
@@ -97,11 +97,11 @@ JSON
 @test "the comment check works on a PATH with no jq" {
   REALJQ="$(command -v jq)"
   APP="$BATS_TEST_TMPDIR/app"
-  mkdir -p "$APP/.claude" "$APP/scripts" "$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$APP/.claude" "$APP/programme/.claude" "$APP/programme/scripts" "$BATS_TEST_TMPDIR/bin"
   git init -q "$APP"
-  cp "$BATS_TEST_DIRNAME/../../.claude/turn-check.sh" "$APP/.claude/"
-  cp -r "$BATS_TEST_DIRNAME/../programme" "$APP/scripts/programme"
-  find "$APP/scripts/programme" -name __pycache__ -prune -exec rm -rf {} +
+  cp -r "$BATS_TEST_DIRNAME/../../.claude/hooks" "$APP/programme/.claude/hooks"
+  cp -r "$BATS_TEST_DIRNAME/../board" "$APP/programme/scripts/board"
+  find "$APP/programme" -name __pycache__ -prune -exec rm -rf {} +
   fixture > "$BATS_TEST_TMPDIR/comments.json"
   cat > "$BATS_TEST_TMPDIR/bin/gh" <<GH
 #!/bin/bash
@@ -119,13 +119,13 @@ GH
     p="$(command -v "$tool" || true)"
     [[ -n "$p" ]] && ln -sf "$p" "$BATS_TEST_TMPDIR/bin/$tool"
   done
-  run env PATH="$BATS_TEST_TMPDIR/bin" TURN_CHECK_SWEEP_SECS=999999 "$APP/.claude/turn-check.sh" </dev/null
+  run env PATH="$BATS_TEST_TMPDIR/bin" TURN_CHECK_SWEEP_SECS=999999 "$APP/programme/.claude/hooks/turn-check.sh" </dev/null
   assert_line --regexp '^#2 '
   refute_output --partial '#1 '
 }
 
 @test "a profile that cannot be read ends the check, saying so, and does not fail the turn" {
-  run env PROGRAMME_PROFILE="$BATS_TEST_TMPDIR/nowhere.toml" "$BATS_TEST_DIRNAME/../../.claude/turn-check.sh" --print-filter
+  run env PROGRAMME_PROFILE="$BATS_TEST_TMPDIR/nowhere.toml" "$BATS_TEST_DIRNAME/../../.claude/hooks/turn-check.sh" --print-filter
   assert_success
   assert_output --partial "$BATS_TEST_TMPDIR/nowhere.toml"
 }

@@ -104,13 +104,13 @@ class TheStartOfSessionCheck(Cases):
 
     def test_a_current_checkout_on_main_says_nothing(self):
         self.expect("no problem", None, records.problem())
-        result = run("programme/board/board-records.py", "check", env=env(PROGRAMME_DIR=str(self.live)))
+        result = run("board/board-records.py", "check", env=env(PROGRAMME_DIR=str(self.live)))
         self.expect("exit", 0, result.returncode)
         self.expect("prints nothing", "", result.stdout + result.stderr)
 
     def test_missing(self):
         gone = self.top / "not-cloned"
-        result = run("programme/board/board-records.py", "check", env=env(PROGRAMME_DIR=str(gone)))
+        result = run("board/board-records.py", "check", env=env(PROGRAMME_DIR=str(gone)))
         self.expect("never fails the session", 0, result.returncode)
         self.expect("one line", 1, len(result.stdout.strip().splitlines()))
         self.expect("names the path", True, str(gone) in result.stdout)
@@ -118,7 +118,7 @@ class TheStartOfSessionCheck(Cases):
 
     def test_a_missing_programme_file_is_said_in_one_line_and_does_not_fail(self):
         gone = self.top / "no-such.toml"
-        result = run("programme/board/board-records.py", "check",
+        result = run("board/board-records.py", "check",
                      env=env(PROGRAMME_DIR=str(self.live), PROGRAMME_CONFIG=str(gone)))
         self.expect("never fails the session", 0, result.returncode)
         self.expect("one line", 1, len(result.stdout.strip().splitlines()))
@@ -128,7 +128,7 @@ class TheStartOfSessionCheck(Cases):
         # Cloud sessions put every repository on a session branch.
         git(self.live, "checkout", "-q", "-b", "claude/session")
         self.expect("no problem", None, records.problem())
-        result = run("programme/board/board-records.py", "check", env=env(PROGRAMME_DIR=str(self.live)))
+        result = run("board/board-records.py", "check", env=env(PROGRAMME_DIR=str(self.live)))
         self.expect("exit", 0, result.returncode)
         self.expect("prints nothing", "", result.stdout + result.stderr)
 
@@ -138,7 +138,7 @@ class TheStartOfSessionCheck(Cases):
         git(self.origin, "add", "g")
         git(self.origin, "commit", "-q", "-m", "two")
         git(self.live, "fetch", "-q", "origin")
-        result = run("programme/board/board-records.py", "check", env=env(PROGRAMME_DIR=str(self.live)))
+        result = run("board/board-records.py", "check", env=env(PROGRAMME_DIR=str(self.live)))
         self.expect("exit", 0, result.returncode)
         self.expect("one line", 1, len(result.stdout.strip().splitlines()))
         self.expect("says 1 behind", True, "1 commit(s) behind" in result.stdout)
@@ -154,7 +154,7 @@ class TheStartOfSessionCheck(Cases):
         git(self.live, "fetch", "-q", "origin")
         before = subprocess.run(["git", "-C", str(self.live), "rev-parse", "HEAD"],
                                 capture_output=True, text=True).stdout
-        result = run("programme/board/board-records.py", "check", env=env(PROGRAMME_DIR=str(self.live)))
+        result = run("board/board-records.py", "check", env=env(PROGRAMME_DIR=str(self.live)))
         self.expect("exit", 0, result.returncode)
         self.expect("one line", 1, len(result.stdout.strip().splitlines()))
         self.expect("names the path", True, str(self.live) in result.stdout)
@@ -165,7 +165,7 @@ class TheStartOfSessionCheck(Cases):
 
     def test_no_origin_main_ref_cannot_tell(self):
         git(self.live, "update-ref", "-d", "refs/remotes/origin/main")
-        result = run("programme/board/board-records.py", "check", env=env(PROGRAMME_DIR=str(self.live)))
+        result = run("board/board-records.py", "check", env=env(PROGRAMME_DIR=str(self.live)))
         self.expect("exit", 0, result.returncode)
         self.expect("says cannot tell", True, "cannot tell" in result.stdout)
         self.expect("one line", 1, len(result.stdout.strip().splitlines()))
@@ -208,17 +208,17 @@ class TheLiveCheckout(Cases):
                     Path(self._dir.name) / "fake-programme", records.live(beside))
 
     def test_missing_says_where_it_looked_and_exits_non_zero(self):
-        result = run("programme/board/board-records.py", "live", env=env(PROGRAMME_DIR=str(self.missing)))
+        result = run("board/board-records.py", "live", env=env(PROGRAMME_DIR=str(self.missing)))
         self.expect("non-zero", True, result.returncode != 0)
         self.expect("names the path it tried", True, str(self.missing) in result.stderr)
         self.expect("prints nothing a caller could take for a path", "", result.stdout)
 
     def test_missing_names_the_programme_repository_the_programme_file_names(self):
-        result = run("programme/board/board-records.py", "live", env=env(PROGRAMME_DIR=str(self.missing)))
+        result = run("board/board-records.py", "live", env=env(PROGRAMME_DIR=str(self.missing)))
         self.expect("clone it from there", True, "clone fakeorg/fake-programme there" in result.stderr)
 
     def test_the_change_documents_are_asked_by_a_command_for_shell_scripts(self):
-        result = run("programme/board/board-records.py", "change-documents", env=env(PROGRAMME_DIR=str(self.live)))
+        result = run("board/board-records.py", "change-documents", env=env(PROGRAMME_DIR=str(self.live)))
         self.expect("exit", 0, result.returncode)
         self.expect("the path its programme profile gives", str(self.live / "applications" / APPLICATION / "3.6.7-changes"),
                     result.stdout.strip())
@@ -226,17 +226,17 @@ class TheLiveCheckout(Cases):
     def test_without_the_applications_profile_there_are_no_records_to_name(self):
         bare = Path(self._dir.name) / "bare-live"
         bare.mkdir()
-        result = run("programme/board/board-records.py", "change-documents", env=env(PROGRAMME_DIR=str(bare)))
+        result = run("board/board-records.py", "change-documents", env=env(PROGRAMME_DIR=str(bare)))
         self.expect("non-zero", True, result.returncode != 0)
         self.expect("says what is missing", True, "programme profile" in result.stderr)
         self.expect("prints nothing a caller could take for a path", "", result.stdout)
 
     def test_the_command_prints_the_path_for_shell_scripts(self):
-        result = run("programme/board/board-records.py", "live", env=env(PROGRAMME_DIR=str(self.live)))
+        result = run("board/board-records.py", "live", env=env(PROGRAMME_DIR=str(self.live)))
         self.expect("exit", 0, result.returncode)
         self.expect("the path", str(self.live), result.stdout.strip())
         self.expect("generic is the submodule", str(profile.app_root() / "programme"),
-                    run("programme/board/board-records.py", "generic").stdout.strip())
+                    run("board/board-records.py", "generic").stdout.strip())
 
     def test_the_activity_log_is_read_from_the_live_checkout(self):
         (self.live / "records").mkdir()
@@ -244,7 +244,7 @@ class TheLiveCheckout(Cases):
             "date,activity,who,note\n2000-01-01,capacity-plan,Claude,long ago\n")
         reg = Path(self._dir.name) / "register.md"
         reg.write_text(REGISTER)
-        result = run("programme/board/board-practices.py", "--exit-code",
+        result = run("board/board-practices.py", "--exit-code",
                      env=env(PROGRAMME_DIR=str(self.live), REGISTER_OVERRIDE=str(reg)))
         self.expect("the old row in the live log makes it overdue", 1, result.returncode)
         self.expect("and says so", True, "OVERDUE" in result.stdout)
@@ -252,13 +252,13 @@ class TheLiveCheckout(Cases):
     def test_practices_without_the_checkout_cannot_tell(self):
         reg = Path(self._dir.name) / "register.md"
         reg.write_text(REGISTER)
-        result = run("programme/board/board-practices.py",
+        result = run("board/board-practices.py",
                      env=env(PROGRAMME_DIR=str(self.missing), REGISTER_OVERRIDE=str(reg)))
         self.expect("D46's 2: could not judge", 2, result.returncode)
         self.expect("names the path", True, str(self.missing) in result.stderr)
 
     def test_the_digest_without_the_checkout_stops_before_asking_github(self):
-        result = run("programme/board/board-digest.py", "--write", env=env(PROGRAMME_DIR=str(self.missing)))
+        result = run("board/board-digest.py", "--write", env=env(PROGRAMME_DIR=str(self.missing)))
         self.expect("non-zero", True, result.returncode != 0)
         self.expect("names the path", True, str(self.missing) in result.stderr)
 
@@ -266,12 +266,12 @@ class TheLiveCheckout(Cases):
         plan = self.live / "applications" / APPLICATION / "3.6.3-capacity-plan"
         plan.mkdir(parents=True)
         (plan / "measurements.csv").write_text(MEASUREMENTS)
-        result = run("programme/reports/capacity-chart.py", "--write", env=env(PROGRAMME_DIR=str(self.live)))
+        result = run("reports/capacity-chart.py", "--write", env=env(PROGRAMME_DIR=str(self.live)))
         self.expect("exit", 0, result.returncode)
         self.expect("the chart is beside the data", True, (plan / "charts" / "disk.svg").is_file())
 
     def test_the_capacity_charts_without_the_checkout(self):
-        result = run("programme/reports/capacity-chart.py", "--write", env=env(PROGRAMME_DIR=str(self.missing)))
+        result = run("reports/capacity-chart.py", "--write", env=env(PROGRAMME_DIR=str(self.missing)))
         self.expect("non-zero", True, result.returncode != 0)
         self.expect("names the path", True, str(self.missing) in result.stderr)
 

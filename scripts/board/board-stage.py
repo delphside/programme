@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """board-stage.py — give a new requirement its Requirement State.
 
-    scripts/programme/board/board-stage.py <number>...            # what the issue workflow runs
-    scripts/programme/board/board-stage.py <number>... --dry-run  # say what it would do
+    programme/scripts/board/board-stage.py <number>...            # what the issue workflow runs
+    programme/scripts/board/board-stage.py <number>... --dry-run  # say what it would do
 
 Run by `.github/workflows/requirement-stage.yml` when an issue is opened or
 typed. A requirement with no Requirement State reads as Triage everywhere in the model,
 but the board shows it as blank, so a view filtered by Requirement State hides it. This
 writes the Requirement State the model already reads. Which issues get one, and which
-value, is `Requirement.stage_to_record` in `scripts/programme/board/model.py`.
+value, is `Requirement.stage_to_record` in `programme/scripts/board/model.py`.
 
 Never overwrites a Requirement State that is set. Exits 1 when the board cannot be read
 or written, so a failed run shows in the workflow's log.

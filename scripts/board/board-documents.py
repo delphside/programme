@@ -5,7 +5,7 @@
     board-documents.py application < path-list  # print the application's documents among them
     board-documents.py kind PATH...              # print each path's kind, or `none`
 
-The rule is `scripts/programme/board/documents.py`'s. The pre-commit hook asks this
+The rule is `programme/scripts/board/documents.py`'s. The pre-commit hook asks this
 before committing a programme document on a project branch, which it refuses,
 or an application document on `main`, which it warns about (#421 R5).
 """
@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from board import documents  # noqa: E402
+from board import documents, profile  # noqa: E402
 
 
 def main(argv: list[str]) -> int:
@@ -37,4 +37,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(profile.run(main, sys.argv[1:]))

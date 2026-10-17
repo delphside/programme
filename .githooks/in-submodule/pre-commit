@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# pre-commit (and pre-merge-commit) for a checkout of the programme that is an
+# application's `programme/` submodule — refuses the commit (#485 T1).
+#
+# **The submodule is read-only by rule.** An application carries the programme at
+# a pinned commit, and there are then two copies of it in a session: the pin,
+# which supplies the tooling, and the live checkout beside the application,
+# which holds the records and is where every programme change is written. A
+# commit made in the pin is lost on the next `git submodule update`, and one
+# that is kept makes the application run tooling nobody reviewed. So every write
+# goes to the live checkout and the application takes it by moving the pin.
+#
+# **How it is installed.** The submodule's own `core.hooksPath` is set to this
+# folder, by the application's setup (`git -C programme config core.hooksPath
+# .githooks/in-submodule`, relative to the submodule's working tree). Not the
+# application's `core.hooksPath`, which is `programme/.githooks` and does not
+# apply inside a submodule, which has a git configuration of its own; and not a
+# file in `.git/modules/programme/hooks`, which nothing versions. A folder in the
+# programme itself moves with the pin, so what a checkout enforces is what the
+# pin says.
+#
+# **It refuses only inside a submodule.** The programme's live checkout is the
+# same repository with the same hooks folder, and a `hooksPath` set there by
+# mistake must not stop the one place a write is meant to go.
+#
+# `--no-verify` still commits: the owner may set any rule aside, and a hook can be
+# skipped. This stops the mistake being made by accident.
+
+APP="$(git rev-parse --show-superproject-working-tree 2>/dev/null || true)"
+[ -n "$APP" ] || exit 0
+
+LIVE="$(python3 "$(cd "$(dirname "$0")/../.." && pwd)/scripts/board/board-records.py" live 2>/dev/null || true)"
+{
+  echo "commit refused: this is the pinned copy of the programme inside $APP."
+  echo
+  echo "  The programme/ submodule is read-only. A commit here is lost on the next"
+  echo "  'git submodule update' and was never reviewed as the programme's."
+  echo
+  if [ -n "$LIVE" ]; then
+    echo "  Make the change in the live checkout, $LIVE,"
+  else
+    echo "  Make the change in the programme's live checkout (../programme beside the application),"
+  fi
+  echo "  push it there, and move the application's pin to it:"
+  echo "    git -C programme fetch && git -C programme checkout <commit> && git add programme"
+  echo
+  echo "  --no-verify if you are sure, and say why in the message."
+} >&2
+exit 1

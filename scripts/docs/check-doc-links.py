@@ -8,7 +8,8 @@ a bad anchor is a link that quietly lands the reader at the top of the page.
 They were caught because a script was written that afternoon; nothing would have
 caught the next one.
 
-Checks two things across `docs/**/*.md` and the repository's own `*.md`:
+Checks two things across `docs/**/*.md` and the repository's own `*.md`, or the
+globs given as arguments:
 
   - `](#anchor)`            resolves to a heading in the same file
   - `](other.md#anchor)`    the file exists and holds that heading
@@ -16,7 +17,7 @@ Checks two things across `docs/**/*.md` and the repository's own `*.md`:
 Anchors are generated the way GitHub does it: lowercase, punctuation dropped,
 spaces to hyphens. Headings inside fenced code blocks are not headings.
 
-Exits non-zero and lists every break. Run by `scripts/programme/docs/check-docs.sh`, which is
+Exits non-zero and lists every break. Run by `programme/scripts/docs/check-docs.sh`, which is
 what CI runs, so the check you make by hand and the one the pull request
 enforces are the same code.
 """
@@ -48,7 +49,10 @@ def headings(path: pathlib.Path) -> set[str]:
 
 
 def main() -> int:
-    files = sorted(glob.glob("docs/**/*.md", recursive=True) + glob.glob("*.md"))
+    # An application's documents by default; the programme repository names its own
+    # folders (`check-docs.sh --programme`): globs from the working directory.
+    patterns = sys.argv[1:] or ["docs/**/*.md", "*.md"]
+    files = sorted({name for pattern in patterns for name in glob.glob(pattern, recursive=True)})
     broken = []
     for name in files:
         path = pathlib.Path(name)

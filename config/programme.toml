@@ -1,5 +1,5 @@
 # What every application in the programme shares. Read by the programme's
-# tooling through scripts/programme/board/profile.py (delphside/tile-lite-elite#485,
+# tooling through scripts/board/profile.py (delphside/tile-lite-elite#485,
 # stage 2). An application's own facts are in its programme profile
 # (applications/<app>/3.n.6-profile.md) and its technical profile
 # (programme.toml at its repository's root).

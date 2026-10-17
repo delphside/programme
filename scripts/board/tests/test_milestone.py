@@ -175,16 +175,10 @@ class WhatCountsAsAMention(Cases):
         self.expect("a merged branch's own commit counts too", 1, self.scope.count(501))
         self.expect("a branch not merged here is not counted", 0, self.scope.count(500))
 
-    def test_the_gate_counts_the_same(self):
-        # deploy.sh refuses on issue-mentions.sh's commits_mentioning; this
-        # pre-flight reports on mentions_on. The failure nobody would see is the
-        # pre-flight passing where the gate refuses, so the two are compared on
-        # one history rather than read.
-        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "issue-mentions.sh")
-        for n in (17, 99, 170, 362, 500, 501):
-            gate = subprocess.run(["bash", "-c", f'source "{script}"; commits_mentioning HEAD {n}'],
-                                  capture_output=True, text=True).stdout.strip()
-            self.expect(f"#{n}", str(self.scope.count(n)), gate)
+    # The model's count and the gate's, `issue-mentions.sh`'s `commits_mentioning`,
+    # were compared here on this history. The gate is the application's (Tile Lite
+    # Elite's `scripts/deliver/issue-mentions.sh`), so the comparison is its
+    # repository's: `scripts/tests/test_issue_mentions_gate.py` there.
 
 
 if __name__ == "__main__":

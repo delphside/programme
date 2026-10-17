@@ -2,7 +2,7 @@
 
 Everything that asks "does this belong to issue N" asks here: the model's
 reports, `deploy.sh`'s gate through `issue-mentions.sh`, and the commit-msg
-hook through `scripts/programme/board/board-refs.py`. Until 2026-09-26 there were six copies,
+hook through `programme/scripts/board/board-refs.py`. Until 2026-09-26 there were six copies,
 and they disagreed (#421).
 
 **The trailer is `Refs #N` or `Closes #N`, capitalised, one space.** Not

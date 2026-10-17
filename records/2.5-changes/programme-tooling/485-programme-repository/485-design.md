@@ -244,7 +244,7 @@ still are.
 
 ### Stage 1, in order
 
-#485 has two deliveries: the first created the repository by hand, and the
+Issue #485 has two deliveries: the first created the repository by hand, and the
 second, all of this design, is made in two stages, below.
 
 Tile Lite Elite keeps working throughout: steps 1 to 4 only add to the new
@@ -308,8 +308,11 @@ The repositories already say whose a script is, so no folder level does
 | `delphside/tile-lite-elite` | `scripts/develop/`, `scripts/deliver/`, `scripts/operate/`, `scripts/measure/` (#447's grouping, kept by the owner), its tests, `.claude/settings.json`, `cloud-setup.sh` and its technical profile |
 
 Tile Lite Elite runs the programme's tooling from the pinned submodule: the
-git hooks through `core.hooksPath programme/.githooks`, the Claude hooks
-through `settings.json` entries into `programme/.claude/hooks/`, and the
+git hooks through a shim, `.githooks/` in the application with `core.hooksPath
+.githooks`, that runs `programme/.githooks/<name>` and refuses when the submodule
+is not initialised (a path into the submodule would silently run no hook), the
+Claude hooks through `settings.json` entries that go through a wrapper into
+`programme/.claude/hooks/`, and the
 board scripts as `programme/scripts/board/...`.
 
 What checks Tile Lite Elite's own code stays there rather than becoming a
@@ -345,6 +348,7 @@ repository's root, changed on a project branch with the code it describes
 | `documents` | generated documents, the document map's path, the tools register |
 | `source` | where the source is, for the test designer and the reviewers |
 | `hooks` | the application's own pre-commit and check-docs steps |
+| `scripts` | `groups`: the folders of the application's own scripts. A commit to `main` touching one is warned about, not refused (R10) |
 
 Where the two overlap, the programme profile names a thing and the technical
 profile says how to reach it. What every application shares (the
@@ -378,7 +382,7 @@ Left by stage 1's review:
 Found by the inventory: `board-digest.py` names the weekly digest `TLE_WD_`,
 where 2.1 says `PRG_WD_`.
 
-#### Delivery
+#### How stage 2 is delivered
 
 One branch in each repository. This repository's carries the scripts,
 hooks, programme file and profile template, with their tests and CI, and

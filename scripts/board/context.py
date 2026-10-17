@@ -300,7 +300,7 @@ def render_findings(stale_found: Sequence[tuple[int, str]],
     if not stale_found:
         out.append(f"  {green('ok')} {dim('every open project carries a current header')}")
     for number, why in stale_found:
-        out.append(f"  {red('!!')} {bold(f'#{number}')} {dim(why + ' — scripts/programme/board/board-context.py --write')}")
+        out.append(f"  {red('!!')} {bold(f'#{number}')} {dim(why + ' — programme/scripts/board/board-context.py --write')}")
 
     out += ["", f"{bold('DEPENDENCIES')}  {dim('R11 — declared in the body, held by GitHub')}"]
     if not links:

@@ -4,10 +4,10 @@
 The first piece of the board model, built beside the existing scripts rather
 than replacing them. Nothing retires until the model is trusted.
 
-    scripts/programme/board/board-check.py                 # every open issue with something missing
-    scripts/programme/board/board-check.py --all           # every obligation, met or not
-    scripts/programme/board/board-check.py 383             # one issue
-    scripts/programme/board/board-check.py --exit-code     # non-zero if anything is missing
+    programme/scripts/board/board-check.py                 # every open issue with something missing
+    programme/scripts/board/board-check.py --all           # every obligation, met or not
+    programme/scripts/board/board-check.py 383             # one issue
+    programme/scripts/board/board-check.py --exit-code     # non-zero if anything is missing
 
 Reports and does not refuse. Twenty-eight obligations exist and twelve are
 enforceable today; the rest answer **not checked**, which is not a pass. A

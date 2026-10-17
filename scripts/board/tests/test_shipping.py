@@ -5,9 +5,12 @@ Production Release, and everything else is not. `shipping-paths.bats` keeps
 testing the functions the bash callers source, against real commits.
 """
 
+import os
+import tempfile
 import unittest
+from pathlib import Path
 
-from board.shipping import image_paths, reaches_image, ships, touches_image, version_bump_only
+from board.shipping import application_tooling, image_paths, reaches_image, ships, touches_image, version_bump_only
 
 from .cli import run
 
@@ -75,15 +78,45 @@ class Ships(unittest.TestCase):
         self.assertTrue(ships(["crates/ui/src/app.rs"], []))
 
 
+class ApplicationTooling(unittest.TestCase):
+    """The folders are the profile's `scripts.groups` (the fake's are `make/` and
+    `ship/`), so Tile Lite Elite's `develop/` is not one here: R10 reads the
+    profile and holds no list."""
+
+    def test_the_paths_in_the_profiles_folders(self):
+        self.assertEqual(["scripts/make/a.sh", "scripts/ship/deep/b.sh"],
+                         application_tooling(["docs/a.md", "scripts/make/a.sh", "scripts/ship/deep/b.sh"]))
+
+    def test_other_script_paths_are_not_application_tooling(self):
+        for path in ("scripts/a.sh", "scripts/develop/a.sh", "scripts/tests/t.bats", "scripts/makefile.sh",
+                     "programme/scripts/board/board-check.py", ".githooks/pre-commit"):
+            with self.subTest(path):
+                self.assertEqual([], application_tooling([path]))
+
+    def test_the_command_prints_them(self):
+        out = run("board/board-shipping.py", "application-tooling", stdin="docs/a.md\nscripts/ship/x.sh\n")
+        self.assertEqual((0, "scripts/ship/x.sh\n"), (out.returncode, out.stdout))
+
+    def test_a_profile_without_the_key_is_not_an_answer(self):
+        # exit 70, so the pre-commit hook refuses rather than reading "none"
+        bare = Path(tempfile.mkdtemp()) / "bare.toml"
+        bare.write_text('application = "widget"\n')
+        self.addCleanup(bare.unlink)
+        out = run("board/board-shipping.py", "application-tooling", stdin="scripts/ship/x.sh\n",
+                  env={**os.environ, "PROGRAMME_PROFILE": str(bare)})
+        self.assertEqual(70, out.returncode)
+        self.assertIn("scripts.groups", out.stderr)
+
+
 class TheCommand(unittest.TestCase):
     def test_paths_prints_only_the_shipping_ones(self):
-        self.assertEqual("Dockerfile", run("programme/board/board-shipping.py", "paths", stdin="docs/a.md\nDockerfile\n").stdout.strip())
+        self.assertEqual("Dockerfile", run("board/board-shipping.py", "paths", stdin="docs/a.md\nDockerfile\n").stdout.strip())
 
     def test_an_unknown_commit_changed_nothing(self):
-        self.assertEqual(1, run("programme/board/board-shipping.py", "commit", "no-such-commit").returncode)
+        self.assertEqual(1, run("board/board-shipping.py", "commit", "no-such-commit").returncode)
 
     def test_an_unknown_command_is_refused(self):
-        self.assertEqual(2, run("programme/board/board-shipping.py", "frobnicate").returncode)
+        self.assertEqual(2, run("board/board-shipping.py", "frobnicate").returncode)
 
 
 if __name__ == "__main__":

@@ -9,26 +9,43 @@ set -euo pipefail
 REPO="$(git rev-parse --show-toplevel)"
 # The application's own facts (the registers, its format step) are its technical
 # profile's, asked through board-profile.py (#485).
-BOARD="$(cd "$(dirname "$0")/.." && pwd)/scripts/programme/board"
+#
+# This hook is the programme's (#485 stage 2), run for an application through
+# `core.hooksPath programme/.githooks`, so the board scripts and the docs gate
+# are found from the hook's own path, one level up, and everything it decides
+# about is the repository being committed to, `$REPO`.
+PROG="$(cd "$(dirname "$0")/.." && pwd)"
+BOARD="$PROG/scripts/board"
+DOCS_GATE="$PROG/scripts/docs/check-docs.sh"
 PROFILE="$BOARD/board-profile.py"
 
 # run_board <script> <args...> < input: runs one of the board commands this hook
 # asks, leaving its stdout in BOARD_OUT and its status in BOARD_RC.
 #
-# **Exit 70 is not an answer.** These commands answer in their exit status (0
-# yes, 1 no) and a hook that reads any non-zero status as "no" lets every rule
-# below pass when the profile they read is missing or lacks a key (the loader
-# exits 70 then, `profile.EXIT_PROFILE_ERROR`). So on 70 the commit is refused,
-# with the loader's message. Any other status is the command's answer or a
-# failure this hook has always tolerated.
+# **Only an answer is an answer.** `paths`, `application-tooling` and the document
+# commands answer on stdout and exit 0; `version-bump` also answers 1 for "no".
+# Any other status is a rule that did not run, and the commit is refused with the
+# command's message: 70 for a profile that cannot be read or a command that
+# crashed, 2 for a script that is not there. A hook that read them as "no" let
+# every rule below pass when the profile they read was broken.
 run_board() {
   local err
   err="$(mktemp)"
   BOARD_RC=0
   BOARD_OUT="$(python3 "$BOARD/$1" "${@:2}" 2>"$err")" || BOARD_RC=$?
-  if [ "$BOARD_RC" -eq 70 ]; then
+  # **Only 0 is an answer, and 1 for `version-bump`**, which says no that way. 70 is
+  # a profile that cannot be read or a command that crashed (`profile.run` turns a
+  # traceback, which exits 1, into 70), and anything else (2 for a script that is
+  # not there or an argument it does not know, 127 for no python3) is a rule that
+  # did not run. Reading any of them as "no" would pass an image change, so all
+  # refuse.
+  if [ "$BOARD_RC" -gt 1 ] || { [ "$BOARD_RC" -eq 1 ] && [ "$2" != version-bump ]; }; then
     {
-      echo "commit refused: the profile the rules read cannot be used."
+      if [ "$BOARD_RC" -eq 70 ]; then
+        echo "commit refused: the profile the rules read cannot be used."
+      else
+        echo "commit refused: $1 could not decide (status $BOARD_RC), so no rule that asks it can say yes or no."
+      fi
       echo
       sed 's/^/  /' "$err"
       echo
@@ -76,17 +93,10 @@ MERGING=0
 # changed the Caddyfile and docker-compose.yml directly on main during #240.
 # Squash merges are made by GitHub and never reach this hook; a local merge is
 # skipped.
-# The pattern lives in scripts/shipping-paths.sh, sourced here and by deploy.sh,
-# which marks the same commits in its build manifest (#288). Two copies is how
-# the same defect comes to exist in two places, and this one decides both
-# whether a commit is refused and whether a release is described correctly.
-#
-# Located relative to **this hook**, not to the repository being committed to.
-# The two ship together, and `git rev-parse --show-toplevel` points at whatever
-# repo is being committed in — which is the hook's own repo in normal use and a
-# fixture's temporary one under test.
-# shellcheck source=../scripts/shipping-paths.sh
-. "$(cd "$(dirname "$0")/.." && pwd)/scripts/shipping-paths.sh"
+# **The rule is the model's**, `scripts/board/shipping.py`, asked below through
+# `board-shipping.py` with the repository being committed to; the callers in the
+# application (`deploy.sh`, `verify.sh`) ask it through its `shipping-paths.sh`,
+# so there is one definition and the hook holds none.
 
 # The one image change that belongs on `main`: the post-deploy version bump.
 #
@@ -112,8 +122,8 @@ MERGING=0
 # `<<<` and not a pipe into `grep -q`: grep exits on its first match, the
 # writer takes SIGPIPE, and under `pipefail` the pipeline reports 141 — so the
 # test would silently invert. That defect has already cost this project a
-# production deploy; see scripts/issue-mentions.sh.
-# **The rule is the model's**, `scripts/programme/board/shipping.py`'s `version_bump_only`
+# production deploy; see the application's issue-mentions.sh.
+# **The rule is the model's**, `programme/scripts/board/shipping.py`'s `version_bump_only`
 # (#421), asked through `board-shipping.py` rather than held here.
 version_bump_only() {
   run_board board-shipping.py version-bump --staged </dev/null
@@ -180,7 +190,7 @@ fi
 # `--no-verify`, in the same shape as the check above it -- it is asking *did
 # you mean this*, not forbidding it.
 #
-# **The list is the model's**, `scripts/programme/board/documents.py` (#421), asked
+# **The list is the model's**, `programme/scripts/board/documents.py` (#421), asked
 # through `board-documents.py` rather than held here.
 
 if [ "$MERGING" -eq 0 ] && [ "$BRANCH" != "main" ]; then
@@ -225,6 +235,38 @@ if [ "$MERGING" -eq 0 ] && [ "$BRANCH" = "main" ]; then
       echo
       echo "  These usually ride the branch of the change they describe. A"
       echo "  correction on its own is fine here; committing anyway."
+    } >&2
+  fi
+fi
+
+# --- 1d. the application's scripts are tried where they run, on a branch -----------
+#
+# **Warns rather than refuses** (owner, 2026-09-29: "it should give a warning, but
+# there should be some flexibility"). `main` is where every script is run from, so
+# a half-finished change to `deploy.sh` or `rollback.sh` there breaks the next
+# deploy or recovery; a branch holds the old version while it is tried on preview
+# or rehearsal. The folders are the technical profile's `scripts.groups` (#447's
+# grouping, #485 stage 2), decided in `board/shipping.py` and asked through
+# `board-shipping.py`, as the image rule is. A one-line correction is fine here,
+# which is why this only says so. Not during a merge: a branch landing on `main`
+# is the rule working. A profile that cannot be read is not "no": `run_board`
+# refuses the commit on exit 70.
+
+if [ "$MERGING" -eq 0 ] && [ "$BRANCH" = "main" ]; then
+  # Deletions and the old side of a rename count: removing or moving `deploy.sh`
+  # breaks the next deploy as surely as editing it, and $STAGED leaves them out.
+  TOUCHED="$(git diff --cached --name-only --no-renames --diff-filter=ACDMR || true)"
+  run_board board-shipping.py application-tooling <<< "$TOUCHED"
+  APPTOOLING="$BOARD_OUT"
+  if [ -n "$APPTOOLING" ]; then
+    {
+      echo "note: application scripts committed to main:"
+      echo
+      printf '  %s\n' $APPTOOLING
+      echo
+      echo "  These usually take a branch and are tried on preview or rehearsal"
+      echo "  before they merge, since main is where every script is run from."
+      echo "  A small correction is fine here; committing anyway."
     } >&2
   fi
 fi
@@ -355,8 +397,8 @@ run_step
 # The only conditional one: it reads every markdown file and takes a few
 # seconds, so a commit touching no documents does not pay for it. A check that
 # makes every commit slower is one people bypass.
-if printf '%s\n' "$STAGED" | grep -qE '\.md$' && [ -x "$REPO/scripts/programme/docs/check-docs.sh" ]; then
-  if ! output="$("$REPO/scripts/programme/docs/check-docs.sh" 2>&1)"; then
+if printf '%s\n' "$STAGED" | grep -qE '\.md$' && [ -x "$DOCS_GATE" ]; then
+  if ! output="$(cd "$REPO" && "$DOCS_GATE" 2>&1)"; then
     printf '%s\n' "$output" >&2
     cat >&2 <<'MSG'
 

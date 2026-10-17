@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """board-inbox.py — R2: what has been said and decided since you last looked.
 
-    scripts/programme/board/board-inbox.py            # the last seven days
-    scripts/programme/board/board-inbox.py 2          # a different window, in days
-    scripts/programme/board/board-inbox.py --open     # what the owner said that Claude has not answered
-    scripts/programme/board/board-inbox.py --open --issue 452   # the same, for one issue, quickly
+    programme/scripts/board/board-inbox.py            # the last seven days
+    programme/scripts/board/board-inbox.py 2          # a different window, in days
+    programme/scripts/board/board-inbox.py --open     # what the owner said that Claude has not answered
+    programme/scripts/board/board-inbox.py --open --issue 452   # the same, for one issue, quickly
 
 Replaces `inbox.sh`. It exists because a conversation only works if both sides
 can see it -- owner, 2026-08-18, after replying to a comment and having to say

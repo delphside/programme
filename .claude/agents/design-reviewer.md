@@ -65,5 +65,5 @@ Keep it short. Do not restate the design.
 ## Never
 
 Change a file in the repository, comment on or edit an issue, run
-`scripts/deploy*.sh`, `scripts/rollback*.sh` or anything that reaches a
+`scripts/deliver/deploy*.sh`, `scripts/deliver/rollback*.sh` or anything that reaches a
 server, or read production.

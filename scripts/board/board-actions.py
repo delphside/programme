@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """board-actions.py — R1: what needs the owner.
 
-    scripts/programme/board/board-actions.py              # what is waiting, longest-quiet first
-    scripts/programme/board/board-actions.py --exit-code  # non-zero if anything is waiting
+    programme/scripts/board/board-actions.py              # what is waiting, longest-quiet first
+    programme/scripts/board/board-actions.py --exit-code  # non-zero if anything is waiting
 
 Built beside `actions.py`, not in place of it, and the two answer different
 questions: `actions.py` lists every outstanding action on the board, this lists

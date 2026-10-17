@@ -44,6 +44,11 @@ non_shipping = [
   'notes/',  # the fake's own: the real profile does not list it
 ]
 
+[scripts]
+# The folders of the fake's own scripts. Not Tile Lite Elite's, so a test that
+# passes has read this file.
+groups = ["scripts/make/", "scripts/ship/"]
+
 [environments.preview]
 env = ["WIDGET_PREVIEW_URL"]
 url = "http://localhost:9001"
@@ -71,7 +76,6 @@ review_stamp = 'Checked whole at `([0-9a-f]+)`'
 programme_exact = ["docs/diagrams/roadmap.svg"]
 programme_prefixes = ["docs/9.1.4-"]
 application_outside_docs = ["README.md"]
-grandfathered_changes = ["README.md", "old-design.md"]
 lint_ignore = ["#target", "#vendored"]
 
 [source]

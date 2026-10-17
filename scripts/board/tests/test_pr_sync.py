@@ -1,7 +1,7 @@
 """The board's `PR State`, written from GitHub's own state: which pull requests
 need adding or correcting, and what a run counts. On canned records, with no
-network. The rules are `scripts/programme/board/board-pr-state.py`'s help and
-`scripts/programme/board/pr_sync.py`'s header:
+network. The rules are `programme/scripts/board/board-pr-state.py`'s help and
+`programme/scripts/board/pr_sync.py`'s header:
 
   the ladder   merged and closed before anything else; then draft; approved;
                changes requested; a review requested; otherwise drafting
@@ -141,7 +141,7 @@ class WaitingOnNobody(Cases):
 
 class TheCommand(Cases):
     def test_help_lists_its_messages_and_exits_0(self):
-        out = run("programme/board/board-pr-state.py", "--help")
+        out = run("board/board-pr-state.py", "--help")
         self.expect("exit 0", 0, out.returncode)
         for message in ("is not on the board", "GitHub says", "could not be added",
                         "no 'PR State' field on the project"):
@@ -201,7 +201,7 @@ class TheCommandsExitStatuses(Cases):
     def check(self, **env):
         full = dict(os.environ, PATH=f"{self._dir.name}{os.pathsep}{os.environ['PATH']}",
                     **env)
-        return run("programme/board/board-pr-state.py", "--check", env=full)
+        return run("board/board-pr-state.py", "--check", env=full)
 
     def test_check_exits_1_on_drift_and_0_when_the_board_agrees(self):
         drift = self.check(BOARD_VALUE="Approved")

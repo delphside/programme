@@ -5,33 +5,36 @@
 # issue as the github-actions bot, so the hook has to pass on the inbox's
 # Reports section, and say nothing about reports when there are none.
 #
-# Run from a copy of the hook in a scratch directory whose scripts/ are stubs,
-# so the cases are about the hook, not about GitHub.
+# Run from a copy of the hook in a scratch application whose `programme/` holds
+# the hook and stub board scripts, so the cases are about the hook, not about
+# GitHub. The hook's state is the application's, in its `.claude/`.
 
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert
   F="$BATS_TEST_TMPDIR/repo"
-  mkdir -p "$F/.claude" "$F/scripts/programme/board" "$BATS_TEST_TMPDIR/bin"
-  cp "$BATS_TEST_DIRNAME/../../.claude/inbox-hook.sh" "$F/.claude/"
+  mkdir -p "$F/.claude" "$F/programme/.claude/hooks" "$F/programme/scripts/board" "$BATS_TEST_TMPDIR/bin"
+  git init -q "$F"
+  cp "$BATS_TEST_DIRNAME/../../.claude/hooks/inbox-hook.sh" "$BATS_TEST_DIRNAME/../../.claude/hooks/application-root.sh" \
+    "$F/programme/.claude/hooks/"
   for s in board-actions.py board-check.py board-practices.py; do
-    printf '#!/usr/bin/env bash\nexit 0\n' > "$F/scripts/programme/board/$s"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$F/programme/scripts/board/$s"
   done
   # How the owner is named is the programme file's, asked of board-profile.py.
   printf 'import sys\nsys.exit(print("Pat") if sys.argv[1:] == ["get", "accounts.owner_name"] else 1)\n' \
-    > "$F/scripts/programme/board/board-profile.py"
+    > "$F/programme/scripts/board/board-profile.py"
   # The hook only asks that gh exists.
   printf '#!/usr/bin/env bash\nexit 0\n' > "$BATS_TEST_TMPDIR/bin/gh"
-  chmod +x "$F/scripts/programme/board/"* "$BATS_TEST_TMPDIR/bin/gh"
+  chmod +x "$F/programme/scripts/board/"* "$BATS_TEST_TMPDIR/bin/gh"
 }
 
 inbox() {   # what the stub board-inbox.py prints
-  printf '#!/usr/bin/env bash\ncat <<'"'"'OUT'"'"'\n%s\nOUT\n' "$1" > "$F/scripts/programme/board/board-inbox.py"
-  chmod +x "$F/scripts/programme/board/board-inbox.py"
+  printf '#!/usr/bin/env bash\ncat <<'"'"'OUT'"'"'\n%s\nOUT\n' "$1" > "$F/programme/scripts/board/board-inbox.py"
+  chmod +x "$F/programme/scripts/board/board-inbox.py"
 }
 
 context() {
-  run bash -c 'PATH="$1:$PATH" "$2/.claude/inbox-hook.sh" | python3 -c "import json,sys; print(json.load(sys.stdin)[\"hookSpecificOutput\"][\"additionalContext\"])"' \
+  run bash -c 'PATH="$1:$PATH" "$2/programme/.claude/hooks/inbox-hook.sh" | python3 -c "import json,sys; print(json.load(sys.stdin)[\"hookSpecificOutput\"][\"additionalContext\"])"' \
     _ "$BATS_TEST_TMPDIR/bin" "$F"
 }
 
@@ -75,8 +78,19 @@ OPENED OR CLOSED
 
 #7  seven
   > 2026-10-01T09:00  a question'
-  rm "$F/scripts/programme/board/board-profile.py"
+  rm "$F/programme/scripts/board/board-profile.py"
   context
   assert_success
   assert_output --partial "comments from the owner not yet answered"
+}
+
+@test "its state is the application's, in the application's .claude/, not the programme's" {
+  inbox 'INBOX  since 2026-09-20
+
+#7  seven
+  > 2026-10-01T09:00  a question'
+  context
+  assert_success
+  assert [ -e "$F/.claude/.inbox-hook.log" ]
+  assert [ ! -e "$F/programme/.claude/.inbox-hook.log" ]
 }

@@ -11,7 +11,7 @@
 <rev> is anything `git log` takes: a ref, or a range like A..B. Merge commits
 count: a trailer on a merge is one somebody wrote.
 
-The rule itself is `scripts/programme/board/refs.py`'s: `Refs #N` or `Closes #N`,
+The rule itself is `programme/scripts/board/refs.py`'s: `Refs #N` or `Closes #N`,
 capitalised. This is the command the bash tooling calls instead of keeping a
 copy of it (#421). An unknown <rev> answers as though nothing names anything,
 and exits 0.
@@ -25,7 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from board import refs  # noqa: E402
+from board import profile, refs  # noqa: E402
 from board.repo import messages  # noqa: E402
 
 
@@ -61,4 +61,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))
+    raise SystemExit(profile.run(main, sys.argv[1:]))
