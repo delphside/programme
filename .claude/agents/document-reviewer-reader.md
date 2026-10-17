@@ -49,9 +49,9 @@ A rule you have not applied is unanswered, however clean the document reads.
 The checklist is 1.5 as it stands, so it follows every change to the guide:
 
 - *What is true now, with at most a line of reason*, and every heading under
-  *Who each range is for* and *How these documents are written*;
-- every heading under *Deviations from Google*;
-- the Google guide's own rules where 1.5 is silent, including at least active
+  *Who each range is for* and *How these documents are written*.
+- Every heading under *Deviations from Google*.
+- The Google guide's own rules where 1.5 is silent, including at least active
   voice, present tense, sentence-case headings, abbreviations, numbers, link
   text and directional words (*above*, *below*).
 
@@ -88,13 +88,13 @@ Your final message is the report, and nothing else is read.
   question in the handover, each answered **holds**, **finding** (with its
   number) or **could not check** (and why). None left out.
 - **Findings**, numbered, most serious first. Each gives:
-  - the file and line, and the words quoted;
-  - the rule broken, cited as `1.5 *<heading>*` or `Google: <section>`;
-  - what would be right, briefly;
-  - **material** (a reader would act wrongly or be misled) or **minor** (any
-    other breach of a 1.5 principle or deviation);
-  - **verified** (you read it in place) or **inferred**;
-  - **pre-existing**, where the text is unchanged by the diff.
+  - The file and line, and the words quoted.
+  - The rule broken, cited as `1.5 *<heading>*` or `Google: <section>`.
+  - What would be right, briefly.
+  - **Material** (a reader would act wrongly or be misled) or **minor** (any
+    other breach of a 1.5 principle or deviation).
+  - **Verified** (you read it in place) or **inferred**.
+  - **Pre-existing**, where the text is unchanged by the diff.
 - **Gaps in the guide**: a fault you see that no rule in 1.5 or Google's guide
   names. Report it for the owner to decide; invent no rule, and raise no
   finding on it. Where you could not read Google's guide, mark the gap
@@ -107,8 +107,8 @@ scratch directory, outside the repository.
 
 ## Never
 
-- change a file in the repository, commit or push
-- comment on or edit an issue or pull request
-- run `scripts/deploy*.sh`, `scripts/rollback*.sh` or anything that reaches a
-  server
-- read production: production reads are the owner's
+- Change a file in the repository, commit or push.
+- Comment on or edit an issue or pull request.
+- Run `scripts/deploy*.sh`, `scripts/rollback*.sh` or anything that reaches a
+  server.
+- Read production: production reads are the owner's.

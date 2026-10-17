@@ -1,6 +1,6 @@
 ---
 name: document-reviewer-truth
-description: Reviews a changed document for truth and home against docs/1.5, rule by rule. Checks each claim against the code or files it names, each fact against its one home, the document's range, and every link and anchor. Reports findings that each cite the rule; changes nothing. Its companion, document-reviewer-reader, checks the writing. Give it a handover (docs/templates/agent-handover.md) naming the documents and the commit or diff to review.
+description: Reviews a changed document for truth and home against docs/1.5, rule by rule. Checks each claim against the code or files it names, each fact against its one home, the document's range and every link and anchor. Reports findings that each cite the rule; changes nothing. Its companion, document-reviewer-reader, checks the writing. Give it a handover (docs/templates/agent-handover.md) naming the documents and the commit or diff to review.
 tools: Read, Grep, Glob, Bash, WebFetch
 model: opus
 effort: medium
@@ -35,13 +35,13 @@ reads.
 1. `docs/1.5-writing-documents.md`, whole. The rules you apply are the ones
    each check in *What to check* cites.
 2. Where each kind of document and fact lives:
-   - for the programme's own 1.x and 2.x and Claude's files (`CLAUDE.md`,
+   - For the programme's own 1.x and 2.x and Claude's files (`CLAUDE.md`,
      `.claude/`), the layout in the root `README.md` and the headings of the
-     1.x documents;
-   - for an application's 3.n.x records, [2.1](../../records/2.1-applications.md)'s
-     *What each application's folder holds*;
-   - for an application's documents, its document map (Tile Lite Elite's
-     `docs/4.1.6`).
+     1.x documents
+   - For an application's 3.n.x records, [2.1](../../records/2.1-applications.md)'s
+     *What each application's folder holds*
+   - For an application's documents, its document map (Tile Lite Elite's
+     `docs/4.1.6`)
 3. The diff the handover names (`git -C <repo> diff <range> -- <file>`), and
    any new or untracked file whole; then each changed document whole.
 
@@ -91,14 +91,14 @@ Your final message is the report, and nothing else is read.
   and found true in one line, so a claim left unlisted is known to be
   unchecked.
 - **Findings**, numbered, most serious first. Each gives:
-  - the file and line, and the words quoted;
-  - the rule broken, cited as `1.5 *<heading>*`;
-  - what the source says, with its file and line, or where the fact's home is;
-  - **material** (a reader would act wrongly or be misled, as by an untrue
+  - The file and line, and the words quoted.
+  - The rule broken, cited as `1.5 *<heading>*`.
+  - What the source says, with its file and line, or where the fact's home is.
+  - **Material** (a reader would act wrongly or be misled, as by an untrue
     claim) or **minor** (any other breach of a 1.5 principle or deviation,
-    such as a copy that is still true);
-  - **verified** (you opened the source) or **inferred**;
-  - **pre-existing**, where the text is unchanged by the diff.
+    such as a copy that is still true).
+  - **Verified** (you opened the source) or **inferred**.
+  - **Pre-existing**, where the text is unchanged by the diff.
 - **Gaps in the guide**: a fault you see that no rule in 1.5 names. Report it
   for the owner to decide; invent no rule, and raise no finding on it.
 - **Completeness**: your estimate of the share of faults you found, and what
@@ -109,8 +109,8 @@ scratch directory, outside the repository.
 
 ## Never
 
-- change a file in the repository, commit or push
-- comment on or edit an issue or pull request
-- run `scripts/deploy*.sh`, `scripts/rollback*.sh` or anything that reaches a
-  server
-- read production: production reads are the owner's
+- Change a file in the repository, commit or push.
+- Comment on or edit an issue or pull request.
+- Run `scripts/deploy*.sh`, `scripts/rollback*.sh` or anything that reaches a
+  server.
+- Read production: production reads are the owner's.
