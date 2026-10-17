@@ -45,6 +45,9 @@ written otherwise.
 | DEL-2 refusing to close an account while a passed invitation names it: principle 9 calls it acceptable | owner, on #439 |
 | #439's open rows: friends and blocking (the old address is told of a change: R6, NOTE-1) | owner, on #439 |
 | closing your own account, suspension, support requests and complaints | #296 (R1 to R5) |
+| The as-is design map (#406) is on Tile Lite Elite branch `claude/project-thread-m9vn5b`, reviewed until a round found nothing material. Its pull request opens once #514 merges: rebase onto #514's script layout, delete the stopgap `scripts/design-map.py`, move the `programme/` pin past delphside/programme#25, run `programme/scripts/docs/design-map/design-map.py --write`, then open it with the owner as reviewer | #514 |
+| [`71-map-change.md`](71-map-change.md) is a prototype: WP A and WP C only, and three gaps in the format, listed at its end, for the tooling to close | the map's pull request |
+| #519: the `Caddyfile` does not proxy the engine statistics routes | owner, triage |
 
 ## A tooling defect met on the way
 
