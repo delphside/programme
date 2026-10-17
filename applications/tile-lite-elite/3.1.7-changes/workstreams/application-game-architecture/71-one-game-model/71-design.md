@@ -1170,11 +1170,14 @@ like the others the server already has.
 already in WP A's schema; `push_subscriptions` and `notification_preferences`
 for Web Push; and `players.stats_private` for RATE-5. Which events ping is data
 in `notification_preferences`, keyed by event kind, so choosing or adding one
-changes no schema. **By default the events that wait on the player ping**
-(owner, 2026-10-17): their turn, a chat message, an invitation, the creator's
-question and TIME-4's time running out. Other players' moves, and a game
-starting or ending, are off until the player turns them on: a ping per move
-in a four-player game is the alarm clock #87 warned of. RET-3's question to the creator is shown in the games list
+changes no schema. **Which events ping, and whether a player may change it, is NOTE-1's table**
+(4.1.0; owner, 2026-10-17), each cell Always, On, Off or Never. The server
+holds it in one Rust module of its own (owner, 2026-10-17): an event-kind enum
+and one exhaustive match giving each kind its email and notification values,
+so a missing event or an invalid value does not compile, and a unit test reads
+the table against NOTE-1's. `notification_preferences` stores only a player's
+departures from an On or Off; Always and Never have no row. The module gets a
+row in 4.4.1 when WP C builds it. RET-3's question to the creator is shown in the games list
 and not sent ([4.2.4](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.4-persistence.md)),
 so it needs no marker. Columns in [`71-data-model.md`](71-data-model.md) §5.
 
