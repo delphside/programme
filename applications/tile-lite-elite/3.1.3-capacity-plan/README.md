@@ -22,6 +22,7 @@ Tile Lite Elite's answers to the [capacity plan template](../../../docs/template
 | **CPU** | | | |
 | **games in the database** | | | |
 | **accounts** | | | |
+| **Resend email quota**: sent and received alike, the game's email and the service desk's ([#515](https://github.com/delphside/tile-lite-elite/issues/515)) | | 100 a day, 3,000 a month (free plan) | |
 
 ## How the disk rows are measured
 
@@ -34,3 +35,7 @@ sudo du -sh /var/lib/docker/volumes/tile-lite-elite-data ~/tile-lite-elite/snaps
 du -ch /var/log/syslog* | tail -1
 journalctl --disk-usage
 ```
+
+## How the email quota row is measured
+
+The owner reads the month's sent and received counts, and the busiest day's, on the usage page of Resend's dashboard. Every email received counts against the quota as well as every email sent, so a flood of inbound mail could stop the game's verification and invitation emails for the rest of the day. Nothing is done about it until the headroom shows a need.
