@@ -10,19 +10,19 @@ system; WP B and WP D change the client, whose components the map does not
 draw yet. Proposed artefact paths are marked as proposed; the work package
 settles them.
 
-After any edit here, regenerate the drawing from a Tile Lite Elite checkout:
+After any edit here, regenerate the drawing from a Tile Lite Elite checkout
+whose programme checkout sits beside it at `../programme`:
 
 ```bash
-programme/scripts/docs/design-map/design-map.py --change <path to this file> --write
+../programme/scripts/docs/design-map/design-map.py --change <path to this file> --write
 ```
 
-The command reads the application's profile (for its document range) from
-the live programme checkout: `../programme` beside the application, or the
-path in the environment variable `PROGRAMME_DIR`. It never reads it from the
-`programme/` submodule. Tile Lite Elite's pinned `programme/` has this mode
-only once the submodule pin moves past this change; until then, run the
-script from the programme checkout, with `PROGRAMME_DIR` set if that checkout
-is not `../programme`.
+The command takes the application from the current directory and reads its
+profile (for its document range) from the live programme checkout:
+`../programme`, or the path in the environment variable `PROGRAMME_DIR`. It
+never reads it from the `programme/` submodule. Once Tile Lite Elite's
+submodule pin moves past this change, `programme/scripts/docs/design-map/`
+replaces `../programme/scripts/docs/design-map/` in the command.
 
 ## The work packages
 
