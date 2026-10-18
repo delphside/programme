@@ -43,8 +43,13 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w structurizr/structuriz
   them and the extension with them. Verified.
 - **The change key as tags.** Elements tagged `new`, `changed` and `removed`
   came out in exactly the key's colours from `docs/diagrams/README.md`, and
-  untagged ones in `unchanged`'s. Verified. Relationships take tag styles the
-  same way. Inferred: not run.
+  untagged ones in `unchanged`'s. Verified. Mermaid draws no relationship
+  styles, so the command colours those lines itself (below).
+- **A relationship is tagged where it stands.**
+  `!relationships "tle.server.games -> tle.server.proxy" { tags "removed" "wp:268" }`
+  adds the tags to the relationship the map already has, which the JSON export
+  shows. This is how an entry marks a relationship removed or changed.
+  Verified on the pinned image (#71's change file removes six this way).
 - **A tag can name the work package**, such as `wp:268`, beside the change
   state. Verified that it parses; what it is used for is below.
 
@@ -60,10 +65,12 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w structurizr/structuriz
 2. **Tags are workspace-wide, with no per-view styles.** Inferred from the
    DSL's documentation. So one export cannot colour work package 269's
    entries while showing 268's as already done. A work package's diagrams need
-   a small step of our own before the export: entries of the packages it
-   builds on lose their change tag (and removed ones are excluded), and its
-   own keep theirs. This needs each entry in the change file to carry its
-   `wp:` tag, which the tooling can check.
+   a small step of our own before the export, which the command takes: it
+   builds an extension holding only that package's entries, found by their
+   one `wp:` tag, and exports that. Built: each package is drawn alone. Still
+   to come, with the first package that builds on another: drawing it on top
+   of the packages it builds on, whose entries lose their change tag (and
+   removed ones are excluded).
 3. **Nothing folds an extension back into the model.** Inferred. So a release
    cannot apply its entries by running Structurizr. Two ways to meet
    "applied mechanically":
@@ -121,6 +128,13 @@ reviewer reads it on GitHub like any other design document:
 The tooling reads the blocks out of the file. One file per project, as agreed,
 because the fenced blocks carry both kinds.
 
+An entry is a statement in the extension's `model { }` whose own block has a
+`tags` line naming exactly one `wp:` tag. An `!element X { }` with no tags of
+its own is a wrapper: it is kept for a package if any child entry is, holding
+only those children. An entry with no `wp:` tag, or more than one, is an
+error naming its line. The extension holds no views; the command writes them.
+A heading in the file that names `#N` titles package N's drawing.
+
 ### Drawing, applying and checking
 
 A small programme command, on the model's pattern:
@@ -128,12 +142,31 @@ A small programme command, on the model's pattern:
 | it | does |
 | --- | --- |
 | draws the map | exports `map.dsl`, writes 2.0 |
-| draws a work package | builds the extension for that package (the packages it builds on applied, its own coloured), exports it, writes the diagrams into the design folder |
+| draws a work package | `design-map.py --change <N>-map-change.md --write` draws each package in number order into `<N>-map-diagrams.md` beside the change file (built, see below) |
 | checks a release's application | exports "old model plus these entries" and "new model", and fails unless they match |
 | checks R4 | every impacted artefact appears as an entry's artefact, and every entry appears in the table |
 
-Which packages a work package builds on comes from the GitHub dependency links
-between #71's packages, which the board model already reads.
+**A package's drawing, as built.** For each package the command builds an
+extension of the map holding only that package's entries, generates a view of
+its own, and exports it. Other packages' entries are left out. The view
+includes every element the package's entries name and both ends of every
+relationship entry: a Component view of the container that all its components
+belong to, or a Container view where they span containers. The map's own views
+are included too, as above, so the key's styles apply, but only the generated
+views are written. `--check` compares a hash of the change file and the map's
+sources with the one in the header, and needs no Docker.
+
+**Relationship colours, as built.** After every Mermaid export (the map's
+too), a relationship tagged `new`, `changed` or `removed` is drawn in the
+key's stroke (`#1a7f37`, `#9a6700`, `#cf222e`) by a `linkStyle` line, and its
+label starts with the state, so it reads without colour. The command exports
+the workspace as JSON beside the Mermaid and matches each line to its
+relationship by source, destination and description. A line between
+containers derived from tagged components has no tags of its own and is not
+coloured.
+
+Which packages a work package builds on will come from the GitHub dependency
+links between #71's packages, which the board model already reads.
 
 ## The alternative: our own format
 

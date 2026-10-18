@@ -5,9 +5,27 @@ What #71 changes in the design map, as entries on Tile Lite Elite's
 `removed`, and with the work package that makes the change. Format:
 [406-map-format.md](../406-architecture-views/406-map-format.md).
 
-*Prototype.* WP A and WP C only, the server's Component view only; WP B and
+*Prototype.* WP A and WP C only, the server's components only; WP B and
 WP D change the client, whose components the map does not draw yet. Proposed
 artefact paths are marked as proposed; the work package settles them.
+
+The command draws each package alone, from its own entries, into
+[71-map-diagrams.md](71-map-diagrams.md). Run
+`design-map.py --change 71-map-change.md --write` after any edit here.
+
+## The work packages
+
+Each heading names the package whose section of the drawing it titles.
+
+### WP A, #268 Core Game Lifecycle
+
+One handler applies every change to a game. The engine proxy goes, and the
+roster, invitations and the proxy no longer write the game directly.
+
+### WP C, #270 Additional Game Lifecycle
+
+The scheduler sends its due changes to the one handler, and a notifications
+component reports each event to the players' browsers.
 
 ## The extension
 
@@ -57,6 +75,25 @@ workspace extends model.dsl {
             tags "External" "new" "wp:270"
         }
 
+        !relationships "tle.server.games -> tle.server.proxy" {
+            tags "removed" "wp:268"
+        }
+        !relationships "tle.server.roster -> tle.server.session" {
+            tags "removed" "wp:268"
+        }
+        !relationships "tle.server.invitations -> tle.server.session" {
+            tags "removed" "wp:268"
+        }
+        !relationships "tle.server.proxy -> tle.server.engines" {
+            tags "removed" "wp:268"
+        }
+        !relationships "tle.server.proxy -> tle.server.session" {
+            tags "removed" "wp:268"
+        }
+        !relationships "tle.server.scheduler -> tle.server.session" {
+            tags "removed" "wp:270"
+        }
+
         tle.server.bot -> tle.server.games "submits its move, re-validated on arrival" {
             tags "new" "wp:268"
         }
@@ -88,33 +125,5 @@ workspace extends model.dsl {
             tags "new" "wp:270"
         }
     }
-    views {
-        component tle.server "wp-268" "WP A, changing a game" {
-            include tle.server.games tle.server.roster tle.server.invitations tle.server.scheduler
-            include tle.server.session tle.server.proxy tle.server.bot tle.server.engines
-            include tle.server.rules tle.server.events tle.server.wire tle.server.store
-        }
-        component tle.server "wp-270" "WP C, reaching a player who is not looking" {
-            include tle.server.games tle.server.scheduler tle.server.notifications
-            include tle.server.store push
-        }
-        !include views.dsl
-    }
 }
 ```
-
-## What the prototype shows the format lacks
-
-1. **A removed relationship has no way to be written.** WP A removes the roster,
-   invitations and scheduler writing the game directly, and the game service
-   running engine turns through the proxy. The DSL can tag an element found
-   by its identifier, but a relationship has no identifier unless the model
-   gives it one. The checked edit needs the model to name every relationship
-   it may remove, or the tooling to find one by its source and destination.
-2. **The Mermaid export draws no relationship styles.** A `new` relationship
-   comes out like every other line. The tooling could prefix the label with
-   its change state instead.
-3. **A new element appears only in a view that names it.** The map's views
-   list their elements, so this extension adds a view per work package. The
-   tooling would build those views itself, from each package's entries and
-   their neighbours.
