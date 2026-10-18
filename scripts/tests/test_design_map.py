@@ -286,5 +286,130 @@ class ChangeCheck(Cases):
         self.assertFalse(self.current())
 
 
+def workspace_with_implied(first: str, second: str) -> dict:
+    """Container 10 holds component 11; container 20 holds 21 and 22. The
+    relationships 11->21 and 11->22 carry the given tags, and 10->20 is implied
+    from them."""
+    def rel(i, dst, tags):
+        return {"id": i, "sourceId": "11", "destinationId": dst, "description": "calls",
+                "tags": tags}
+    return {"model": {"softwareSystems": [{"id": "1", "containers": [
+        {"id": "10", "components": [{"id": "11", "relationships": [
+            rel("30", "21", first), rel("31", "22", second)]}],
+         "relationships": [{"id": "32", "sourceId": "10", "destinationId": "20",
+                            "description": "calls", "linkedRelationshipId": "30"}]},
+        {"id": "20", "components": [{"id": "21"}, {"id": "22"}]}]}]}}
+
+
+IMPLIED = ('graph TB\n  10-. "<div>calls</div><div style=\'font-size: 70%\'></div>" .->20\n')
+
+
+class ImpliedLines(Cases):
+    """A line between containers draws the state of the relationships it implies."""
+
+    def test_tagged_ones_that_agree_give_their_state(self):
+        out = design_map.style_relationships(
+            IMPLIED, workspace_with_implied("Relationship,new", "Relationship,new"))
+        self.assertIn("<div>new: calls</div>", out)
+        self.assertIn("linkStyle 0 stroke:#1a7f37", out)
+
+    def test_an_untagged_one_does_not_dilute_the_tagged(self):
+        out = design_map.style_relationships(
+            IMPLIED, workspace_with_implied("Relationship,removed", "Relationship"))
+        self.assertIn("<div>removed: calls</div>", out)
+
+    def test_mixed_states_give_changed(self):
+        out = design_map.style_relationships(
+            IMPLIED, workspace_with_implied("Relationship,new", "Relationship,removed"))
+        self.assertIn("<div>changed: calls</div>", out)
+        self.assertIn("linkStyle 0 stroke:#9a6700", out)
+
+    def test_none_tagged_draws_nothing(self):
+        out = design_map.style_relationships(
+            IMPLIED, workspace_with_implied("Relationship", "Relationship"))
+        self.expect("the text", IMPLIED, out)
+
+    def test_a_link_in_another_form_is_an_error(self):
+        with self.assertRaisesRegex(design_map.ExportError, "A --> B"):
+            design_map.style_relationships("graph TB\n  A --> B\n", WORKSPACE)
+
+    def test_nodes_and_subgraphs_are_not_links(self):
+        text = 'graph TB\n  subgraph 4 ["a"]\n    13["<div>x -- y</div>"]\n  end\n'
+        self.expect("the text", text, design_map.style_relationships(text, WORKSPACE))
+
+
+def wrap(model: str) -> str:
+    return "workspace extends model.dsl {\n    model {\n" + model + "    }\n}\n"
+
+
+class Subset(Cases):
+    """The DSL the filter accepts, and a clear error outside it."""
+
+    def test_a_tagged_element_holding_children_of_its_package_is_rejected(self):
+        block = wrap('        !element tle.server {\n'
+                     '            tags "changed" "wp:268"\n'
+                     '            bot = component "Bot" "x" {\n'
+                     '                tags "new" "wp:268"\n'
+                     '            }\n'
+                     '        }\n')
+        with self.assertRaisesRegex(design_map.ChangeError, "line 5.*own untagged"):
+            design_map.entry_packages(block)
+
+    def test_a_tagged_element_holding_children_of_another_package_is_rejected(self):
+        block = wrap('        !element tle.server {\n'
+                     '            tags "changed" "wp:268"\n'
+                     '            tle.server.a -> tle.server.b "x" {\n'
+                     '                tags "new" "wp:270"\n'
+                     '            }\n'
+                     '        }\n')
+        with self.assertRaisesRegex(design_map.ChangeError, "line 5.*own untagged"):
+            design_map.entry_packages(block)
+
+    def test_a_nested_wrapper_names_children_by_the_innermost_identifier(self):
+        block = wrap('        !element tle {\n'
+                     '            !element tle.server {\n'
+                     '                x = component "X" "x" {\n'
+                     '                    tags "new" "wp:268"\n'
+                     '                }\n'
+                     '            }\n'
+                     '        }\n')
+        _, names = design_map.package_entries(block, 268)
+        self.expect("names", ["tle.server.x"], names)
+
+    def test_a_hash_comment_is_rejected_naming_it(self):
+        with self.assertRaisesRegex(design_map.ChangeError, "line 3.*# a comment"):
+            design_map.entry_packages(wrap('        # a comment\n'))
+
+    def test_a_block_comment_is_rejected_naming_it(self):
+        with self.assertRaisesRegex(design_map.ChangeError, "line 3.*/\\* a \\*/"):
+            design_map.entry_packages(wrap('        /* a */\n'))
+
+    def test_a_slash_comment_is_accepted(self):
+        self.expect("packages", [268], design_map.entry_packages(wrap(
+            '        // a note\n        !element a.b {\n            tags "new" "wp:268"\n'
+            '        }\n')))
+
+    def test_a_one_line_block_is_rejected(self):
+        block = wrap('        !element a.b { tags "new" "wp:268" }\n')
+        with self.assertRaisesRegex(design_map.ChangeError, "line 3.*blocks? span"):
+            design_map.entry_packages(block)
+
+    def test_a_closing_brace_must_be_alone(self):
+        block = wrap('        !element a.b {\n            tags "new" "wp:268" }\n')
+        with self.assertRaisesRegex(design_map.ChangeError, "line 4.*of its own"):
+            design_map.entry_packages(block)
+
+    def test_a_comma_in_a_tag_is_rejected(self):
+        block = wrap('        !element a.b {\n            tags "new,x" "wp:268"\n        }\n')
+        with self.assertRaisesRegex(design_map.ChangeError, "line 4.*comma"):
+            design_map.entry_packages(block)
+
+    def test_a_relationship_with_an_identifier_names_both_ends(self):
+        block = wrap('        r5 = tle.server.a -> tle.server.b "x" {\n'
+                     '            tags "new" "wp:268"\n        }\n')
+        _, names = design_map.package_entries(block, 268)
+        self.expect("names", ["tle.server.a", "tle.server.b"], names)
+
+
 if __name__ == "__main__":
     unittest.main()
