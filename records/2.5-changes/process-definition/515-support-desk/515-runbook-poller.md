@@ -68,7 +68,11 @@ EOF
 docker compose up -d
 ```
 
-Send an email to `support@mail.tileliteelite.com`. Within two minutes:
+Wait until `sa scheduler-health` lists `poll_support_mail`. Its first pass runs
+at start and only remembers the newest email, starting nothing, so an email
+sent before it is collected by the desk's 30-minute schedule instead. Then send an email to `support@mail.tileliteelite.com` from any mailbox. The
+test needs no email from rehearsal itself: Resend receives the mail, and the
+poller only calls Resend's and GitHub's APIs. Within two minutes:
 
 - its Ticket appears in `delphside/service-desk`, and Actions shows an
   *intake* run started by `workflow_dispatch`;
@@ -95,8 +99,8 @@ docker compose up -d
 sa scheduler-health          # poll_support_mail is listed
 ```
 
-Send an email to the support address and see its Ticket appear within two
-minutes. That is #518's post-deployment check for R3.
+Once `poll_support_mail` is listed, send an email to the support address and see
+its Ticket appear within two minutes. That is #518's post-deployment check for R3.
 
 ## Renewing and revoking
 
