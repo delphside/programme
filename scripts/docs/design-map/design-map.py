@@ -68,8 +68,7 @@ STATE_COLOURS = {"new": "#1a7f37", "changed": "#9a6700", "removed": "#cf222e"}
 
 # A Mermaid edge as Structurizr writes it: `SRC-. "<div>label</div>..." .->DST`.
 EDGE = re.compile(r'^(\s*)(\S+?)-\. "(.*)" \.->(\S+)\s*$')
-LINK = re.compile(r"-\.|-->|---|==|--")
-NOT_LINKS = ("subgraph", "end", "style", "linkStyle", "graph", "flowchart", "classDef")
+LINK = re.compile(r"-\.|-->|---|==|--|~~~")
 FIRST_DIV = re.compile(r"<div>(.*?)</div>")
 QUOTED = re.compile(r'"([^"]*)"')
 PACKAGE_TAG = re.compile(r"^wp:(\d+)$")
@@ -153,8 +152,8 @@ def _drawn_state(rel: dict, explicit: list[dict], parents: dict) -> str | None:
     implied one (a line between containers, derived from relationships between
     their components) draws that of the explicit relationships whose source is
     within its source and whose destination is within its destination: their
-    state if they agree, `changed` if tagged ones differ, nothing if none is
-    tagged."""
+    state if all share one (an untagged one counts as unchanged), nothing if
+    none is tagged, and `changed` otherwise."""
     if "linkedRelationshipId" not in rel:
         return _state(rel.get("tags", ""))
 
@@ -167,8 +166,10 @@ def _drawn_state(rel: dict, explicit: list[dict], parents: dict) -> str | None:
 
     states = {_state(r.get("tags", "")) for r in explicit
               if within(r["sourceId"], rel["sourceId"])
-              and within(r["destinationId"], rel["destinationId"])} - {None}
-    return None if not states else states.pop() if len(states) == 1 else "changed"
+              and within(r["destinationId"], rel["destinationId"])}
+    if states <= {None}:
+        return None
+    return states.pop() if len(states) == 1 else "changed"
 
 
 def style_relationships(mermaid: str, workspace: dict) -> str:
@@ -200,7 +201,7 @@ def style_relationships(mermaid: str, workspace: dict) -> str:
                 styles.append(f"  linkStyle {index} stroke:{STATE_COLOURS[state]},"
                               f"stroke-width:2px")
             index += 1
-        elif LINK.search(QUOTED.sub('""', line)) and not line.strip().startswith(NOT_LINKS):
+        elif LINK.search(QUOTED.sub('""', line)):
             raise ExportError(f"a Mermaid line of a form the post-processing does not "
                               f"count as a link: `{line.strip()}`")
         lines.append(line)
@@ -240,7 +241,9 @@ class Node:
     statements and the lines it spans."""
 
     def __init__(self, line: int, text: str, children: list["Node"], raw: list[str]):
-        self.line, self.text, self.children, self.raw = line, text.strip(), children, raw
+        # A `{` stuck to the identifier (`!element a.b{`) reads as spaced.
+        self.line, self.children, self.raw = line, children, raw
+        self.text = re.sub(r"\s*\{$", " {", text.strip())
 
     def tags(self) -> list[tuple[int, list[str]]]:
         found = []
@@ -299,7 +302,10 @@ def parse(lines: list[str], first: int = 1) -> list[Node]:
 
 def _model(block: str, first: int) -> list[Node]:
     root = parse(block.splitlines(), first)
-    if len(root) != 1:
+    if len(root) > 1:
+        raise ChangeError(f"line {root[1].line}: `{root[1].text}` follows the "
+                          f"extension's closing `}}`; a spare `}}` closes a block early")
+    if not root:
         raise ChangeError(f"line {first}: expected one `workspace extends ... {{ }}`")
     for node in root[0].children:
         if re.match(r"model\s*\{", node.text):
@@ -324,8 +330,28 @@ def _package(node: Node) -> int | None:
 def _declares(node: Node) -> bool:
     """Does this statement declare an element or a relationship?"""
     bare = QUOTED.sub('""', node.text)
-    return "->" in bare or node.text.startswith("!element") \
+    return "->" in bare or node.text.startswith(("!element", "!relationships")) \
         or bool(re.match(r"\w+\s*=", bare))
+
+
+# The strings an element or relationship takes before its tags, by statement.
+POSITIONAL = {"person": 2, "softwareSystem": 2, "container": 3, "component": 3,
+              "relationship": 2}
+
+
+def _check_inline_tags(node: Node) -> None:
+    """Tags given as the last positional argument are outside the format."""
+    bare = QUOTED.sub('""', node.text)
+    if "->" in bare:
+        kind = "relationship"
+    elif match := re.match(r"(?:\w+\s*=\s*)?(person|softwareSystem|container|component)\b",
+                           bare):
+        kind = match.group(1)
+    else:
+        return
+    if len(QUOTED.findall(node.text)) > POSITIONAL[kind]:
+        raise ChangeError(f"line {node.line}: tags go on their own `tags` line, not "
+                          f"as an argument: `{node.text}`")
 
 
 class Item:
@@ -335,6 +361,7 @@ class Item:
     def __init__(self, node: Node, scope: str | None, package: int | None = None,
                  items: list["Item"] | None = None):
         self.node, self.scope, self.package, self.items = node, scope, package, items
+        self.names: list[str] = []
 
 
 def classify(nodes: list[Node], scope: str | None = None) -> list[Item]:
@@ -351,10 +378,16 @@ def classify(nodes: list[Node], scope: str | None = None) -> list[Item]:
                         f"line {child.line}: `{node.text}` is tagged and holds "
                         f"element or relationship statements; put the children in "
                         f"their own untagged `!element` wrapper")
-            items.append(Item(node, scope, package))
+            _check_inline_tags(node)
+            item = Item(node, scope, package)
+            item.names = _names(item)
+            items.append(item)
         elif node.text.startswith("!element ") and node.children:
             items.append(Item(node, scope, None,
                               classify(node.children, node.text.split()[1])))
+        elif scope is not None:
+            raise ChangeError(f"line {node.line}: a wrapper holds only entries, and "
+                              f"`{node.text}` is not one")
         else:
             raise ChangeError(f"line {node.line}: `{node.text}` has no `wp:N` tag")
     return items
@@ -375,13 +408,23 @@ def _names(item: Item) -> list[str]:
     both ends of a relationship. A relationship is recognised by its `->`
     before anything else, so `r5 = a -> b` is one."""
     node, bare = item.node, QUOTED.sub('""', item.node.text)
+
+    def ends(found: list[str]) -> list[str]:
+        """Inside a wrapper an end must be fully qualified: a name without a
+        dot would be read against the wrapper's scope by Structurizr."""
+        for end in found:
+            if item.scope is not None and "." not in end:
+                raise ChangeError(f"line {node.line}: `{end}` in `{node.text}` is not "
+                                  f"fully qualified (system.container.component)")
+        return found
+
     if match := re.match(r'!relationships\s+"([^"]*)"', node.text):
-        ends = [e.strip() for e in match.group(1).split("->")]
-        return [e for e in ends if e and "*" not in e]
+        parts = [e.strip() for e in match.group(1).split("->")]
+        return ends([e for e in parts if e and "*" not in e])
     if match := re.match(r"!element\s+(\S+)", node.text):
         return [match.group(1)]
     if match := re.match(r"(?:\w+\s*=\s*)?([\w.]+)\s*->\s*([\w.]+)", bare):
-        return [match.group(1), match.group(2)]
+        return ends([match.group(1), match.group(2)])
     if match := re.match(r"(\w+)\s*=\s*\w+", bare):
         return [f"{item.scope}.{match.group(1)}" if item.scope else match.group(1)]
     raise ChangeError(f"line {node.line}: `{node.text}` is not an element or a relationship")
@@ -399,7 +442,7 @@ def package_entries(block: str, package: int, first: int = 1) -> tuple[str, list
             if item.package is not None:
                 if item.package == package:
                     out += item.node.raw
-                    names.extend(_names(item))
+                    names.extend(item.names)
             else:
                 inner = keep(item.items)
                 if inner:
@@ -537,6 +580,10 @@ def change_main(args: list[str]) -> int:
     except (ChangeError, ExportError) as e:
         print(f"design-map: {change.name}: {e}", file=sys.stderr)
         return 1
+    except subprocess.CalledProcessError as e:
+        print(f"design-map: the Structurizr export failed (docker exit {e.returncode})",
+              file=sys.stderr)
+        return 1
     if not change_is_current(change, source, target):
         print(f"design-map: {target.name} is STALE: its sources changed since it was "
               f"drawn", file=sys.stderr)
@@ -563,6 +610,10 @@ def main() -> int:
             target.write_text(render(source, f"{number} Design map"))
         except ExportError as e:
             print(f"design-map: {e}", file=sys.stderr)
+            return 1
+        except subprocess.CalledProcessError as e:
+            print(f"design-map: the Structurizr export failed (docker exit {e.returncode})",
+                  file=sys.stderr)
             return 1
         print(f"design-map: wrote {name}")
         return 0

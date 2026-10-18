@@ -8,7 +8,7 @@ Green is new, yellow changed, red removed. A relationship's label starts with
 its state too. Each work package is drawn alone: the packages it builds on are
 not applied.
 
-Sources hash: `ec1fe652c746f45632164d524279001464b545a46a4ed7ad89a701ca838a9f4e`.
+Sources hash: `44b40206c1ab5dcfcd459d660896b41ce910b57594647252f9e8f6659637c68d`.
 
 ## WP A, #268 Core Game Lifecycle
 

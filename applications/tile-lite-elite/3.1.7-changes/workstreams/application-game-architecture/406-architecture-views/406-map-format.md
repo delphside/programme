@@ -1,12 +1,13 @@
 # #406 R6: the design map's format, proposed
 
-For the owner's agreement (#406 R6). It answers: what is the map's one
-source, what is a project's one change file, how a work package's diagrams are
-drawn, how a release applies its entries, and how R4's check is run.
+The owner agreed this format on 2026-10-17 (#406 R6; the answers are at the
+end). It answers: what is the map's one source, what is a project's one change
+file, how a work package's diagrams are drawn, how a release applies its
+entries and how R4's check is run.
 
 Built, in `scripts/docs/design-map/design-map.py`: the map's generation, a
-package's drawing from the change file, and the relationship colours. Still
-proposals: the checked edit that applies a release's entries, R4's check, and
+package's drawing from the change file and the relationship colours. Still
+proposals: the checked edit that applies a release's entries, R4's check and
 drawing a package on top of the packages it builds on.
 
 Written 2026-09-30 from a trial run that day. Each finding is marked
@@ -50,8 +51,14 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w structurizr/structuriz
   untagged ones in `unchanged`'s. Verified. Mermaid draws no relationship
   styles, so the command colours those lines itself
   ([Relationship colours](#relationship-colours)).
-- **A relationship is tagged by its source and destination.**
-  `!relationships "tle.server.games -> tle.server.proxy" { tags "removed" "wp:268" }`
+- **A relationship is tagged by its source and destination.** This entry
+
+  ```text
+  !relationships "tle.server.games -> tle.server.proxy" {
+      tags "removed" "wp:268"
+  }
+  ```
+
   adds the tags to the relationship the map already has, which the JSON export
   shows. This is how an entry marks a relationship removed or changed.
   Verified on the pinned image (#71's change file removes six this way).
@@ -139,13 +146,13 @@ Every statement in the extension's `model { }` is either an *entry* or a
 *wrapper*. An entry carries exactly one `wp:` tag in its own `tags` line; one
 with none or several is an error naming its line. A wrapper is an
 `!element X { }` with no tags of its own; the command keeps it for a package
-if any child entry is, holding only those children. An entry holds no element or relationship
-statements of its own: children go in an untagged wrapper, and the command
-rejects an entry that holds any, naming the line. The extension holds no
-views; the command writes them. A heading in the file that names `#N` titles
-package N's drawing.
+if any child entry is, holding only those children, and a wrapper holds
+nothing else. An entry holds no element or relationship statements of its
+own: children go in an untagged wrapper, and the command rejects an entry that
+holds any, naming the line. The extension holds no views; the command writes
+them. A heading in the file that names `#N` titles package N's drawing.
 
-#### The DSL the filter accepts
+#### The DSL the command accepts
 
 The command reads the extension line by line, so it takes a subset of the
 DSL:
@@ -153,11 +160,18 @@ DSL:
 - one statement to a line;
 - a block's `{` at the end of its line and its `}` on a line of its own, so a
   block spans lines;
-- tags on their own `tags` line, none of them holding a comma;
+- tags on their own `tags` line, none of them holding a comma, and never as
+  an element's or relationship's last argument;
+- the ends of a relationship inside a wrapper fully qualified
+  (`tle.server.games`, not `games`);
 - comments written `//`.
 
+A `{` stuck to its identifier (`!element tle.server{`) is read as spaced.
 Outside the subset the command stops with an error naming the line: a `#` or
-`/* */` comment, a one-line block, a stray brace or a comma in a tag.
+`/* */` comment, a one-line block, a `}` that shares its line, an inline tag,
+an unqualified end, a statement in a wrapper that is not an entry, or a comma
+in a tag. A spare `}` alone on a line closes a block early, so the command
+names the first content after the extension's closing `}`.
 
 ### Drawing, applying and checking
 
@@ -173,9 +187,9 @@ A small programme command, on the model's pattern:
 #### A package's drawing
 
 For each package the command builds an extension of the map holding only that
-package's entries, generates a view of its own, and exports it. It draws each
-package alone and leaves out other packages' entries. The view includes every
-element the package's entries name and both ends of every relationship entry.
+package's entries, generates a view of its own, and exports it. The view
+includes every element the package's entries name and both ends of every
+relationship entry.
 It is a Component view when all the package's components share a container,
 and a Container view otherwise. The command includes the map's own views too
 (item 1 of [What it does not do](#what-it-does-not-do-and-what-fills-the-gap)),
@@ -183,10 +197,11 @@ so the key's styles apply, and writes only the generated views. `--check`
 compares a hash of the change file and the map's sources with the one in the
 header, and needs no Docker.
 
-`--change --check` has limits. `check-docs.sh` does not run it: its step 8
-runs only the map's `--check`. It runs from an application's checkout. Its
-hash covers the change file and the map, not the script or the image, so a
-change to either shows only when the drawing is written again.
+`--change --check` runs from an application's checkout, and
+[the programme tooling register](../../../../../../docs/1.1-programme-tooling.md)
+says what runs it. Its hash covers only the change file and the map, so a
+change to the script or the image shows only when the drawing is written
+again.
 
 #### Relationship colours
 
@@ -197,10 +212,11 @@ by a `linkStyle` line, and starts its label with the state, so it reads
 without colour. It exports the workspace as JSON beside the Mermaid and
 matches each line to its relationship by source, destination and description.
 A line between containers is implied by relationships between their
-components: the command draws the state the tagged ones agree on, `changed`
-where they differ, and nothing where none is tagged. A Mermaid line of a form
-the command does not count as a link is an error, since it would shift every
-index after it.
+components. An untagged relationship underneath counts as unchanged: the
+command draws the state they all share, nothing where none is tagged and
+`changed` otherwise (removed plus unchanged, for one). `linkStyle` numbers
+lines in order, so a line the command cannot count is an error: it would
+colour the wrong lines after it.
 
 ## The alternative: our own format
 

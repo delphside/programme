@@ -28,7 +28,8 @@ the Decision issue that will settle it. They are answered in the order
     file per package fitted to the overall test approach.
 
 The design map this project starts from is Tile Lite Elite's
-`docs/4.2.0-design-map.md`, in the format #406 is agreeing.
+`docs/4.2.0-design-map.md`, in
+[#406's format](../406-architecture-views/406-map-format.md).
 
 One goal, from which everything here follows:
 
