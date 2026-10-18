@@ -7,9 +7,13 @@ when nothing changed.
 """
 
 import importlib.util
+import io
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from board.tests.cases import Cases
 
@@ -248,6 +252,37 @@ class Views(Cases):
         self.expect("titles", {268: "WP A, #268 Core Game"}, design_map.package_titles(text))
 
 
+class DockerFailure(Cases):
+    """A failed export ends the command with one line and exit 1."""
+
+    def run_main(self, argv, **patched):
+        failure = subprocess.CalledProcessError(125, ["docker"])
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        (root / "design-map").mkdir()
+        change = root / "9-map-change.md"
+        change.write_text("# P\n")
+        argv = [a.replace("CHANGE", str(change)) for a in argv]
+        names = {"paths": lambda: (root, root / "design-map", root / "4.2.0-x.md"),
+                 "render": mock.Mock(side_effect=failure),
+                 "render_change": mock.Mock(side_effect=failure)}
+        with mock.patch.multiple(design_map, **names), \
+                mock.patch.object(sys, "argv", ["design-map.py", *argv]), \
+                mock.patch.object(sys, "stderr", io.StringIO()) as err:
+            return design_map.main(), err.getvalue()
+
+    def test_the_map_write_exits_1_with_one_line(self):
+        status, err = self.run_main(["--write"])
+        self.expect("status", 1, status)
+        self.expect("one line", 1, len(err.strip().splitlines()))
+
+    def test_the_change_write_exits_1_with_one_line(self):
+        status, err = self.run_main(["--change", "CHANGE", "--write"])
+        self.expect("status", 1, status)
+        self.expect("one line", 1, len(err.strip().splitlines()))
+
+
 class ChangeCheck(Cases):
     """Gap 3: --check compares the hash, with no Docker."""
 
@@ -313,10 +348,11 @@ class ImpliedLines(Cases):
         self.assertIn("<div>new: calls</div>", out)
         self.assertIn("linkStyle 0 stroke:#1a7f37", out)
 
-    def test_an_untagged_one_does_not_dilute_the_tagged(self):
-        out = design_map.style_relationships(
-            IMPLIED, workspace_with_implied("Relationship,removed", "Relationship"))
-        self.assertIn("<div>removed: calls</div>", out)
+    def test_an_untagged_one_counts_as_unchanged(self):
+        for tagged in ("removed", "new"):
+            out = design_map.style_relationships(
+                IMPLIED, workspace_with_implied(f"Relationship,{tagged}", "Relationship"))
+            self.assertIn("<div>changed: calls</div>", out, tagged)
 
     def test_mixed_states_give_changed(self):
         out = design_map.style_relationships(
@@ -332,6 +368,10 @@ class ImpliedLines(Cases):
     def test_a_link_in_another_form_is_an_error(self):
         with self.assertRaisesRegex(design_map.ExportError, "A --> B"):
             design_map.style_relationships("graph TB\n  A --> B\n", WORKSPACE)
+
+    def test_an_invisible_link_is_an_error_too(self):
+        with self.assertRaisesRegex(design_map.ExportError, "A ~~~ B"):
+            design_map.style_relationships("graph TB\n  A ~~~ B\n", WORKSPACE)
 
     def test_nodes_and_subgraphs_are_not_links(self):
         text = 'graph TB\n  subgraph 4 ["a"]\n    13["<div>x -- y</div>"]\n  end\n'
@@ -402,6 +442,70 @@ class Subset(Cases):
     def test_a_comma_in_a_tag_is_rejected(self):
         block = wrap('        !element a.b {\n            tags "new,x" "wp:268"\n        }\n')
         with self.assertRaisesRegex(design_map.ChangeError, "line 4.*comma"):
+            design_map.entry_packages(block)
+
+    def test_a_relationship_end_inside_a_wrapper_must_be_qualified(self):
+        block = wrap('        !element tle.server {\n'
+                     '            a -> tle.server.b "x" {\n'
+                     '                tags "new" "wp:268"\n'
+                     '            }\n'
+                     '        }\n')
+        with self.assertRaisesRegex(design_map.ChangeError, "line 4.*fully qualified"):
+            design_map.package_entries(block, 268)
+
+    def test_a_brace_stuck_to_the_identifier_is_accepted(self):
+        block = wrap('        !element tle.server{\n'
+                     '            x = component "X" "x" {\n'
+                     '                tags "new" "wp:268"\n'
+                     '            }\n'
+                     '        }\n')
+        _, names = design_map.package_entries(block, 268)
+        self.expect("names", ["tle.server.x"], names)
+
+    def test_inline_tags_are_rejected(self):
+        block = wrap('        x = component "X" "d" "tech" "a-tag" {\n'
+                     '            tags "new" "wp:268"\n        }\n')
+        with self.assertRaisesRegex(design_map.ChangeError,
+                                    "line 3.*tags go on their own `tags` line"):
+            design_map.entry_packages(block)
+
+    def test_inline_tags_on_a_relationship_are_rejected(self):
+        block = wrap('        tle.a -> tle.b "d" "tech" "a-tag" {\n'
+                     '            tags "new" "wp:268"\n        }\n')
+        with self.assertRaisesRegex(design_map.ChangeError, "line 3.*own `tags` line"):
+            design_map.entry_packages(block)
+
+    def test_a_wrapper_holds_only_entries(self):
+        block = wrap('        !element tle.server {\n'
+                     '            description "x"\n'
+                     '        }\n')
+        with self.assertRaisesRegex(design_map.ChangeError,
+                                    "line 4.*wrapper holds only entries"):
+            design_map.entry_packages(block)
+
+    def test_a_comment_hiding_a_brace_is_still_a_comment(self):
+        block = wrap('        !element a.b {\n'
+                     '            # }\n'
+                     '            tags "new" "wp:268"\n        }\n')
+        with self.assertRaisesRegex(design_map.ChangeError, "line 4.*comment"):
+            design_map.entry_packages(block)
+
+    def test_a_tagged_entry_holding_relationships_is_rejected(self):
+        block = wrap('        !element tle.server {\n'
+                     '            tags "changed" "wp:268"\n'
+                     '            !relationships "tle.a -> tle.b" {\n'
+                     '                tags "removed" "wp:268"\n'
+                     '            }\n'
+                     '        }\n')
+        with self.assertRaisesRegex(design_map.ChangeError, "line 5.*own untagged"):
+            design_map.entry_packages(block)
+
+    def test_a_spare_closing_brace_is_named(self):
+        block = wrap('        !element a.b {\n'
+                     '            tags "new" "wp:268"\n'
+                     '        }\n'
+                     '        }\n')
+        with self.assertRaisesRegex(design_map.ChangeError, "line 8.*follows"):
             design_map.entry_packages(block)
 
     def test_a_relationship_with_an_identifier_names_both_ends(self):

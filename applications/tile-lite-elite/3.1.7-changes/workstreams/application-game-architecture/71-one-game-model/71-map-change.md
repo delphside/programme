@@ -16,9 +16,13 @@ After any edit here, regenerate the drawing from a Tile Lite Elite checkout:
 programme/scripts/docs/design-map/design-map.py --change <path to this file> --write
 ```
 
-`PROGRAMME_DIR` is needed only where the checkout has no initialised
-`programme/` submodule: set it to a programme checkout, which supplies the
-application's profile (its document range).
+The command reads the application's profile (for its document range) from
+the live programme checkout: `../programme` beside the application, or the
+path in the environment variable `PROGRAMME_DIR`. It never reads it from the
+`programme/` submodule. Tile Lite Elite's pinned `programme/` has this mode
+only once the submodule pin moves past this change; until then, run the
+script from the programme checkout, with `PROGRAMME_DIR` set if that checkout
+is not `../programme`.
 
 ## The work packages
 
