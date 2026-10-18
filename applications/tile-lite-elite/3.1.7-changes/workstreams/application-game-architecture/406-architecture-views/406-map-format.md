@@ -1,9 +1,13 @@
 # #406 R6: the design map's format, proposed
 
-For the owner's agreement before anything is built (#406 R6). It answers:
-what is the map's one source, what is a project's one change file, how a work
-package's diagrams are drawn, how a release applies its entries, and how R4's
-check is run.
+For the owner's agreement (#406 R6). It answers: what is the map's one
+source, what is a project's one change file, how a work package's diagrams are
+drawn, how a release applies its entries, and how R4's check is run.
+
+Built, in `scripts/docs/design-map/design-map.py`: the map's generation, a
+package's drawing from the change file, and the relationship colours. Still
+proposals: the checked edit that applies a release's entries, R4's check, and
+drawing a package on top of the packages it builds on.
 
 Written 2026-09-30 from a trial run that day. Each finding is marked
 **verified** (run and seen) or **inferred** (read or reasoned, not run).
@@ -23,7 +27,7 @@ server's components, not the real as-is, and a made-up change shaped like the
 one #71 will make, enough to test the mechanics. Rerun with:
 
 ```bash
-cd docs/changes/workstreams/application-game-architecture/406-architecture-views/406-map-trial
+cd applications/tile-lite-elite/3.1.7-changes/workstreams/application-game-architecture/406-architecture-views/406-map-trial
 docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w structurizr/structurizr \
   export -w change71.dsl -f mermaid -o /tmp/out
 ```
@@ -34,7 +38,7 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w structurizr/structuriz
   and components, and a Container and a Component view declared as
   `include *`, exported to Mermaid in about 3 seconds. Verified.
 - **The export passes our own check.**
-  `scripts/programme/docs/mermaid/check.mjs` parsed both
+  `scripts/docs/mermaid/check.mjs` parsed both
   generated diagrams. Verified.
 - **A project's change as an extension of the map.** A file starting
   `workspace extends model.dsl` added a new component, marked an existing one
@@ -44,14 +48,16 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w structurizr/structuriz
 - **The change key as tags.** Elements tagged `new`, `changed` and `removed`
   came out in exactly the key's colours from `docs/diagrams/README.md`, and
   untagged ones in `unchanged`'s. Verified. Mermaid draws no relationship
-  styles, so the command colours those lines itself (below).
-- **A relationship is tagged where it stands.**
+  styles, so the command colours those lines itself
+  ([Relationship colours](#relationship-colours)).
+- **A relationship is tagged by its source and destination.**
   `!relationships "tle.server.games -> tle.server.proxy" { tags "removed" "wp:268" }`
   adds the tags to the relationship the map already has, which the JSON export
   shows. This is how an entry marks a relationship removed or changed.
   Verified on the pinned image (#71's change file removes six this way).
 - **A tag can name the work package**, such as `wp:268`, beside the change
-  state. Verified that it parses; what it is used for is below.
+  state. Verified that it parses;
+  [A project's change file](#a-projects-change-file) says what it is used for.
 
 ### What it does not do, and what fills the gap
 
@@ -64,13 +70,14 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w structurizr/structuriz
    one file in total.
 2. **Tags are workspace-wide, with no per-view styles.** Inferred from the
    DSL's documentation. So one export cannot colour work package 269's
-   entries while showing 268's as already done. A work package's diagrams need
-   a small step of our own before the export, which the command takes: it
-   builds an extension holding only that package's entries, found by their
-   one `wp:` tag, and exports that. Built: each package is drawn alone. Still
-   to come, with the first package that builds on another: drawing it on top
-   of the packages it builds on, whose entries lose their change tag (and
-   removed ones are excluded).
+   entries while showing 268's as already done. The command adds a step before
+   the export: it builds an extension holding only that package's entries,
+   found by their one `wp:` tag, and exports that
+   ([A package's drawing](#a-packages-drawing)). Still to come, with the first
+   package that builds on another: drawing it on top of the packages it builds
+   on, whose entries lose their change tag (and removed ones are excluded).
+   Those packages come from the GitHub dependency links between #71's
+   packages, which the board model already reads.
 3. **Nothing folds an extension back into the model.** Inferred. So a release
    cannot apply its entries by running Structurizr. Two ways to meet
    "applied mechanically":
@@ -128,12 +135,29 @@ reviewer reads it on GitHub like any other design document:
 The tooling reads the blocks out of the file. One file per project, as agreed,
 because the fenced blocks carry both kinds.
 
-An entry is a statement in the extension's `model { }` whose own block has a
-`tags` line naming exactly one `wp:` tag. An `!element X { }` with no tags of
-its own is a wrapper: it is kept for a package if any child entry is, holding
-only those children. An entry with no `wp:` tag, or more than one, is an
-error naming its line. The extension holds no views; the command writes them.
-A heading in the file that names `#N` titles package N's drawing.
+Every statement in the extension's `model { }` is either an *entry* or a
+*wrapper*. An entry carries exactly one `wp:` tag in its own `tags` line; one
+with none or several is an error naming its line. A wrapper is an
+`!element X { }` with no tags of its own; the command keeps it for a package
+if any child entry is, holding only those children. An entry holds no element or relationship
+statements of its own: children go in an untagged wrapper, and the command
+rejects an entry that holds any, naming the line. The extension holds no
+views; the command writes them. A heading in the file that names `#N` titles
+package N's drawing.
+
+#### The DSL the filter accepts
+
+The command reads the extension line by line, so it takes a subset of the
+DSL:
+
+- one statement to a line;
+- a block's `{` at the end of its line and its `}` on a line of its own, so a
+  block spans lines;
+- tags on their own `tags` line, none of them holding a comma;
+- comments written `//`.
+
+Outside the subset the command stops with an error naming the line: a `#` or
+`/* */` comment, a one-line block, a stray brace or a comma in a tag.
 
 ### Drawing, applying and checking
 
@@ -142,31 +166,41 @@ A small programme command, on the model's pattern:
 | it | does |
 | --- | --- |
 | draws the map | exports `map.dsl`, writes 2.0 |
-| draws a work package | `design-map.py --change <N>-map-change.md --write` draws each package in number order into `<N>-map-diagrams.md` beside the change file (built, see below) |
+| draws a work package | `design-map.py --change <N>-map-change.md --write` draws each package in number order into `<N>-map-diagrams.md` beside the change file ([A package's drawing](#a-packages-drawing)) |
 | checks a release's application | exports "old model plus these entries" and "new model", and fails unless they match |
 | checks R4 | every impacted artefact appears as an entry's artefact, and every entry appears in the table |
 
-**A package's drawing, as built.** For each package the command builds an
-extension of the map holding only that package's entries, generates a view of
-its own, and exports it. Other packages' entries are left out. The view
-includes every element the package's entries name and both ends of every
-relationship entry: a Component view of the container that all its components
-belong to, or a Container view where they span containers. The map's own views
-are included too, as above, so the key's styles apply, but only the generated
-views are written. `--check` compares a hash of the change file and the map's
-sources with the one in the header, and needs no Docker.
+#### A package's drawing
 
-**Relationship colours, as built.** After every Mermaid export (the map's
-too), a relationship tagged `new`, `changed` or `removed` is drawn in the
-key's stroke (`#1a7f37`, `#9a6700`, `#cf222e`) by a `linkStyle` line, and its
-label starts with the state, so it reads without colour. The command exports
-the workspace as JSON beside the Mermaid and matches each line to its
-relationship by source, destination and description. A line between
-containers derived from tagged components has no tags of its own and is not
-coloured.
+For each package the command builds an extension of the map holding only that
+package's entries, generates a view of its own, and exports it. It draws each
+package alone and leaves out other packages' entries. The view includes every
+element the package's entries name and both ends of every relationship entry.
+It is a Component view when all the package's components share a container,
+and a Container view otherwise. The command includes the map's own views too
+(item 1 of [What it does not do](#what-it-does-not-do-and-what-fills-the-gap)),
+so the key's styles apply, and writes only the generated views. `--check`
+compares a hash of the change file and the map's sources with the one in the
+header, and needs no Docker.
 
-Which packages a work package builds on will come from the GitHub dependency
-links between #71's packages, which the board model already reads.
+`--change --check` has limits. `check-docs.sh` does not run it: its step 8
+runs only the map's `--check`. It runs from an application's checkout. Its
+hash covers the change file and the map, not the script or the image, so a
+change to either shows only when the drawing is written again.
+
+#### Relationship colours
+
+After every Mermaid export, the map's too, the command draws a relationship
+tagged `new`, `changed` or `removed` in the stroke of the
+[change key](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md)
+by a `linkStyle` line, and starts its label with the state, so it reads
+without colour. It exports the workspace as JSON beside the Mermaid and
+matches each line to its relationship by source, destination and description.
+A line between containers is implied by relationships between their
+components: the command draws the state the tagged ones agree on, `changed`
+where they differ, and nothing where none is tagged. A Mermaid line of a form
+the command does not count as a link is an error, since it would shift every
+index after it.
 
 ## The alternative: our own format
 

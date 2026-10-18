@@ -8,7 +8,7 @@ Green is new, yellow changed, red removed. A relationship's label starts with
 its state too. Each work package is drawn alone: the packages it builds on are
 not applied.
 
-Sources hash: `ef5ce91a9b2e8996deed8c8fb4cb295139ceaff31cc8a64731558b6efd2bda1a`.
+Sources hash: `ec1fe652c746f45632164d524279001464b545a46a4ed7ad89a701ca838a9f4e`.
 
 ## WP A, #268 Core Game Lifecycle
 
@@ -33,6 +33,8 @@ graph TB
         style 15 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
         16["<div style='font-weight: bold'>Event stream</div><div style='font-size: 70%; margin-top: 0px'>[Component: WebSocket]</div><div style='font-size: 80%; margin-top:10px'>Pushes each game's state to<br />its players.</div>"]
         style 16 fill:#f6f8fa,stroke:#8c959f,color:#1f2328
+        20["<div style='font-weight: bold'>Scheduler</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Periodic scans; each due<br />change is a message to the<br />one handler.</div>"]
+        style 20 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
         21["<div style='font-weight: bold'>Game model</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>GameSession: one game's<br />authoritative state.</div>"]
         style 21 fill:#f6f8fa,stroke:#8c959f,color:#1f2328
         22["<div style='font-weight: bold'>Engine proxy</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Runs engine turns and applies<br />each move through the same<br />validation as a player's.</div>"]
@@ -47,16 +49,20 @@ graph TB
 
     end
 
+    20-. "<div>new: sends due messages</div><div style='font-size: 70%'></div>" .->13
     13-. "<div>new: speaks</div><div style='font-size: 70%'></div>" .->94
     13-. "<div>applies the move to the<br />GameSession</div><div style='font-size: 70%'></div>" .->21
     13-. "<div>removed: runs engine turns with</div><div style='font-size: 70%'></div>" .->22
     14-. "<div>removed: changes the seats of the<br />GameSession</div><div style='font-size: 70%'></div>" .->21
     15-. "<div>removed: fills a seat of the<br />GameSession</div><div style='font-size: 70%'></div>" .->21
+    20-. "<div>removed: times out overdue turns of<br />the GameSession</div><div style='font-size: 70%'></div>" .->21
     22-. "<div>removed: requests an EngineAction from</div><div style='font-size: 70%'></div>" .->23
     22-. "<div>removed: applies the EngineAction to<br />the GameSession</div><div style='font-size: 70%'></div>" .->21
     13-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
     14-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
     15-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    20-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    13-. "<div>expires an overdue turn with</div><div style='font-size: 70%'></div>" .->20
     93-. "<div>new: submits its move,<br />re-validated on arrival</div><div style='font-size: 70%'></div>" .->13
     16-. "<div>new: tells it it is on turn</div><div style='font-size: 70%'></div>" .->93
     93-. "<div>new: searches with, holding no<br />lock</div><div style='font-size: 70%'></div>" .->23
@@ -65,16 +71,18 @@ graph TB
 
   end
   linkStyle 0 stroke:#1a7f37,stroke-width:2px
-  linkStyle 2 stroke:#cf222e,stroke-width:2px
+  linkStyle 1 stroke:#1a7f37,stroke-width:2px
   linkStyle 3 stroke:#cf222e,stroke-width:2px
   linkStyle 4 stroke:#cf222e,stroke-width:2px
   linkStyle 5 stroke:#cf222e,stroke-width:2px
   linkStyle 6 stroke:#cf222e,stroke-width:2px
-  linkStyle 10 stroke:#1a7f37,stroke-width:2px
-  linkStyle 11 stroke:#1a7f37,stroke-width:2px
-  linkStyle 12 stroke:#1a7f37,stroke-width:2px
-  linkStyle 13 stroke:#1a7f37,stroke-width:2px
+  linkStyle 7 stroke:#cf222e,stroke-width:2px
+  linkStyle 8 stroke:#cf222e,stroke-width:2px
   linkStyle 14 stroke:#1a7f37,stroke-width:2px
+  linkStyle 15 stroke:#1a7f37,stroke-width:2px
+  linkStyle 16 stroke:#1a7f37,stroke-width:2px
+  linkStyle 17 stroke:#1a7f37,stroke-width:2px
+  linkStyle 18 stroke:#1a7f37,stroke-width:2px
 ```
 
 ## WP C, #270 Additional Game Lifecycle
@@ -97,10 +105,6 @@ graph TB
 
         13["<div style='font-weight: bold'>Game service</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Creates and lists games, and<br />applies every move.</div>"]
         style 13 fill:#f6f8fa,stroke:#8c959f,color:#1f2328
-        20["<div style='font-weight: bold'>Scheduler</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Periodic scans; each due<br />change is a message to the<br />one handler.</div>"]
-        style 20 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-        21["<div style='font-weight: bold'>Game model</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>GameSession: one game's<br />authoritative state.</div>"]
-        style 21 fill:#f6f8fa,stroke:#8c959f,color:#1f2328
         25["<div style='font-weight: bold'>Persistence</div><div style='font-size: 70%; margin-top: 0px'>[Component: sqlx]</div><div style='font-size: 80%; margin-top:10px'>Reads and writes games and<br />accounts.</div>"]
         style 25 fill:#f6f8fa,stroke:#8c959f,color:#1f2328
         93["<div style='font-weight: bold'>Notifications</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>NOTE-1's table, and sending a<br />ping by Web Push.</div>"]
@@ -109,20 +113,13 @@ graph TB
 
     end
 
-    93-. "<div>new: subscriptions and preferences</div><div style='font-size: 70%'></div>" .->25
-    13-. "<div>applies the move to the<br />GameSession</div><div style='font-size: 70%'></div>" .->21
-    20-. "<div>removed: times out overdue turns of<br />the GameSession</div><div style='font-size: 70%'></div>" .->21
     13-. "<div>saves the GameSession,<br />deletes old games and expired<br />sessions, records the<br />database size</div><div style='font-size: 70%'></div>" .->25
-    20-. "<div>saves the GameSession, reads<br />player rows</div><div style='font-size: 70%'></div>" .->25
-    13-. "<div>expires an overdue turn with</div><div style='font-size: 70%'></div>" .->20
-    20-. "<div>new: sends due messages</div><div style='font-size: 70%'></div>" .->13
     13-. "<div>new: reports each event</div><div style='font-size: 70%'></div>" .->93
     93-. "<div>new: sends a ping</div><div style='font-size: 70%'>[HTTPS, VAPID]</div>" .->94
+    93-. "<div>new: subscriptions and preferences</div><div style='font-size: 70%'></div>" .->25
 
   end
-  linkStyle 0 stroke:#1a7f37,stroke-width:2px
-  linkStyle 2 stroke:#cf222e,stroke-width:2px
-  linkStyle 6 stroke:#1a7f37,stroke-width:2px
-  linkStyle 7 stroke:#1a7f37,stroke-width:2px
-  linkStyle 8 stroke:#1a7f37,stroke-width:2px
+  linkStyle 1 stroke:#1a7f37,stroke-width:2px
+  linkStyle 2 stroke:#1a7f37,stroke-width:2px
+  linkStyle 3 stroke:#1a7f37,stroke-width:2px
 ```

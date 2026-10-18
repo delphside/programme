@@ -27,8 +27,8 @@ the Decision issue that will settle it. They are answered in the order
     technical design; work packages scoped as sections of this note, and a test
     file per package fitted to the overall test approach.
 
-The design map this project starts from, in the format #406 is agreeing, is
-not drawn yet; it waits on #406's open questions.
+The design map this project starts from is Tile Lite Elite's
+`docs/4.2.0-design-map.md`, in the format #406 is agreeing.
 
 One goal, from which everything here follows:
 
