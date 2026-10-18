@@ -88,6 +88,19 @@ class TheMissingFile(Cases):
         config = command("get", "accounts.owner", cwd=bare, PROGRAMME_CONFIG=None)
         self.refused(config, str(bare / "programme" / "config" / "programme.toml"), "submodule")
 
+    def test_in_the_programme_repository_it_says_to_run_from_an_application(self):
+        # The programme's own checkout holds config/programme.toml at its top
+        # and no submodule, so initialising one would do nothing.
+        programme = self.tmp / "programme"
+        (programme / "config").mkdir(parents=True)
+        git(programme, "init", "-q")
+        shutil.copy(profiles.CONFIG, programme / "config" / "programme.toml")
+        config = command("get", "accounts.owner", cwd=programme, PROGRAMME_CONFIG=None)
+        self.refused(config, "an application's repository")
+        self.expect("not the submodule advice", False, "submodule update" in config.stderr)
+        technical = command("get", "versions.stamp", cwd=programme, PROGRAMME_PROFILE=None)
+        self.refused(technical, "an application's repository")
+
     def test_outside_a_repository_there_is_no_application(self):
         outside = self.tmp / "outside"
         outside.mkdir()

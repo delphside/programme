@@ -121,6 +121,24 @@ def app_root(start: Path | None = None) -> Path:
                        f"root cannot be found")
 
 
+# Run from the programme's own repository, the application root is the programme
+# itself: its programme file sits at the top, not under a submodule.
+IN_THE_PROGRAMME = ("this is the programme's own repository, which is no application: run "
+                    "the command from an application's repository, as "
+                    "`programme/scripts/...`")
+
+
+def _hint(path: Path, given: str | None, root: Path | None, usual: str) -> str:
+    if not given and not path.is_file():
+        try:
+            here = root or app_root()
+        except ProfileError:
+            return usual
+        if (here / PINNED_PROGRAMME_FILE.relative_to("programme")).is_file():
+            return IN_THE_PROGRAMME
+    return usual
+
+
 def technical_path(root: Path | None = None) -> Path:
     given = os.environ.get(ENV_PROFILE)
     return Path(given) if given else (root or app_root()) / TECHNICAL_FILE
@@ -194,8 +212,9 @@ def technical(root: Path | None = None) -> Section:
     """The technical profile, `programme.toml` at the application's root."""
     path = technical_path(root)
     return Section(_toml(path, "the technical profile",
-                         f"it is `{TECHNICAL_FILE}` at the application's root; set {ENV_PROFILE} "
-                         f"to another path"),
+                         _hint(path, os.environ.get(ENV_PROFILE), root,
+                               f"it is `{TECHNICAL_FILE}` at the application's root; set "
+                               f"{ENV_PROFILE} to another path")),
                    f"the technical profile {path}")
 
 
@@ -203,8 +222,10 @@ def programme_file(root: Path | None = None) -> Section:
     """The programme file, from the pinned submodule."""
     path = programme_path(root)
     return Section(_toml(path, "the programme file",
-                         f"it is `{PINNED_PROGRAMME_FILE}` in the pinned programme submodule "
-                         f"(initialise it: git submodule update --init), or set {ENV_CONFIG}"),
+                         _hint(path, os.environ.get(ENV_CONFIG), root,
+                               f"it is `{PINNED_PROGRAMME_FILE}` in the pinned programme "
+                               f"submodule (initialise it: git submodule update --init), or set "
+                               f"{ENV_CONFIG}")),
                    f"the programme file {path}")
 
 
