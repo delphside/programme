@@ -86,7 +86,11 @@ sed -i '/^SUPPORT_POLL_/d' .env && docker compose up -d
 
 ## 4. Production
 
-After the release carrying #518 is deployed and `verify.sh` passes:
+The two lines may go into production's `.env` before the release, and need no
+restart then: the `docker-compose.yml` of releases before #518 passes neither
+variable to the server, and `deploy.sh` leaves `.env` alone. They take effect
+when the release carrying #518 starts. Otherwise, add them after that release is
+deployed and `verify.sh` passes:
 
 ```bash
 ssh tile-lite-elite && cd ~/tile-lite-elite
