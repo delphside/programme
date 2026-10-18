@@ -123,7 +123,7 @@ def app_root(start: Path | None = None) -> Path:
 
 # Run from the programme's own repository, the application root is the programme
 # itself: its programme file sits at the top, not under a submodule.
-IN_THE_PROGRAMME = ("this is the programme's own repository, which is no application: run "
+IN_THE_PROGRAMME = ("this is the programme's own repository, which is not an application's: run "
                     "the command from an application's repository, as "
                     "`programme/scripts/...`")
 
