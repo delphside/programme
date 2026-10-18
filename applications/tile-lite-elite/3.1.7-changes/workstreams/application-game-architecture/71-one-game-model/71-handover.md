@@ -47,7 +47,6 @@ written otherwise.
 | closing your own account, suspension, support requests and complaints | #296 (R1 to R5) |
 | The as-is design map (#406) is on Tile Lite Elite main (delphside/tile-lite-elite#523). Check-docs step 8 starts checking it when #522 moves the `programme/` pin; if it reports stale, regenerate with `programme/scripts/docs/design-map/design-map.py --write` | #522 |
 | [`71-map-change.md`](71-map-change.md) is a prototype: WP A and WP C only, and three gaps in the format, listed at its end, for the tooling to close | the map's pull request |
-| #519: the `Caddyfile` does not proxy the engine statistics routes | owner, triage |
 
 ## A tooling defect met on the way
 
