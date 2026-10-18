@@ -1,30 +1,54 @@
 #!/usr/bin/env python3
-"""design-map.py — draws an application's design map, `docs/R.2.0-design-map.md`.
+"""design-map.py — draws an application's design map, `docs/R.2.0-design-map.md`,
+and a project's change to it.
 
 The source is the application's `docs/design-map/`: `model.dsl` (the C4
 model), `views.dsl` (its views) and `map.dsl` (the model with the views), in
 Structurizr's DSL. The views are exported to Mermaid, never drawn by hand.
 R is the application's document range, from its programme profile.
 
-**Two commands, and only one needs Docker.**
+**Four commands, and only the writing ones need Docker.**
 
   design-map.py --write   export map.dsl through the Structurizr image, pinned
                           by digest in IMAGE, and write the document
   design-map.py --check   exit 1 if the sources' hash differs from the one in
                           the document's header; plain Python, no Docker
+  design-map.py --change N-map-change.md --write
+                          draw a project's change file, one section per work
+                          package, into N-map-diagrams.md beside it
+  design-map.py --change N-map-change.md --check
+                          exit 1 if the change file or the map changed since
+                          N-map-diagrams.md was drawn; no Docker
 
-The hash covers every file in `docs/design-map/`, so `--check` says
-"regenerate" for any change to the sources, and `check-docs.sh` can run it in
-hooks and cloud sessions where Docker is not available. A hand edit to the
-generated document is not caught by the hash; the header says not to make one.
+The hash covers every file in `docs/design-map/` (and, for a change file, the
+change file too), so `--check` says "regenerate" for any change to the
+sources, and `check-docs.sh` can run it in hooks and cloud sessions where
+Docker is not available. A hand edit to the generated document is not caught
+by the hash; the header says not to make one.
 
 Each view becomes a section titled by its C4 type and its description in
 views.dsl, in the order views.dsl lists them. `lifecycles.md`, when it exists,
 is appended as it stands.
+
+**The change file** is Markdown with a `structurizr` fenced block holding an
+extension of the map. Every statement in its `model { }` is an entry and names
+the one work package it belongs to by a `wp:N` tag; `!element X { }` with no
+tags of its own is a wrapper for entries. The command filters the entries per
+package, builds a view of each package's elements (a Component view of their
+container, or a Container view where they span containers), and exports it.
+A heading in the file that names `#N` titles that package's section.
+
+**Relationship states.** In every export, a relationship tagged `new`,
+`changed` or `removed` is drawn in the colours of the change key
+(`docs/diagrams/README.md` in Tile Lite Elite) and its label starts with the
+state, so the state reads without colour.
 """
 import hashlib
+import html
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -39,6 +63,16 @@ IMAGE = ("structurizr/structurizr@sha256:"
 
 VIEW = re.compile(r'^\s*(container|component)\s+\S+\s+"([^"]+)"\s+"([^"]+)"', re.M)
 HASH = re.compile(r"^Sources hash: `([0-9a-f]{64})`\.$", re.M)
+
+# The change key's strokes, from `docs/diagrams/README.md` in Tile Lite Elite.
+STATE_COLOURS = {"new": "#1a7f37", "changed": "#9a6700", "removed": "#cf222e"}
+
+# A Mermaid edge as Structurizr writes it: `SRC-. "<div>label</div>..." .->DST`.
+EDGE = re.compile(r'^(\s*)(\S+?)-\. "(.*)" \.->(\S+)\s*$')
+FIRST_DIV = re.compile(r"<div>(.*?)</div>")
+QUOTED = re.compile(r'"([^"]*)"')
+PACKAGE_TAG = re.compile(r"^wp:(\d+)$")
+HEADING = re.compile(r"^#{1,6}\s+(.*\S)\s*$")
 
 
 def paths() -> tuple[Path, Path, Path]:
@@ -71,12 +105,75 @@ Sources hash: `{digest}`.
 """
 
 
-def export(source: Path, out: Path) -> None:
-    subprocess.run(
-        ["docker", "run", "--rm", "-u", f"{os.getuid()}:{os.getgid()}",
-         "-v", f"{source}:/w:ro", "-v", f"{out}:/out", "-w", "/w", IMAGE,
-         "export", "-w", "map.dsl", "-f", "mermaid", "-o", "/out"],
-        check=True, stdout=subprocess.DEVNULL)
+def export(source: Path, out: Path, workspace: str = "map.dsl") -> None:
+    """Export `workspace` to Mermaid and to JSON. The image takes one `-f` per
+    run and has no shell to chain two, so it is run once for each."""
+    for fmt in ("mermaid", "json"):
+        subprocess.run(
+            ["docker", "run", "--rm", "-u", f"{os.getuid()}:{os.getgid()}",
+             "-v", f"{source}:/w:ro", "-v", f"{out}:/out", "-w", "/w", IMAGE,
+             "export", "-w", workspace, "-f", fmt, "-o", "/out"],
+            check=True, stdout=subprocess.DEVNULL)
+
+
+def _label(text: str) -> str:
+    """A relationship's description as the Mermaid label shows it."""
+    return " ".join(html.unescape(text.replace("<br />", " ")).split())
+
+
+def _relationships(node, found: list) -> list:
+    """Every relationship in the exported workspace JSON, in file order."""
+    if isinstance(node, dict):
+        if {"sourceId", "destinationId", "id"} <= node.keys():
+            found.append(node)
+        for value in node.values():
+            _relationships(value, found)
+    elif isinstance(node, list):
+        for value in node:
+            _relationships(value, found)
+    return found
+
+
+def style_relationships(mermaid: str, workspace: dict) -> str:
+    """Colour the lines of relationships tagged `new`, `changed` or `removed`,
+    and start their labels with the state. Mermaid has no class for an edge, so
+    each gets a `linkStyle` by its index among the edges, appended at the end.
+    An edge is matched to its relationship by source, destination and
+    description, which the Mermaid ids and labels carry; one with no match (a
+    line derived between containers) stays as it is."""
+    known: dict[tuple[str, str, str], list[str | None]] = {}
+    seen = set()
+    for r in _relationships(workspace.get("model", {}), []):
+        if r["id"] in seen:
+            continue
+        seen.add(r["id"])
+        tags = r.get("tags", "").split(",")
+        state = next((s for s in STATE_COLOURS if s in tags), None)
+        key = (r["sourceId"], r["destinationId"], _label(r.get("description", "")))
+        known.setdefault(key, []).append(state)
+    lines, styles, index = [], [], 0
+    for line in mermaid.splitlines():
+        edge = EDGE.match(line)
+        if edge:
+            indent, src, label, dst = edge.groups()
+            first = FIRST_DIV.match(label)
+            states = known.get((src, dst, _label(first.group(1)) if first else ""))
+            state = states.pop(0) if states else None
+            if state:
+                label = label.replace("<div>", f"<div>{state}: ", 1)
+                line = f'{indent}{src}-. "{label}" .->{dst}'
+                styles.append(f"  linkStyle {index} stroke:{STATE_COLOURS[state]},"
+                              f"stroke-width:2px")
+            index += 1
+        lines.append(line)
+    return "\n".join(lines + styles) + ("\n" if mermaid.endswith("\n") else "")
+
+
+def exported(out: Path, workspace: str, view: str) -> str:
+    """A view's Mermaid from an export, with its relationships styled."""
+    diagram = (out / f"structurizr-{view}.mmd").read_text().strip()
+    data = json.loads((out / f"{Path(workspace).stem}.json").read_text())
+    return style_relationships(diagram, data).strip()
 
 
 def render(source: Path, title: str) -> str:
@@ -87,7 +184,7 @@ def render(source: Path, title: str) -> str:
     with tempfile.TemporaryDirectory() as tmp:
         export(source, Path(tmp))
         for kind, key, description in views:
-            diagram = (Path(tmp) / f"structurizr-{key}.mmd").read_text().strip()
+            diagram = exported(Path(tmp), "map.dsl", key)
             parts.append(f"## {kind.capitalize()} view: {description}\n\n"
                          f"```mermaid\n{diagram}\n```\n")
     lifecycles = source / "lifecycles.md"
@@ -96,8 +193,279 @@ def render(source: Path, title: str) -> str:
     return "\n".join(parts)
 
 
+class ChangeError(Exception):
+    """The change file is not in the format; the message names the line."""
+
+
+class Node:
+    """One statement of the DSL: its line, its text and, for a block, its
+    statements and the lines it spans."""
+
+    def __init__(self, line: int, text: str, children: list["Node"], raw: list[str]):
+        self.line, self.text, self.children, self.raw = line, text.strip(), children, raw
+
+    def tags(self) -> list[tuple[int, list[str]]]:
+        return [(c.line, QUOTED.findall(c.text)) for c in self.children
+                if c.text.split(None, 1)[:1] == ["tags"]]
+
+
+def _braces(text: str) -> int:
+    """Opening less closing braces on a line, outside strings and comments."""
+    bare = re.sub(r'"[^"]*"', "", text).split("//")[0]
+    return bare.count("{") - bare.count("}")
+
+
+def parse(lines: list[str], first: int = 1) -> list[Node]:
+    """The statements of `lines`, a block's body, line numbers counted from
+    `first`. A statement that opens a brace runs to the line that closes it."""
+    nodes, i = [], 0
+    while i < len(lines):
+        text = lines[i]
+        if not text.strip() or text.strip().startswith(("//", "#")):
+            i += 1
+            continue
+        depth, j = _braces(text), i + 1
+        while depth > 0:
+            if j >= len(lines):
+                raise ChangeError(f"line {first + i}: the block opened here is never closed")
+            depth += _braces(lines[j])
+            j += 1
+        body = lines[i + 1:j - 1] if j > i + 1 else []
+        nodes.append(Node(first + i, text, parse(body, first + i + 1), lines[i:j]))
+        i = j
+    return nodes
+
+
+def _model(block: str, first: int) -> list[Node]:
+    root = parse(block.splitlines(), first)
+    if len(root) != 1:
+        raise ChangeError(f"line {first}: expected one `workspace extends ... {{ }}`")
+    for node in root[0].children:
+        if re.match(r"model\s*\{", node.text):
+            return node.children
+    raise ChangeError(f"line {first}: the extension has no `model {{ }}`")
+
+
+def _package(node: Node) -> int | None:
+    """The one work package an entry names, None if it has no tags at all."""
+    tags = node.tags()
+    if not tags:
+        return None
+    named = [PACKAGE_TAG.match(t).group(1) for _, ts in tags for t in ts
+             if PACKAGE_TAG.match(t)]
+    if len(named) != 1:
+        raise ChangeError(
+            f"line {tags[0][0]}: `{node.text}` needs exactly one `wp:N` tag, "
+            f"and has {len(named)}")
+    return int(named[0])
+
+
+def _is_wrapper(node: Node) -> bool:
+    return node.text.startswith("!element ") and bool(node.children) \
+        and _package(node) is None
+
+
+def _entries(nodes: list[Node], found: list[tuple[int, Node, tuple[str, ...]]],
+             scope: tuple[str, ...] = ()) -> None:
+    for node in nodes:
+        package = _package(node)
+        if package is not None:
+            found.append((package, node, scope))
+        elif _is_wrapper(node):
+            _entries(node.children, found, scope + (node.text.split()[1],))
+        else:
+            raise ChangeError(f"line {node.line}: `{node.text}` has no `wp:N` tag")
+
+
+def entry_packages(block: str, first: int = 1) -> list[int]:
+    """The work packages the extension's entries name, in number order."""
+    found: list[tuple[int, Node, tuple[str, ...]]] = []
+    _entries(_model(block, first), found)
+    return sorted({p for p, _, _ in found})
+
+
+def _names(node: Node, scope: tuple[str, ...]) -> list[str]:
+    """The elements an entry draws: the one it changes, the one it declares,
+    both ends of a relationship."""
+    text = node.text
+    if match := re.match(r'!relationships\s+"([^"]*)"', text):
+        ends = [e.strip() for e in match.group(1).split("->")]
+        return [e for e in ends if e and "*" not in e]
+    if match := re.match(r"!element\s+(\S+)", text):
+        return [match.group(1)]
+    if match := re.match(r"(\S+)\s*->\s*(\S+)", text):
+        return [match.group(1), match.group(2)]
+    if match := re.match(r"(\w+)\s*=\s*\w+", text):
+        return [".".join(scope + (match.group(1),))]
+    raise ChangeError(f"line {node.line}: `{text}` is not an element or a relationship")
+
+
+def package_entries(block: str, package: int, first: int = 1) -> tuple[str, list[str]]:
+    """The model statements holding only `package`'s entries, and the names of
+    the elements they draw. A wrapper is kept, holding only those entries, if
+    any of its children is kept."""
+    names: list[str] = []
+
+    def keep(nodes: list[Node], scope: tuple[str, ...]) -> list[str]:
+        out: list[str] = []
+        for node in nodes:
+            owner = _package(node)
+            if owner is not None:
+                if owner == package:
+                    out += node.raw
+                    names.extend(_names(node, scope))
+            elif _is_wrapper(node):
+                inner = keep(node.children, scope + (node.text.split()[1],))
+                if inner:
+                    out += [node.raw[0], *inner, node.raw[-1]]
+            else:
+                raise ChangeError(f"line {node.line}: `{node.text}` has no `wp:N` tag")
+        return out
+
+    lines = keep(_model(block, first), ())
+    unique = list(dict.fromkeys(names))
+    return "\n".join(lines) + "\n", unique
+
+
+def view_kind(names: list[str]) -> tuple[str, str]:
+    """A Component view of the container all the package's components belong
+    to, else a Container view of their system. A name of three or more parts
+    is a component (system.container.component, with hierarchical ids)."""
+    components = [n for n in names if n.count(".") >= 2]
+    containers = sorted({".".join(n.split(".")[:2]) for n in components})
+    if len(containers) == 1:
+        return "component", containers[0]
+    systems = sorted({n.split(".")[0] for n in names if "." in n})
+    if len(systems) != 1:
+        raise ChangeError(f"the package's elements {names} do not share one software "
+                          f"system, so no container view can show them")
+    return "container", systems[0]
+
+
+def package_view(package: int, title: str, names: list[str]) -> str:
+    """The DSL of a package's own view."""
+    kind, scope = view_kind(names)
+    if kind == "container":
+        shown = [".".join(n.split(".")[:2]) for n in names]
+    else:
+        shown = names
+    included = "\n".join(f"            include {n}" for n in dict.fromkeys(shown))
+    title = title.replace('"', "'")
+    return (f'        {kind} {scope} "wp-{package}" "{title}" {{\n{included}\n'
+            f"        }}\n")
+
+
+def package_titles(text: str) -> dict[int, str]:
+    """A heading outside a code block that names `#N` titles package N."""
+    titles, fenced = {}, False
+    for line in text.splitlines():
+        if line.startswith("```"):
+            fenced = not fenced
+        elif not fenced and (heading := HEADING.match(line)):
+            for number in re.findall(r"#(\d+)\b", heading.group(1)):
+                titles.setdefault(int(number), heading.group(1))
+    return titles
+
+
+def structurizr_block(text: str) -> tuple[str, int]:
+    """The first `structurizr` fenced block, and the line it starts on."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() == "```structurizr":
+            for j in range(i + 1, len(lines)):
+                if lines[j].startswith("```"):
+                    return "\n".join(lines[i + 1:j]), i + 2
+            break
+    raise ChangeError("no closed ```structurizr block in the change file")
+
+
+def change_hash(change: Path, source: Path) -> str:
+    """One hash over the change file and the map it extends."""
+    h = hashlib.sha256()
+    h.update(change.read_bytes() + b"\0" + sources_hash(source).encode())
+    return h.hexdigest()
+
+
+def change_header(title: str, change_name: str, digest: str) -> str:
+    return f"""# {title}
+
+**Generated by the programme's `scripts/docs/design-map/design-map.py --change`
+from [{change_name}]({change_name}) and the application's `docs/design-map/`.
+Do not edit.**
+
+Green is new, yellow changed, red removed. A relationship's label starts with
+its state too. Each work package is drawn alone: the packages it builds on are
+not applied.
+
+Sources hash: `{digest}`.
+"""
+
+
+def change_target(change: Path) -> Path:
+    return change.with_name(change.name.replace("-map-change.md", "-map-diagrams.md"))
+
+
+def change_is_current(change: Path, source: Path, target: Path) -> bool:
+    found = HASH.search(target.read_text()) if target.exists() else None
+    return bool(found) and found.group(1) == change_hash(change, source)
+
+
+def render_change(change: Path, source: Path) -> str:
+    text = change.read_text()
+    block, first = structurizr_block(text)
+    packages = entry_packages(block, first)
+    if not packages:
+        raise ChangeError("the extension has no entries")
+    titles = package_titles(text)
+    h1 = next((m.group(1) for line in text.splitlines()
+               if (m := re.match(r"# (.*\S)", line))), change.stem)
+    parts = [change_header(f"{h1}, drawn", change.name, change_hash(change, source))]
+    for package in packages:
+        entries, names = package_entries(block, package, first)
+        title = titles.get(package, f"WP for wp:{package}")
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / "map"
+            shutil.copytree(source, work)
+            (work / "change.dsl").write_text(
+                "workspace extends model.dsl {\n    model {\n" + entries + "    }\n"
+                "    views {\n" + package_view(package, title, names)
+                + "        !include views.dsl\n    }\n}\n")
+            out = Path(tmp) / "out"
+            out.mkdir()
+            export(work, out, "change.dsl")
+            diagram = exported(out, "change.dsl", f"wp-{package}")
+        parts.append(f"## {title}\n\n```mermaid\n{diagram}\n```\n")
+    return "\n".join(parts)
+
+
+def change_main(args: list[str]) -> int:
+    change, mode = Path(args[1]), args[2]
+    root, source, _ = paths()
+    target = change_target(change)
+    if not change.is_file() or target == change or not source.is_dir():
+        print(f"design-map: {change} is not a change file (N-map-change.md) of an "
+              f"application with docs/design-map/", file=sys.stderr)
+        return 2
+    try:
+        if mode == "--write":
+            target.write_text(render_change(change, source))
+            print(f"design-map: wrote {target}")
+            return 0
+    except ChangeError as e:
+        print(f"design-map: {change.name}: {e}", file=sys.stderr)
+        return 1
+    if not change_is_current(change, source, target):
+        print(f"design-map: {target.name} is STALE: its sources changed since it was "
+              f"drawn", file=sys.stderr)
+        return 1
+    print(f"design-map: {target.name} is current")
+    return 0
+
+
 def main() -> int:
     args = sys.argv[1:]
+    if len(args) == 3 and args[0] == "--change" and args[2] in ("--write", "--check"):
+        return change_main(args)
     if args not in (["--write"], ["--check"]):
         print(__doc__.strip(), file=sys.stderr)
         return 2
