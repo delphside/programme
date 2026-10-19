@@ -15,16 +15,16 @@ preferences. The tool leaves the section empty and says so, on the same rule as
 `obligations.py` — something nothing can evidence must not read as *nothing to
 report*, because an empty section and an unanswerable question look identical.
 
-**The measure is the programme's docs/1.0's, not the one first proposed.** Owner, 2026-09-21:
+**The measure is the programme's docs/1.7's, not the one first proposed.** Owner, 2026-09-21:
 *"The test is that we produce fewer issues and that they take less of my
 time"*, and 2026-09-27, that the issues he meant are programme overhead,
 `tooling` and `documentation`. So the headline is that count beside the week
-before, every other type is counted with the programme's docs/1.0's reading of it, and what
+before, every other type is counted with the programme's docs/1.7's reading of it, and what
 the board reports as waiting on the owner. The tooling
 share stays as an observation: its 45% figure is provisional and its horizon is
 #383 finishing, not a date. Until 2026-09-27 this module still reported the
 share against a 45% threshold and a 2026-10-17 date, and asked for a
-confirmation the owner had already given, because the answer landed in the programme's docs/1.0
+confirmation the owner had already given, because the answer landed in the programme's docs/1.7
 and not here.
 
 **Deletions are counted first among equals**, because D54 says so: *"removing
@@ -47,12 +47,12 @@ from .model import classify
 from .sources import Snapshot
 from .turn import waiting_on_owner
 
-# The programme's docs/1.0's brake: programme overhead is these two types of change. Not the
+# The programme's docs/1.7's brake: programme overhead is these two types of change. Not the
 # type called `non-functional`, which is work on the application (owner,
 # 2026-09-27).
 OVERHEAD = ("tooling", "documentation")
 
-# Every type, in the programme's docs/1.0's order and with its reading in the owner's words
+# Every type, in the programme's docs/1.7's order and with its reading in the owner's words
 # (2026-09-27), so the digest counts them all rather than only the overhead.
 READINGS = (
     ("functional", "constructive"),
@@ -61,14 +61,14 @@ READINGS = (
     ("bug", "poor quality overhead"),
     ("tooling", "programme overhead"),
     ("documentation", "programme overhead"),
-    ("decision", "a choice put to you, not a change"),
+    ("decision", "a choice put to you"),
     ("unset", "not categorised"),
 )
 
 
 def kind_of(raw) -> str:
     """An issue's `Type of change`. A Decision carries none (the programme's
-    docs/1.6), so it is counted as a decision rather than as uncategorised."""
+    docs/1.2 §2.6), so it is counted as a decision rather than as uncategorised."""
     if kind := (raw.fields or {}).get("Type of change"):
         return kind
     return "decision" if raw.issue_type == "Decision" else "unset"
@@ -114,6 +114,12 @@ class Digest:
     # two registers tracked. None means not available, which is not "none".
     lessons: list[tuple[int, str, str]] = field(default_factory=list)
     own_lessons: list[tuple[str, str]] | None = None
+    # Projects closed in the window with neither lessons nor a delegation: the
+    # closedown obligation is checked only while an issue is open.
+    unlessoned: list[tuple[int, str]] = field(default_factory=list)
+    # Each merged pull request's *Review rounds* section (the programme's
+    # docs/1.1), or None when the search did not answer.
+    reviews: list[tuple[str, int, str, str]] | None = None
     problems: list[dict] = field(default_factory=list)
     initiatives: list[dict] = field(default_factory=list)
 
@@ -252,6 +258,71 @@ def register_rows(markdown: str, heading: str) -> list[dict]:
     return rows
 
 
+def unlessoned_projects(closed_raw, start: str) -> list[tuple[int, str]]:
+    """Projects closed in the window with no *Lessons learnt* section and no
+    `Delegated to #` statement, which the programme's docs/1.2 accepts instead."""
+    return sorted((raw.number, raw.title) for raw in closed_raw
+                  if (raw.closed_at or "")[:10] >= start and raw.issue_type == "Project"
+                  and not section(raw.body, "Lessons learnt") and "Delegated to #" not in (raw.body or ""))
+
+
+def review_rounds(pull_requests) -> list[tuple[str, int, str, str]]:
+    """The *Review rounds* section of each merged pull request that has one."""
+    out = []
+    for pr in pull_requests:
+        text = section(pr.body, "Review rounds")
+        if text:
+            out.append((pr.repository, pr.number, pr.title, text))
+    return out
+
+
+_FINDING = re.compile(r"^\s*-\s*R\d+\s+(\S+)\s+—")
+_OWNER = re.compile(r"^\s*-\s*owner\s+—\s*(.*)$")
+
+
+@dataclass
+class RoundCount:
+    """Material findings in *Review rounds* lines (the programme's docs/1.1)."""
+
+    by_reviewer: collections.Counter = field(default_factory=collections.Counter)
+    both: int = 0
+    from_fix: int = 0
+    missed: int = 0
+    owner: int = 0
+
+    def add(self, text: str) -> "RoundCount":
+        for line in text.splitlines():
+            if m := _FINDING.match(line):
+                self.by_reviewer[m.group(1)] += 1
+                self.both += "(also " in line
+                self.from_fix += "(from a fix)" in line
+                self.missed += "(missed in R" in line
+            elif (m := _OWNER.match(line)) and m.group(1).strip().lower() != "none":
+                self.owner += 1
+        return self
+
+    def summary(self) -> str:
+        found = ", ".join(f"{who} {n}" for who, n in sorted(self.by_reviewer.items())) or "none"
+        return (f"material findings: {found}; found by both: {self.both}; from a fix: "
+                f"{self.from_fix}; missed by an earlier round: {self.missed}; found by the owner "
+                f"afterwards: {self.owner}")
+
+    def estimate(self) -> str:
+        """Capture-recapture, as used for software inspections: two reviewers
+        finding a and b faults, c of them in common, suggest about a*b/c in all.
+        A finding by both counts once for each, so `by_reviewer` holds a and b."""
+        if len(self.by_reviewer) != 2:
+            return "no estimate: it needs exactly two reviewers"
+        a, b = self.by_reviewer.values()
+        if not self.both:
+            return ("no estimate: the reviewers found nothing in common, which says "
+                    "more remain to be found")
+        distinct = a + b - self.both
+        total = a * b / self.both
+        return (f"about {total:.0f} faults in all, against {distinct} found: "
+                f"about {max(total - distinct, 0):.0f} still to find")
+
+
 def claude_lessons(memory_repo: Path, start: str) -> list[tuple[str, str]] | None:
     """The feedback notes Claude added to its memory in the window: its own
     lessons, which live outside this repository (owner, 2026-09-27). None when
@@ -276,7 +347,7 @@ def claude_lessons(memory_repo: Path, start: str) -> list[tuple[str, str]] | Non
 
 def build(open_snapshot: Snapshot, closed_snapshot: Snapshot | None,
           since: str, until: str = "HEAD", registers: str = "",
-          memory_repo: Path | None = None) -> Digest:
+          memory_repo: Path | None = None, merged_prs=None) -> Digest:
     d = Digest(since=since, until=until)
     start = window_start(since)
 
@@ -313,6 +384,8 @@ def build(open_snapshot: Snapshot, closed_snapshot: Snapshot | None,
     d.window = in_window([i.raw for i in issues], closed_raw, start)
     d.raised, d.closed = d.window.raised, d.window.closed
     d.lessons = issue_lessons(closed_raw, start)
+    d.unlessoned = unlessoned_projects(closed_raw, start)
+    d.reviews = review_rounds(merged_prs) if merged_prs is not None else None
     d.own_lessons = claude_lessons(memory_repo, start) if memory_repo else None
     d.problems = register_rows(registers, "The problem register")
     d.initiatives = register_rows(registers, "The continual improvement register")
@@ -372,7 +445,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     until = date.today().isoformat() if d.until == "HEAD" else d.until[:10]
     out = [f"# Weekly digest, {window_start(d.since)} to {until}", ""]
 
-    # the programme's docs/1.0's brake, limit 1: fewer non-functional issues, and less of the
+    # the programme's docs/1.7's brake, limit 1: fewer non-functional issues, and less of the
     # owner's time. Both counted, neither argued.
     out.append("## The brake: less programme overhead, less of your time")
     out.append("")
@@ -388,10 +461,10 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
         out.append(f"- #{number} {title}")
     out.append("")
     # Every type, because each says something different about the owner's
-    # time (the programme's docs/1.0). A type with nothing either week still gets its row, so
+    # time (the programme's docs/1.7). A type with nothing either week still gets its row, so
     # a quiet week for bugs is visible rather than absent.
     # Raised, closed and open by type: what arrived, what was cleared, and
-    # what stands (owner, 2026-09-27). Every type in the programme's docs/1.0's order, a quiet
+    # what stands (owner, 2026-09-27). Every type in the programme's docs/1.7's order, a quiet
     # one included, so a week with no bugs is visible rather than absent.
     # Grouped by week, owner 2026-09-27: raised, closed and open for this
     # week, then the same for last week. Markdown has one header row, so the
@@ -402,7 +475,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     known = {kind for kind, _ in READINGS}
     others = sorted((set(w.raised_by_type) | set(w.closed_by_type) | set(w.raised_before)
                      | set(w.closed_before) | set(w.open_before) | set(d.by_type)) - known)
-    for kind, reading in list(READINGS) + [(k, "not in the programme's docs/1.0") for k in others]:
+    for kind, reading in list(READINGS) + [(k, "not in the programme's docs/1.7") for k in others]:
         out.append(f"| `{kind}` | {w.raised_by_type[kind]} | {w.closed_by_type[kind]} | {d.by_type[kind]} | "
                    f"{w.raised_before[kind]} | {w.closed_before[kind]} | {w.open_before[kind]} | {reading} |")
     out.append("")
@@ -415,7 +488,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     else:
         out.append("**Nothing** the board reports as waiting on you.")
     out.append("")
-    # An observation, not the target (the programme's docs/1.0). Always name the starting
+    # An observation, not the target (the programme's docs/1.7). Always name the starting
     # point, so a one-point move cannot read like a ten-point one.
     out.append(f"*The tooling share, as an observation:* {d.tooling} of {d.total} open "
                f"issues are `tooling`, **{d.share}%**, against {MEASURED_AT}% when D54 "
@@ -477,6 +550,34 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     else:
         out.append("No issue closed this week recorded a lesson.")
         out.append("")
+    if d.unlessoned:
+        out.append("Projects closed this week with no lessons learnt and no delegation: "
+                   + ", ".join(f"#{n}" for n, _ in d.unlessoned) + ".")
+        out.append("")
+    out.append("### Document reviews")
+    out.append("")
+    if d.reviews is None:
+        out.append("*Not available: the search for merged pull requests did not answer.*")
+    elif not d.reviews:
+        out.append("No pull request merged this week recorded its review rounds.")
+    else:
+        total = RoundCount()
+        for repository, number, title, text in d.reviews:
+            out.append(f"#### {repository}#{number} {title}")
+            out.append("")
+            out.append(text)
+            out.append("")
+            out.append(RoundCount().add(text).summary() + ".")
+            out.append("")
+            total.add(text)
+        out.append(f"**This week:** {total.summary()}. Overlap: {total.estimate()}.")
+        out.append("")
+        out.append("*Analysis, at the weekly review: what the findings show about how the "
+                   "reviews are working, read finding by finding, with conclusions. For example, "
+                   "whether the reviewers find the same faults or different ones, whether more "
+                   "remain to be found, and whether a fault kind nobody caught calls for another "
+                   "reviewer with that focus.*")
+    out.append("")
     out.append("### Claude's own, added to its memory this week")
     out.append("")
     if d.own_lessons is None:

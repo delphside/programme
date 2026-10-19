@@ -31,8 +31,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from board import records  # noqa: E402
-from board.digest import build, draft, notes_for_write, render, report_code  # noqa: E402
-from board.sources import Unavailable, fetch     # noqa: E402
+from board.digest import build, draft, notes_for_write, render, report_code, window_start  # noqa: E402
+from board.sources import Unavailable, fetch, merged_pull_requests  # noqa: E402
 
 
 def main(argv=None) -> int:
@@ -61,9 +61,16 @@ def main(argv=None) -> int:
         print(f"cannot say: {exc}", file=sys.stderr)
         return 2
 
+    # The week's review rounds. A search that does not answer is reported in
+    # the digest, not read as a week with no reviews.
+    try:
+        merged = merged_pull_requests(window_start(args.since))
+    except Unavailable:
+        merged = None
+
     registers = records.activity_register().read_text()
     digest = build(open_snapshot, closed, since=args.since, registers=registers,
-                   memory_repo=Path.home() / "claude-memory")
+                   memory_repo=Path.home() / "claude-memory", merged_prs=merged)
     text = render(digest, args.decided)
 
     if args.write:

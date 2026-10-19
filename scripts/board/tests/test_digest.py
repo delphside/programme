@@ -1,6 +1,6 @@
 """The weekly digest, the `weekly-digest` activity in docs/3.8.
 
-From the programme's docs/1.0's brake, not from the code. The cases that matter are the ones
+From the programme's docs/1.7's brake, not from the code. The cases that matter are the ones
 where a bug would flatter the report or repeat a settled question:
 
   the measure     programme overhead raised per week (types `tooling` and
@@ -26,9 +26,10 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from board.digest import (CONCLUDE, DRAFT, Digest, with_conclusions, Window, claude_lessons, draft, in_window, issue_lessons,
+from board.digest import (CONCLUDE, RoundCount, review_rounds, unlessoned_projects, DRAFT, Digest, with_conclusions, Window, claude_lessons, draft, in_window, issue_lessons,
                           notes_for_write, notes_of, register_rows, render, section, MEASURED_AT)
 from board.model import RawIssue
+from board.sources import MergedPullRequest
 
 from .cases import Cases
 
@@ -76,8 +77,8 @@ class TheBrake(Cases):
         self.expect("cosmetic reads as functional", True,
                     "| `cosmetic` | 0 | 0 | 0 | 0 | 0 | 0 | constructive |" in text)
         odd = render(digest(window=Window(raised_by_type=collections.Counter({"spike": 1}))))
-        self.expect("a type the programme's docs/1.0 does not name is shown, not dropped", True,
-                    "| `spike` | 1 | 0 | 0 | 0 | 0 | 0 | not in the programme's docs/1.0 |" in odd)
+        self.expect("a type the programme's docs/1.7 does not name is shown, not dropped", True,
+                    "| `spike` | 1 | 0 | 0 | 0 | 0 | 0 | not in the programme's docs/1.7 |" in odd)
 
     def test_what_is_waiting_on_the_owner_is_listed_or_said_to_be_nothing(self):
         self.expect("nothing waiting says nothing", True,
@@ -117,7 +118,7 @@ class TheWindow(Cases):
                                                 issue(2, "non-functional", "2026-09-22T10:00:00Z"),
                                                 issue(3, None, "2026-09-22T10:00:00Z"),
                                                 issue(4, "documentation", "2026-09-22T10:00:00Z")], [], self.START)
-        # the programme's docs/1.0, owner 2026-09-27: the overhead is tooling and documentation.
+        # the programme's docs/1.7, owner 2026-09-27: the overhead is tooling and documentation.
         self.expect("only those two types", [4], [n for n, _ in w.overhead])
         self.expect("every type is still counted", {"functional": 1, "non-functional": 1, "unset": 1, "documentation": 1},
                     dict(w.raised_by_type))
@@ -307,6 +308,62 @@ class WhatIsNotDerived(Cases):
         self.expect("the line counts appear", True, "4174 lines added, 334 removed" in plain)
         self.expect("a deleted file is named", True,
                     "`scripts/old.sh`" in render(digest(files_deleted=["scripts/old.sh"])))
+
+
+class DocumentReviews(Cases):
+    """The programme's docs/1.1: a document change's pull request records each
+    material finding in its *Review rounds* section, and the digest collects them."""
+
+    ROUNDS = """- R1 reader — 1.5 *Roles by name* — "you" in a table cell (also truth)
+- R1 truth — 1.5 *One fact, one home* — a pointer to the wrong document
+- R1 truth — 1.5 *True now* — a field table missing the digest
+- R2 truth — 1.5 *True now* — a count left wrong (from a fix)
+- R2 reader — 1.5 *Brevity* — a duplicated clause (missed in R1)
+- R3 none
+- owner — none"""
+
+    def test_each_finding_is_counted_by_reviewer_with_its_markers(self):
+        c = RoundCount().add(self.ROUNDS)
+        self.expect("by reviewer", {"reader": 2, "truth": 3}, dict(c.by_reviewer))
+        self.expect("found by both", 1, c.both)
+        self.expect("from a fix", 1, c.from_fix)
+        self.expect("missed by an earlier round", 1, c.missed)
+        self.expect("an owner line of none is not a finding", 0, c.owner)
+
+    def test_the_overlap_gives_a_capture_recapture_estimate(self):
+        c = RoundCount().add(self.ROUNDS)
+        # a=2, b=3, c=1: about 6 in all, against 4 distinct found.
+        self.expect("estimate", "about 6 faults in all, against 4 found: about 2 still to find",
+                    c.estimate())
+        none_shared = RoundCount().add("- R1 reader — x — y\n- R1 truth — x — z")
+        self.expect("no overlap is not read as nothing left", True,
+                    "more remain to be found" in none_shared.estimate())
+
+    def test_only_pull_requests_with_the_section_are_collected(self):
+        prs = [MergedPullRequest("o/p", 1, "docs", "## Review rounds\n\n" + self.ROUNDS),
+               MergedPullRequest("o/p", 2, "code", "Before: x")]
+        self.expect("one", [1], [n for _, n, _, _ in review_rounds(prs)])
+
+    def test_a_search_that_did_not_answer_is_said_not_read_as_none(self):
+        self.expect("unavailable", True,
+                    "Not available" in render(digest(reviews=None)))
+        self.expect("none merged", True,
+                    "No pull request merged this week recorded" in render(digest(reviews=[])))
+
+
+class ProjectsClosedWithoutLessons(Cases):
+    START = "2026-09-21"
+
+    def test_a_project_closed_with_neither_lessons_nor_delegation_is_named(self):
+        def closed(n, body, issue_type="Project"):
+            return RawIssue(n, f"issue {n}", "CLOSED", body, issue_type, {}, (), None, None,
+                            frozenset(), created_at="2026-09-01T00:00:00Z",
+                            closed_at="2026-09-22T00:00:00Z")
+        found = unlessoned_projects([closed(1, "## Lessons learnt\n\nA lesson."),
+                                     closed(2, "## Lessons learnt\n\nDelegated to #9."),
+                                     closed(3, "## Requirements\n\nx"),
+                                     closed(4, "x", issue_type="Decision")], self.START)
+        self.expect("only the project with neither", [3], [n for n, _ in found])
 
 
 if __name__ == "__main__":
