@@ -84,7 +84,8 @@ Elite's own, in its repository, numbered 4.x.y.
 | `4.4.7-log-events` | every event the server writes |
 | `3.1.2-artefacts` | host files and cloud resources under change control that leave no trace in git |
 | `3.1.1-delivery-log` | one row per delivery |
-| `1.1-programme-tooling` | the two kinds of tooling, and every script and tool acting on the programme's records. **A new programme script is registered here** |
+| `1.1-programme-tooling` | the two kinds of tooling, every script, tool and agent acting on the programme's records and how to run it, and how a review runs. **A new programme script is registered here** |
+| `1.4-programme-activities` | each recurring activity, its cadence and how it is carried out; what the weekly digest reports; the problem and improvement registers |
 | `1.6-github-project-board` | the GitHub objects the programme runs on, which fields each issue carries, **and every string the tooling matches literally** |
 
 **A project body links, it does not restate.** `raise-project`: *the content or

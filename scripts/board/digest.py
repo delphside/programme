@@ -290,7 +290,8 @@ REVIEWERS = {"reader", "truth", "change", "owner"}
 
 @dataclass
 class RoundCount:
-    """Material findings in *Review rounds* lines (the programme's docs/1.1).
+    """Material findings in *Review rounds* lines: their form is the programme's
+    docs/1.1, and what is counted its docs/1.4.
     A finding marked `(also X)` is credited to both reviewers. A fault from a
     fix is crossed when none of its reviewers made the finding fixed, which its
     marker names: two reviewers pulling the same text different ways. A fix to
