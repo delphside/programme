@@ -317,7 +317,7 @@ class DocumentReviews(Cases):
     ROUNDS = """- R1 reader — 1.5 *Roles by name* — "you" in a table cell (also truth)
 - R1 truth — 1.5 *One fact, one home* — a pointer to the wrong document
 - R1 truth — 1.5 *True now* — a field table missing the digest
-- R2 truth — 1.5 *True now* — a count left wrong (from a fix)
+- R2 truth — 1.5 *True now* — a count left wrong (from a fix to R1 reader)
 - R2 reader — 1.5 *Brevity* — a duplicated clause (missed in R1)
 - R3 none
 - owner — none"""
@@ -328,8 +328,17 @@ class DocumentReviews(Cases):
         self.expect("by reviewer", {"reader": 2, "truth": 4}, dict(c.by_reviewer))
         self.expect("found by both", 1, c.both)
         self.expect("from a fix", 1, c.from_fix)
+        self.expect("a fix to the reader's finding faulted by truth is crossed", 1, c.crossed)
         self.expect("missed by an earlier round", 1, c.missed)
         self.expect("an owner line of none is not a finding", 0, c.owner)
+
+    def test_a_fix_is_crossed_only_when_another_reviewer_faults_it(self):
+        c = RoundCount().add("- R2 truth — x — y (from a fix to R1 truth)\n"
+                             "- R2 reader — x — z (from a fix)\n"
+                             "- R3 reader — x — w (from a fix to owner)")
+        self.expect("all three are from a fix", 3, c.from_fix)
+        # Its own finding's fix, and a bare marker, are not crossed; the owner's is.
+        self.expect("crossed", 1, c.crossed)
 
     def test_a_round_or_owner_with_nothing_is_not_counted(self):
         c = RoundCount().add("- R3 reader — none\n- R3 none\n- owner — not reviewed")
