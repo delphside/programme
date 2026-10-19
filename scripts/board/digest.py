@@ -276,10 +276,11 @@ def review_rounds(pull_requests) -> list[tuple[str, int, str, str]]:
     return out
 
 
-_FINDING = re.compile(r"^\s*-\s*R\d+\s+(\S+)\s+—\s*(.*)$")
+_FINDING = re.compile(r"^\s*-\s*(R\d+)\s+(\S+)\s+—\s*(.*)$")
 _ALSO = re.compile(r"\(also (\S+?)\)")
-# `(from a fix to R3 truth)`; a bare `(from a fix)` names no finding.
-_FROM_FIX = re.compile(r"\(from a fix(?: to (?:R\d+ )?(\S+?))?\)")
+# `(from a fix to R3 truth)` or `(from a fix to owner)`; an older record's bare
+# `(from a fix)` names no finding.
+_FROM_FIX = re.compile(r"\(from a fix(?: to (?:(R\d+) )?(\S+?))?\)")
 _OWNER = re.compile(r"^\s*-\s*owner\s+—\s*(.*)$")
 # The pair whose overlap gives the estimate: the two document reviewers.
 PAIR = ("reader", "truth")
@@ -289,8 +290,9 @@ PAIR = ("reader", "truth")
 class RoundCount:
     """Material findings in *Review rounds* lines (the programme's docs/1.1).
     A finding marked `(also X)` is credited to both reviewers. A fault from a
-    fix to another reviewer's finding counts as crossed: the two pulling the
-    same text different ways."""
+    fix to a reviewer's finding is crossed when the reviewers who found the
+    fault had no part in the finding fixed: two reviewers pulling the same text
+    different ways. A fix to the owner's finding is never crossed."""
 
     by_reviewer: collections.Counter = field(default_factory=collections.Counter)
     both: int = 0
@@ -300,17 +302,23 @@ class RoundCount:
     owner: int = 0
 
     def add(self, text: str) -> "RoundCount":
+        """Counts one *Review rounds* section, so a round names a finding only
+        within it."""
+        made: dict = {}  # who made each round's findings, by the line's reviewer
         for line in (text or "").splitlines():
             if m := _FINDING.match(line):
-                if m.group(2).strip().lower() == "none":
+                if m.group(3).strip().lower() == "none":
                     continue
-                who = {m.group(1)} | set(_ALSO.findall(line))
+                who = {m.group(2)} | set(_ALSO.findall(line))
+                made.setdefault((m.group(1), m.group(2)), set()).update(who)
                 for reviewer in who:
                     self.by_reviewer[reviewer] += 1
                 self.both += set(PAIR) <= who
                 if fix := _FROM_FIX.search(line):
                     self.from_fix += 1
-                    self.crossed += bool(fix.group(1)) and fix.group(1) not in who
+                    fixed_round, fixed = fix.groups()
+                    if fixed and fixed != "owner":
+                        self.crossed += not (who & made.get((fixed_round, fixed), {fixed}))
                 self.missed += "(missed in R" in line
             elif (m := _OWNER.match(line)) and m.group(1).strip().lower() not in ("none", "not reviewed"):
                 self.owner += 1
@@ -322,7 +330,7 @@ class RoundCount:
     def summary(self) -> str:
         found = ", ".join(f"{who} {n}" for who, n in sorted(self.by_reviewer.items())) or "none"
         return (f"material findings: {found}; found by both {PAIR[0]} and {PAIR[1]}: {self.both}; "
-                f"from a fix: {self.from_fix}, {self.crossed} of them to another reviewer's finding; missed by an earlier round: {self.missed}; "
+                f"from a fix: {self.from_fix}; crossed: {self.crossed}; missed by an earlier round: {self.missed}; "
                 f"found by the owner afterwards: {self.owner}")
 
     def estimate(self) -> str:
