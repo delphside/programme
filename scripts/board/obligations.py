@@ -158,8 +158,8 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         "change-type-set", (ParentProject, WorkPackage, StandaloneProject),
         ANY_STEP,
         "a `Type of change`",
-        "triage owes it — CLAUDE.md's minimum, and the programme's docs/1.2: every issue "
-        "carries one and it is a field",
+        "triage owes it — CLAUDE.md's minimum, and the programme's docs/1.2 §2.6: every "
+        "requirement and project carries one and it is a field",
         lambda i: bool(i.field("Type of change")),
     ),
     Obligation(
