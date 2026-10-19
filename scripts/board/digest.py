@@ -278,6 +278,8 @@ def review_rounds(pull_requests) -> list[tuple[str, int, str, str]]:
 
 _FINDING = re.compile(r"^\s*-\s*R\d+\s+(\S+)\s+—\s*(.*)$")
 _ALSO = re.compile(r"\(also (\S+?)\)")
+# `(from a fix to R3 truth)`; a bare `(from a fix)` names no finding.
+_FROM_FIX = re.compile(r"\(from a fix(?: to (?:R\d+ )?(\S+?))?\)")
 _OWNER = re.compile(r"^\s*-\s*owner\s+—\s*(.*)$")
 # The pair whose overlap gives the estimate: the two document reviewers.
 PAIR = ("reader", "truth")
@@ -286,11 +288,14 @@ PAIR = ("reader", "truth")
 @dataclass
 class RoundCount:
     """Material findings in *Review rounds* lines (the programme's docs/1.1).
-    A finding marked `(also X)` is credited to both reviewers."""
+    A finding marked `(also X)` is credited to both reviewers. A fault from a
+    fix to another reviewer's finding counts as crossed: the two pulling the
+    same text different ways."""
 
     by_reviewer: collections.Counter = field(default_factory=collections.Counter)
     both: int = 0
     from_fix: int = 0
+    crossed: int = 0
     missed: int = 0
     owner: int = 0
 
@@ -303,7 +308,9 @@ class RoundCount:
                 for reviewer in who:
                     self.by_reviewer[reviewer] += 1
                 self.both += set(PAIR) <= who
-                self.from_fix += "(from a fix)" in line
+                if fix := _FROM_FIX.search(line):
+                    self.from_fix += 1
+                    self.crossed += bool(fix.group(1)) and fix.group(1) not in who
                 self.missed += "(missed in R" in line
             elif (m := _OWNER.match(line)) and m.group(1).strip().lower() not in ("none", "not reviewed"):
                 self.owner += 1
@@ -315,7 +322,7 @@ class RoundCount:
     def summary(self) -> str:
         found = ", ".join(f"{who} {n}" for who, n in sorted(self.by_reviewer.items())) or "none"
         return (f"material findings: {found}; found by both {PAIR[0]} and {PAIR[1]}: {self.both}; "
-                f"from a fix: {self.from_fix}; missed by an earlier round: {self.missed}; "
+                f"from a fix: {self.from_fix}, {self.crossed} of them to another reviewer's finding; missed by an earlier round: {self.missed}; "
                 f"found by the owner afterwards: {self.owner}")
 
     def estimate(self) -> str:
