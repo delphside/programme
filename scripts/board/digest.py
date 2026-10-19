@@ -276,13 +276,17 @@ def review_rounds(pull_requests) -> list[tuple[str, int, str, str]]:
     return out
 
 
-_FINDING = re.compile(r"^\s*-\s*R\d+\s+(\S+)\s+—")
+_FINDING = re.compile(r"^\s*-\s*R\d+\s+(\S+)\s+—\s*(.*)$")
+_ALSO = re.compile(r"\(also (\S+?)\)")
 _OWNER = re.compile(r"^\s*-\s*owner\s+—\s*(.*)$")
+# The pair whose overlap gives the estimate: the two document reviewers.
+PAIR = ("reader", "truth")
 
 
 @dataclass
 class RoundCount:
-    """Material findings in *Review rounds* lines (the programme's docs/1.1)."""
+    """Material findings in *Review rounds* lines (the programme's docs/1.1).
+    A finding marked `(also X)` is credited to both reviewers."""
 
     by_reviewer: collections.Counter = field(default_factory=collections.Counter)
     both: int = 0
@@ -291,29 +295,35 @@ class RoundCount:
     owner: int = 0
 
     def add(self, text: str) -> "RoundCount":
-        for line in text.splitlines():
+        for line in (text or "").splitlines():
             if m := _FINDING.match(line):
-                self.by_reviewer[m.group(1)] += 1
-                self.both += "(also " in line
+                if m.group(2).strip().lower() == "none":
+                    continue
+                who = {m.group(1)} | set(_ALSO.findall(line))
+                for reviewer in who:
+                    self.by_reviewer[reviewer] += 1
+                self.both += set(PAIR) <= who
                 self.from_fix += "(from a fix)" in line
                 self.missed += "(missed in R" in line
-            elif (m := _OWNER.match(line)) and m.group(1).strip().lower() != "none":
+            elif (m := _OWNER.match(line)) and m.group(1).strip().lower() not in ("none", "not reviewed"):
                 self.owner += 1
         return self
 
+    def __bool__(self) -> bool:
+        return bool(self.by_reviewer) or bool(self.owner)
+
     def summary(self) -> str:
         found = ", ".join(f"{who} {n}" for who, n in sorted(self.by_reviewer.items())) or "none"
-        return (f"material findings: {found}; found by both: {self.both}; from a fix: "
-                f"{self.from_fix}; missed by an earlier round: {self.missed}; found by the owner "
-                f"afterwards: {self.owner}")
+        return (f"material findings: {found}; found by both {PAIR[0]} and {PAIR[1]}: {self.both}; "
+                f"from a fix: {self.from_fix}; missed by an earlier round: {self.missed}; "
+                f"found by the owner afterwards: {self.owner}")
 
     def estimate(self) -> str:
         """Capture-recapture, as used for software inspections: two reviewers
-        finding a and b faults, c of them in common, suggest about a*b/c in all.
-        A finding by both counts once for each, so `by_reviewer` holds a and b."""
-        if len(self.by_reviewer) != 2:
-            return "no estimate: it needs exactly two reviewers"
-        a, b = self.by_reviewer.values()
+        finding a and b faults, c of them in common, suggest about a*b/c in all."""
+        a, b = (self.by_reviewer[r] for r in PAIR)
+        if not (a and b):
+            return f"no estimate: it needs findings from both {PAIR[0]} and {PAIR[1]}"
         if not self.both:
             return ("no estimate: the reviewers found nothing in common, which says "
                     "more remain to be found")
@@ -556,20 +566,28 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
         out.append("")
     out.append("### Document reviews")
     out.append("")
+    total = RoundCount()
     if d.reviews is None:
         out.append("*Not available: the search for merged pull requests did not answer.*")
+        out.append("")
     elif not d.reviews:
         out.append("No pull request merged this week recorded its review rounds.")
-    else:
-        total = RoundCount()
-        for repository, number, title, text in d.reviews:
-            out.append(f"#### {repository}#{number} {title}")
-            out.append("")
-            out.append(text)
-            out.append("")
-            out.append(RoundCount().add(text).summary() + ".")
-            out.append("")
-            total.add(text)
+        out.append("")
+    for repository, number, title, text in d.reviews or []:
+        out.append(f"#### {repository}#{number} {title}")
+        out.append("")
+        out.append(text)
+        out.append("")
+        out.append(RoundCount().add(text).summary() + ".")
+        out.append("")
+        total.add(text)
+    # A change committed straight to main records its rounds in the notes.
+    in_notes = RoundCount().add(notes)
+    if in_notes:
+        out.append(f"From the notes below, for changes with no pull request: {in_notes.summary()}.")
+        out.append("")
+        total.add(notes)
+    if total:
         out.append(f"**This week:** {total.summary()}. Overlap: {total.estimate()}.")
         out.append("")
         out.append("*Analysis, at the weekly review: what the findings show about how the "
@@ -577,7 +595,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
                    "whether the reviewers find the same faults or different ones, whether more "
                    "remain to be found, and whether a fault kind nobody caught calls for another "
                    "reviewer with that focus.*")
-    out.append("")
+        out.append("")
     out.append("### Claude's own, added to its memory this week")
     out.append("")
     if d.own_lessons is None:

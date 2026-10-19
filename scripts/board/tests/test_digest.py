@@ -324,20 +324,34 @@ class DocumentReviews(Cases):
 
     def test_each_finding_is_counted_by_reviewer_with_its_markers(self):
         c = RoundCount().add(self.ROUNDS)
-        self.expect("by reviewer", {"reader": 2, "truth": 3}, dict(c.by_reviewer))
+        # The shared R1 finding is one line, credited to both.
+        self.expect("by reviewer", {"reader": 2, "truth": 4}, dict(c.by_reviewer))
         self.expect("found by both", 1, c.both)
         self.expect("from a fix", 1, c.from_fix)
         self.expect("missed by an earlier round", 1, c.missed)
         self.expect("an owner line of none is not a finding", 0, c.owner)
 
+    def test_a_round_or_owner_with_nothing_is_not_counted(self):
+        c = RoundCount().add("- R3 reader — none\n- R3 none\n- owner — not reviewed")
+        self.expect("nothing", ({}, 0), (dict(c.by_reviewer), c.owner))
+        self.expect("an owner finding counts", 1, RoundCount().add("- owner — a wrong link").owner)
+
     def test_the_overlap_gives_a_capture_recapture_estimate(self):
         c = RoundCount().add(self.ROUNDS)
-        # a=2, b=3, c=1: about 6 in all, against 4 distinct found.
-        self.expect("estimate", "about 6 faults in all, against 4 found: about 2 still to find",
+        # a=2, b=4, c=1: about 8 in all, against 5 distinct found.
+        self.expect("estimate", "about 8 faults in all, against 5 found: about 3 still to find",
                     c.estimate())
         none_shared = RoundCount().add("- R1 reader — x — y\n- R1 truth — x — z")
         self.expect("no overlap is not read as nothing left", True,
                     "more remain to be found" in none_shared.estimate())
+        other = RoundCount().add(self.ROUNDS + "\n- R1 change — x — a third reviewer")
+        self.expect("a third reviewer does not remove the estimate", True,
+                    other.estimate().startswith("about 8"))
+
+    def test_rounds_in_the_notes_are_counted_for_a_change_with_no_pull_request(self):
+        notes = "- 2026-09-22, review rounds for abc1234:\n  - R1 reader — x — y (also truth)\n  - R2 none"
+        text = render(digest(reviews=[]), notes=notes)
+        self.expect("counted", True, "reader 1, truth 1" in text)
 
     def test_only_pull_requests_with_the_section_are_collected(self):
         prs = [MergedPullRequest("o/p", 1, "docs", "## Review rounds\n\n" + self.ROUNDS),
