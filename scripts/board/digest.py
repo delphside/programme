@@ -61,8 +61,19 @@ READINGS = (
     ("bug", "poor quality overhead"),
     ("tooling", "programme overhead"),
     ("documentation", "programme overhead"),
+    ("decision", "a choice put to you, not a change"),
     ("unset", "not categorised"),
 )
+
+
+def kind_of(raw) -> str:
+    """An issue's `Type of change`. A Decision carries none (the programme's
+    docs/1.6), so it is counted as a decision rather than as uncategorised."""
+    if kind := (raw.fields or {}).get("Type of change"):
+        return kind
+    return "decision" if raw.issue_type == "Decision" else "unset"
+
+
 # The share when D54 was agreed, kept so the observation says where it moved
 # from. Not a target.
 MEASURED_AT = 55
@@ -145,7 +156,7 @@ def window_start(since: str) -> str:
 @dataclass
 class Window:
     """Issues raised and closed in the window and the seven days before it,
-    counted by `Type of change` ("unset" where it has none)."""
+    counted by `kind_of`."""
 
     raised: list[tuple[int, str]] = field(default_factory=list)
     overhead: list[tuple[int, str]] = field(default_factory=list)
@@ -173,7 +184,6 @@ def in_window(open_raw, closed_raw, start: str) -> Window:
     """
     before = (date.fromisoformat(start) - timedelta(days=7)).isoformat()
     w = Window()
-    kind_of = lambda raw: (raw.fields or {}).get("Type of change") or "unset"
     for raw in list(open_raw) + list(closed_raw):
         created = (raw.created_at or "")[:10]
         if created >= start:
@@ -290,8 +300,7 @@ def build(open_snapshot: Snapshot, closed_snapshot: Snapshot | None,
     everything = [classify(r) for r in open_snapshot.issues]
     issues = [i for i in everything if i.raw.issue_type != "PullRequest"]
     d.total = len(issues)
-    d.by_type = collections.Counter(i.field("Type of change") or "unset"
-                                    for i in issues)
+    d.by_type = collections.Counter(kind_of(i.raw) for i in issues)
     d.tooling = d.by_type.get("tooling", 0)
 
     # Pull requests are in the snapshot for this: a review waiting is his.

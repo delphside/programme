@@ -39,8 +39,8 @@ def digest(tooling=48, total=100, **kw):
     return d
 
 
-def issue(n, kind_of_change, created, closed=None, body=""):
-    return RawIssue(n, f"issue {n}", "CLOSED" if closed else "OPEN", body, "Requirement",
+def issue(n, kind_of_change, created, closed=None, body="", issue_type="Requirement"):
+    return RawIssue(n, f"issue {n}", "CLOSED" if closed else "OPEN", body, issue_type,
                     {"Type of change": kind_of_change} if kind_of_change else {}, (), None, None,
                     frozenset(), created_at=created, closed_at=closed)
 
@@ -121,6 +121,15 @@ class TheWindow(Cases):
         self.expect("only those two types", [4], [n for n, _ in w.overhead])
         self.expect("every type is still counted", {"functional": 1, "non-functional": 1, "unset": 1, "documentation": 1},
                     dict(w.raised_by_type))
+
+    def test_a_decision_is_counted_as_a_decision_not_as_unset(self):
+        w = in_window([issue(1, None, "2026-09-22T10:00:00Z", issue_type="Decision"),
+                       issue(2, None, "2026-09-22T10:00:00Z")],
+                      [issue(3, None, "2026-09-20T10:00:00Z", closed="2026-09-23T10:00:00Z",
+                             issue_type="Decision")], self.START)
+        # the programme's docs/1.6: a Decision carries no Type of change.
+        self.expect("raised", {"decision": 1, "unset": 1}, dict(w.raised_by_type))
+        self.expect("closed", {"decision": 1}, dict(w.closed_by_type))
 
     def test_the_week_before_is_the_seven_days_before_the_window(self):
         w = in_window([issue(1, "tooling", "2026-09-14T00:00:00Z"),
