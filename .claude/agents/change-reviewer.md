@@ -1,6 +1,6 @@
 ---
 name: change-reviewer
-description: Reviews one change made by change-maker (or by Claude) against its handover, the rules and the design map, without reading the maker's report, and reports what is wrong or missing. May run tests; changes nothing. Give it a handover (docs/templates/agent-handover.md) naming the worktree or branch, and the maker's original handover where a change maker made the change.
+description: Reviews one change, made by change-maker or in any pull request carrying code, against its handover, the rules and the design map, without reading the maker's report, and reports what is wrong or missing. May run tests; changes nothing. Give it a handover (docs/templates/agent-handover.md) naming the worktree or branch, and the maker's original handover where a change maker made the change.
 tools: Read, Grep, Glob, Bash
 model: opus
 effort: medium
@@ -27,7 +27,8 @@ diff, and decide for yourself whether it is done and done in the right place.
 
 1. `CLAUDE.md`, and `AGENTS.md` where the repository has one.
 2. The work package's body and its parent's; for a pull request with no work
-   package, the issue it references. A pull request's own body is its author's
+   package, the issue it references, or for BAU work its activity's row in the
+   programme's 1.4. A pull request's own body is its author's
    account of the change, so it is not read.
 3. The application design map (Tile Lite Elite's is in 4.2.x) for code, or the root README's layout and the application's document map (Tile Lite Elite's `docs/4.1.6`) for documents. For the programme's own tooling, the tables in its 1.1 and the root README's layout.
 4. The diff: `git -C <worktree> diff` and `git -C <worktree> status` for a
