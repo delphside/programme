@@ -395,6 +395,8 @@ docs/1.6 records the app it works through.
 | programme and application, and the workstreams and what each owns | docs/1.3 |
 | roles, who decides, and each role's reading list | docs/1.7 |
 | the service desk: how a Ticket arrives, is answered and closed | docs/1.8 |
+| the recurring activities, what the weekly digest reports and the improvement registers | docs/1.4 |
+| every tool, and how it is run | docs/1.1 |
 | every field a change is classified by, and each artefact's route | docs/1.2 §2.15 |
 | artefacts outside git | each application's artefact register (3.n.2), and docs/1.6 for GitHub's |
 | the fields each issue carries, and the strings tooling matches | docs/1.6 |
