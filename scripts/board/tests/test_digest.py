@@ -328,17 +328,24 @@ class DocumentReviews(Cases):
         self.expect("by reviewer", {"reader": 2, "truth": 4}, dict(c.by_reviewer))
         self.expect("found by both", 1, c.both)
         self.expect("from a fix", 1, c.from_fix)
-        self.expect("a fix to the reader's finding faulted by truth is crossed", 1, c.crossed)
+        # Truth shared the R1 reader finding it then faulted the fix to.
+        self.expect("a fix faulted by a reviewer who shared the finding is not crossed", 0, c.crossed)
         self.expect("missed by an earlier round", 1, c.missed)
         self.expect("an owner line of none is not a finding", 0, c.owner)
 
     def test_a_fix_is_crossed_only_when_another_reviewer_faults_it(self):
-        c = RoundCount().add("- R2 truth — x — y (from a fix to R1 truth)\n"
+        c = RoundCount().add("- R1 truth — x — a\n"
+                             "- R2 truth — x — y (from a fix to R1 truth)\n"
                              "- R2 reader — x — z (from a fix)\n"
-                             "- R3 reader — x — w (from a fix to owner)")
-        self.expect("all three are from a fix", 3, c.from_fix)
-        # Its own finding's fix, and a bare marker, are not crossed; the owner's is.
+                             "- R3 reader — x — w (from a fix to owner)\n"
+                             "- R3 reader — x — v (from a fix to R1 truth)")
+        self.expect("four are from a fix", 4, c.from_fix)
+        # Not its own finding's fix, a bare marker or the owner's; only the reader faulting truth's.
         self.expect("crossed", 1, c.crossed)
+        self.expect("the summary names it", True, "crossed: 1" in c.summary())
+        # A round names a finding only within its own pull request.
+        total = RoundCount().add("- R1 reader — x — a (also truth)")
+        self.expect("across sections", 1, total.add("- R2 truth — x — y (from a fix to R1 reader)").crossed)
 
     def test_a_round_or_owner_with_nothing_is_not_counted(self):
         c = RoundCount().add("- R3 reader — none\n- R3 none\n- owner — not reviewed")
