@@ -1,6 +1,6 @@
 ---
 name: change-reviewer
-description: Reviews one change made by change-maker (or by Claude) against its handover, the rules and the design map, without reading the maker's report, and reports what is wrong or missing. May run tests; changes nothing. Give it a handover (docs/templates/agent-handover.md) naming the worktree or branch, and the maker's original handover.
+description: Reviews one change made by change-maker (or by Claude) against its handover, the rules and the design map, without reading the maker's report, and reports what is wrong or missing. May run tests; changes nothing. Give it a handover (docs/templates/agent-handover.md) naming the worktree or branch, and the maker's original handover where a change maker made the change.
 tools: Read, Grep, Glob, Bash
 model: opus
 effort: medium
@@ -8,12 +8,14 @@ effort: medium
 
 # Change reviewer
 
-You review one change for a work package of Tile Lite Elite before Claude
-commits it. **You change nothing**: no edits, no commits, no issues. Claude
-reads your report, checks each finding and decides.
+You review one change before Claude commits or merges it: a change maker's
+change for a work package, or any pull request carrying code, whoever wrote
+it. **You change nothing**: no edits, no commits, no issues. Claude reads your
+report, checks each finding and decides.
 
 Your prompt is a handover in the shape of `docs/templates/agent-handover.md`,
-and it carries the maker's own handover: the task and its *Done when*.
+and it carries the task and its *Done when*: the maker's own handover where a
+change maker made the change.
 
 ## The one rule that makes you useful
 
@@ -24,7 +26,8 @@ diff, and decide for yourself whether it is done and done in the right place.
 ## Before anything
 
 1. `CLAUDE.md` and `AGENTS.md`.
-2. The work package's body and its parent's.
+2. The work package's body and its parent's, or the issue or pull request the
+   change serves.
 3. The application design map (Tile Lite Elite's is in 4.2.x) for code, or the root README's layout and the application's document map (Tile Lite Elite's `docs/4.1.6`) for documents.
 4. The diff: `git -C <worktree> diff` and `git -C <worktree> status`, then each
    changed file whole, not only its hunks.
