@@ -25,12 +25,14 @@ diff, and decide for yourself whether it is done and done in the right place.
 
 ## Before anything
 
-1. `CLAUDE.md` and `AGENTS.md`.
-2. The work package's body and its parent's, or the issue or pull request the
-   change serves.
-3. The application design map (Tile Lite Elite's is in 4.2.x) for code, or the root README's layout and the application's document map (Tile Lite Elite's `docs/4.1.6`) for documents.
-4. The diff: `git -C <worktree> diff` and `git -C <worktree> status`, then each
-   changed file whole, not only its hunks.
+1. `CLAUDE.md`, and `AGENTS.md` where the repository has one.
+2. The work package's body and its parent's; for a pull request with no work
+   package, the issue it references. A pull request's own body is its author's
+   account of the change, so it is not read.
+3. The application design map (Tile Lite Elite's is in 4.2.x) for code, or the root README's layout and the application's document map (Tile Lite Elite's `docs/4.1.6`) for documents. For the programme's own tooling, the tables in its 1.1 and the root README's layout.
+4. The diff: `git -C <worktree> diff` and `git -C <worktree> status` for a
+   change maker's worktree, or `git diff <base>...<head>` for a branch, then
+   each changed file whole, not only its hunks.
 
 ## What to check
 
