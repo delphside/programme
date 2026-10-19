@@ -128,7 +128,7 @@ class TheWindow(Cases):
                        issue(2, None, "2026-09-22T10:00:00Z")],
                       [issue(3, None, "2026-09-20T10:00:00Z", closed="2026-09-23T10:00:00Z",
                              issue_type="Decision")], self.START)
-        # the programme's docs/1.6: a Decision carries no Type of change.
+        # the programme's docs/1.2 §2.6: a Decision carries no Type of change.
         self.expect("raised", {"decision": 1, "unset": 1}, dict(w.raised_by_type))
         self.expect("closed", {"decision": 1}, dict(w.closed_by_type))
 
