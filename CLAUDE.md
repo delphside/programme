@@ -302,7 +302,8 @@ docs/1.6 records the app it works through.
   rounds until one finds no material issue — owner, 2026-10-14, from delphside/tile-lite-elite#441's
   trials. docs/1.1 has which model, how a round runs and what makes a good
   agent task. A document change is reviewed by `document-reviewer-reader` and
-  `document-reviewer-truth`, against docs/1.5's house style.
+  `document-reviewer-truth`, against docs/1.5's house style, and a pull request
+  carrying code by `change-reviewer`, whoever wrote the code.
 - Test conditions derive from stated rules, not from the code. Each
   application's rules are stated in its own documents.
 - A gate refuses and work stops; a check reports and a person decides. A new
