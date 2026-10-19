@@ -276,11 +276,12 @@ def review_rounds(pull_requests) -> list[tuple[str, int, str, str]]:
     return out
 
 
-_FINDING = re.compile(r"^\s*-\s*(R\d+)\s+(\S+)\s+—\s*(.*)$")
+_FINDING = re.compile(r"^\s*-\s*R\d+\s+(\S+)\s+—\s*(.*)$")
 _ALSO = re.compile(r"\(also (\S+?)\)")
-# `(from a fix to R3 truth)` or `(from a fix to owner)`; an older record's bare
-# `(from a fix)` names no finding.
-_FROM_FIX = re.compile(r"\(from a fix(?: to (?:(R\d+) )?(\S+?))?\)")
+# `(from a fix to R3 truth)`, `(from a fix to R3 reader truth)` for a shared
+# finding, or `(from a fix to owner)`; an older record's bare `(from a fix)`
+# names no finding.
+_FROM_FIX = re.compile(r"\(from a fix(?: to (?:R\d+ )?([^)]+?))?\)")
 _OWNER = re.compile(r"^\s*-\s*owner\s+—\s*(.*)$")
 # The pair whose overlap gives the estimate: the two document reviewers.
 PAIR = ("reader", "truth")
@@ -290,9 +291,9 @@ PAIR = ("reader", "truth")
 class RoundCount:
     """Material findings in *Review rounds* lines (the programme's docs/1.1).
     A finding marked `(also X)` is credited to both reviewers. A fault from a
-    fix to a reviewer's finding is crossed when the reviewers who found the
-    fault had no part in the finding fixed: two reviewers pulling the same text
-    different ways. A fix to the owner's finding is never crossed."""
+    fix is crossed when none of its reviewers made the finding fixed, which its
+    marker names: two reviewers pulling the same text different ways. A fix to
+    the owner's finding, or a bare marker, is never crossed."""
 
     by_reviewer: collections.Counter = field(default_factory=collections.Counter)
     both: int = 0
@@ -302,23 +303,19 @@ class RoundCount:
     owner: int = 0
 
     def add(self, text: str) -> "RoundCount":
-        """Counts one *Review rounds* section, so a round names a finding only
-        within it."""
-        made: dict = {}  # who made each round's findings, by the line's reviewer
         for line in (text or "").splitlines():
             if m := _FINDING.match(line):
-                if m.group(3).strip().lower() == "none":
+                if m.group(2).strip().lower() == "none":
                     continue
-                who = {m.group(2)} | set(_ALSO.findall(line))
-                made.setdefault((m.group(1), m.group(2)), set()).update(who)
+                who = {m.group(1)} | set(_ALSO.findall(line))
                 for reviewer in who:
                     self.by_reviewer[reviewer] += 1
                 self.both += set(PAIR) <= who
                 if fix := _FROM_FIX.search(line):
                     self.from_fix += 1
-                    fixed_round, fixed = fix.groups()
-                    if fixed and fixed != "owner":
-                        self.crossed += not (who & made.get((fixed_round, fixed), {fixed}))
+                    fixed = set((fix.group(1) or "").split())
+                    if fixed and "owner" not in fixed:
+                        self.crossed += not (who & fixed)
                 self.missed += "(missed in R" in line
             elif (m := _OWNER.match(line)) and m.group(1).strip().lower() not in ("none", "not reviewed"):
                 self.owner += 1
