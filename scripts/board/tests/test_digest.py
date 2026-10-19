@@ -317,7 +317,7 @@ class DocumentReviews(Cases):
     ROUNDS = """- R1 reader — 1.5 *Roles by name* — "you" in a table cell (also truth)
 - R1 truth — 1.5 *One fact, one home* — a pointer to the wrong document
 - R1 truth — 1.5 *True now* — a field table missing the digest
-- R2 truth — 1.5 *True now* — a count left wrong (from a fix to R1 reader)
+- R2 truth — 1.5 *True now* — a count left wrong (from a fix to R1 reader truth)
 - R2 reader — 1.5 *Brevity* — a duplicated clause (missed in R1)
 - R3 none
 - owner — none"""
@@ -334,8 +334,7 @@ class DocumentReviews(Cases):
         self.expect("an owner line of none is not a finding", 0, c.owner)
 
     def test_a_fix_is_crossed_only_when_another_reviewer_faults_it(self):
-        c = RoundCount().add("- R1 truth — x — a\n"
-                             "- R2 truth — x — y (from a fix to R1 truth)\n"
+        c = RoundCount().add("- R2 truth — x — y (from a fix to R1 truth)\n"
                              "- R2 reader — x — z (from a fix)\n"
                              "- R3 reader — x — w (from a fix to owner)\n"
                              "- R3 reader — x — v (from a fix to R1 truth)")
@@ -343,9 +342,8 @@ class DocumentReviews(Cases):
         # Not its own finding's fix, a bare marker or the owner's; only the reader faulting truth's.
         self.expect("crossed", 1, c.crossed)
         self.expect("the summary names it", True, "crossed: 1" in c.summary())
-        # A round names a finding only within its own pull request.
-        total = RoundCount().add("- R1 reader — x — a (also truth)")
-        self.expect("across sections", 1, total.add("- R2 truth — x — y (from a fix to R1 reader)").crossed)
+        shared = RoundCount().add("- R2 reader — x — y (from a fix to R1 truth reader)")
+        self.expect("a reviewer who shared the finding fixed is not crossed", 0, shared.crossed)
 
     def test_a_round_or_owner_with_nothing_is_not_counted(self):
         c = RoundCount().add("- R3 reader — none\n- R3 none\n- owner — not reviewed")
