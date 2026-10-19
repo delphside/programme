@@ -11,3 +11,4 @@ date,activity,who,note
 2026-10-19,reference-review,Claude,TLE #528 — 4.4.1 to 4.4.5 corrected and re-stamped at daca495; 4.4.6 unchanged since its stamp; check-api-errors.py gap raised as TLE #529
 2026-10-19,benchmark-run,owner,"engine_timing_results.csv commit 65d0339 — laptop, rehearsal and production; runbook in 3.1.7 capacity-planning"
 2026-10-19,capacity-plan,Claude,TLE_CP_2026_10 — the second; adds the GitHub Actions minutes row
+2026-10-19,improvement-review,owner,"PRG_WD_2026_W43 reviewed; its conclusions agreed, and Claude applied them to 1.1, 1.4 and 1.5 (programme #49)"
