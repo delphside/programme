@@ -483,6 +483,44 @@ def reports_since(since_iso: str) -> tuple[Report, ...]:
     return tuple(sorted(out, key=lambda r: r.when))
 
 
+@dataclass(frozen=True)
+class MergedPullRequest:
+    """A pull request merged in the digest's window, with its body: where a
+    document change records its review rounds (the programme's docs/1.1)."""
+
+    repository: str
+    number: int
+    title: str
+    body: str
+
+
+def merged_pull_requests(since: str) -> tuple[MergedPullRequest, ...]:
+    """Pull requests merged on or after `since` (YYYY-MM-DD) in this
+    application's repository and the programme's.
+
+    Raises `Unavailable` rather than returning nothing, so a search that did not
+    answer never reads as a week with no reviews.
+    """
+    repos = ["/".join(_repository()),
+             profile.programme_file().string("programme.repository")]
+    query = " ".join(f"repo:{r}" for r in dict.fromkeys(repos)) + f" is:pr is:merged merged:>={since}"
+    try:
+        run = subprocess.run(
+            ["gh", "api", "-X", "GET", "search/issues", "-f", f"q={query}",
+             "-f", "per_page=100",
+             "--jq", ".items[] | [.repository_url, .number, .title, (.body // \"\")] | @json"],
+            capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise Unavailable(f"could not search for merged pull requests: {exc}") from exc
+    if run.returncode != 0:
+        raise Unavailable(f"could not search for merged pull requests: {run.stderr.strip()[:200]}")
+    out = []
+    for line in run.stdout.splitlines():
+        url, number, title, body = json.loads(line)
+        out.append(MergedPullRequest("/".join(url.split("/")[-2:]), number, title, body))
+    return tuple(sorted(out, key=lambda p: (p.repository, p.number)))
+
+
 def issues_by_number(numbers: Sequence[int]) -> dict[int, RawIssue]:
     """Just these issues, whatever state they are in.
 
