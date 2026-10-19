@@ -341,7 +341,8 @@ class DocumentReviews(Cases):
         self.expect("four are from a fix", 4, c.from_fix)
         # Not its own finding's fix, a bare marker or the owner's; only the reader faulting truth's.
         self.expect("crossed", 1, c.crossed)
-        self.expect("the summary names it", True, "crossed: 1" in c.summary())
+        self.expect("the summary names it", True, "of them crossed (only other reviewers made the finding fixed): 1" in c.summary())
+        self.expect("a malformed marker is not crossed", 0, RoundCount().add("- R2 reader — x — y (from a fix to R2)").crossed)
         shared = RoundCount().add("- R2 reader — x — y (from a fix to R1 truth reader)")
         self.expect("a reviewer who shared the finding fixed is not crossed", 0, shared.crossed)
 

@@ -285,6 +285,7 @@ _FROM_FIX = re.compile(r"\(from a fix(?: to (?:R\d+ )?([^)]+?))?\)")
 _OWNER = re.compile(r"^\s*-\s*owner\s+—\s*(.*)$")
 # The pair whose overlap gives the estimate: the two document reviewers.
 PAIR = ("reader", "truth")
+REVIEWERS = {"reader", "truth", "change", "owner"}
 
 
 @dataclass
@@ -293,7 +294,8 @@ class RoundCount:
     A finding marked `(also X)` is credited to both reviewers. A fault from a
     fix is crossed when none of its reviewers made the finding fixed, which its
     marker names: two reviewers pulling the same text different ways. A fix to
-    the owner's finding, or a bare marker, is never crossed."""
+    the owner's finding, a bare marker or a name no reviewer has is never
+    crossed."""
 
     by_reviewer: collections.Counter = field(default_factory=collections.Counter)
     both: int = 0
@@ -313,7 +315,7 @@ class RoundCount:
                 self.both += set(PAIR) <= who
                 if fix := _FROM_FIX.search(line):
                     self.from_fix += 1
-                    fixed = set((fix.group(1) or "").split())
+                    fixed = set((fix.group(1) or "").split()) & REVIEWERS
                     if fixed and "owner" not in fixed:
                         self.crossed += not (who & fixed)
                 self.missed += "(missed in R" in line
@@ -327,7 +329,7 @@ class RoundCount:
     def summary(self) -> str:
         found = ", ".join(f"{who} {n}" for who, n in sorted(self.by_reviewer.items())) or "none"
         return (f"material findings: {found}; found by both {PAIR[0]} and {PAIR[1]}: {self.both}; "
-                f"from a fix: {self.from_fix}; crossed: {self.crossed}; missed by an earlier round: {self.missed}; "
+                f"from a fix: {self.from_fix}, of them crossed (only other reviewers made the finding fixed): {self.crossed}; missed by an earlier round: {self.missed}; "
                 f"found by the owner afterwards: {self.owner}")
 
     def estimate(self) -> str:
