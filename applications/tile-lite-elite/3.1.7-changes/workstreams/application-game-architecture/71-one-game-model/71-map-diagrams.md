@@ -8,7 +8,7 @@ Green is new, yellow changed, red removed. A relationship's label starts with
 its state too. Each work package is drawn alone: the packages it builds on are
 not applied.
 
-Sources hash: `c10f00840c44b32f342c88a88f61f02260c3535687e70fb5ce8dbf391142248a`.
+Sources hash: `44adf97ccbbdba36c91e78947d64e6dd42fe03bc7af0b44d878063594163aaea`.
 
 ## WP A, #268 Core Game Lifecycle
 
@@ -49,7 +49,7 @@ graph TB
         style 24 fill:#f6f8fa,stroke:#8c959f,color:#1f2328
         25["<div style='font-weight: bold'>Persistence</div><div style='font-size: 70%; margin-top: 0px'>[Component: sqlx]</div><div style='font-size: 80%; margin-top:10px'>Reads and writes games and<br />accounts.</div>"]
         style 25 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-        93["<div style='font-weight: bold'>In-process bot</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>An engine seat as a client of<br />the game: the bot and the<br />client core, over the glue.</div>"]
+        93["<div style='font-weight: bold'>In-process bot</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>An engine seat as a client of<br />the game: the in-process bot,<br />over the glue.</div>"]
         style 93 fill:#dafbe1,stroke:#1a7f37,color:#0a3622
         94["<div style='font-weight: bold'>In-process glue</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>The in-process transport: the<br />bot's two calls without a<br />socket.</div>"]
         style 94 fill:#dafbe1,stroke:#1a7f37,color:#0a3622
