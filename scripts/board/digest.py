@@ -303,7 +303,7 @@ _OWNER = re.compile(r"^\s*-\s*owner\s+—\s*(.*)$")
 _COST = re.compile(r"^\s*-\s*R\d+\s+cost:\s*(.*)$")
 _ROUND = re.compile(r"^\s*-\s*R(\d+)")
 _SPENT = re.compile(r"([A-Za-z]+)\s+(\d+(?:\.\d+)?)k\b", re.I)
-_TOKENS = re.compile(r"(\d+(?:\.\d+)?)k\b", re.I)
+_TOKENS = re.compile(r"(?<![\d,.])(\d+(?:\.\d+)?)k\b", re.I)
 # The pair whose shared findings are counted: the two document reviewers.
 PAIR = ("reader", "truth")
 REVIEWERS = {"reader", "truth", "change", "owner"}
@@ -371,7 +371,7 @@ class RoundCount:
         for line in lines:
             if m := _COST.match(line):
                 self.cost_lines += 1
-                round_ = "R" + _ROUND.match(line).group(1)
+                round_ = f"R{int(_ROUND.match(line).group(1))}"
                 figures = _TOKENS.findall(m.group(1))
                 if figures:
                     costed.setdefault(round_, set())
@@ -394,7 +394,7 @@ class RoundCount:
                     continue
                 self.findings += 1
                 who = {w.lower() for w in {m.group(1)} | set(_ALSO.findall(line))}
-                round_ = "R" + _ROUND.match(line).group(1)
+                round_ = f"R{int(_ROUND.match(line).group(1))}"
                 for reviewer in who:
                     self.by_reviewer[reviewer] += 1
                 if round_ in costed:
@@ -435,13 +435,13 @@ class RoundCount:
                 f"({100 * self.missed / self.findings:.0f}%)")
 
     def cost(self) -> str:
+        gap = f"; {self.uncosted} finding(s) not costed" if self.uncosted else ""
         if not self.cost_lines:
-            return "no cost lines"
+            return "no cost lines" + gap
         if not self.tokens:
-            return "cost lines with no k figure"
+            return "cost lines with no k figure" + gap
         per = (f", about {self.tokens / self.costed_findings:.0f}k per material finding"
                if self.costed_findings else "")
-        gap = f"; {self.uncosted} finding(s) in rounds with no cost line" if self.uncosted else ""
         unread = f"; {self.unread_costs} cost figure(s) not read" if self.unread_costs else ""
         return f"{self.tokens:.0f}k tokens{per}{gap}{unread}"
 
@@ -455,12 +455,12 @@ class RoundCount:
         keys = set(self.spent) | set(self.found)
         reviewers = sorted(k for k in keys if not re.fullmatch(r"R\d+", k))
         rounds = sorted((k for k in keys if re.fullmatch(r"R\d+", k)), key=lambda k: int(k[1:]))
-        if not keys:
-            return "cost lines with no k figure" if self.cost_lines else "no cost lines"
         gap = f". Not costed: {self.uncosted} finding(s)" if self.uncosted else ""
+        if not keys:
+            return ("Cost lines with no k figure" if self.cost_lines else "No cost lines") + gap
         if self.unfigured:
             gap += f". By a reviewer with no cost figure: {self.unfigured} finding(s)"
-        by_reviewer = ("by reviewer, a shared finding counting for each: "
+        by_reviewer = ("By reviewer, a shared finding counting for each: "
                        + "; ".join(per(k) for k in reviewers) + ". " if reviewers else "")
         return by_reviewer + "By round: " + "; ".join(per(k) for k in rounds) + gap
 
@@ -731,7 +731,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
         out.append(f"**This week:** {total.summary()}. Missed: {total.missed_share()}. "
                    f"Cost: {total.cost()}.")
         out.append("")
-        out.append(f"**Bang for buck**, {total.value()}.")
+        out.append(f"**Bang for buck.** {total.value()}.")
         out.append("")
     # The programme's docs/1.4: a Fable agent reads the week's rounds and counts
     # beside last week's digest; its report is written in here.

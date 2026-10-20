@@ -363,16 +363,16 @@ class DocumentReviews(Cases):
         c = RoundCount().add(self.ROUNDS + "\n- R1 cost: reader 60k, 80%; truth 90.5k, 75%")
         self.expect("missed share", "1 of 5 findings missed by an earlier round (20%)",
                     c.missed_share())
-        self.expect("cost", "150k tokens, about 50k per material finding; 2 finding(s) in rounds with no cost line", c.cost())
+        self.expect("cost", "150k tokens, about 50k per material finding; 2 finding(s) not costed", c.cost())
         self.expect("a cost line is not a finding", 5, c.findings)
         self.expect("no findings", "no reviewer findings", RoundCount().missed_share())
-        self.expect("no cost lines", "no cost lines", RoundCount().add(self.ROUNDS).cost())
+        self.expect("no cost lines", "no cost lines; 5 finding(s) not costed", RoundCount().add(self.ROUNDS).cost())
 
     def test_tokens_are_divided_only_by_the_findings_they_paid_for(self):
         c = RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 100K, 80%")
         c.add("- R1 reader — x — a\n- R1 truth — x — b")
         self.expect("mixed", "100k tokens, about 100k per material finding; "
-                    "2 finding(s) in rounds with no cost line", c.cost())
+                    "2 finding(s) not costed", c.cost())
         self.expect("a cost line with no k figure is said", "cost lines with no k figure",
                     RoundCount().add("- R1 cost: reader 60000").cost())
         self.expect("and counted beside one that has", "50k tokens; 1 cost figure(s) not read",
@@ -383,7 +383,7 @@ class DocumentReviews(Cases):
                  "- 2026-09-23, rounds for def5678:\n  - R1 reader — x — a\n  - R1 truth — x — b")
         text = render(digest(reviews=[]), notes=notes)
         self.expect("tokens paid for one finding", True,
-                    "50k tokens, about 50k per material finding; 2 finding(s) in rounds with no cost line" in text)
+                    "50k tokens, about 50k per material finding; 2 finding(s) not costed" in text)
 
     def test_a_week_whose_rounds_found_nothing_still_reports_its_cost(self):
         text = render(digest(reviews=[("o/p", 1, "docs", "- R1 none\n- R1 cost: reader 40k, 90%")]))
@@ -401,33 +401,41 @@ class DocumentReviews(Cases):
         c = RoundCount().add("- R1 reader — x — y (also truth)\n- R1 truth — x — z\n"
                              "- R1 cost: reader 60k, 80%; truth 90k, 75%\n"
                              "- R2 none\n- R2 cost: reader 40k; truth 60k")
-        self.expect("value", "by reviewer, a shared finding counting for each: reader 100k for 1 (100k each); "
+        self.expect("value", "By reviewer, a shared finding counting for each: reader 100k for 1 (100k each); "
                     "truth 150k for 2 (75k each). "
                     "By round: R1 150k for 2 (75k each); R2 100k for 0", c.value())
         mixed = RoundCount().add("- R1 reader — x — a\n- R1 truth — x — b\n"
                                  "- R2 Reader — x — c\n- R2 cost: reader 30k; truth 20k; about 5k")
         self.expect("an uncosted round's findings are not charged to another's tokens",
-                    "by reviewer, a shared finding counting for each: reader 30k for 1 (30k each); "
+                    "By reviewer, a shared finding counting for each: reader 30k for 1 (30k each); "
                     "truth 20k for 0. By round: R2 55k for 1 (55k each). Not costed: 2 finding(s)",
                     mixed.value())
         self.expect("a figure naming no reviewer is not read", 1, mixed.unread_costs)
         self.expect("nor is a bare figure", 1, RoundCount().add("- R1 cost: 150k").unread_costs)
         text = render(digest(reviews=[("o/p", 1, "docs", "- R1 reader — x — y\n- R1 cost: reader 40k")]))
-        self.expect("the digest prints it", True, "**Bang for buck**, by reviewer" in text)
-        self.expect("an uncosted record is left out", "no cost lines",
+        self.expect("the digest prints it", True, "**Bang for buck.** By reviewer" in text)
+        self.expect("an uncosted record is counted", "No cost lines. Not costed: 1 finding(s)",
                     RoundCount().add("- R1 reader — x — y").value())
         unfigured = RoundCount().add("- R1 change — x — a\n- R1 cost: reader 100k; truth about 50k")
         self.expect("a reviewer with no figure is said", (0, 1, True),
                     (unfigured.found["change"], unfigured.unfigured,
                      unfigured.value().endswith("By a reviewer with no cost figure: 1 finding(s)")))
         bare = RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 60000")
-        self.expect("a cost line with no k figure costs nothing", (0, 1, "cost lines with no k figure"),
+        self.expect("a cost line with no k figure costs nothing", (0, 1, "Cost lines with no k figure. Not costed: 1 finding(s)"),
                     (bare.costed_findings, bare.uncosted, bare.value()))
         self.expect("a bare figure is its round's", ("By round: R1 150k for 1 (150k each). "
                                                     "By a reviewer with no cost figure: 1 finding(s)"),
                     RoundCount().add("- R1 reader — x — a\n- R1 cost: 150k").value())
         shared = RoundCount().add("- R1 change — x — a (also owner)\n- R1 cost: reader 10k")
         self.expect("a finding is counted once however many lack a figure", 1, shared.unfigured)
+        ordered = RoundCount().add("- R10 cost: reader 10k\n- R2 cost: Truth 20k\n- R2 truth — x — y\n- R01 reader — x — z\n- R1 cost: reader 5k")
+        self.expect("rounds in number order, names in any case, R01 as R1",
+                    ("By round: R1 5k for 1 (5k each); R2 20k for 1 (20k each); R10 10k for 0", 1),
+                    (ordered.value().split(". ")[1], ordered.found["truth"]))
+        self.expect("a figure with a thousands comma is not read", (0, 1),
+                    (RoundCount().add("- R1 cost: reader 1,200k").tokens, RoundCount().add("- R1 cost: reader 1,200k").unread_costs))
+        self.expect("an empty week says what it lacks", "cost lines with no k figure; 1 finding(s) not costed",
+                    RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 60000").cost())
         unnamed = RoundCount().add("- R1 reader — x — y\n- R1 cost: about 50k")
         self.expect("an empty reviewer list is not printed", "By round: R1 50k for 1 (50k each). By a reviewer with no cost figure: 1 finding(s)",
                     unnamed.value())
