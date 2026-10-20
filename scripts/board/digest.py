@@ -285,8 +285,8 @@ def review_rounds(pull_requests) -> list[tuple[str, int, str, str]]:
 
 def unrecorded(pull_requests) -> list[tuple[str, int, str]]:
     """Merged pull requests with no *Review rounds* section or an empty one,
-    so a skipped review is told apart from a change that owed none. One a bot opened owes
-    none and is left out."""
+    so a skipped review is told apart from a change that owed none. One a bot
+    opened owes none and is left out."""
     return [(pr.repository, pr.number, pr.title) for pr in pull_requests
             if not pr.bot and not section(pr.body, "Review rounds")]
 
@@ -514,8 +514,11 @@ def draft(code: str, first_day: str) -> str:
 
 def notes_of(text: str) -> str:
     """The Notes section a draft collected, without its placeholder line."""
+    placeholder = "Anything noticed during the week, for the review."
     notes = section(text, "Notes")
-    return "" if notes == "Anything noticed during the week, for the review." else notes
+    if notes.startswith(placeholder):
+        notes = notes[len(placeholder):].strip()
+    return notes
 
 
 def notes_for_write(existing: str | None) -> str | None:
