@@ -284,6 +284,8 @@ class Conclusions(Cases):
         self.expect("text with no bullets is one note", 1, with_conclusions("plain note").count(CONCLUDE))
         self.expect("text before the first bullet takes none; each bullet takes one", 2,
                     with_conclusions("Anything noticed during the week.\n- one\n- two").count(CONCLUDE))
+        self.expect("the placeholder is dropped before real notes", "- one",
+                    notes_of("## Notes\n\nAnything noticed during the week, for the review.\n- one\n"))
         self.expect("a note's top-level round lines share its conclusion", 1,
                     with_conclusions("- abc1234 rounds:\n- R1 reader — x — y\n- R1 cost: reader 5k").count(CONCLUDE))
         self.expect("no notes, nothing to conclude", "", with_conclusions(""))
