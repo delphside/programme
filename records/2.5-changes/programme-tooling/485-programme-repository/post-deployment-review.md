@@ -4,12 +4,16 @@ Project: delphside/tile-lite-elite#485 · three deliveries: 1 by hand
 (2026-10-16), 2 as `0.9.1a` (2026-10-16 to 18), 3 as work package #527
 (2026-10-20) · reviewed: 2026-10-20, by Claude; the owner reviews it
 
+- [ ] **owner** — save the token as the `BOARD_TOKEN` Actions secret in the
+  programme repository
+- [ ] **Claude** — record on #485's R10 row the owner's acceptance of the
+  bats test (decision card, 2026-10-20)
 - [ ] **Claude** — run the board sweep by hand once `BOARD_TOKEN` is saved in
   the programme repository, and record on #485's R2 check whether it added
   the other repositories' items
 - [ ] **Claude** — once tile-lite-elite#535 merges, answer #527's checks and
   update 3.1.2 and 3.1.6
-- [ ] **owner** — read this review; after both boxes above are ticked, #485
+- [ ] **owner** — read this review; after the boxes above are ticked, #485
   moves to Project Closedown and closes with #527
 
 ## 1. Was the intended scope delivered?
@@ -45,7 +49,8 @@ to programme#63. Issue numbers across repositories to #383 R13.
    setup script per repository replaced the hooks there.
 2. **Planned work slipped out of delivery 2 untracked.** The design listed
    the reference reviewer's file table as stage 2 work. It did not ship, and
-   nothing recorded it until the R8 check failed.
+   only #514's left-out list recorded that, not #485, so nothing tracked it
+   until the R8 check failed.
 3. **The board took only one repository's items.** GitHub Free allows one
    auto-add rule, and a rule watches one repository. Nothing in the design
    asked how other repositories' items reach the board.
@@ -67,8 +72,9 @@ terminal and was fixed in the same round (#514).
 
 ## 3. Why — what was the cause?
 
-1. The design read the documentation, which describes a single repository;
-   the project's cloud environment clones them all side by side.
+1. The design read the documentation on plugins and hooks; the trial was
+   the first run in the project's cloud environment, which clones every
+   repository side by side.
 2. The scope was cut at merge, but the cut was not written into the issue.
 3. The design took the board as given: auto-add had always worked because
    there had been only one repository.
@@ -85,23 +91,23 @@ terminal and was fixed in the same round (#514).
 | finding | issue raised | or why not |
 | --- | --- | --- |
 | the cloud loads sibling checkouts | | recorded in the design; the setup script is the answer |
-| planned work slipped untracked | #527, then programme#58 | |
+| planned work slipped untracked | #527 | the R8 check caught it, which is its purpose; a second record of left-out work would be one more thing to keep in step |
 | the board missed other repositories | programme#59, merged; programme#63 for the reports | |
 | a check covered half a requirement | | 1.2 and the raise-project skill changed in this pull request: a check covers each clause |
 | PR numbers collide across repositories | programme#59, merged | |
 | stacked work and rebase merges | | a one-off: the changes had to land in that order |
-| a missing secret passes green | | the owner saves the secret (2026-10-20); the first box above checks the run. The warning stays, so a repository without the secret does not fail hourly |
+| a missing secret passes green | | the boxes above save the secret and check the run. The warning stays, so a repository without the secret does not fail hourly |
 
 ## 5. Areas to consider
 
 - **Tooling:** a run that does nothing and passes green (finding 7) is the
   silent failure this prompt warns of.
-- **The process:** the clause rule (finding 4) is a gap in the rule, not in
-  following it.
+- **The process:** the clause rule (finding 4) was a gap in the rule
+  itself.
 
 ## 6. Lessons worth keeping
 
 - **A post-deployment check covers every clause of its requirement.** R2
   passed on its first half.
 - **Whoever merges a workflow that needs a secret runs it by hand that day**
-  and confirms it did its work, not only that it passed.
+  and confirms it did its work.
