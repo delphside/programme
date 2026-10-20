@@ -8,7 +8,7 @@ Green is new, yellow changed, red removed. A relationship's label starts with
 its state too. Each work package is drawn alone: the packages it builds on are
 not applied.
 
-Sources hash: `283663bfd83724e8ade92b66cdcbe065fcf2d8f7bd28e0f78c8b64acd782905a`.
+Sources hash: `f193268e1be6a0a5e72e342b341d0cba538a6397b39ab4b485b61069493d777c`.
 
 ## WP A, #268 Core Game Lifecycle
 
@@ -25,22 +25,32 @@ graph TB
       subgraph 9 ["Game server"]
         style 9 fill:#ffffff,stroke:#8c959f,color:#8c959f
 
-        13["<div style='font-weight: bold'>Game service</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>The one handler: applies<br />every GameMessage, advances<br />the version, saves, logs and<br />broadcasts.</div>"]
+        12["<div style='font-weight: bold'>Accounts</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Registration, sign-in,<br />sessions, passwords, player<br />details and player search.</div>"]
+        style 12 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
+        13["<div style='font-weight: bold'>Game service</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Creates and lists games, and<br />sends each action as a<br />GameMessage to apply.</div>"]
         style 13 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-        14["<div style='font-weight: bold'>Roster</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Seat changes, sent as<br />messages to the one handler.</div>"]
+        14["<div style='font-weight: bold'>Roster</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Seats before the start,<br />force-resigning a seat, and<br />aborting a game.</div>"]
         style 14 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-        15["<div style='font-weight: bold'>Invitations</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Invitation changes, sent as<br />messages to the one handler.</div>"]
+        15["<div style='font-weight: bold'>Invitations</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Open and emailed invitations<br />to a seat.</div>"]
         style 15 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-        16["<div style='font-weight: bold'>Event stream</div><div style='font-size: 70%; margin-top: 0px'>[Component: WebSocket]</div><div style='font-size: 80%; margin-top:10px'>Pushes each game's state to<br />its players.</div>"]
-        style 16 fill:#f6f8fa,stroke:#8c959f,color:#1f2328
-        20["<div style='font-weight: bold'>Scheduler</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Periodic scans; each due<br />change is a message to the<br />one handler.</div>"]
+        16["<div style='font-weight: bold'>Event stream</div><div style='font-size: 70%; margin-top: 0px'>[Component: WebSocket]</div><div style='font-size: 80%; margin-top:10px'>Saves each applied change,<br />logs it, and pushes the<br />game's state to its players.</div>"]
+        style 16 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
+        18["<div style='font-weight: bold'>Ratings</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Ratings, statistics and<br />rating history, for players<br />and bots, by edition.</div>"]
+        style 18 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
+        19["<div style='font-weight: bold'>Admin endpoints</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>The loopback-only /admin<br />routes.</div>"]
+        style 19 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
+        20["<div style='font-weight: bold'>Scheduler</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Periodic jobs: overdue turns,<br />move-time reminders and<br />stalled-job checks.</div>"]
         style 20 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-        21["<div style='font-weight: bold'>Game model</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>GameSession: one game's<br />authoritative state.</div>"]
-        style 21 fill:#f6f8fa,stroke:#8c959f,color:#1f2328
+        21["<div style='font-weight: bold'>Game model</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>GameSession: one game's<br />authoritative state, and<br />apply, the one method that<br />changes it.</div>"]
+        style 21 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
         22["<div style='font-weight: bold'>Engine proxy</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Runs engine turns and applies<br />each move through the same<br />validation as a player's.</div>"]
         style 22 fill:#ffebe9,stroke:#cf222e,color:#6e0a12
         23["<div style='font-weight: bold'>Engines</div><div style='font-size: 70%; margin-top: 0px'>[Component: Rust crate]</div><div style='font-size: 80%; margin-top:10px'>The engine trait and the<br />Greedy engine.</div>"]
         style 23 fill:#f6f8fa,stroke:#8c959f,color:#1f2328
+        24["<div style='font-weight: bold'>Rules</div><div style='font-size: 70%; margin-top: 0px'>[Component: Rust crate]</div><div style='font-size: 80%; margin-top:10px'>Board, validation, scoring<br />and the word lists.</div>"]
+        style 24 fill:#f6f8fa,stroke:#8c959f,color:#1f2328
+        25["<div style='font-weight: bold'>Persistence</div><div style='font-size: 70%; margin-top: 0px'>[Component: sqlx]</div><div style='font-size: 80%; margin-top:10px'>Reads and writes games and<br />accounts.</div>"]
+        style 25 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
         93["<div style='font-weight: bold'>In-process bot</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>An engine seat as a client of<br />the game, without the socket.</div>"]
         style 93 fill:#dafbe1,stroke:#1a7f37,color:#0a3622
         94["<div style='font-weight: bold'>Game wire</div><div style='font-size: 70%; margin-top: 0px'>[Component: Rust crate]</div><div style='font-size: 80%; margin-top:10px'>The messages and events every<br />client and the server share.</div>"]
@@ -49,40 +59,83 @@ graph TB
 
     end
 
-    20-. "<div>new: sends due messages</div><div style='font-size: 70%'></div>" .->13
-    13-. "<div>new: speaks</div><div style='font-size: 70%'></div>" .->94
-    13-. "<div>applies the move to the<br />GameSession</div><div style='font-size: 70%'></div>" .->21
+    12-. "<div>new: publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    16-. "<div>new: saves each applied change and<br />appends it to the game log</div><div style='font-size: 70%'></div>" .->25
+    16-. "<div>new: clears its unsaved flag, or<br />replaces it with the stored<br />row</div><div style='font-size: 70%'></div>" .->21
+    14-. "<div>new: updates invitation rows</div><div style='font-size: 70%'></div>" .->25
+    15-. "<div>new: writes invitation rows</div><div style='font-size: 70%'></div>" .->25
+    20-. "<div>new: reads player rows</div><div style='font-size: 70%'></div>" .->25
+    13-. "<div>new: builds each GameStateDto and<br />reads each MoveCandidateDto<br />with</div><div style='font-size: 70%'></div>" .->94
+    14-. "<div>new: builds each GameStateDto with</div><div style='font-size: 70%'></div>" .->94
+    15-. "<div>new: builds each GameStateDto with</div><div style='font-size: 70%'></div>" .->94
+    19-. "<div>new: builds each GameStateDto with</div><div style='font-size: 70%'></div>" .->94
+    16-. "<div>new: builds each connection's<br />GameStateDto with</div><div style='font-size: 70%'></div>" .->94
+    94-. "<div>new: converts to and from the<br />types of</div><div style='font-size: 70%'></div>" .->24
+    13-. "<div>changed: applies the move to the<br />GameSession</div><div style='font-size: 70%'></div>" .->21
+    13-. "<div>previews and suggests<br />MoveCandidate with</div><div style='font-size: 70%'></div>" .->24
     13-. "<div>removed: runs engine turns with</div><div style='font-size: 70%'></div>" .->22
-    14-. "<div>removed: changes the seats of the<br />GameSession</div><div style='font-size: 70%'></div>" .->21
-    15-. "<div>removed: fills a seat of the<br />GameSession</div><div style='font-size: 70%'></div>" .->21
-    20-. "<div>removed: times out overdue turns of<br />the GameSession</div><div style='font-size: 70%'></div>" .->21
+    14-. "<div>changed: changes the seats of the<br />GameSession</div><div style='font-size: 70%'></div>" .->21
+    15-. "<div>changed: fills a seat of the<br />GameSession</div><div style='font-size: 70%'></div>" .->21
+    20-. "<div>changed: times out overdue turns of<br />the GameSession</div><div style='font-size: 70%'></div>" .->21
+    19-. "<div>changed: force-ends the GameSession,<br />releases a deleted player's<br />seats</div><div style='font-size: 70%'></div>" .->21
+    21-. "<div>validates and scores<br />MoveCandidate with</div><div style='font-size: 70%'></div>" .->24
     22-. "<div>removed: requests an EngineAction from</div><div style='font-size: 70%'></div>" .->23
     22-. "<div>removed: applies the EngineAction to<br />the GameSession</div><div style='font-size: 70%'></div>" .->21
+    23-. "<div>searches the GameState with</div><div style='font-size: 70%'></div>" .->24
     13-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
     14-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
     15-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
     20-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    19-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    13-. "<div>saves the GameSession,<br />deletes old games and expired<br />sessions, records the<br />database size</div><div style='font-size: 70%'></div>" .->25
+    14-. "<div>removed: saves the GameSession,<br />updates invitation rows</div><div style='font-size: 70%'></div>" .->25
+    15-. "<div>removed: saves the GameSession and<br />invitation rows</div><div style='font-size: 70%'></div>" .->25
+    20-. "<div>removed: saves the GameSession, reads<br />player rows</div><div style='font-size: 70%'></div>" .->25
+    12-. "<div>reads and writes player,<br />session and password-reset<br />rows</div><div style='font-size: 70%'></div>" .->25
+    19-. "<div>reads and writes player,<br />session and game rows, reads<br />the database-size history</div><div style='font-size: 70%'></div>" .->25
+    19-. "<div>reads the scheduler's health</div><div style='font-size: 70%'></div>" .->20
+    25-. "<div>settles the ratings of a<br />finished game</div><div style='font-size: 70%'></div>" .->18
+    13-. "<div>attaches ratings to the<br />GameStateDto</div><div style='font-size: 70%'></div>" .->18
+    14-. "<div>attaches ratings to the<br />GameStateDto</div><div style='font-size: 70%'></div>" .->18
+    19-. "<div>attaches ratings to the<br />GameStateDto</div><div style='font-size: 70%'></div>" .->18
+    15-. "<div>attaches ratings to the<br />GameStateDto</div><div style='font-size: 70%'></div>" .->18
+    20-. "<div>attaches ratings to the<br />GameStateDto</div><div style='font-size: 70%'></div>" .->18
     13-. "<div>expires an overdue turn with</div><div style='font-size: 70%'></div>" .->20
-    93-. "<div>new: submits its move,<br />re-validated on arrival</div><div style='font-size: 70%'></div>" .->13
     16-. "<div>new: tells it it is on turn</div><div style='font-size: 70%'></div>" .->93
     93-. "<div>new: searches with, holding no<br />lock</div><div style='font-size: 70%'></div>" .->23
-    14-. "<div>new: sends seat messages</div><div style='font-size: 70%'></div>" .->13
-    15-. "<div>new: sends invitation messages</div><div style='font-size: 70%'></div>" .->13
+    93-. "<div>new: submits its move to apply,<br />re-validated on arrival</div><div style='font-size: 70%'></div>" .->21
+    93-. "<div>new: publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    12-. "<div>new: sends UpdateUserDetails to<br />each game the player is in</div><div style='font-size: 70%'></div>" .->21
 
   end
   linkStyle 0 stroke:#1a7f37,stroke-width:2px
   linkStyle 1 stroke:#1a7f37,stroke-width:2px
-  linkStyle 3 stroke:#cf222e,stroke-width:2px
-  linkStyle 4 stroke:#cf222e,stroke-width:2px
-  linkStyle 5 stroke:#cf222e,stroke-width:2px
-  linkStyle 6 stroke:#cf222e,stroke-width:2px
-  linkStyle 7 stroke:#cf222e,stroke-width:2px
-  linkStyle 8 stroke:#cf222e,stroke-width:2px
-  linkStyle 14 stroke:#1a7f37,stroke-width:2px
-  linkStyle 15 stroke:#1a7f37,stroke-width:2px
-  linkStyle 16 stroke:#1a7f37,stroke-width:2px
-  linkStyle 17 stroke:#1a7f37,stroke-width:2px
-  linkStyle 18 stroke:#1a7f37,stroke-width:2px
+  linkStyle 2 stroke:#1a7f37,stroke-width:2px
+  linkStyle 3 stroke:#1a7f37,stroke-width:2px
+  linkStyle 4 stroke:#1a7f37,stroke-width:2px
+  linkStyle 5 stroke:#1a7f37,stroke-width:2px
+  linkStyle 6 stroke:#1a7f37,stroke-width:2px
+  linkStyle 7 stroke:#1a7f37,stroke-width:2px
+  linkStyle 8 stroke:#1a7f37,stroke-width:2px
+  linkStyle 9 stroke:#1a7f37,stroke-width:2px
+  linkStyle 10 stroke:#1a7f37,stroke-width:2px
+  linkStyle 11 stroke:#1a7f37,stroke-width:2px
+  linkStyle 12 stroke:#9a6700,stroke-width:2px
+  linkStyle 14 stroke:#cf222e,stroke-width:2px
+  linkStyle 15 stroke:#9a6700,stroke-width:2px
+  linkStyle 16 stroke:#9a6700,stroke-width:2px
+  linkStyle 17 stroke:#9a6700,stroke-width:2px
+  linkStyle 18 stroke:#9a6700,stroke-width:2px
+  linkStyle 20 stroke:#cf222e,stroke-width:2px
+  linkStyle 21 stroke:#cf222e,stroke-width:2px
+  linkStyle 29 stroke:#cf222e,stroke-width:2px
+  linkStyle 30 stroke:#cf222e,stroke-width:2px
+  linkStyle 31 stroke:#cf222e,stroke-width:2px
+  linkStyle 42 stroke:#1a7f37,stroke-width:2px
+  linkStyle 43 stroke:#1a7f37,stroke-width:2px
+  linkStyle 44 stroke:#1a7f37,stroke-width:2px
+  linkStyle 45 stroke:#1a7f37,stroke-width:2px
+  linkStyle 46 stroke:#1a7f37,stroke-width:2px
 ```
 
 ## WP C, #270 Additional Game Lifecycle
