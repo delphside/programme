@@ -713,6 +713,57 @@ def board_pull_requests(field: str = PR_STATE) -> tuple[RawBoardItem, ...]:
         cursor = block["pageInfo"]["endCursor"]
 
 
+def organisation_repositories() -> tuple[str, ...]:
+    """Every repository the organisation holds, archived ones aside, by name."""
+    names: list[str] = []
+    cursor = None
+    while True:
+        payload = _gh_graphql("""query($org:String!, $cursor:String) {
+          organization(login:$org) {
+            repositories(first:100, after:$cursor, isArchived:false) {
+              nodes { name } pageInfo { hasNextPage endCursor } } } }""",
+                              org=profile.organisation(), cursor=cursor)
+        block = (((payload.get("data") or {}).get("organization") or {})
+                 .get("repositories"))
+        if block is None:
+            raise Unavailable("the organisation's repositories could not be read")
+        names += [n["name"] for n in block["nodes"] if n]
+        if not block["pageInfo"]["hasNextPage"]:
+            return tuple(names)
+        cursor = block["pageInfo"]["endCursor"]
+
+
+def open_items(repo: str):
+    """A repository's open issues and pull requests, each saying whether the
+    board holds it. A list of `org_sync.Item`."""
+    from .org_sync import Item
+    project = _project_id()
+    out = []
+    for connection, kind in (("issues", "issue"), ("pullRequests", "pull request")):
+        cursor = None
+        while True:
+            payload = _gh_graphql(f"""query($owner:String!, $repo:String!, $cursor:String) {{
+              repository(owner:$owner, name:$repo) {{
+                {connection}(first:100, after:$cursor, states:OPEN) {{
+                  nodes {{ number id projectItems(first:20) {{ nodes {{ project {{ id }} }} }} }}
+                  pageInfo {{ hasNextPage endCursor }} }} }} }}""",
+                                  owner=profile.organisation(), repo=repo, cursor=cursor)
+            block = (((payload.get("data") or {}).get("repository") or {})
+                     .get(connection))
+            if block is None:
+                raise Unavailable(f"{repo}'s {connection} could not be read")
+            for n in block["nodes"]:
+                if not n:
+                    continue
+                projects = {((p or {}).get("project") or {}).get("id")
+                            for p in n["projectItems"]["nodes"]}
+                out.append(Item(repo, kind, n["number"], n["id"], project in projects))
+            if not block["pageInfo"]["hasNextPage"]:
+                break
+            cursor = block["pageInfo"]["endCursor"]
+    return out
+
+
 def add_to_project(content_id: str) -> str:
     """Put a pull request or issue on the project board; its item id.
 
