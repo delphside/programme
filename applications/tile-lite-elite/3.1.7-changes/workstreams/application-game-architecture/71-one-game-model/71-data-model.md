@@ -447,23 +447,21 @@ pub enum ServerMessageDto {
     /// The whole state, redacted for this recipient. Sent on connect, on
     /// reconnect, and after every change.
     State { game: GameStateDto, because: Option<GameEventDto> },
-    /// The account's full list of seats: the first message for an account
-    /// whose scope is every seated game, then one whenever the list changes.
+    /// The account's full list of seats: the first message of a subscription
+    /// to every seated game, then one whenever the list changes.
     Seats { seats: Vec<SeatRefDto> },
     /// The game no longer exists; nothing more follows for it.
     GameRemoved { game_id: String },
-    Rejected { message: String },
 }
 
 pub struct SeatRefDto { pub game_id: String, pub seat: u8 }
 ```
 
 `ExternalLink` maps each `GameUpdate` (§3) to a `ServerMessageDto` one to one:
-`Game` to `State`, `Seats` to `Seats`, `GameRemoved` to `GameRemoved`.
-`Rejected` stays outside the mapping: no `GameUpdate` produces it, and the
-socket carries only game events today, a refused submission being an HTTP
-error response. Which socket carries
-`Seats` for an external harness, one per account or a separate route, is #10's.
+`Game` to `State`, `Seats` to `Seats`, `GameRemoved` to `GameRemoved`. A
+refused submission is an HTTP error (`ErrorDto`, below), so the envelope has no
+variant for it. Which socket carries `Seats` for an external harness, one per
+account or a separate route, is #10's.
 
 **Whole state, never a diff.** A diff needs the client to hold the prior
 version and needs the server to know which one it holds; the state is small,
@@ -596,16 +594,16 @@ pub struct SeatRef { pub game_id: GameId, pub seat: u8 }
 holds seat numbers, player ids, words, scores and counts, nothing hidden from
 any player, so it is safe for any recipient; the server keeps its own
 `GameEvent` and converts it to `GameEventDto` once, when it publishes. A link
-moves only these two enums. The client core
-has two calls, and no server type in either:
+moves only these two enums. The client core has two calls, and no server type in
+either:
 
 ```rust
 pub trait GameLink {
     /// The next update in this subscription's scope. A GameView carries its
-    /// game's id. Scope is what the transport subscribed to: the seat's game
-    /// for the link of each in-process bot object; one game, or every seated
-    /// game (§8), for the link of an external harness; one game for the web
-    /// client.
+    /// game's id. Scope is what the transport subscribed to. A bot object's
+    /// link is scoped to its seat's game: in-process, its bot's task feeds it
+    /// (§8); externally, it is one game's WebSocket. An external harness may
+    /// also subscribe to every seated game (§8). The web client: one game.
     async fn on_event(&mut self) -> Result<GameUpdate, LinkError>;
     /// Send a message for a game; the answer is the server's, accepted or
     /// refused.
@@ -703,10 +701,10 @@ survives the move to `(player_id, edition)`.
 | `app/games.rs` (1,030 lines) | the action handlers become thin: parse, build a `GameMessage`, call `apply`, publish. `run_engine_turns` and `MAX_ENGINE_TURNS_PER_TRIGGER` go |
 | `app/roster.rs` (391) | seat add/remove/swap become `GameMessage`s |
 | `app/invitations.rs` (442) | send/accept/decline become `GameMessage`s; the table write stays, the seat write moves into `apply` |
-| `app/events.rs` (105) | gains `publish(Applied)` — persist, publish, one place — and `updates_for`, the one redacted subscription, over a `watch` channel per game and a seat list per account, that a socket and the in-process glue both use |
+| `app/events.rs` (105) | gains `publish(Applied)` — persist, publish, one place — and `updates_for`, the one redacted subscription, that a socket and the in-process glue both use; the channels and their rules are in [§8](#8--the-engine) |
 | `app/sweeps_game.rs` (301), `app/scheduler_jobs.rs` (297) | timeouts and reminders go through `apply` rather than writing rows, which is what makes them visible to clients. A scheduler job is a caller like any other |
-| `app/sweeps_capacity.rs` (81) | expiring a finished game deletes it rather than changing it, so it does not call `apply`; it goes through the Event stream, which drops the game's sender and writes the seat list of every account seated in it (§8) |
-| `app/admin.rs` (430) | force-resign and force-end become `GameMessage`s; `admin_delete_game` goes through the Event stream as the `app/sweeps_capacity.rs` row says (§8) |
+| `app/sweeps_capacity.rs` (81) | expiring a finished or aborted game deletes it rather than changing it, so it does not call `apply`; it goes through the Event stream ([§8](#8--the-engine)) |
+| `app/admin.rs` (430) | force-resign and force-end become `GameMessage`s; `admin_delete_game` goes through the Event stream as the `app/sweeps_capacity.rs` row says |
 | `stats.rs`, `app/ratings.rs` | unchanged in substance; read `Applied.finished` instead of inspecting status transitions |
 | `crates/ui/src/app.rs` (5,522) | section 7 |
 | `crates/engine-core` | **unchanged.** The trait already takes a request and returns an action; what changes is who calls it |
@@ -827,10 +825,11 @@ pub fn take_turn(
 transport:
 
 ```text
-on each update from the link:      // one object per seat held; the link
-                                   // holds the identity, the object none
+on each update from the link:               // one object per seat held; the
+                                            // link holds the identity, the
+                                            // object none
     GameUpdate::Game { view, .. }:
-        if view.current_seat == seat:      // seat is the object's own
+        if view.current_seat == seat:       // seat is the object's own
             if let Some(msg) = take_turn(engine, &view, seat, budget) {
                 link.submit(view.game_id, msg)
             }
@@ -838,18 +837,22 @@ on each update from the link:      // one object per seat held; the link
         the link ends, and so does the object
 ```
 
-The second is the glue's task, in-process, one per listed bot, and the only
-place the rule for making and dropping objects is stated:
+The second is the glue's task, in-process, one per listed bot. It runs
+`updates_for` over every seated game and feeds each object's `InProcessLink`, so
+an object's link is scoped to its own seat's game:
 
 ```text
-on each GameUpdate::Seats(list):
-    make a Bot object for each SeatRef the list gains
-    drop the object of each SeatRef the list loses
+on each update from updates_for:
+    GameUpdate::Seats(list):
+        make a Bot object for each SeatRef the list gains
+        drop the object of each SeatRef the list loses
+    GameUpdate::Game { .. } and GameUpdate::GameRemoved(_):
+        give it to the objects of that game
 ```
 
-Dropping an object that has already ended, on `GameRemoved`, is harmless, so
-either order works. Over the external transport, what a harness does with
-`Seats` is #10's.
+Over the external transport an object's link is one game, one WebSocket per
+game. The subscription to every seated game carries the seat list, and what a
+harness does with `Seats` is #10's.
 
 **The bot hears it is on turn from the channel of its game**, the stream
 every client of that game subscribes to, and never from the caller of `apply`:
@@ -859,16 +862,17 @@ no caller spawns a bot task. The request that applies a move returns at once.
 `updates_for` to hear, and the Game service's submit function to act.
 
 **`on_event` hears through `updates_for(scope, &ViewerAccess)`**, the one
-function that redacts for a recipient, below both transports. The Event
-stream is a registry from game id to that game's `watch` channel
-(`app/events.rs`, tokio), which holds only the latest state. `updates_for`
-creates a game's channel on its first subscriber and drops it with its last.
-`publish` writes the full, unredacted state to its game's channel only, so an
-event reaches the sockets of its game and no others, and the cost of a change
-grows with that game's receivers only. **Each account also has a `watch` of its
-full list of seats**, a `Vec<SeatRef>` (§3), which `publish` updates when a
-change seats or unseats the account. The scope decides what a subscriber
-receives:
+function that redacts for a recipient, below both transports. The Event stream
+is a registry from game id to that game's `watch` channel (`app/events.rs`,
+tokio), which holds only the latest state. `updates_for` creates a game's
+channel on its first subscriber and drops it with its last. `publish` writes the
+full, unredacted state to its game's channel only, so an event reaches the
+sockets of its game and no others, and the cost of a change grows with that
+game's receivers only. **Each account also has a `watch` of its full list of
+seats**, a `Vec<SeatRef>` (§3), which `publish` and the deletion of a game
+write. A seat stays in the list until its game is deleted, finished or not; a
+bot object in a finished game is never on turn. The scope decides what a
+subscriber receives:
 
 | scope | who subscribes | receives |
 | --- | --- | --- |
@@ -877,44 +881,47 @@ receives:
 
 A scope of one game first yields that game's current `GameView`. A scope of
 every seated game first yields the account's current `Seats`, then the current
-view of each game in it, as a `GameUpdate::Game` with no `because`. After that,
-each change follows, built with `view_for` for this recipient. The first yield
-covers start-up and, for a WebSocket, reconnection, so a game already on the
-bot's turn is played: the glue makes its objects from the first `Seats`, then
-gives each its game's view. `updates_for` joins a game's channel before it reads
-the game, so no change falls between. The socket converts each `GameView` to a
-frame with `game_to_dto`; the glue gives each view, as it is, to the bot object
-of each seat the bot holds in that game.
+view of each game in it. Each scope's first views carry no `because`. After
+that, each change follows, built with `view_for` for this recipient. The first
+yields cover start-up and, for a WebSocket, reconnection, so a game already on
+the bot's turn is played: the glue makes its objects from the first `Seats`,
+then gives each its game's view. `updates_for` joins a game's channel before it
+reads the game, so no change falls between. The socket converts each `GameView`
+to a frame with `game_to_dto`; the glue gives each view, as it is, to the bot
+object of each seat the bot holds in that game.
 
-**The state supersedes; the `because` of a skipped state is dropped by
-design.** A `watch` value is the state with its `because` (§2's envelope). A
-receiver that keeps up sees every value and always reads the latest state, so it
-never lags. A slow one skips states: it sees the version jump by more than one
-and treats `because` as absent, which rebuilds everything (§1's *nothing*
-case). The move list is part of the state, so nothing is lost. The push
-notifications come from Notifications, which the Game service reports each
-event to, and not from the watch, so a skipped value loses none. Today a lagging
-server receiver ends the socket; here it
-skips states and carries on, and the client already ignores a version it has
-passed (`should_apply_update`, `crates/ui/src/app.rs`).[^watch]
+**The state supersedes; the `because` of a skipped state is dropped by design.**
+A `watch` value is the state with its `because` (§2's envelope). A receiver that
+keeps up sees every value and always reads the latest state, so it never lags. A
+slow one skips states: it sees the version jump by more than one and treats
+`because` as absent, which rebuilds everything (§1's *nothing* case). The move
+list is part of the state, so nothing is lost. Push notifications come from
+Notifications, which the Game service reports each event to, so a skipped watch
+value loses none. Today a lagging server receiver ends the socket; here it skips
+states and carries on, and the client already ignores a version it has passed
+(`should_apply_update`, `crates/ui/src/app.rs`).[^watch]
 
 **`updates_for` leaves a game's channel when the game is removed or the account
-holds no seat in it.** Deleting a game, in the sweep and in `admin_delete_game`,
-goes through the Event stream: it drops the game's sender, which closes every
-receiver, and writes the new seat list of every account seated in that game.
-An object's link yields `GameRemoved` and the object ends; the glue's task drops
-the object when the seat list loses its `SeatRef`. A seat removed shrinks the
-seat list, and `updates_for` leaves a game's channel only when the list holds no
-seat in that game.
+holds no seat in it.** Deleting a game, in the capacity sweep and in
+`admin_delete_game`, goes through the Event stream: it drops the game's sender
+and writes the new seat list of every account seated in that game. The drop
+closes every receiver, so `updates_for` yields `GameRemoved` on every receiver
+of that game, and an object's link ends with it. The seat list losing the
+`SeatRef` makes [the glue's loop](#what-changes-who-calls-it) drop the object.
+Dropping an object that has already ended is harmless, so `GameRemoved` on the
+object's link and `Seats` losing the `SeatRef` may come in either order. A seat
+removed from a game that stays shrinks the seat list, and `updates_for` leaves
+that game's channel only when the list holds no seat in it.
 
-**The server never iterates over its clients, and nothing dispatches on the
-kind of subscriber.** `publish` writes the new state to the game's `watch` once.
+**The server never iterates over its clients, and nothing dispatches on the kind
+of subscriber.** `publish` writes the new state to the game's `watch` once.
 Every subscriber is its own task compiled for one concrete type: a WebSocket
 task converts the state to a frame and writes its socket; a task of
-`Bot<InProcessLink>` gives the state to its engine. Each task runs
-`updates_for` for itself. The glue runs one task per listed bot, which holds one
-`Bot` object per seat that bot holds, made and dropped by the rule in the
-two loops above.[^watch]
+`Bot<InProcessLink>` gives the state to its engine. Each WebSocket task runs
+`updates_for` for its socket. The glue runs one task per listed bot, which runs
+`updates_for` once over every seated game and holds one `Bot` object per seat
+that bot holds, made and dropped by
+[the glue's loop](#what-changes-who-calls-it).[^watch]
 
 A person's move reaches both tasks and the bot replies (the arrows are those of
 [the move sequence in 71-design.md](71-design.md#12--the-move-sequence): `->>` a
@@ -982,7 +989,8 @@ sequenceDiagram
   BT->>NB: create the object for the new seat
   BT->>NW: join the channel
   BT->>GS: read the game
-  GS-->>BT: the current view
+  GS-->>BT: the game
+  Note over BT: builds the view with view_for for the bot's account, no cause
   BT--)NB: the state, for that seat
 ```
 
@@ -1005,11 +1013,12 @@ the socket's shape is #10's.
   rating per edition.[^watch]
 - An `InProcessLink` is built with the listed identity and passes it on every
   message, so no session record exists.
-- The glue subscribes once per listed bot, for every game it holds a seat in.
-  Its task makes and drops `Bot` objects by the rule in
-  the loops above, each with a link scoped to its seat, including for a seat
-  added while the server runs. One bot may hold several seats in one game, as a
-  bot showdown (a game between bots) requires.
+- Each listed bot's task runs `updates_for` once, over every seated game. It
+  makes and drops `Bot` objects by
+  [the glue's loop](#what-changes-who-calls-it), each with a link scoped to its
+  seat's game, including for a seat added while the server runs. One bot may
+  hold several seats in one game, as a bot showdown (a game between bots)
+  requires.
 - All of a bot's objects share its identity and run under `engine_limit`.
 - The list is the programme owner's, who is accountable for the bots on it.
 - In-process bots are compiled into the server from reviewed code. A

@@ -1036,10 +1036,9 @@ singly from somebody's laptop is the same bot.
 
 It answers the reloaded-game question, though: a game whose bot is on turn is
 picked up rather than left for whoever happens to touch the game next, which
-is what covers it today by accident. For the in-process bot the first yield of
-`updates_for` does it: at server start-up the glue is given the account's
-seats, then the current view of each game in them, so a game already on the
-bot's turn is played.
+is what covers it today by accident. For the in-process bot the first yields of
+`updates_for` do it, and the bot plays a game already on its turn at start-up
+([§8](71-data-model.md#8--the-engine)).
 
 An external harness (#10's) learns of a turn the way any client does — from the
 message carrying the previous move, or the game starting, on a socket it already
