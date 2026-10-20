@@ -416,6 +416,16 @@ class DocumentReviews(Cases):
         self.expect("the digest prints it", True, "**Bang for buck**, by reviewer" in text)
         self.expect("an uncosted record is left out", "no cost lines",
                     RoundCount().add("- R1 reader — x — y").value())
+        unfigured = RoundCount().add("- R1 change — x — a\n- R1 cost: reader 100k; truth about 50k")
+        self.expect("a reviewer with no figure is said", (0, 1, True),
+                    (unfigured.found["change"], unfigured.unfigured,
+                     unfigured.value().endswith("By a reviewer with no cost figure: 1 finding(s)")))
+        bare = RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 60000")
+        self.expect("a cost line with no k figure costs nothing", (0, 1, "cost lines with no k figure"),
+                    (bare.costed_findings, bare.uncosted, bare.value()))
+        unnamed = RoundCount().add("- R1 reader — x — y\n- R1 cost: about 50k")
+        self.expect("an empty reviewer list is not printed", "By round: R1 50k for 1 (50k each). By a reviewer with no cost figure: 1 finding(s)",
+                    unnamed.value())
 
     def test_the_example_in_docs_1_1_counts_as_it_should(self):
         # The record's form is docs/1.1's example; the parser is tested against it.
