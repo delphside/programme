@@ -201,8 +201,8 @@ change."* Reading the code to find out is the author's job, not the reviewer's.
 unticked boxes. Write "None." under one that does not apply rather than removing
 it.
 
-**A post-deployment check says how it is done**, not what is being checked, and
-is answered `passed`, `cannot be tested`, or `failed`.
+**A post-deployment check says how it is done**, not what is being checked,
+covers each clause of its requirement, and is answered `passed`, `cannot be tested`, or `failed`.
 
 **Only rejected options are omitted.** While options are open, number them and
 say what each constrains; once one is chosen only it survives in the body, and
