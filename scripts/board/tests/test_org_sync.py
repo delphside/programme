@@ -12,7 +12,8 @@ import os
 import tempfile
 from pathlib import Path
 
-from board.org_sync import Item, apply, check, missing, unseen
+from board.model import OpenItem as Item
+from board.org_sync import apply, check, missing, unseen
 from board.sources import Unavailable
 
 from .cases import Cases
@@ -115,10 +116,13 @@ def node(number, repo):
 if "mutation" in query:
     sys.exit(9)
 if "organization(" in query:
-    names = [n for n in ("programme", "service-desk") if n != os.environ.get("GH_HIDE")]
+    # A page a repository, so the second is only read by following the cursor.
+    second = args.get("cursor") == "repos2"
+    name = "service-desk" if second else "programme"
+    nodes = [] if name == os.environ.get("GH_HIDE") else [{"name": name}]
     answer("repos", {"organization": {"repositories": {
-        "pageInfo": {"hasNextPage": False, "endCursor": None},
-        "nodes": [{"name": n} for n in names]}}})
+        "pageInfo": {"hasNextPage": not second, "endCursor": None if second else "repos2"},
+        "nodes": nodes}}})
 repo = args.get("repo", "")
 if "pullRequests(" in query:
     answer("prs", {"repository": {"pullRequests": {
@@ -166,6 +170,13 @@ class TheCommandsExitStatuses(Cases):
         self.expect("exit 1", 1, out.returncode)
         self.expect("names it", True,
                     "service-desk is not visible to this token" in out.stderr)
+
+    def test_an_item_that_could_not_be_added_fails_the_run(self):
+        # The stub refuses every write.
+        full = dict(os.environ, PATH=f"{self._dir.name}{os.pathsep}{os.environ['PATH']}")
+        out = run("board/board-add.py", env=full)
+        self.expect("exit 1", 1, out.returncode)
+        self.expect("names it", True, "service-desk#7 could not be added" in out.stderr)
 
     def test_a_read_that_fails_exits_2(self):
         self.expect("the repositories unreadable exits 2", 2,

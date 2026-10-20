@@ -18,8 +18,8 @@ Refuses (exit 2) when:
 
 Reports (exit 1), after adding what it can, when:
   - a repository the programme file names (`organisation.repositories`) is
-    not among those the organisation lists, because the token cannot see it
-    or it was renamed
+    not among those the organisation lists, because the token cannot see it,
+    or it was renamed or archived
     -> "  <repo> is not visible to this token — its items were not read"
   - an item could not be added
     -> "  <repo>#N could not be added"
@@ -69,6 +69,7 @@ def main(argv: list[str]) -> int:
     print(f"{NAME}: {tally.added} added of {tally.missing} missing, "
           f"{len(unseen)} repository(ies) unseen")
     return 1 if tally.failed or unseen else 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))

@@ -679,8 +679,8 @@ def pull_requests() -> tuple[RawPullRequest, ...]:
 
 
 def board_pull_requests(field: str = PR_STATE) -> tuple[RawBoardItem, ...]:
-    """Every pull request of this application's on the project board, with its
-    value of `field`.
+    """Every pull request on the project board from this application's
+    repository, with its value of `field`.
 
     Every page, because a partial read looks exactly like an absent item --
     which is how "no pull requests are on the board" was once reported when
