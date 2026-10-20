@@ -356,6 +356,10 @@ class RoundCount:
     # Cost lines with no figure in k, and figures naming no reviewer, which
     # add tokens to the total but to no reviewer.
     unread_costs: int = 0
+    # Findings in a costed round by a reviewer its cost line gives no figure,
+    # one for each such reviewer, so no finding leaves the by-reviewer list
+    # unsaid.
+    unfigured: int = 0
     # Bang for buck, from the rounds that carry cost lines: tokens and
     # findings by reviewer and by round number.
     spent: collections.Counter = field(default_factory=collections.Counter)
@@ -369,8 +373,9 @@ class RoundCount:
             if m := _COST.match(line):
                 self.cost_lines += 1
                 round_ = "R" + _ROUND.match(line).group(1)
-                costed.setdefault(round_, set())
                 figures = _TOKENS.findall(m.group(1))
+                if figures:
+                    costed.setdefault(round_, set())
                 named = _SPENT.findall(m.group(1))
                 self.unread_costs += (not figures) + max(0, len(figures) - len(named))
                 self.tokens += sum(float(t) for t in figures)
@@ -398,6 +403,7 @@ class RoundCount:
                     self.found[round_] += 1
                     for reviewer in who & costed[round_]:
                         self.found[reviewer] += 1
+                    self.unfigured += len(who - costed[round_])
                 else:
                     self.uncosted += 1
                 self.both += set(PAIR) <= who
@@ -440,7 +446,6 @@ class RoundCount:
         unread = f"; {self.unread_costs} cost figure(s) not read" if self.unread_costs else ""
         return f"{self.tokens:.0f}k tokens{per}{gap}{unread}"
 
-
     def value(self) -> str:
         """Tokens per material finding by reviewer, then by round number, over
         the rounds that carry cost lines: which lens and which round paid for
@@ -452,10 +457,13 @@ class RoundCount:
         reviewers = sorted(k for k in keys if not re.fullmatch(r"R\d+", k))
         rounds = sorted((k for k in keys if re.fullmatch(r"R\d+", k)), key=lambda k: int(k[1:]))
         if not keys:
-            return "no cost lines"
+            return "cost lines with no k figure" if self.cost_lines else "no cost lines"
         gap = f". Not costed: {self.uncosted} finding(s)" if self.uncosted else ""
-        return ("by reviewer, a shared finding counting for each: " + "; ".join(per(k) for k in reviewers)
-                + ". By round: " + "; ".join(per(k) for k in rounds) + gap)
+        if self.unfigured:
+            gap += f". By a reviewer with no cost figure: {self.unfigured} finding(s)"
+        by_reviewer = ("by reviewer, a shared finding counting for each: "
+                       + "; ".join(per(k) for k in reviewers) + ". " if reviewers else "")
+        return by_reviewer + "By round: " + "; ".join(per(k) for k in rounds) + gap
 
 
 def claude_lessons(memory_repo: Path, start: str) -> list[tuple[str, str]] | None:
