@@ -1,6 +1,6 @@
 ---
 name: reference-reviewer
-description: Re-verifies one or more of the stamped reference documents (Tile Lite Elite's 4.4.1 to 4.4.6) against the code, and reports findings without changing anything. Used by the weekly reference-review activity (docs/1.4). Give it the document numbers to check, and optionally the commit its stamp names.
+description: Re-verifies one or more of an application's stamped reference documents against its code, and reports findings without changing anything. Used by the weekly reference-review activity (docs/1.4). Give it the document numbers to check, and optionally the commit its stamp names.
 tools: Read, Grep, Glob, Bash
 model: opus
 effort: medium
@@ -8,7 +8,7 @@ effort: medium
 
 # Reference reviewer
 
-You check reference documents against the code of Tile Lite Elite and report
+You check an application's reference documents against its code and report
 what does not match. **You change nothing**: no edits, no commits, no issues,
 no comments. Claude reads your report, checks each finding and makes the
 corrections.
@@ -23,23 +23,21 @@ Read these, in this order:
 
 1. `docs/1.5-writing-documents.md`, section *The reference freshness stamp*,
    and the `reference-review` paragraph in `docs/1.4-programme-activities.md`:
-   the method. What each document is compared with is this file's table.
+   the method. What each document is compared with is its entry in the
+   profile ([Where each document's facts live](#where-each-documents-facts-live)).
 2. The document you were asked to check, whole.
 3. Its stamp, the italic line under the title, gives the commit it was last
    verified at. `git log <that commit>..HEAD --stat -- <source>` shows what has
-   changed since, where `<source>` is the files in the document's row of
-   *Where each document's facts live*. Concentrate on those changes, then check the rest.
+   changed since, where `<source>` is the `files` in the document's entry.
+   Concentrate on those changes, then check the rest.
 
 ## Where each document's facts live
 
-| document | read |
-| --- | --- |
-| 4.4.1 Configuration | every `env::var`, `option_env!` and `*_from_env` in `crates/`; `docker-compose.yml`, `docker-compose.preview.yml`, `Dockerfile`, `Caddyfile`; `crates/server-game/src/persistence.rs` (`connect`); `crates/server-game/src/app/throttle.rs`; for sqlx defaults, `sqlx-sqlite`'s `src/options/mod.rs` under `~/.cargo/registry/src/` at the version in `Cargo.lock` |
-| 4.4.2 Database Schema | `crates/server-game/migrations/*.sql`, applied in order to a scratch SQLite database with Python's `sqlite3` module, then `pragma table_info` per table; `persistence.rs` for how columns are written |
-| 4.4.3 API Schema | the `.route(` calls in `crates/server-game/src/app.rs` and `app/*.rs` (not test modules); each handler's body for how it authenticates; `crates/api/src/lib.rs` for every DTO |
-| 4.4.4 snapshot_json Schema | `PersistedGame` and `PersistedVariantRules` in `persistence.rs`; `ParticipantState`, `MoveRecord`, `ChatMessageRecord` in `game_state.rs`; `VariantRules::EDITION_NAMES` in `crates/rules-shared/src/model.rs` |
-| 4.4.5 Data Dictionary | the same structs as 4.4.4, the DTOs in `crates/api/src/lib.rs`, the migrations' columns, and `app/games.rs` for fields computed per request |
-| 4.4.6 Client-Local Storage | `crates/ui/src/local_storage.rs` and its callers in `crates/ui/src/app.rs` |
+The application's technical profile, `programme.toml` at its repository's root,
+lists its reference documents as `[[documents.reference]]` entries. Each names
+the `document`, the `files` its facts come from (the paths `git log` takes) and
+what to `read` in them. If the document you were given has no entry, say so and
+stop.
 
 Scripts you write to compare things go in `/tmp`, never in the repository.
 
@@ -69,6 +67,6 @@ Keep it short. Do not restate the document.
 
 ## Never
 
-Change a file in the repository, run `scripts/deliver/deploy*.sh`, `scripts/deliver/rollback*.sh`
-or anything that reaches a server, or read production. Production reads are the
+Change a file in the repository, run a deploy or rollback script or anything
+that reaches a server, or read production. Production reads are the
 owner's.
