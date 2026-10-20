@@ -1,6 +1,6 @@
 ---
 name: reference-reviewer
-description: Re-verifies one or more of an application's stamped reference documents against its code, and reports findings without changing anything. Used by the weekly reference-review activity (docs/1.4). Give it the document numbers to check, and optionally the commit its stamp names.
+description: Re-verifies one or more of an application's stamped reference documents against its code, and reports findings without changing anything. Used by the weekly reference-review activity (docs/1.4). Give it the documents to check, by path or number, and optionally the commit its stamp names.
 tools: Read, Grep, Glob, Bash
 model: opus
 effort: medium
@@ -24,7 +24,8 @@ Read these, in this order:
 1. `docs/1.5-writing-documents.md`, section *The reference freshness stamp*,
    and the `reference-review` paragraph in `docs/1.4-programme-activities.md`:
    the method. What each document is compared with is its entry in the
-   profile ([Where each document's facts live](#where-each-documents-facts-live)).
+   profile
+   ([Where each document's facts live](#where-each-documents-facts-live)).
 2. The document you were asked to check, whole.
 3. Its stamp, the italic line under the title, gives the commit it was last
    verified at. `git log <that commit>..HEAD --stat -- <source>` shows what has
