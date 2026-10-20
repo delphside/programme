@@ -307,6 +307,23 @@ PAIR = ("reader", "truth")
 REVIEWERS = {"reader", "truth", "change", "owner"}
 
 
+def note_records(notes: str) -> list[str]:
+    """The notes split into records, one per top-level `- ` line naming a
+    commit, so each record's cost lines pay only for its own findings. A
+    top-level round, cost or owner line stays with the record above it."""
+    records, current = [], []
+    for line in (notes or "").splitlines():
+        rounds = (_FINDING.match(line) or _COST.match(line) or _OWNER.match(line)
+                  or re.match(r"^\s*-\s*R\d+\s+none\b", line))
+        if line.startswith("- ") and not rounds and current:
+            records.append("\n".join(current))
+            current = []
+        current.append(line)
+    if current:
+        records.append("\n".join(current))
+    return records
+
+
 @dataclass
 class RoundCount:
     """Material findings in *Review rounds* lines: their form is the programme's
@@ -649,8 +666,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
                    + ", ".join(f"{r}#{n}" for r, n, _ in d.unrecorded) + ".")
         out.append("")
     # A change committed straight to main records its rounds in the notes.
-    # Each top-level note is its own record, so its cost lines pay only for its findings.
-    entries = re.split(r"(?m)^(?=- )", notes or "")
+    entries = note_records(notes)
     in_notes = RoundCount()
     for entry in entries:
         in_notes.add(entry)
@@ -667,9 +683,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     # beside last week's digest; its report is written in here.
     out.append("### Review of the reviews")
     out.append("")
-    out.append("*To be written at the weekly review: Claude runs a Fable agent on this "
-               "week's rounds and counts, with last week's digest, and writes its report "
-               "here: what changed since last week, and the lessons ranked.*")
+    out.append("*To be written at the weekly review, as the programme's docs/1.4 says.*")
     out.append("")
     out.append("### Claude's own, added to its memory this week")
     out.append("")
