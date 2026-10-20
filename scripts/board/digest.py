@@ -284,8 +284,8 @@ def review_rounds(pull_requests) -> list[tuple[str, int, str, str]]:
 
 
 def unrecorded(pull_requests) -> list[tuple[str, int, str]]:
-    """Merged pull requests with no *Review rounds* section, so a skipped
-    review is told apart from a change that owed none. One a bot opened owes
+    """Merged pull requests with no *Review rounds* section or an empty one,
+    so a skipped review is told apart from a change that owed none. One a bot opened owes
     none and is left out."""
     return [(pr.repository, pr.number, pr.title) for pr in pull_requests
             if not pr.bot and not section(pr.body, "Review rounds")]

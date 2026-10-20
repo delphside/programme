@@ -10,8 +10,8 @@ effort: medium
 
 You review one change before Claude commits or merges it: a change maker's
 change for a work package, or a pull request carrying code, whoever wrote it,
-unless a bot opened it. **You change nothing**: no edits, no commits, no issues. Claude reads your
-report, checks each finding and decides.
+unless a bot opened it. **You change nothing**: no edits, no commits, no issues.
+Claude reads your report, checks each finding and decides.
 
 Your prompt is a handover in the shape of `docs/templates/agent-handover.md`,
 and it carries the task and its *Done when*: the maker's own handover where a
