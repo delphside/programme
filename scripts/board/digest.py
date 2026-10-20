@@ -303,9 +303,9 @@ _OWNER = re.compile(r"^\s*-\s*owner\s+—\s*(.*)$")
 _COST = re.compile(r"^\s*-\s*R\d+\s+cost:\s*(.*)$")
 _ROUND = re.compile(r"^\s*-\s*R(\d+)")
 _SPENT = re.compile(r"([A-Za-z]+)\s+(\d+(?:\.\d+)?)k\b", re.I)
-_TOKENS = re.compile(r"(?<![\d,.])(\d+(?:\.\d+)?)k\b", re.I)
+_TOKENS = re.compile(r"(?<![\w,.])(\d+(?:\.\d+)?)k\b", re.I)
 # Anything shaped like a figure in k, read or not, so a malformed one is counted.
-_ANY_K = re.compile(r"\d[\d,.]*k\b", re.I)
+_ANY_K = re.compile(r"(?<![\w,.])\d[\d,.]*k\b", re.I)
 # The pair whose shared findings are counted: the two document reviewers.
 PAIR = ("reader", "truth")
 REVIEWERS = {"reader", "truth", "change", "owner"}
@@ -359,6 +359,7 @@ class RoundCount:
     # cannot be read, or one naming no reviewer, which adds to the totals but
     # to no reviewer.
     unread_costs: int = 0
+    figures_read: int = 0
     # Findings in a costed round with a reviewer its cost line gives no figure,
     # so no finding leaves the by-reviewer list unsaid.
     unfigured: int = 0
@@ -383,6 +384,7 @@ class RoundCount:
                 shaped = len(_ANY_K.findall(m.group(1)))
                 self.unread_costs += max(0, shaped - len(named)) if shaped else 1
                 self.tokens += sum(float(t) for t in figures)
+                self.figures_read += len(figures)
                 for who, k in named:
                     who = who.lower()
                     if who in REVIEWERS:
@@ -440,13 +442,13 @@ class RoundCount:
 
     def cost(self) -> str:
         gap = f"; {self.uncosted} finding(s) not costed" if self.uncosted else ""
+        unread = f"; {self.unread_costs} cost figure(s) not read" if self.unread_costs else ""
         if not self.cost_lines:
             return "no cost lines" + gap
-        if not self.tokens:
-            return "cost lines with no k figure" + gap
+        if not self.figures_read:
+            return "no cost figure read" + gap + unread
         per = (f", about {self.tokens / self.costed_findings:.0f}k per material finding"
                if self.costed_findings else "")
-        unread = f"; {self.unread_costs} cost figure(s) not read" if self.unread_costs else ""
         return f"{self.tokens:.0f}k tokens{per}{gap}{unread}"
 
     def value(self) -> str:
@@ -461,7 +463,7 @@ class RoundCount:
         rounds = sorted((k for k in keys if re.fullmatch(r"R\d+", k)), key=lambda k: int(k[1:]))
         gap = f". Not costed: {self.uncosted} finding(s)" if self.uncosted else ""
         if not keys:
-            return ("Cost lines with no k figure" if self.cost_lines else "No cost lines") + gap
+            return ("No cost figure read" if self.cost_lines else "No cost lines") + gap
         if self.unfigured:
             gap += f". By a reviewer with no cost figure: {self.unfigured} finding(s)"
         by_reviewer = ("By reviewer, a shared finding counting for each: "
