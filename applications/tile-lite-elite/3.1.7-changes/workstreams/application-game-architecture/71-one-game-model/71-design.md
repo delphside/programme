@@ -1041,10 +1041,11 @@ is what covers it today by accident. For the in-process bot the first yield of
 of every game the account holds a seat in, so a game already on the bot's turn
 is played.
 
-An external harness (#10's) learns of a turn the way any client does — from
-the message carrying the previous move, or the game starting. A game left
-waiting while the harness was down is picked up by the first yield of its
-socket for that game ([§8](71-data-model.md#8--the-engine)).
+An external harness (#10's) learns of a turn the way any client does — from the
+message carrying the previous move, or the game starting, on a socket it already
+holds for that game. A game left waiting while the harness was down is picked up
+by the first yield of its socket for that game
+([§8](71-data-model.md#8--the-engine)).
 
 **A bot plays as a bot account, wherever the engine runs.** The harness
 authenticates as the bot, not as the person running it — so a bot's moves
