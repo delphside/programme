@@ -355,9 +355,9 @@ class RoundCount:
     # the findings they paid for; and the findings in rounds with none.
     costed_findings: int = 0
     uncosted: int = 0
-    # Cost figures not read or for no reviewer: a cost line with no figure in k, a figure that
-    # cannot be read, or one naming no reviewer, which adds to the totals but
-    # to no reviewer.
+    # Cost figures not read or for no reviewer: a cost line with no figure in
+    # k, a figure that cannot be read, or one naming no reviewer, which adds to
+    # the totals but to no reviewer.
     unread_costs: int = 0
     # Figures in k read, a 0k one included; with none, no rate can be given.
     figures_read: int = 0
