@@ -61,7 +61,10 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w structurizr/structuriz
 
   adds the tags to the relationship the map already has, which the JSON export
   shows. This is how an entry marks a relationship removed or changed.
-  Verified on the pinned image (#71's change file removes six this way).
+  Verified on the pinned image (#71's change file removes six this way). It
+  sets tags only: a `description` in the block fails the export, verified on
+  the pinned image, so a relationship whose label changes is marked removed
+  and added again with the new label.
 - **A tag can name the work package**, such as `wp:268`, beside the change
   state. Verified that it parses;
   [A project's change file](#a-projects-change-file) says what it is used for.
