@@ -359,6 +359,7 @@ class RoundCount:
     # cannot be read, or one naming no reviewer, which adds to the totals but
     # to no reviewer.
     unread_costs: int = 0
+    # Figures in k read, a 0k one included; with none, no rate can be given.
     figures_read: int = 0
     # Findings in a costed round with a reviewer its cost line gives no figure,
     # so no finding leaves the by-reviewer list unsaid.
@@ -414,7 +415,7 @@ class RoundCount:
                 self.both += set(PAIR) <= who
                 if fix := _FROM_FIX.search(line):
                     self.from_fix += 1
-                    fixed = set((fix.group(1) or "").split()) & REVIEWERS
+                    fixed = set((fix.group(1) or "").lower().split()) & REVIEWERS
                     if fixed and "owner" not in fixed:
                         self.crossed += not (who & fixed)
                 self.missed += "(missed in R" in line
@@ -442,7 +443,7 @@ class RoundCount:
 
     def cost(self) -> str:
         gap = f"; {self.uncosted} finding(s) not costed" if self.uncosted else ""
-        unread = f"; {self.unread_costs} cost figure(s) not read" if self.unread_costs else ""
+        unread = f"; {self.unread_costs} cost figure(s) not read or for no reviewer" if self.unread_costs else ""
         if not self.cost_lines:
             return "no cost lines" + gap
         if not self.figures_read:
