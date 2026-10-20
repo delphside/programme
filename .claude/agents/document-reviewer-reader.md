@@ -42,9 +42,10 @@ however clean the document reads.
    any new or untracked file whole; then each changed document whole, so a
    changed section is read in its place. Where the handover asks for a
    document whole, every section is in scope. Where the handover's *Already
-   checked* lists rules or sections found sound, review the rest, the entries
-   marked *recheck*, and the lines changed since against every listed rule.
-   Answer a listed entry that finds nothing in those as **already checked**.
+   checked* lists rules or sections found sound, review:
+   - every rule and section not listed;
+   - the entries marked *recheck*;
+   - the lines changed since, against every listed rule.
 4. The document's row in 1.5's *Who each range is for*: who is reading, and
    what the section carries and leaves out.
 
