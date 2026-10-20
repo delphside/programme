@@ -5,12 +5,13 @@ What #71 changes in the design map, as entries on Tile Lite Elite's
 `removed`, and with the work package that makes the change. Format:
 [406-map-format.md](../406-architecture-views/406-map-format.md).
 
-*Prototype.* WP A is complete: every component it changes, adds or removes
-is an entry. WP C is still a sketch, drawing its notifications component and
-the push system only. WP B and WP D change the client and are not drawn,
-because the map does not draw the client's components yet. WP E and WP F have
-no entries. Proposed artefact paths are marked as proposed; the work package
-settles them.
+*Prototype.* WP A is complete: every component of the game server it changes,
+adds or removes is an entry. The test client is not drawn, because it is a
+development tool outside the deployed server. WP C is still a sketch, drawing
+its notifications component and the push system only. WP B and WP D change the
+client and are not drawn, because the map does not draw the client's
+components yet. WP E and WP F have no entries. Proposed artefact paths are
+marked as proposed; the work package settles them.
 
 After any edit here, regenerate the drawing from a Tile Lite Elite checkout
 whose programme checkout sits beside it at `../programme`:
@@ -33,12 +34,14 @@ Each heading titles its package's section of
 
 ### WP A, #268 Core Game Lifecycle
 
-`GameSession::apply` is the one method that changes a game, and
-`events::publish` saves, logs and broadcasts what it changed. Every caller
-sends it a `GameMessage`: the handlers, the roster, the invitations, the
-scheduler's timeouts and reminders, the admin routes, the account service for
-a rename, and a bot. The engine proxy goes; a bot is a client of the game. The
-`game-wire` crate holds the conversion between the game and its DTOs.
+`GameSession::apply` (Game model) is the one method that changes a game, and
+`events::publish` (Event stream) saves, logs and broadcasts what it changed.
+Every caller sends `apply` a `GameMessage`: the handlers (Game service), the
+Roster, the Invitations, the Scheduler's timeouts and reminders, the admin
+routes (Admin endpoints), the account service (Accounts) for a rename, and a
+bot. The engine proxy goes; a bot is a client of the game. The `game-wire`
+crate (Game wire) holds the conversion between the game and its DTOs, which
+stay in `crates/api`.
 
 ### WP C, #270 Additional Game Lifecycle
 
@@ -49,8 +52,10 @@ A notifications component reports each event to the players' browsers.
 ```structurizr
 workspace extends model.dsl {
     model {
-        // 71-design.md, "The engine is a client": the proxy goes; an engine
-        // reaches the game as a client does.
+        // 71-design.md, "The engine is a client" and "1.2 — the component
+        // diagram" ("Engine Proxy goes"), and 71-data-model.md, "8 · The
+        // engine" ("There is no proxy"): an engine reaches the game as a
+        // client does.
         !element tle.server.proxy {
             tags "removed" "wp:268"
         }
@@ -102,15 +107,11 @@ workspace extends model.dsl {
             tags "changed" "wp:268"
         }
         // 71-data-model.md, "5 · Database": the append-only game log, the
-        // snapshot's schema version, foreign keys. Its description stays true.
+        // snapshot's schema version, foreign keys, and the rating key becoming
+        // (player_id, edition) with a bot's rows moving to its account. Its
+        // description stays true; ratings.rs is unchanged in substance (§6).
         !element tle.server.store {
             tags "changed" "wp:268"
-        }
-        // 71-data-model.md, "5 · Database" (player_ratings): the key becomes
-        // (player_id, edition) and a bot's rows move to its account.
-        !element tle.server.ratings {
-            tags "changed" "wp:268"
-            description "Ratings, statistics and rating history, for players and bots, by edition."
         }
 
         !element tle.server {
@@ -123,7 +124,7 @@ workspace extends model.dsl {
                 }
             }
             // 71-data-model.md, "3 · The interface layer".
-            wire = component "Game wire" "The messages and events every client and the server share." "Rust crate" {
+            wire = component "Game wire" "The conversion between the game and its DTOs, in both directions." "Rust crate" {
                 tags "new" "wp:268"
                 properties {
                     "artefact" "crates/game-wire"
@@ -164,23 +165,51 @@ workspace extends model.dsl {
             tags "removed" "wp:268"
         }
 
-        // Changed: every caller sends the one handler a GameMessage instead
+        // Replaced: every caller sends the one handler a GameMessage instead
         // of changing the game itself. 71-design.md, "One version, moved in
-        // one place"; the labels stay true.
+        // one place". A relationship entry cannot set a description (the
+        // export fails), so each old line is removed and a new one added.
         !relationships "tle.server.games -> tle.server.session" {
-            tags "changed" "wp:268"
+            tags "removed" "wp:268"
         }
         !relationships "tle.server.roster -> tle.server.session" {
-            tags "changed" "wp:268"
+            tags "removed" "wp:268"
         }
         !relationships "tle.server.invitations -> tle.server.session" {
-            tags "changed" "wp:268"
+            tags "removed" "wp:268"
         }
         !relationships "tle.server.scheduler -> tle.server.session" {
-            tags "changed" "wp:268"
+            tags "removed" "wp:268"
         }
         !relationships "tle.server.adminApi -> tle.server.session" {
-            tags "changed" "wp:268"
+            tags "removed" "wp:268"
+        }
+
+        // games -> store: events::publish now saves each applied change
+        // (71-data-model.md, "6 · Modules"). Whether create_game still saves
+        // directly is not settled, so the new line states only what is certain.
+        !relationships "tle.server.games -> tle.server.store" {
+            tags "removed" "wp:268"
+        }
+
+        // The replacements, 71-design.md, "One version, moved in one place".
+        tle.server.games -> tle.server.session "sends each action as a GameMessage to apply" {
+            tags "new" "wp:268"
+        }
+        tle.server.roster -> tle.server.session "sends seat messages to apply" {
+            tags "new" "wp:268"
+        }
+        tle.server.invitations -> tle.server.session "sends invitation messages to apply" {
+            tags "new" "wp:268"
+        }
+        tle.server.scheduler -> tle.server.session "sends due messages to apply" {
+            tags "new" "wp:268"
+        }
+        tle.server.adminApi -> tle.server.session "sends force-resign and force-end messages to apply" {
+            tags "new" "wp:268"
+        }
+        tle.server.games -> tle.server.store "deletes old games and expired sessions, records the database size" {
+            tags "new" "wp:268"
         }
 
         // 71-design.md, "The engine is a client": a bot is told, searches
