@@ -8,7 +8,7 @@ Green is new, yellow changed, red removed. A relationship's label starts with
 its state too. Each work package is drawn alone: the packages it builds on are
 not applied.
 
-Sources hash: `6105fa855ec24ba1e5696e16bec7c004fdd16bc814ade9d196326e7de9749f28`.
+Sources hash: `e4dfe9b27b0e2fa7f4f579cb4bdfea7e3f0f6f79a7453d684140a23d1c6e0953`.
 
 ## WP A, #268 Core Game Lifecycle
 
@@ -33,7 +33,7 @@ graph TB
         style 14 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
         15["<div style='font-weight: bold'>Invitations</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Open and emailed invitations<br />to a seat.</div>"]
         style 15 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-        16["<div style='font-weight: bold'>Event stream</div><div style='font-size: 70%; margin-top: 0px'>[Component: WebSocket]</div><div style='font-size: 80%; margin-top:10px'>Saves each applied change,<br />logs it and pushes the game's<br />latest state to its players<br />over a `watch` channel per<br />game.</div>"]
+        16["<div style='font-weight: bold'>Event stream</div><div style='font-size: 70%; margin-top: 0px'>[Component: WebSocket]</div><div style='font-size: 80%; margin-top:10px'>Saves each applied change,<br />logs it and pushes the game's<br />latest state, with its cause,<br />to its players over a watch<br />channel per game.</div>"]
         style 16 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
         19["<div style='font-weight: bold'>Admin endpoints</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>The loopback-only /admin<br />routes.</div>"]
         style 19 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
@@ -67,7 +67,7 @@ graph TB
     94-. "<div>new: hears of its games' changes<br />and new seats through<br />updates_for, which the<br />WebSocket also uses, from</div><div style='font-size: 70%'></div>" .->16
     94-. "<div>new: submits the bot's GameMessage<br />to, as the bot's account</div><div style='font-size: 70%'></div>" .->13
     12-. "<div>new: sends UpdateUserDetails to<br />each game the player is in</div><div style='font-size: 70%'></div>" .->21
-    12-. "<div>new: publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    12-. "<div>new: publishes the changed state,<br />with its cause, to</div><div style='font-size: 70%'></div>" .->16
     16-. "<div>new: saves each applied change and<br />appends it to the game log</div><div style='font-size: 70%'></div>" .->25
     16-. "<div>new: clears its unsaved flag, or<br />replaces it with the stored<br />row</div><div style='font-size: 70%'></div>" .->21
     14-. "<div>new: updates invitation rows</div><div style='font-size: 70%'></div>" .->25

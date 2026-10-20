@@ -36,7 +36,8 @@ Each heading titles its package's section of
 
 `GameSession::apply` (Game model) is the one method that changes a game, and
 `events::publish` (Event stream) saves, logs and publishes what it changed, to
-that game's `watch` channel only, which holds the latest state. Every caller sends `apply` a `GameMessage`: the
+that game's `watch` channel only, which holds the latest state. Every caller
+sends `apply` a `GameMessage`: the
 handlers (Game service), the Roster, the Invitations, the Scheduler's timeouts
 and reminders, the admin routes (Admin endpoints) and the account service
 (Accounts) for a rename. The engine proxy goes; the in-process bot is a client
@@ -79,7 +80,7 @@ workspace extends model.dsl {
         // logs and publishes in one place, on the game's own channel (§8).
         !element tle.server.events {
             tags "changed" "wp:268"
-            description "Saves each applied change, logs it and pushes the game's latest state to its players over a `watch` channel per game."
+            description "Saves each applied change, logs it and pushes the game's latest state, with its cause, to its players over a watch channel per game."
         }
         // 71-data-model.md, "6 · Modules" (app/roster.rs): seat changes
         // become messages. Its relationships change, its description stays
@@ -252,7 +253,7 @@ workspace extends model.dsl {
         tle.server.auth -> tle.server.session "sends UpdateUserDetails to each game the player is in" {
             tags "new" "wp:268"
         }
-        tle.server.auth -> tle.server.events "publishes GameEventDto to" {
+        tle.server.auth -> tle.server.events "publishes the changed state, with its cause, to" {
             tags "new" "wp:268"
         }
 

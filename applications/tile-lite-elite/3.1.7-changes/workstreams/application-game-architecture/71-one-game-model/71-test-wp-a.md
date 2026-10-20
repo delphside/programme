@@ -43,7 +43,7 @@ missing (`71-test-approach.md`).
 - [ ] **Claude** — a bot holding two seats in one game plays each seat
 - [ ] **Claude** — an event for one game reaches no socket of another game
 - [ ] **Claude** — a slow receiver reads the newest state and skips the stale ones, and is given neither an error nor a disconnect
-- [ ] **Claude** — a bot showdown game, one listed bot holding several seats, settles with a net rating change of zero for the bot
+- [ ] **Claude** — a game in which one listed bot holds every seat (a bot showdown) settles with a net rating change of zero for that bot
 - [ ] **Claude** — two seats of one listed bot share one account and one rating per edition
 - [ ] **Claude** — a scripted second client sees every change the first makes, invitations included, within one update
 - [ ] **Claude** — the same engine plays the same move through the glue and through the external transport

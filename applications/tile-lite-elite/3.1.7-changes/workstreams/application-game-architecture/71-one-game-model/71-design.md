@@ -674,16 +674,10 @@ driven by a loop inside somebody else's request.
 1. **Bot**: the engine and `take_turn`, identical wherever it runs.
 2. **Client core**: what every client shares, from `game-wire`.
 3. **Transport**, one of two adapters behind it, chosen when the build is
-   compiled: external (HTTPS and WebSocket; the link signs in when it is built)
-   or the in-process glue (built with the listed bot's identity), which
-   joins under the Transport API at two calls, `updates_for` to hear and the
-   Game service's submit function to act. The bot is generic over the trait
+   compiled: external or in-process. The bot is generic over the trait
    (`Bot<L: GameLink>`).
-4. **Server**: Transport API, Game service, `apply`, and the Event stream, a
-   `watch` channel per game holding only the latest state, with `updates_for`,
-   which redacts it for one viewer and serves both transports. Every subscriber
-   is its own task compiled for one concrete type, so the server never iterates
-   over its clients.
+4. **Server**: Transport API, Game service, `apply`, and the Event stream with
+   `updates_for`, which serves both transports.
 
 An in-process engine and an external one therefore differ only by transport.
 That is what makes the external harness a plug-in rather than a second way to
@@ -1130,11 +1124,13 @@ Memory is unchanged in kind: every live game is held in the map as
 today, one lock each. The whole-state-per-update wire costs a few kilobytes per
 message per connection, which is what is sent today. Each game has its own
 `watch` channel holding the latest state, so a change costs that game's
-receivers only, however many games and players there are. Every connection for
-a game must reach the server that owns the game, because the channels are
-in-process; bots on another server are ordinary external clients over HTTPS.
-Routing clients to that server belongs to a future identity and routing
-application, outside #71, and is assumed here.
+receivers only, however many games and players there are
+([§8](71-data-model.md#8--the-engine)).
+
+**Assumption: routing.** Every connection for a game must reach the server that
+owns the game, because the channels are in-process; bots on another server are
+ordinary external clients over HTTPS. Routing clients to that server belongs to
+a future identity and routing application, outside #71.
 
 **Failure.** A refused message changes nothing. An engine that errors, panics
 or overruns leaves its seat on turn for the move time limit. A failed save is
@@ -1302,9 +1298,9 @@ sequenceDiagram
   E--)P: publish version N+1
 ```
 
-The confirmation to `P` matters as much as the published state: a client that has
-submitted a move waits for its own answer before submitting another, which is
-what makes concurrent submissions from one client a non-question.
+The confirmation to `P` matters as much as the published state: a client that
+has submitted a move waits for its own answer before submitting another, which
+is what makes concurrent submissions from one client a non-question.
 
 ### 1.2 — the component diagram
 
