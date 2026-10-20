@@ -136,9 +136,8 @@ expressed as `SeatRack::Visible(Rack) | Hidden(u8)` rather than by blanking.
 **Where the work is**: `api/src/lib.rs` for the types, `app/events.rs:73` for
 redaction, and the client for the count display. The conversions move to
 `game-wire`, replacing `game_state.rs`'s and the UI's `client_rules.rs`
-copies. **This is the change that
-moves `API_VERSION` by a major**, because an old client cannot read the new
-shapes.
+copies. **This is the change that moves `API_VERSION` by a major**, because an
+old client cannot read the new shapes.
 
 *Worth noting for the plan*: the note calls the opponent tile count "UI work,
 not just a data fix" — so this work package has a visible, user-testable component,

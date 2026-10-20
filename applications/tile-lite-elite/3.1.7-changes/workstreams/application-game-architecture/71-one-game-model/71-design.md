@@ -1042,11 +1042,9 @@ of every game the account holds a seat in, so a game already on the bot's turn
 is played.
 
 An external harness (#10's) learns of a turn the way any client does — from
-the message carrying the previous move, or the game starting. Polling is for
-starting up: a game left waiting for a bot while the harness was down is
-picked up on the first sweep, and not otherwise. Polling as the normal path
-would make bots slower than they are today, since they currently move inside
-the triggering request.
+the message carrying the previous move, or the game starting. A game left
+waiting while the harness was down is picked up by the first yield of its
+socket for that game ([§8](71-data-model.md#8--the-engine)).
 
 **A bot plays as a bot account, wherever the engine runs.** The harness
 authenticates as the bot, not as the person running it — so a bot's moves

@@ -505,13 +505,12 @@ pub fn move_candidate_from_dto(candidate: MoveCandidateDto,
     rules: &VariantRules) -> Result<MoveCandidate, WireError>;
 ```
 
-These four replace two sets of copies. `server-game` (`game_state.rs`) has
-`board_from_dto`, `tile_from_dto` and `move_candidate_from_dto` today, with a
-`String` error. The UI has its own in `crates/ui/src/client_rules.rs`:
-`to_rules_tile`, `to_rules_candidate`, `to_rules_board_state` and
-`to_rules_rack`, which panic where the server's return an error. The
-`game-wire` functions return `WireError`; the server's `game_state.rs`
-versions and the UI's `client_rules.rs` copies are removed.
+The four `*_from_dto` functions replace two sets of copies: `board_from_dto`,
+`tile_from_dto` and `move_candidate_from_dto` in `server-game`
+(`game_state.rs`), which return a `String` error, and `to_rules_tile`,
+`to_rules_candidate`, `to_rules_board_state` and `to_rules_rack` in the UI
+(`crates/ui/src/client_rules.rs`). The `game-wire` functions return
+`WireError`, and both sets are removed.
 
 **`GameView` is what a client can rebuild** — the game as this viewer is
 entitled to see it, with `SeatRack::Hidden` where a rack was withheld. It is
@@ -566,7 +565,7 @@ pub trait GameLink {
 }
 ```
 
-The web client, the test client, the bot harness and the in-process bot each
+The web client, the test client, an external harness and the in-process bot each
 call these two. A transport is an adapter behind them (§8).
 
 ## 4 · Access
@@ -798,9 +797,9 @@ bot task. The request that applies a move returns at once.
 
 **Over the external transport, `GameLink` opens one WebSocket per game**, as
 today, for the games the account's game list names; each socket's first yield
-covers reconnection for its game. How an external harness learns of a game it
-is newly seated in while running, by a seat-scope socket or by polling its
-game list, is #10's.
+gives the current view, which covers start-up and reconnection for its game.
+How a running harness learns of a game it is newly seated in is an
+[open question](#open-questions-this-raises).
 
 **The submitted move is re-validated on arrival**, because the game may have
 moved — aborted, or the seat retired. A rejection is normal, not an error.
@@ -874,11 +873,9 @@ as a bot account*), governs external harnesses only. Whether an in-process
 bot's account needs an owner the same way is for the programme owner to
 confirm.
 
-**How does an external harness learn of a game it is newly seated in?** Its
-startup and reconnection are settled ([§8](#8--the-engine)): one socket per
-game from its game list, whose first yield is the current view. What is open,
-and #10's, is how it learns of a game that seats its bot while it is
-running: a seat-scope socket or polling its game list.
+**How does an external harness learn of a game it is newly seated in?** A
+seat-scope socket, or polling its game list; #10's to settle. Start-up and
+reconnection are in [§8](#8--the-engine).
 
 **Does `turn` need to be persisted separately from `moves.len()`?** Settled by
 undo, 2026-08-29: yes. Under undo `turn` walks backwards while `moves` does not
