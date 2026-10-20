@@ -13,7 +13,7 @@ login = "delphside"
 # every repository the organisation lists; one named here and not listed is
 # reported, because a repository the token cannot see is left out, not empty.
 # Remove a repository from here when it is archived.
-repositories = ["programme", "service-desk", "tile-lite-elite"]
+repositories = ["dark-portal", "infrastructure", "programme", "service-desk", "tile-lite-elite"]
 
 [board]
 # The one programme board.
