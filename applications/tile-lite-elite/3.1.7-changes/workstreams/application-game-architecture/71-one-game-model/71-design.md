@@ -645,10 +645,11 @@ driven by a loop inside somebody else's request.
   WebAssembly runtime with deadline interruption, which is the reason to
   adopt either, for an engine not trusted to honour the signal.
 - **Every bot is a client, and none runs inside a request** (owner,
-  2026-10-14). External bots run in #10's harness, a separate process. The
-  server's own bots are the [in-process bot](71-data-model.md#8--the-engine),
-  reached through the glue. `engine_limit` bounds the in-process bot's
-  searches and the hint, for as long as the hint is computed in the server.
+  2026-10-14). External bots run outside the server, in #10's harness or
+  their own client. The server's own bots are the
+  [in-process bot](71-data-model.md#8--the-engine), reached through the glue.
+  `engine_limit` bounds the in-process bot's searches and the hint, for as
+  long as the hint is computed in the server.
 - **A search that fails stays the bot's problem.** An engine error, a panic or
   a search past its budget leaves the seat on turn, as a silent human's would,
   and the move time limit deals with it. It is logged, and never returned to
@@ -671,9 +672,12 @@ driven by a loop inside somebody else's request.
 1. **Bot**: the engine and `take_turn`, identical wherever it runs.
 2. **Client core**: what every client shares, from `game-wire`.
 3. **Transport**, one of two adapters behind it: external (HTTPS and
-   WebSocket) or the in-process glue.
+   WebSocket) or the in-process glue, which joins under the Transport API at
+   two calls, `updates_for` to hear and the Game service's submit function to
+   act.
 4. **Server**: Transport API, Game service, `apply`, and the Event stream with
-   `updates_for`, which filters and redacts it for one viewer.
+   `updates_for`, which filters and redacts it for one viewer and serves both
+   transports.
 
 The bot hears it is on turn from the Event stream, never from the caller of
 `apply`.
@@ -1036,13 +1040,12 @@ singly from somebody's laptop is the same bot.
 It answers the reloaded-game question, though: a game whose bot is on turn is
 picked up rather than left for whoever happens to touch the game next, which
 is what covers it today by accident. For the in-process bot the first yield of
-`updates_for` does it: on subscribing, the glue is given the current view of
-every game the account holds a seat in, so a game already on the bot's turn at
-start-up, or after the socket reconnects, is played. The external harness's
-pick-up is #10's.
+`updates_for` does it: at server start-up the glue is given the current view
+of every game the account holds a seat in, so a game already on the bot's turn
+is played.
 
-An external harness learns of a turn the way any client does — from the
-message carrying the previous move, or the game starting. Polling is for
+An external harness (#10's) learns of a turn the way any client does — from
+the message carrying the previous move, or the game starting. Polling is for
 starting up: a game left waiting for a bot while the harness was down is
 picked up on the first sweep, and not otherwise. Polling as the normal path
 would make bots slower than they are today, since they currently move inside
@@ -1062,10 +1065,10 @@ server are the same game.
 **An external client authenticates as a person before it can assume a bot.**
 Everything but `/health`, registering and logging in requires a session, and a
 bot session is taken on top of a human one. The in-process bot holds no
-session; whether its account needs an owner is an [open
-question](71-data-model.md#open-questions-this-raises). Rating follows the
-bot; accountability follows the person, so a bot behaving badly has an owner
-to disable.
+session; whether its account needs an owner is an
+[open question](71-data-model.md#open-questions-this-raises). For an external
+bot, rating follows the bot and accountability follows the person, so one
+behaving badly has an owner to disable.
 
 It is worth being plain that this is revocation and not prevention:
 registration is open, so anybody can create a throwaway account and a bot
@@ -1078,14 +1081,13 @@ Rate limiting is a separate concern and answers a different question. It
 protects the service from load, not from anybody in particular. It exists
 (`app/throttle.rs`, 4.1), and a harness meets it like any client: its retry
 policy against 429 and `Retry-After` is #10's. It counts only callers outside
-the server, and the [in-process bot](71-data-model.md#8--the-engine) joins
-below it.
+the server, and the [in-process bot](71-data-model.md#8--the-engine)
+joins below it.
 
 **Anybody may register a bot** and run it through the harness or their own
 client. An external bot's account is an ordinary account with an owner and an
 engine, so "my own bot with its own rating" needs no new concept — and the
-owner is who you revoke. The in-process bot's accounts are an [open
-question](71-data-model.md#open-questions-this-raises).
+owner is who you revoke.
 
 **A bot's session follows ACC-1 like anybody's.** A session lasts ten days at
 most and ends after forty-eight hours unused, so a long-running harness logs in
@@ -1140,10 +1142,10 @@ limit is the game's own setting. Request throttling is unchanged
 **Secrets and access.** No new secret. An external bot is an account with an
 owner and authenticates as one, so a harness holds a session token like any
 client; how long that session lives is ACC-1's, with no exemption for bots
-(D66). The in-process bot holds no session: its accounts are the [open
-question](71-data-model.md#open-questions-this-raises). What a
-connection may see is the union over the seats its account holds; a broadcast
-event never names who acted on a seat beyond the seat itself.
+(D66). The in-process bot holds no session: its accounts are the
+[open question](71-data-model.md#open-questions-this-raises). What a connection
+may see is the union over the seats its account holds; a broadcast event never
+names who acted on a seat beyond the seat itself.
 
 ## Work packages
 
@@ -1279,7 +1281,7 @@ sequenceDiagram
   Note over S,B: the request is over — the bot's turn is not part of it
 
   E--)L: broadcast version N, the full state
-  Note over E,L: updates_for redacts it for the bot's account
+  Note over E,L: updates_for redacts per recipient, on both legs
   L--)B: on event
   B->>RB: search, holding no lock
   B->>L: submit move

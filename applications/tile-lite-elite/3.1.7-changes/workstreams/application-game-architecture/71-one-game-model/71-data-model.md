@@ -496,14 +496,21 @@ crates/test-client    NEW. depends on game-wire.  (see 71-test-approach.md)
 pub fn game_to_dto(view: &GameView) -> GameStateDto;
 pub fn game_from_dto(dto: &GameStateDto) -> Result<GameView, WireError>;
 
-pub fn board_from_dto(cells: &[BoardCellDto]) -> Result<Board, WireError>;
-pub fn rack_from_dto(rack: &RackDto) -> Result<Rack, WireError>;
-pub fn move_candidate_from_dto(m: &MoveCandidateDto) -> Result<MoveCandidate, WireError>;
+pub fn board_from_dto(cells: &[BoardCellDto], alphabet: &Alphabet)
+    -> Result<BoardState, WireError>;
+pub fn tile_from_dto(tile: TileDto, alphabet: &Alphabet)
+    -> Result<Tile, WireError>;
+pub fn rack_from_dto(rack: &RackDto) -> Rack;
+pub fn move_candidate_from_dto(candidate: MoveCandidateDto,
+    rules: &VariantRules) -> Result<MoveCandidate, WireError>;
 ```
 
 `board_from_dto`, `tile_from_dto` and `move_candidate_from_dto` exist today
-inside `server-game`, which is exactly why no other client can have them. They
-move here unchanged in behaviour.
+inside `server-game` (`game_state.rs`), which is exactly why no other client
+can have them. They move here with the same parameters and behaviour; their
+error, a `String` today, becomes `WireError`. `rack_from_dto` is new here: it
+is `to_rules_rack` in `crates/ui/src/client_rules.rs`, moved so the UI and the
+server share it.
 
 **`GameView` is what a client can rebuild** — the game as this viewer is
 entitled to see it, with `SeatRack::Hidden` where a rack was withheld. It is
@@ -526,8 +533,8 @@ impl GameSession {
 
 `PlayerLookup` holds the display name and rating of each player in the game.
 The caller passes it in, because user details are always a lookup and never
-copied into game data (*Open questions* in the note): the handlers, the Roster,
-the Invitations, the admin routes and the Event stream each read the names from
+copied into game data ([*Open questions*](71-design.md#open-questions)): the
+handlers, the Roster, the Invitations, the admin routes and the Event stream each read the names from
 Accounts and the ratings from Ratings, then call `view_for`, then `game_to_dto`.
 `GameView` is one type, so the server's code and a client's, `take_turn`
 included, read the same thing.[^layers]
@@ -549,7 +556,8 @@ holding two seats sees both racks, and every other rack is `Hidden`.
 pub trait GameLink {
     /// The next view in this subscription's scope, as a GameView; the view
     /// carries the game's id. Scope is what the transport subscribed to: every
-    /// game the account holds a seat in for a bot, one game for the web client.
+    /// game the account holds a seat in for the in-process bot, one game for
+    /// the web client.
     async fn on_event(&mut self) -> Result<GameView, LinkError>;
     /// Send a message for a game; the answer is the server's, accepted or refused.
     async fn submit(&self, game_id: &str, message: GameMessage) -> Result<(), SubmitError>;
@@ -728,8 +736,9 @@ and only the third differs by where the bot runs:
 2. **Client core**: `GameLink`, §3. It yields a `GameView` from each event and
    submits a `GameMessage`.
 3. **Transport**, an adapter behind `GameLink`. *External*: HTTPS and
-   WebSocket, signed in as the bot's account. *In-process glue*: the same two
-   calls with no socket.
+   WebSocket, signed in as the bot's account. *In-process glue*: `GameLink`'s
+   two calls with no socket, over `updates_for` and the Game service's submit
+   function.
 4. **Server**: Transport API, Game service, `apply`; `publish` sends each
    change to the Event stream, and `updates_for` filters and redacts that
    stream for one viewer, under both transports.
@@ -769,16 +778,15 @@ bot task. The request that applies a move returns at once.
   every game and carries the full, unredacted state (`app/events.rs`), so
   filtering and redaction are the server's, below both transports: one
   function, `updates_for(scope, &ViewerAccess)`, where the scope is one game
-  or every game the account holds a seat in. On subscribing it first yields
-  the current `GameView` of each game in scope, then each change, built with
-  `view_for`. The WebSocket handler subscribes with one game, as today; the
-  glue with every game the bot's account holds a seat in; an external harness
-  may use the second later. Neither can see what the other could not. The
-  first yield covers a bot seated after it subscribed (the seat change is an
-  update of a game now in scope) and a game already on the bot's turn when
-  the server starts or the socket reconnects. The socket converts each
-  `GameView` to a frame with `game_to_dto`; the glue hands it to the bot as
-  it is.
+  or every game the account holds a seat in. The scope follows the account's
+  seats as they change: a seat added later brings that game into scope, and
+  its changes follow. On subscribing it first yields the current `GameView` of
+  each game in scope, then each change, built with `view_for`. The first
+  yield covers start-up and, for a WebSocket, reconnection, so a game already
+  on the bot's turn is played. The WebSocket handler subscribes with one game,
+  as today; the glue with every game the bot's account holds a seat in. The
+  socket converts each `GameView` to a frame with `game_to_dto`; the glue
+  hands it to the bot as it is.
 - `submit` calls the same Game service function a route handler calls after
   its sign-in check, passing the bot's account id as the caller. The service
   still checks that the caller holds the seat and that it is on turn, and
