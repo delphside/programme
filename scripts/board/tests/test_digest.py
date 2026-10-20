@@ -410,7 +410,7 @@ class DocumentReviews(Cases):
                     "By reviewer, a shared finding counting for each: reader 30k for 1 (30k each); "
                     "truth 20k for 0. By round: R2 55k for 1 (55k each). Not costed: 2 finding(s)",
                     mixed.value())
-        self.expect("a figure naming no reviewer is not read", 1, mixed.unread_costs)
+        self.expect("a figure naming no reviewer is counted for none", 1, mixed.unread_costs)
         self.expect("nor is a bare figure", 1, RoundCount().add("- R1 cost: 150k").unread_costs)
         text = render(digest(reviews=[("o/p", 1, "docs", "- R1 reader — x — y\n- R1 cost: reader 40k")]))
         self.expect("the digest prints it", True, "**Bang for buck.** By reviewer" in text)
