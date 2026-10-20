@@ -330,13 +330,17 @@ class RoundCount:
     # only by the findings they paid for; and the records with findings and none.
     costed_findings: int = 0
     uncosted: int = 0
+    # Cost lines with no figure in k, which add no tokens.
+    unread_costs: int = 0
 
     def add(self, text: str) -> "RoundCount":
         findings, cost_lines = 0, 0
         for line in (text or "").splitlines():
             if m := _COST.match(line):
                 cost_lines += 1
-                self.tokens += sum(float(t) for t in _TOKENS.findall(m.group(1)))
+                figures = _TOKENS.findall(m.group(1))
+                self.unread_costs += not figures
+                self.tokens += sum(float(t) for t in figures)
             elif m := _FINDING.match(line):
                 if m.group(2).strip().lower() == "none":
                     continue
@@ -387,7 +391,8 @@ class RoundCount:
         per = (f", about {self.tokens / self.costed_findings:.0f}k per material finding"
                if self.costed_findings else "")
         gap = f"; {self.uncosted} record(s) with findings and no cost line" if self.uncosted else ""
-        return f"{self.tokens:.0f}k tokens{per}{gap}"
+        unread = f"; {self.unread_costs} cost line(s) with no k figure" if self.unread_costs else ""
+        return f"{self.tokens:.0f}k tokens{per}{gap}{unread}"
 
 
 def claude_lessons(memory_repo: Path, start: str) -> list[tuple[str, str]] | None:
@@ -644,11 +649,16 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
                    + ", ".join(f"{r}#{n}" for r, n, _ in d.unrecorded) + ".")
         out.append("")
     # A change committed straight to main records its rounds in the notes.
-    in_notes = RoundCount().add(notes)
+    # Each top-level note is its own record, so its cost lines pay only for its findings.
+    entries = re.split(r"(?m)^(?=- )", notes or "")
+    in_notes = RoundCount()
+    for entry in entries:
+        in_notes.add(entry)
     if in_notes:
         out.append(f"From the notes below, for changes with no pull request: {in_notes.summary()}.")
         out.append("")
-        total.add(notes)
+        for entry in entries:
+            total.add(entry)
     if total:
         out.append(f"**This week:** {total.summary()}. Missed: {total.missed_share()}. "
                    f"Cost: {total.cost()}.")
