@@ -308,9 +308,9 @@ REVIEWERS = {"reader", "truth", "change", "owner"}
 
 
 def note_records(notes: str) -> list[str]:
-    """The notes split into records, one per top-level `- ` line naming a
-    commit, so each record's cost lines pay only for its own findings. A
-    top-level round, cost or owner line stays with the record above it."""
+    """The notes split into records, one per top-level `- ` line other than a
+    round, cost or owner line, so each record's cost lines pay only for its own
+    findings; such a line stays with the record above it."""
     records, current = [], []
     for line in (notes or "").splitlines():
         rounds = (_FINDING.match(line) or _COST.match(line) or _OWNER.match(line)
