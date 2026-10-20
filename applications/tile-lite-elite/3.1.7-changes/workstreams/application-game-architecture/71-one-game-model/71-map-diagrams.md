@@ -8,7 +8,7 @@ Green is new, yellow changed, red removed. A relationship's label starts with
 its state too. Each work package is drawn alone: the packages it builds on are
 not applied.
 
-Sources hash: `454ecb93afe694f4b342a84c22338a50f52eeec4c50c494197e93a08279a200d`.
+Sources hash: `bea4d05c7e05a8dba2fd28adfa63cb7b3f6bad91525479aa68d9b884f0b90a2a`.
 
 ## WP A, #268 Core Game Lifecycle
 
@@ -53,7 +53,7 @@ graph TB
         style 93 fill:#dafbe1,stroke:#1a7f37,color:#0a3622
         94["<div style='font-weight: bold'>In-process glue</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>The in-process transport: the<br />bot's two calls without a<br />socket.</div>"]
         style 94 fill:#dafbe1,stroke:#1a7f37,color:#0a3622
-        95["<div style='font-weight: bold'>Game wire</div><div style='font-size: 70%; margin-top: 0px'>[Component: Rust crate]</div><div style='font-size: 80%; margin-top:10px'>GameView, and its conversion<br />to and from the DTOs.</div>"]
+        95["<div style='font-weight: bold'>Game wire</div><div style='font-size: 70%; margin-top: 0px'>[Component: Rust crate]</div><div style='font-size: 80%; margin-top:10px'>GameView, GameLink and<br />take_turn, and GameView's<br />conversion to and from the<br />DTOs.</div>"]
         style 95 fill:#dafbe1,stroke:#1a7f37,color:#0a3622
       end
 
@@ -63,7 +63,7 @@ graph TB
     13-. "<div>new: deletes old games and expired<br />sessions, records the<br />database size</div><div style='font-size: 70%'></div>" .->25
     93-. "<div>new: hears of each change through,<br />and submits its move through</div><div style='font-size: 70%'></div>" .->94
     93-. "<div>new: searches with, holding no<br />lock</div><div style='font-size: 70%'></div>" .->23
-    93-. "<div>new: reads each event as a<br />GameView with</div><div style='font-size: 70%'></div>" .->95
+    93-. "<div>new: uses GameView, GameLink and<br />take_turn from</div><div style='font-size: 70%'></div>" .->95
     94-. "<div>new: subscribes to, through the<br />filter and redaction the<br />WebSocket also uses</div><div style='font-size: 70%'></div>" .->16
     94-. "<div>new: submits the bot's GameMessage<br />to, as the bot's account</div><div style='font-size: 70%'></div>" .->13
     12-. "<div>new: sends UpdateUserDetails to<br />each game the player is in</div><div style='font-size: 70%'></div>" .->21

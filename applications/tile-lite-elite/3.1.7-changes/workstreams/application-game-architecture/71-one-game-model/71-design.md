@@ -648,9 +648,9 @@ driven by a loop inside somebody else's request.
   every bot is a client of it, the server's own engines included (owner,
   2026-10-14). It need not be a separate process, but each engine runs
   asynchronously, as a client, never inside a request: in the server it is
-  the in-process bot below. The harness bounds its own searches;
-  `engine_limit` is left bounding the hint, for as long as the hint is
-  computed in the server.
+  the [in-process bot](71-data-model.md#8--the-engine). The harness bounds its
+  own searches; `engine_limit` is left bounding the hint, for as long as the
+  hint is computed in the server.
 - **A search that fails stays the bot's problem.** An engine error, a panic or
   a search past its budget leaves the seat on turn, as a silent human's would,
   and the move time limit deals with it. It is logged, and never returned to
@@ -665,29 +665,20 @@ driven by a loop inside somebody else's request.
   may be told no.
 
 **A bot behaves like the existing client**, and is four layers, top-down
-(owner, 2026-10-20; detail in [`71-data-model.md`](71-data-model.md) §3 and §8):
+(owner, 2026-10-20). The layering, `GameLink` and the glue are in
+[`71-data-model.md`](71-data-model.md) §3 and
+[§8](71-data-model.md#8--the-engine); in short:
 
 1. **Bot**: the engine and `take_turn`, identical wherever it runs.
-2. **Client core**: what every client shares, from `game-wire`. It builds a
-   `GameView` from each event and submits a `GameMessage`. The web client, the
-   test client and the bot harness sit on it.
-3. **Transport**, one of two adapters behind it. *External*: HTTPS and
-   WebSocket, signed in as the bot's account. *In-process glue*: the same two
-   calls with no socket.
-4. **Server**: Transport API, Game service, `apply`; `publish` sends each
-   change to the Event stream.
+2. **Client core**: what every client shares, from `game-wire`.
+3. **Transport**, one of two adapters behind it: external (HTTPS and
+   WebSocket) or the in-process glue.
+4. **Server**: Transport API, Game service, `apply`, and the Event stream with
+   `updates_for`, which filters and redacts it for one viewer.
 
-The bot hears it is on turn from the Event stream, the broadcast every client
-subscribes to, and never from the caller of `apply`. The in-process glue joins
-the server at the Game service, just under the Transport API, as loopback skips
-the IP layer: it subscribes to the Event stream and submits by calling the
-function a route handler calls after its sign-in check, as the bot's own
-account, so the service still checks the caller. It skips HTTP framing and the
-rate limiter. The Event stream is one channel for every game and carries the
-full state, so filtering and redaction happen before the transport is
-chosen, in one server function both the WebSocket and the glue call; otherwise
-an in-process bot would see every rack
-([the engine](71-data-model.md#8--the-engine)).
+The bot hears it is on turn from the Event stream, never from the caller of
+`apply`. The in-process bot joins below the rate limiter, which counts only
+callers outside the server.
 
 An in-process engine and an external one therefore differ only by transport.
 That is what makes the external harness a plug-in rather than a second way to
@@ -1055,19 +1046,22 @@ and not otherwise. Polling as the normal path would make bots slower than they
 are today, since they currently move inside the triggering request.
 
 **A bot plays as a bot account, wherever the engine runs.** The harness
-authenticates as the bot, not as the person running it — so a bot's moves move
-a bot's rating, and nothing has to declare after the fact which moves were
-whose. A server-run bot's seat carries the same kind of account id; the in-process
-glue passes it to the Game service, which checks it as it checks any caller.
+authenticates as the bot, not as the person running it — so a bot's moves move a
+bot's rating, and nothing has to declare after the fact which moves were whose.
+A server-run bot's seat carries the same kind of account id; the in-process glue
+passes it to the Game service, which checks it as it checks any caller.
 
 That keeps where the engine runs out of the data model entirely, which is the
 note's whole purpose. A bot playing from a client and a bot playing in the
 server are the same game.
 
-**A client authenticates as a person before it can assume a bot.** Everything
-but `/health`, registering and logging in requires a session, and a bot
-session is taken on top of a human one. Rating follows the bot; accountability
-follows the person, so a bot behaving badly has an owner to disable.
+**An external client authenticates as a person before it can assume a bot.**
+Everything but `/health`, registering and logging in requires a session, and a
+bot session is taken on top of a human one. The in-process bot holds no
+session; whether its account needs an owner is an [open
+question](71-data-model.md#open-questions-this-raises). Rating follows the
+bot; accountability follows the person, so a bot behaving badly has an owner
+to disable.
 
 It is worth being plain that this is revocation and not prevention:
 registration is open, so anybody can create a throwaway account and a bot
@@ -1079,8 +1073,9 @@ bot has an owner, and the owner is who you stop.
 Rate limiting is a separate concern and answers a different question. It
 protects the service from load, not from anybody in particular. It exists
 (`app/throttle.rs`, 4.1), and a harness meets it like any client: its retry
-policy against 429 and `Retry-After` is #10's. The in-process bot joins below
-it and is not counted.
+policy against 429 and `Retry-After` is #10's. It counts only callers outside
+the server, and the [in-process bot](71-data-model.md#8--the-engine) joins
+below it.
 
 **Anybody may register a bot** and run it through the harness or their own
 client. A bot account is an ordinary account with an owner and an engine, so
@@ -1151,15 +1146,15 @@ requirements are on its issue; its tests are in its own test file.
 
 ### WP A, #268 Core Game Lifecycle
 
-**Takes**: *One version, moved in one place*, with every `GameMessage`
-variant except undo and redo; per-game locking; the seat model and its
-lifecycle; *DTOs are invisible*, including the opponent tile count and the
-shared error body (D65); *The engine is a client*, with the in-process glue under the bot; the append-only game log
-(D61); *Migration*, with the schema version, foreign keys and
-the rating key; the user-details lookup rule; and the code-review findings
+**Takes**: *One version, moved in one place*, with every `GameMessage` variant
+except undo and redo; per-game locking; the seat model and its lifecycle; *DTOs
+are invisible*, including the opponent tile count and the shared error body
+(D65); *The engine is a client*, with the in-process glue under the bot; the
+append-only game log (D61); *Migration*, with the schema version, foreign keys
+and the rating key; the user-details lookup rule; and the code-review findings
 routed from #460 to it. It takes #142, #80, #106, #105, #429 and the invitation
-that outlives its game, each true by construction here [^d67]. It also builds the `game-wire` crate and the test
-client.
+that outlives its game, each true by construction here [^d67]. It also builds
+the `game-wire` crate and the test client.
 
 **Waits on**: nothing still open. It builds the test client and stops short
 of the harness, which is #10's (D63). Its tests: [`71-test-wp-a.md`](71-test-wp-a.md).
@@ -1294,8 +1289,8 @@ what makes concurrent submissions from one client a non-question.
 
 `Engine Proxy` goes. An engine reaches the game as a client does. In the
 harness or on somebody's laptop it comes through the API. In the server it
-comes through the glue, which joins at the Game service, below the API and the
-rate limiter:
+comes through the [glue](71-data-model.md#8--the-engine), which joins at the
+Game service, below the API and the rate limiter:
 
 ```mermaid
 flowchart LR
@@ -1311,6 +1306,7 @@ flowchart LR
     Api[Transport API]
     Events[Event Stream]
     Glue[In-process Glue<br/>— joins at the Game Service]
+    Updates[updates_for<br/>— filters and redacts per viewer]
     Game[Game Service]
     Rules[Authoritative Rules Engine]
     InProc[In-process Bot<br/>— a client without the socket]
@@ -1331,9 +1327,10 @@ flowchart LR
   InProc --> Glue
 
   Api --> Game
-  Api --> Events
+  Api --> Updates
+  Updates --> Events
   Glue --> Game
-  Glue --> Events
+  Glue --> Updates
   Game --> Store
   Game --> Rules
   InProc --> Registry
@@ -1348,7 +1345,8 @@ flowchart LR
 
 The registry stays, resolving which engine an account runs, but it is reached
 from the in-process bot rather than sitting between the game and the engines.
-The glue subscribes to the Event stream; it does not call `apply`.
+The glue hears of changes through `updates_for` and submits to the Game
+service, which calls `apply`.
 
 ### The reference documents
 
@@ -1382,8 +1380,8 @@ And [4.1.0 Rules](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.
   is added, which is also when its invitation is sent
 - declining and withdrawing are final for that seat, and starting the game
   clears them
-- bots hold accounts, and a client authenticates as a person before assuming
-  a bot
+- bots hold accounts, and an external client authenticates as a person before
+  assuming a bot
 - how many tiles each opponent holds is public
 - aborting cancels every pending invitation, and nothing about a seat can be
   invited, accepted or claimed once the game has started
@@ -1399,9 +1397,8 @@ it changes, and how a turn reaches the thing that takes it.
 ## How we will know
 
 - **A round-trip property test** over every type crossing the wire, `GameView`
-  among them. Written
-  first: it states what "invisible" means precisely enough to know when the
-  move is finished.
+  among them. Written first: it states what "invisible" means precisely
+  enough to know when the move is finished.
 - **An engine run both ways** against the same position, through the
   in-process glue and the external transport, producing the same move.
 - **The existing lifecycle suite**, which already walks a game from creation

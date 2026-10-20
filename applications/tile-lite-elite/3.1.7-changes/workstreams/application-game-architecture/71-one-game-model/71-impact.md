@@ -99,7 +99,7 @@ six modules — `games.rs` 15, `roster.rs` 6, `admin.rs` 5, `sweeps.rs` 5 (since
 lock and index it; afterwards they take the map lock briefly, clone an `Arc`,
 and lock the game.
 
-**What it buys, verified.** `run_engine_turns` (`games.rs:913`) awaits
+**What it buys, verified.** `run_engine_turns` (`games.rs:945`) awaits
 `maybe_run_engine_turn` *inside* `state.games.write().await`. The lock is
 released between turns — deliberately, and the doc comment above it explains
 why at length — but a single search holds the map's write lock for its whole
@@ -163,8 +163,9 @@ what makes "the engine is a client that takes as long as it takes" true rather
 than aspirational; this work package then removes the remaining coupling.
 
 **What is new** is the bot as a client: it hears it is on turn from the Event
-stream and submits through the in-process glue at the Game service, so no
-caller of `apply` drives it (`71-data-model.md` §8).
+stream and submits through the [in-process
+glue](71-data-model.md#8--the-engine), which joins at the Game service, so no
+caller of `apply` drives it.
 
 ### Migration, and the snapshot schema version
 
@@ -186,7 +187,7 @@ active` before the migration, not as a formality.
 into `snapshot_json`; `claim_seat` (`:394`) takes one as an argument.
 
 Removing them touches the DTO assembly in three places that already add
-per-read data: `app/common.rs:42` (invitation status), `stats.rs:494` (current
+per-read data: `app/common.rs:42` (invitation status), `crates/server-game/src/stats.rs:494` (current
 ratings), `app/events.rs:73` (redaction). *Inferred*: display name joins that
 set rather than adding a new mechanism.
 

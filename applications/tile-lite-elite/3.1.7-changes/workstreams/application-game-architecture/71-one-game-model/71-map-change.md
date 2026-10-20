@@ -38,10 +38,11 @@ Each heading titles its package's section of
 `events::publish` (Event stream) saves, logs and broadcasts what it changed.
 Every caller sends `apply` a `GameMessage`: the handlers (Game service), the
 Roster, the Invitations, the Scheduler's timeouts and reminders, the admin
-routes (Admin endpoints), the account service (Accounts) for a rename, and a
-bot, which reaches the Game service through the in-process glue. The engine
-proxy goes; a bot is a client of the game, hears it is on turn from the Event
-stream and submits to the Game service, never to the Game model. The server
+routes (Admin endpoints) and the account service (Accounts) for a rename. The
+engine proxy goes; a bot is a client of the game, hears it is on turn from the
+Event stream and submits through the [in-process
+glue](71-data-model.md#8--the-engine) to the Game service, which calls
+`apply` for it. The server
 builds each `GameView`; the `game-wire` crate (Game wire) converts it to and
 from the DTOs, which stay in `crates/api`.
 
@@ -136,7 +137,7 @@ workspace extends model.dsl {
                 }
             }
             // 71-data-model.md, "3 · The interface layer".
-            wire = component "Game wire" "GameView, and its conversion to and from the DTOs." "Rust crate" {
+            wire = component "Game wire" "GameView, GameLink and take_turn, and GameView's conversion to and from the DTOs." "Rust crate" {
                 tags "new" "wp:268"
                 properties {
                     "artefact" "crates/game-wire"
@@ -227,14 +228,15 @@ workspace extends model.dsl {
         // 71-design.md, "The engine is a client": a bot hears it is on turn
         // from the Event stream, searches holding no lock, and submits to the
         // Game service as the bot's account. The glue skips the Transport API
-        // and the rate limiter, and never calls apply.
+        // and the rate limiter; the Game service calls apply (see "In-process
+        // glue" in 71-data-model.md, "8 · The engine").
         tle.server.bot -> tle.server.glue "hears of each change through, and submits its move through" {
             tags "new" "wp:268"
         }
         tle.server.bot -> tle.server.engines "searches with, holding no lock" {
             tags "new" "wp:268"
         }
-        tle.server.bot -> tle.server.wire "reads each event as a GameView with" {
+        tle.server.bot -> tle.server.wire "uses GameView, GameLink and take_turn from" {
             tags "new" "wp:268"
         }
         tle.server.glue -> tle.server.events "subscribes to, through the filter and redaction the WebSocket also uses" {
