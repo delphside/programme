@@ -369,6 +369,15 @@ class DocumentReviews(Cases):
                     "1 record(s) with findings and no cost line", c.cost())
         self.expect("a cost line with no k figure is said", "cost lines with no k figure",
                     RoundCount().add("- R1 cost: reader 60000").cost())
+        self.expect("and counted beside one that has", "50k tokens; 1 cost line(s) with no k figure",
+                    RoundCount().add("- R1 cost: reader 50k\n- R2 cost: reader 60000").cost())
+
+    def test_each_note_is_its_own_record(self):
+        notes = ("- 2026-09-22, rounds for abc1234:\n  - R1 reader — x — y\n  - R1 cost: reader 50k\n"
+                 "- 2026-09-23, rounds for def5678:\n  - R1 reader — x — a\n  - R1 truth — x — b")
+        text = render(digest(reviews=[]), notes=notes)
+        self.expect("tokens paid for one finding", True,
+                    "50k tokens, about 50k per material finding; 1 record(s)" in text)
 
     def test_a_week_whose_rounds_found_nothing_still_reports_its_cost(self):
         text = render(digest(reviews=[("o/p", 1, "docs", "- R1 none\n- R1 cost: reader 40k, 90%")]))
