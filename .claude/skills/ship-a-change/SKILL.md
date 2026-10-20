@@ -66,8 +66,8 @@ burst of 3 and the suite registers an account per test:
 ```
 
 The rehearsal URL is not fixed: it is the variable the application's technical
-profile (`programme.toml`) names in `environments.rehearsal.url_variable`, set by
-the script in `environments.rehearsal.url_from` (or the override in
+profile (`app-profile.toml`) names in `environments.rehearsal.url_variable`,
+set by the script in `environments.rehearsal.url_from` (or the override in
 `environments.rehearsal.env`).
 
 **Read the milestone before deploying.** `deploy.sh` closes **every open issue in

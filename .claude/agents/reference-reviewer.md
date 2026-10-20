@@ -34,11 +34,11 @@ Read these, in this order:
 
 ## Where each document's facts live
 
-The application's technical profile, `programme.toml` at its repository's root,
-lists its reference documents as `[[documents.reference]]` entries. Each names
-the `document`, the `files` its facts come from (the paths `git log` takes) and
-what to `read` in them. If the document you were given has no entry, say so and
-stop.
+The application's technical profile, `app-profile.toml` at its repository's
+root, lists its reference documents as `[[documents.reference]]` entries. Each
+names the `document`, the `files` its facts come from (the paths `git log`
+takes) and what to `read` in them. If the document you were given has no entry,
+say so and stop.
 
 Scripts you write to compare things go in `/tmp`, never in the repository.
 

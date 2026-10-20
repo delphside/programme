@@ -10,7 +10,7 @@ set -uo pipefail
 # found them by luck.
 #
 # The application's own facts (what the linter skips, the grandfathered change
-# documents, its own checks) come from its technical profile, `programme.toml`,
+# documents, its own checks) come from its technical profile, `app-profile.toml`,
 # through `board-profile.py` (#485); nothing here names an application.
 #
 # One script, called by `.github/workflows/docs.yml`, so the check you make

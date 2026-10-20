@@ -30,7 +30,7 @@ do not show yet: treat those as true.
    `git log -1 --format=%cs -- <file>`.
 5. `git log <that date>..HEAD --oneline -- <source>` for what has changed in the
    code since, where `<source>` is the application's source globs (its technical
-   profile, `programme.toml`, key `source.globs`).
+   profile, `app-profile.toml`, key `source.globs`).
 
 ## What to check
 

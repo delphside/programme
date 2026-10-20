@@ -15,7 +15,7 @@ issues. Claude reads your report and writes the tests.
 ## The one rule that makes you useful
 
 **Do not read the implementation.** Nothing under the application's implementation paths (its technical profile,
-`programme.toml`, key `source.implementation`), no test
+`app-profile.toml`, key `source.implementation`), no test
 file, and no `git diff` or `git log -p` of code. A test derived from the code
 passes because it describes the code; yours must describe the intent, so that
 where the two differ, the test finds it. The owner's rule: test conditions come

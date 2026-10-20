@@ -14,7 +14,7 @@ would be believed in another's repository.
   programme's processes need to know about this application, in fixed tables
   (identity, versioning, environments, routes, target architecture, records).
   Read from the *live* checkout (`records.live()`), because it is a record.
-- **The technical profile**, `programme.toml` at the application's root: how
+- **The technical profile**, `app-profile.toml` at the application's root: how
   versions are read, what ships, the commands. In the application's repository,
   with the code it describes. `PROGRAMME_PROFILE` replaces the path.
 
@@ -38,7 +38,7 @@ from typing import Any
 ENV_PROFILE = "PROGRAMME_PROFILE"
 ENV_CONFIG = "PROGRAMME_CONFIG"
 
-TECHNICAL_FILE = "programme.toml"
+TECHNICAL_FILE = "app-profile.toml"
 
 # Where the programme file is inside the pinned submodule. The submodule's own
 # path is a fact the programme file holds, but the file cannot be found without
@@ -209,7 +209,7 @@ class Section:
 
 
 def technical(root: Path | None = None) -> Section:
-    """The technical profile, `programme.toml` at the application's root."""
+    """The technical profile, `app-profile.toml` at the application's root."""
     path = technical_path(root)
     return Section(_toml(path, "the technical profile",
                          _hint(path, os.environ.get(ENV_PROFILE), root,

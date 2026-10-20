@@ -7,7 +7,7 @@ programme repository (change notes, templates, reports) is the programme's; and 
 is neither.
 
 The lists are the application's, so these cases read the fake technical profile
-(`fixtures/programme.toml`), whose document range is 9 and not the real one's.
+(`fixtures/app-profile.toml`), whose document range is 9 and not the real one's.
 """
 
 import unittest

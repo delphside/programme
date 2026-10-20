@@ -18,7 +18,7 @@ import shutil
 from pathlib import Path
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-TECHNICAL = FIXTURES / "programme.toml"
+TECHNICAL = FIXTURES / "app-profile.toml"
 OTHER_TECHNICAL = FIXTURES / "programme-other.toml"
 CONFIG = FIXTURES / "programme-config.toml"
 LIVE = FIXTURES / "live"
