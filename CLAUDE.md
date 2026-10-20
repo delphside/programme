@@ -304,7 +304,7 @@ docs/1.6 records the app it works through.
   agent task. A document change is reviewed by `document-reviewer-reader` and
   `document-reviewer-truth`, against docs/1.5's house style, and a pull request
   carrying code by `change-reviewer`, whoever wrote the code; a pull request a
-  bot opened owes none.
+  bot opened owes no review rounds.
 - Test conditions derive from stated rules, not from the code. Each
   application's rules are stated in its own documents.
 - A gate refuses and work stops; a check reports and a person decides. A new
