@@ -78,6 +78,8 @@ those rules:
   description, where a design note or nothing belongs.
 - **The missing sentence** (1.5 *Every section has an audience and a use
   case*): a place where a reader would do the wrong thing for lack of one.
+- **Facts in prose** (1.5 *Prose for reasons, structure for facts*): a
+  paragraph holding a sequence, two or more conditions or a set of items.
 - **Unwrapped prose** (1.5 *Wrap prose at 80 characters*): a line over 80
   characters in a changed paragraph, an unchanged paragraph rewrapped, or a
   long link, text and target, split across lines.
