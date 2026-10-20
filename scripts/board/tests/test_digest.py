@@ -423,6 +423,11 @@ class DocumentReviews(Cases):
         bare = RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 60000")
         self.expect("a cost line with no k figure costs nothing", (0, 1, "cost lines with no k figure"),
                     (bare.costed_findings, bare.uncosted, bare.value()))
+        self.expect("a bare figure is its round's", ("By round: R1 150k for 1 (150k each). "
+                                                    "By a reviewer with no cost figure: 1 finding(s)"),
+                    RoundCount().add("- R1 reader — x — a\n- R1 cost: 150k").value())
+        shared = RoundCount().add("- R1 change — x — a (also owner)\n- R1 cost: reader 10k")
+        self.expect("a finding is counted once however many lack a figure", 1, shared.unfigured)
         unnamed = RoundCount().add("- R1 reader — x — y\n- R1 cost: about 50k")
         self.expect("an empty reviewer list is not printed", "By round: R1 50k for 1 (50k each). By a reviewer with no cost figure: 1 finding(s)",
                     unnamed.value())
