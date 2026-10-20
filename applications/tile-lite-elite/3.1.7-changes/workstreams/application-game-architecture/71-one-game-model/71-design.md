@@ -647,27 +647,52 @@ driven by a loop inside somebody else's request.
 - **Searching beside the game logic is interim.** Once the harness exists,
   every bot is a client of it, the server's own engines included (owner,
   2026-10-14). It need not be a separate process, but each engine runs
-  asynchronously, as a client, never inside a request. The harness bounds its
-  own searches; `engine_limit` is left bounding the hint, for as long as the
-  hint is computed in the server.
+  asynchronously, as a client, never inside a request: in the server it is
+  the in-process bot below. The harness bounds its own searches;
+  `engine_limit` is left bounding the hint, for as long as the hint is
+  computed in the server.
 - **A search that fails stays the bot's problem.** An engine error, a panic or
   a search past its budget leaves the seat on turn, as a silent human's would,
   and the move time limit deals with it. It is logged, and never returned to
   the human whose move set it off.
 - **Every change can put a bot on turn**, not only a move: a timeout, a
-  force-resign or a seat leaving each hand the turn on, and `apply` reports the
-  seat now on turn whichever it was.
+  force-resign or a seat leaving each hand the turn on, and each is published,
+  so the bot hears of it from the broadcast whichever it was.
 - **The submitted move is re-validated on arrival**, because the game may have
   moved while the engine was thinking — aborted, or its seat retired. A human
   gets that check today; a bot searching off the lock needs the same one. That
   is what makes it a client rather than a special case: it proposes a move and
   may be told no.
 
-Notification goes through the same broadcast every other client uses, so an
-in-process engine and an external one differ only by whether a socket sits in
-the middle. That is what makes the external harness a plug-in rather than a
-second way to play — and stops the two drifting, which is the real cost of
-leaving the loop in place.
+**A bot behaves like the existing client**, and is four layers, top-down
+(owner, 2026-10-20; detail in [`71-data-model.md`](71-data-model.md) §3 and §8):
+
+1. **Bot**: the engine and `take_turn`, identical wherever it runs.
+2. **Client core**: what every client shares, from `game-wire`. It builds a
+   `GameView` from each event and submits a `GameMessage`. The web client, the
+   test client and the bot harness sit on it.
+3. **Transport**, one of two adapters behind it. *External*: HTTPS and
+   WebSocket, signed in as the bot's account. *In-process glue*: the same two
+   calls with no socket.
+4. **Server**: Transport API, Game service, `apply`; `publish` sends each
+   change to the Event stream.
+
+The bot hears it is on turn from the Event stream, the broadcast every client
+subscribes to, and never from the caller of `apply`. The in-process glue joins
+the server at the Game service, just under the Transport API, as loopback skips
+the IP layer: it subscribes to the Event stream and submits by calling the
+function a route handler calls after its sign-in check, as the bot's own
+account, so the service still checks the caller. It skips HTTP framing and the
+rate limiter. The Event stream is one channel for every game and carries the
+full state, so filtering and redaction happen before the transport is
+chosen, in one server function both the WebSocket and the glue call; otherwise
+an in-process bot would see every rack
+([the engine](71-data-model.md#8--the-engine)).
+
+An in-process engine and an external one therefore differ only by transport.
+That is what makes the external harness a plug-in rather than a second way to
+play — and stops the two drifting, which is the real cost of leaving the loop
+in place.
 
 ## The client has the same defect
 
@@ -1032,8 +1057,8 @@ are today, since they currently move inside the triggering request.
 **A bot plays as a bot account, wherever the engine runs.** The harness
 authenticates as the bot, not as the person running it — so a bot's moves move
 a bot's rating, and nothing has to declare after the fact which moves were
-whose. A server-run bot's seat carries the same kind of account id; the server
-writes it without authenticating, because it is the server.
+whose. A server-run bot's seat carries the same kind of account id; the in-process
+glue passes it to the Game service, which checks it as it checks any caller.
 
 That keeps where the engine runs out of the data model entirely, which is the
 note's whole purpose. A bot playing from a client and a bot playing in the
@@ -1054,7 +1079,8 @@ bot has an owner, and the owner is who you stop.
 Rate limiting is a separate concern and answers a different question. It
 protects the service from load, not from anybody in particular. It exists
 (`app/throttle.rs`, 4.1), and a harness meets it like any client: its retry
-policy against 429 and `Retry-After` is #10's.
+policy against 429 and `Retry-After` is #10's. The in-process bot joins below
+it and is not counted.
 
 **Anybody may register a bot** and run it through the harness or their own
 client. A bot account is an ordinary account with an owner and an engine, so
@@ -1128,7 +1154,7 @@ requirements are on its issue; its tests are in its own test file.
 **Takes**: *One version, moved in one place*, with every `GameMessage`
 variant except undo and redo; per-game locking; the seat model and its
 lifecycle; *DTOs are invisible*, including the opponent tile count and the
-shared error body (D65); *The engine is a client*; the append-only game log
+shared error body (D65); *The engine is a client*, with the in-process glue under the bot; the append-only game log
 (D61); *Migration*, with the schema version, foreign keys and
 the rating key; the user-details lookup rule; and the code-review findings
 routed from #460 to it. It takes #142, #80, #106, #105, #429 and the invitation
@@ -1234,7 +1260,9 @@ sequenceDiagram
   participant S as Server API
   participant G as Game Service
   participant RS as Rules (server's own copy)
-  participant B as Bot Client
+  participant E as Event Stream
+  participant L as In-process Glue
+  participant B as Bot
   participant RB as Rules (bot's own copy)
 
   P->>S: submit move
@@ -1242,17 +1270,20 @@ sequenceDiagram
   G->>RS: revalidate and score
   RS-->>G: legal / score
   G->>G: apply, bump to version N
+  G->>E: publish version N
   G-->>S: updated state
   S-->>P: confirmed at version N
 
   Note over S,B: the request is over — the bot's turn is not part of it
 
-  G--)B: broadcast version N, redacted
+  E--)L: broadcast version N, redacted for the bot
+  L--)B: on event
   B->>RB: search, holding no lock
-  B->>S: submit move
-  S->>G: revalidate — the game may have moved meanwhile
+  B->>L: submit move
+  L->>G: call as the bot's account — revalidate, the game may have moved
   G->>G: apply, bump to version N+1
-  G--)P: broadcast version N+1
+  G->>E: publish version N+1
+  E--)P: broadcast version N+1
 ```
 
 The confirmation to `P` matters as much as the broadcast: a client that has
@@ -1261,9 +1292,10 @@ what makes concurrent submissions from one client a non-question.
 
 ### 1.2 — the component diagram
 
-`Engine Proxy` goes. An engine reaches the game through the API like anything
-else, whether it is in the harness, on somebody's laptop, or in the server
-process skipping the socket:
+`Engine Proxy` goes. An engine reaches the game as a client does. In the
+harness or on somebody's laptop it comes through the API. In the server it
+comes through the glue, which joins at the Game service, below the API and the
+rate limiter:
 
 ```mermaid
 flowchart LR
@@ -1277,6 +1309,8 @@ flowchart LR
 
   subgraph Server
     Api[Transport API]
+    Events[Event Stream]
+    Glue[In-process Glue<br/>— joins at the Game Service]
     Game[Game Service]
     Rules[Authoritative Rules Engine]
     InProc[In-process Bot<br/>— a client without the socket]
@@ -1294,9 +1328,12 @@ flowchart LR
   Cli --> Api
   Mobile --> Api
   Bot --> Api
-  InProc --> Api
+  InProc --> Glue
 
   Api --> Game
+  Api --> Events
+  Glue --> Game
+  Glue --> Events
   Game --> Store
   Game --> Rules
   InProc --> Registry
@@ -1311,6 +1348,7 @@ flowchart LR
 
 The registry stays, resolving which engine an account runs, but it is reached
 from the in-process bot rather than sitting between the game and the engines.
+The glue subscribes to the Event stream; it does not call `apply`.
 
 ### The reference documents
 
@@ -1360,11 +1398,12 @@ it changes, and how a turn reaches the thing that takes it.
 
 ## How we will know
 
-- **A round-trip property test** over every type crossing the wire. Written
+- **A round-trip property test** over every type crossing the wire, `GameView`
+  among them. Written
   first: it states what "invisible" means precisely enough to know when the
   move is finished.
-- **An engine run both ways** against the same position, in the server and as
-  a client, producing the same move.
+- **An engine run both ways** against the same position, through the
+  in-process glue and the external transport, producing the same move.
 - **The existing lifecycle suite**, which already walks a game from creation
   through resignation, abort, timeout and retention, and should pass unchanged
   except where it asserts a behaviour this note deliberately alters — **plus a

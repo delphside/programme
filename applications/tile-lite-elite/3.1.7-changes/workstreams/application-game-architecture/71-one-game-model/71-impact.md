@@ -162,6 +162,10 @@ games by the lock, and nothing else bounds them. Per-game locking is
 what makes "the engine is a client that takes as long as it takes" true rather
 than aspirational; this work package then removes the remaining coupling.
 
+**What is new** is the bot as a client: it hears it is on turn from the Event
+stream and submits through the in-process glue at the Game service, so no
+caller of `apply` drives it (`71-data-model.md` §8).
+
 ### Migration, and the snapshot schema version
 
 **The design**: existing games are deleted; `snapshot_json` gains a schema

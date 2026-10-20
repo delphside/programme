@@ -13,12 +13,18 @@ is an identity over what a viewer may see, and an engine is a client.
 ## Which layers it uses
 
 - **Pure function tests** for `apply`, one arm at a time, and the round-trip
-  property `game_from_dto(game_to_dto(s, v)) == s.view_for(v)` over generated
-  games.
+  property `game_from_dto(game_to_dto(v)) == v` over generated `GameView`s
+  (in `game-wire`), and `view_for` against a viewer holding two seats.
 - **Scripted test clients**, two or more, on `game-wire`: one acts, the others
   must see it. This is the layer WP A is built against before WP B exists.
-- **An engine run both ways** — in the server and as a client — on the same
-  position, producing the same move.
+- **An engine run both ways** — through the in-process glue and through the
+  external transport — on the same position, producing the same move.
+- **The external transport is tested as the external path.** Pointing the test
+  client or a harness at `localhost:3000` still runs HTTP, WebSocket and JSON
+  and meets the rate limiter, which is keyed by the caller's address, and it
+  makes the bot a loopback caller, which the admin routes trust. It is not the
+  route of the server's own bots, which use the glue at the Game service; that
+  has its own test.
 
 ## The journeys and rules it covers
 
@@ -30,6 +36,7 @@ missing (`71-test-approach.md`).
 ## Its acceptance
 
 - [ ] **Claude** — every `GameMessage` arm has a test that it moves `version`, and a refused one that it changes nothing
-- [ ] **Claude** — the round-trip property passes over generated games and viewers, including a viewer holding two seats
+- [ ] **Claude** — the round-trip property passes over generated `GameView`s, and `view_for` shows a viewer holding two seats both racks
+- [ ] **Claude** — the in-process bot is handed only its own game, redacted for its account, and is never answered 429
 - [ ] **Claude** — a scripted second client sees every change the first makes, invitations included, within one broadcast
-- [ ] **Claude** — the same engine plays the same move in the server and as a client
+- [ ] **Claude** — the same engine plays the same move through the glue and through the external transport

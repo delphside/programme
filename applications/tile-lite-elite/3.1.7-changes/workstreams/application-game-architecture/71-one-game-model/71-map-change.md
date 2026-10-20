@@ -39,9 +39,11 @@ Each heading titles its package's section of
 Every caller sends `apply` a `GameMessage`: the handlers (Game service), the
 Roster, the Invitations, the Scheduler's timeouts and reminders, the admin
 routes (Admin endpoints), the account service (Accounts) for a rename, and a
-bot. The engine proxy goes; a bot is a client of the game. The `game-wire`
-crate (Game wire) holds the conversion between the game and its DTOs, which
-stay in `crates/api`.
+bot, which reaches the Game service through the in-process glue. The engine
+proxy goes; a bot is a client of the game, hears it is on turn from the Event
+stream and submits to the Game service, never to the Game model. The server
+builds each `GameView`; the `game-wire` crate (Game wire) converts it to and
+from the DTOs, which stay in `crates/api`.
 
 ### WP C, #270 Additional Game Lifecycle
 
@@ -117,14 +119,24 @@ workspace extends model.dsl {
         !element tle.server {
             // 71-design.md, "The engine is a client", and 71-data-model.md,
             // "8 · The engine". The design names no path.
-            bot = component "In-process bot" "An engine seat as a client of the game, without the socket." {
+            bot = component "In-process bot" "An engine seat as a client of the game: the bot and the client core, over the glue." {
                 tags "new" "wp:268"
                 properties {
                     "artefact" "crates/server-game/src/bot.rs (proposed)"
                 }
             }
+            // 71-design.md, "The engine is a client" (the four layers), and
+            // 71-data-model.md, "8 · The engine": the in-process transport,
+            // which joins below the Transport API and the rate limiter. The
+            // client core is game-wire's (§3), so it is not drawn.
+            glue = component "In-process glue" "The in-process transport: the bot's two calls without a socket." {
+                tags "new" "wp:268"
+                properties {
+                    "artefact" "crates/server-game/src/bot_link.rs (proposed)"
+                }
+            }
             // 71-data-model.md, "3 · The interface layer".
-            wire = component "Game wire" "The conversion between the game and its DTOs, in both directions." "Rust crate" {
+            wire = component "Game wire" "GameView, and its conversion to and from the DTOs." "Rust crate" {
                 tags "new" "wp:268"
                 properties {
                     "artefact" "crates/game-wire"
@@ -212,18 +224,23 @@ workspace extends model.dsl {
             tags "new" "wp:268"
         }
 
-        // 71-design.md, "The engine is a client": a bot is told, searches
-        // holding no lock, and submits as a client does.
-        tle.server.events -> tle.server.bot "tells it it is on turn" {
+        // 71-design.md, "The engine is a client": a bot hears it is on turn
+        // from the Event stream, searches holding no lock, and submits to the
+        // Game service as the bot's account. The glue skips the Transport API
+        // and the rate limiter, and never calls apply.
+        tle.server.bot -> tle.server.glue "hears of each change through, and submits its move through" {
             tags "new" "wp:268"
         }
         tle.server.bot -> tle.server.engines "searches with, holding no lock" {
             tags "new" "wp:268"
         }
-        tle.server.bot -> tle.server.session "submits its move to apply, re-validated on arrival" {
+        tle.server.bot -> tle.server.wire "reads each event as a GameView with" {
             tags "new" "wp:268"
         }
-        tle.server.bot -> tle.server.events "publishes GameEventDto to" {
+        tle.server.glue -> tle.server.events "subscribes to, through the filter and redaction the WebSocket also uses" {
+            tags "new" "wp:268"
+        }
+        tle.server.glue -> tle.server.games "submits the bot's GameMessage to, as the bot's account" {
             tags "new" "wp:268"
         }
 
@@ -255,24 +272,25 @@ workspace extends model.dsl {
         }
 
         // 71-data-model.md, "3 · The interface layer": the conversion moves
-        // out of server-game, and its callers are those that build a
-        // GameStateDto.
-        tle.server.games -> tle.server.wire "builds each GameStateDto and reads each MoveCandidateDto with" {
+        // out of server-game. The server builds each GameView with
+        // GameSession::view_for and passes it to game-wire, which never sees
+        // GameSession.
+        tle.server.games -> tle.server.wire "converts each GameView to a GameStateDto and reads each MoveCandidateDto with" {
             tags "new" "wp:268"
         }
-        tle.server.roster -> tle.server.wire "builds each GameStateDto with" {
+        tle.server.roster -> tle.server.wire "converts each GameView to a GameStateDto with" {
             tags "new" "wp:268"
         }
-        tle.server.invitations -> tle.server.wire "builds each GameStateDto with" {
+        tle.server.invitations -> tle.server.wire "converts each GameView to a GameStateDto with" {
             tags "new" "wp:268"
         }
-        tle.server.adminApi -> tle.server.wire "builds each GameStateDto with" {
+        tle.server.adminApi -> tle.server.wire "converts each GameView to a GameStateDto with" {
             tags "new" "wp:268"
         }
-        tle.server.events -> tle.server.wire "builds each connection's GameStateDto with" {
+        tle.server.events -> tle.server.wire "converts each connection's GameView to a GameStateDto with" {
             tags "new" "wp:268"
         }
-        tle.server.wire -> tle.server.rules "converts to and from the types of" {
+        tle.server.wire -> tle.server.rules "converts to and from the domain types of" {
             tags "new" "wp:268"
         }
 
