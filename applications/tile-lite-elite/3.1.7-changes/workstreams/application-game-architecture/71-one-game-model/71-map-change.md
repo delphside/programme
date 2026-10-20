@@ -39,8 +39,8 @@ Each heading titles its package's section of
 Every caller sends `apply` a `GameMessage`: the handlers (Game service), the
 Roster, the Invitations, the Scheduler's timeouts and reminders, the admin
 routes (Admin endpoints) and the account service (Accounts) for a rename. The
-engine proxy goes; a bot is a client of the game, hears it is on turn from the
-Event stream and submits through the
+engine proxy goes; the in-process bot is a client of the game, hears it is on
+turn from the Event stream and submits through the
 [in-process glue](71-data-model.md#8--the-engine) to the Game service, which
 calls `apply` for it. The server builds each `GameView`; the `game-wire` crate
 (Game wire) converts it to and from the DTOs, which stay in `crates/api`.
@@ -119,7 +119,7 @@ workspace extends model.dsl {
         !element tle.server {
             // 71-design.md, "The engine is a client", and 71-data-model.md,
             // "8 · The engine". The design names no path.
-            bot = component "In-process bot" "An engine seat as a client of the game: the bot and the client core, over the glue." {
+            bot = component "In-process bot" "An engine seat as a client of the game: the in-process bot, over the glue." {
                 tags "new" "wp:268"
                 properties {
                     "artefact" "crates/server-game/src/bot.rs (proposed)"

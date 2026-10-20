@@ -134,7 +134,9 @@ before the note's judgement is relied on.
 expressed as `SeatRack::Visible(Rack) | Hidden(u8)` rather than by blanking.
 
 **Where the work is**: `api/src/lib.rs` for the types, `app/events.rs:73` for
-redaction, and the client for the count display. **This is the change that
+redaction, and the client for the count display. The conversions move to
+`game-wire`, replacing `game_state.rs`'s and the UI's `client_rules.rs`
+copies. **This is the change that
 moves `API_VERSION` by a major**, because an old client cannot read the new
 shapes.
 

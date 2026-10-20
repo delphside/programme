@@ -679,9 +679,6 @@ driven by a loop inside somebody else's request.
    `updates_for`, which filters and redacts it for one viewer and serves both
    transports.
 
-The bot hears it is on turn from the Event stream, never from the caller of
-`apply`.
-
 An in-process engine and an external one therefore differ only by transport.
 That is what makes the external harness a plug-in rather than a second way to
 play — and stops the two drifting, which is the real cost of leaving the loop
@@ -1281,7 +1278,7 @@ sequenceDiagram
   Note over S,B: the request is over — the bot's turn is not part of it
 
   E--)L: broadcast version N, the full state
-  Note over E,L: updates_for redacts per recipient, on both legs
+  Note over E,L: updates_for redacts per recipient, to the glue and to each socket
   L--)B: on event
   B->>RB: search, holding no lock
   B->>L: submit move
@@ -1357,9 +1354,7 @@ flowchart LR
 
 The registry stays, resolving which engine an account runs, but it is reached
 from the in-process bot rather than sitting between the game and the engines.
-The Game service publishes each change to the Event stream. The glue hears of
-changes through `updates_for` and submits to the Game service, which calls
-`apply`.
+The Game service publishes each change to the Event stream.
 
 ### The reference documents
 

@@ -505,12 +505,13 @@ pub fn move_candidate_from_dto(candidate: MoveCandidateDto,
     rules: &VariantRules) -> Result<MoveCandidate, WireError>;
 ```
 
-`board_from_dto`, `tile_from_dto` and `move_candidate_from_dto` exist today
-inside `server-game` (`game_state.rs`), which is exactly why no other client
-can have them. They move here with the same parameters and behaviour; their
-error, a `String` today, becomes `WireError`. `rack_from_dto` is new here: it
-is `to_rules_rack` in `crates/ui/src/client_rules.rs`, moved so the UI and the
-server share it.
+These four replace two sets of copies. `server-game` (`game_state.rs`) has
+`board_from_dto`, `tile_from_dto` and `move_candidate_from_dto` today, with a
+`String` error. The UI has its own in `crates/ui/src/client_rules.rs`:
+`to_rules_tile`, `to_rules_candidate`, `to_rules_board_state` and
+`to_rules_rack`, which panic where the server's return an error. The
+`game-wire` functions return `WireError`; the server's `game_state.rs`
+versions and the UI's `client_rules.rs` copies are removed.
 
 **`GameView` is what a client can rebuild** — the game as this viewer is
 entitled to see it, with `SeatRack::Hidden` where a rack was withheld. It is
@@ -534,12 +535,13 @@ impl GameSession {
 `PlayerLookup` holds the display name and rating of each player in the game.
 The caller passes it in, because user details are always a lookup and never
 copied into game data ([*Open questions*](71-design.md#open-questions)): the
-handlers, the Roster, the Invitations, the admin routes and the Event stream each read the names from
-Accounts and the ratings from Ratings, then call `view_for`, then `game_to_dto`.
+handlers, the Roster, the Invitations, the admin routes and the Event stream
+each read the names from Accounts and the ratings from Ratings, then call
+`view_for`, then `game_to_dto`.
 `GameView` is one type, so the server's code and a client's, `take_turn`
 included, read the same thing.[^layers]
 
-**The identity is a property test in this crate**, stated over `GameView`:
+**The identity is a property test in `game-wire`**, stated over `GameView`:
 
 ```rust
 // for any view:
@@ -557,15 +559,15 @@ pub trait GameLink {
     /// The next view in this subscription's scope, as a GameView; the view
     /// carries the game's id. Scope is what the transport subscribed to: every
     /// game the account holds a seat in for the in-process bot, one game for
-    /// the web client.
+    /// each link of the web client or an external harness.
     async fn on_event(&mut self) -> Result<GameView, LinkError>;
     /// Send a message for a game; the answer is the server's, accepted or refused.
     async fn submit(&self, game_id: &str, message: GameMessage) -> Result<(), SubmitError>;
 }
 ```
 
-The web client, the test client and the bot harness each call these two. A
-transport is an adapter behind them (§8).
+The web client, the test client, the bot harness and the in-process bot each
+call these two. A transport is an adapter behind them (§8).
 
 ## 4 · Access
 
@@ -759,7 +761,9 @@ pub fn take_turn(
 ```text
 sign in as the bot account (external) / hold the bot's account id (in-process)
 on each event from the link:
-    view = the GameView it yields     // from any game the account has a seat in
+    view = the GameView it yields     // in-process: any game the account
+                                      // has a seat in; external: one of the
+                                      // games its links were opened for
     for seat in my_seats(view.game_id):
         if view.current_seat == seat:
             if let Some(msg) = take_turn(engine, &view, seat, budget) {
@@ -779,18 +783,24 @@ bot task. The request that applies a move returns at once.
   filtering and redaction are the server's, below both transports: one
   function, `updates_for(scope, &ViewerAccess)`, where the scope is one game
   or every game the account holds a seat in. The scope follows the account's
-  seats as they change: a seat added later brings that game into scope, and
-  its changes follow. On subscribing it first yields the current `GameView` of
-  each game in scope, then each change, built with `view_for`. The first
-  yield covers start-up and, for a WebSocket, reconnection, so a game already
-  on the bot's turn is played. The WebSocket handler subscribes with one game,
-  as today; the glue with every game the bot's account holds a seat in. The
-  socket converts each `GameView` to a frame with `game_to_dto`; the glue
-  hands it to the bot as it is.
+  seats as they change: a seat added later brings that game into scope,
+  starting with the change that seated it. On subscribing it first yields
+  the current `GameView` of each game in scope, then each change, built with
+  `view_for`. The first yield covers start-up and, for a WebSocket,
+  reconnection, so a game already on the bot's turn is played. The WebSocket
+  handler subscribes with one game, as today; the glue with every game the
+  bot's account holds a seat in. The socket converts each `GameView` to a
+  frame with `game_to_dto`; the glue hands it to the bot as it is.
 - `submit` calls the same Game service function a route handler calls after
   its sign-in check, passing the bot's account id as the caller. The service
   still checks that the caller holds the seat and that it is on turn, and
   calls `apply`.
+
+**Over the external transport, `GameLink` opens one WebSocket per game**, as
+today, for the games the account's game list names; each socket's first yield
+covers reconnection for its game. How an external harness learns of a game it
+is newly seated in while running, by a seat-scope socket or by polling its
+game list, is #10's.
 
 **The submitted move is re-validated on arrival**, because the game may have
 moved — aborted, or the seat retired. A rejection is normal, not an error.
@@ -861,13 +871,14 @@ for is left for WP A's code. A bot account has no session in-process, so the
 design's rule, *an external client authenticates as a person before it can
 assume a bot* ([`71-design.md`](71-design.md#open-questions), *A bot plays
 as a bot account*), governs external harnesses only. Whether an in-process
-bot's account needs an owner the same way is the owner's to confirm.
+bot's account needs an owner the same way is for the programme owner to
+confirm.
 
-**How does the harness discover its turn on startup?** The note settles this —
-polling on start, socket thereafter. What it does not settle is what the
-harness does with a game whose bot seat is on turn but whose socket frame was
-missed while it was down, which is the same reconnect question the human client
-has and should have the same answer.
+**How does an external harness learn of a game it is newly seated in?** Its
+startup and reconnection are settled ([§8](#8--the-engine)): one socket per
+game from its game list, whose first yield is the current view. What is open,
+and #10's, is how it learns of a game that seats its bot while it is
+running: a seat-scope socket or polling its game list.
 
 **Does `turn` need to be persisted separately from `moves.len()`?** Settled by
 undo, 2026-08-29: yes. Under undo `turn` walks backwards while `moves` does not
