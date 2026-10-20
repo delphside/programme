@@ -303,7 +303,8 @@ docs/1.6 records the app it works through.
   trials. docs/1.1 has which model, how a round runs and what makes a good
   agent task. A document change is reviewed by `document-reviewer-reader` and
   `document-reviewer-truth`, against docs/1.5's house style, and a pull request
-  carrying code by `change-reviewer`, whoever wrote the code.
+  carrying code by `change-reviewer`, whoever wrote the code, unless a bot
+  opened it.
 - Test conditions derive from stated rules, not from the code. Each
   application's rules are stated in its own documents.
 - A gate refuses and work stops; a check reports and a person decides. A new
