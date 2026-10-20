@@ -4,17 +4,18 @@ Project: delphside/tile-lite-elite#485 · three deliveries: 1 by hand
 (2026-10-16), 2 as `0.9.1a` (2026-10-16 to 18), 3 as work package #527
 (2026-10-20) · reviewed: 2026-10-20, by Claude; the owner reviews it
 
-- [ ] **owner** — save the token as the `BOARD_TOKEN` Actions secret in the
+- [x] **owner** — save the token as the `BOARD_TOKEN` Actions secret in the
   programme repository
-- [ ] **Claude** — record on #485's R10 row the owner's acceptance of the
+- [x] **Claude** — record on #485's R10 row the owner's acceptance of the
   bats test (decision card, 2026-10-20)
-- [ ] **Claude** — run the board sweep by hand once `BOARD_TOKEN` is saved in
+- [x] **Claude** — run the board sweep by hand once `BOARD_TOKEN` is saved in
   the programme repository, and record on #485's R2 check whether it added
-  the other repositories' items
-- [ ] **Claude** — once tile-lite-elite#535 merges, answer #527's checks and
+  the other repositories' items: run 4 on 2026-10-20 added 11
+- [x] **Claude** — once tile-lite-elite#535 merges, answer #527's checks and
   update 3.1.2 and 3.1.6
-- [ ] **owner** — read this review; after the boxes above are ticked, #485
-  moves to Project Closedown and closes with #527
+- [x] **owner** — read this review (approved 2026-10-20). With the checks
+  passed, #485 and #527 move to Project Closedown; they close once every
+  action in section 4 is done or raised as an issue
 
 ## 1. Was the intended scope delivered?
 
