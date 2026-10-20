@@ -493,19 +493,13 @@ CONCLUDE = ("*Conclusion, at the weekly review: for example an initiative (which
 
 
 def with_conclusions(notes: str) -> str:
-    """The week's notes, each top-level bullet followed by its conclusion to
-    decide. Text with no bullets is one note."""
+    """The week's notes, each record of `note_records` followed by its
+    conclusion to decide. Text that does not open with a bullet is one note."""
     if not notes:
         return notes
-    blocks: list[list[str]] = []
-    for line in notes.splitlines():
-        if line.startswith("- ") or not blocks:
-            blocks.append([line])
-        else:
-            blocks[-1].append(line)
     if not notes.lstrip().startswith("- "):
         return f"{notes}\n\n{CONCLUDE}"
-    return "\n".join("\n".join(block + [f"  - {CONCLUDE}"]) for block in blocks)
+    return "\n".join(f"{record}\n  - {CONCLUDE}" for record in note_records(notes))
 
 
 def draft(code: str, first_day: str) -> str:

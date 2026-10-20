@@ -282,6 +282,8 @@ class Conclusions(Cases):
         self.expect("continuation stays with its note", True,
                     with_conclusions("- one\n  more of one\n- two").startswith("- one\n  more of one\n  - *Conclusion"))
         self.expect("text with no bullets is one note", 1, with_conclusions("plain note").count(CONCLUDE))
+        self.expect("a note's top-level round lines share its conclusion", 1,
+                    with_conclusions("- abc1234 rounds:\n- R1 reader — x — y\n- R1 cost: reader 5k").count(CONCLUDE))
         self.expect("no notes, nothing to conclude", "", with_conclusions(""))
         self.expect("and the report carries them", 2, render(digest(), notes="- a\n- b").count(CONCLUDE))
 
