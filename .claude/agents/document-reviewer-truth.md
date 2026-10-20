@@ -51,8 +51,7 @@ reads.
 Every changed section is in scope. Where the handover asks for a document
 whole, every section is, and a fault in unchanged text is reported as
 **pre-existing**. Where the handover's *Already checked* lists claims, check the
-others, and recheck a listed claim only where the diff since the round that
-found it true touches it.
+others and the entries marked *recheck*.
 
 ## What to check
 
@@ -90,9 +89,10 @@ Your final message is the report, and nothing else is read.
 
 - **Checks**: every check in *What to check*, and every *Done when* item and
   question in the handover, each answered **holds**, **finding** (with its
-  number) or **could not check** (and why). None left out. List the claims you
-  checked and found true in one line, so a claim left unlisted is known to be
-  unchecked.
+  number), **could not check** (and why) or **already checked** (listed in the
+  handover's *Already checked* and not marked *recheck*). None left out. List
+  the claims you checked and found true in one line, so a claim left unlisted is
+  known to be unchecked.
 - **Findings**, numbered, most serious first. Each gives:
   - The file and line, and the words quoted.
   - The rule broken, cited as `1.5 *<heading>*`.
