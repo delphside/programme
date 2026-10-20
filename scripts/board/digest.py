@@ -371,9 +371,10 @@ class RoundCount:
                 round_ = "R" + _ROUND.match(line).group(1)
                 costed.setdefault(round_, set())
                 figures = _TOKENS.findall(m.group(1))
-                self.unread_costs += not figures
+                named = _SPENT.findall(m.group(1))
+                self.unread_costs += (not figures) + max(0, len(figures) - len(named))
                 self.tokens += sum(float(t) for t in figures)
-                for who, k in _SPENT.findall(m.group(1)):
+                for who, k in named:
                     who = who.lower()
                     if who in REVIEWERS:
                         costed[round_].add(who)
