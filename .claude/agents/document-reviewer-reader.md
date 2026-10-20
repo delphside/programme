@@ -42,9 +42,9 @@ however clean the document reads.
    any new or untracked file whole; then each changed document whole, so a
    changed section is read in its place. Where the handover asks for a
    document whole, every section is in scope. Where the handover's *Already
-   checked* lists rules or sections found sound, review the rest and the
-   entries marked *recheck*. Answer any other listed entry in *Checks* as
-   **already checked**.
+   checked* lists rules or sections found sound, review the rest, the entries
+   marked *recheck*, and the lines changed since against every listed rule.
+   Answer a listed entry that finds nothing in those as **already checked**.
 4. The document's row in 1.5's *Who each range is for*: who is reading, and
    what the section carries and leaves out.
 
@@ -103,7 +103,8 @@ Your final message is the report, and nothing else is read.
 - **Checks**: every rule on your checklist, and every *Done when* item and
   question in the handover, each answered **holds**, **finding** (with its
   number), **could not check** (and why) or **already checked** (listed in the
-  handover's *Already checked* and not marked *recheck*). None left out.
+  handover's *Already checked*, not marked *recheck*, and holding on the lines
+  changed since). None left out.
 - **Findings**, numbered, most serious first. Each gives:
   - The file and line, and the words quoted.
   - The rule broken, cited as `1.5 *<heading>*` or `Google: <section>`.
