@@ -169,13 +169,14 @@ stream and submits through the
 drives it.
 
 **Artefacts WP A adds for the bot.** The Event stream in `app/events.rs`
-becomes a registry of channels per game, with a seat notice per account, and
-`updates_for` subscribes to those instead of filtering one shared channel. The
-server's settings gain `TILE_LITE_ELITE_BOTS` (proposed), the list of bots it
-runs in-process, which the configuration reference documents
+becomes a registry of channels per game, with a seat-notice channel per
+account, and `updates_for` subscribes to those instead of filtering one shared
+channel. The server's settings gain `TILE_LITE_ELITE_BOTS` (proposed), the
+list of bots it runs in-process, which the configuration reference documents
 ([4.4.1 Configuration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md)).
-The mechanism, the generic `Bot<L: GameLink>` and the identity each listed bot
-holds are in [§8](71-data-model.md#8--the-engine). `client_rules.rs` in `ui`
+The generic `Bot<L: GameLink>` is in
+[§3](71-data-model.md#3--the-interface-layer); the mechanism and the bot list
+are in [§8](71-data-model.md#8--the-engine). `client_rules.rs` in `ui`
 loses its copies of the conversions, as
 [DTOs are invisible, and redaction is in the model](#dtos-are-invisible-and-redaction-is-in-the-model)
 says.

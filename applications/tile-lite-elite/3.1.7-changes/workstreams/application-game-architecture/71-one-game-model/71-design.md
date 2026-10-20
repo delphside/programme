@@ -677,7 +677,7 @@ driven by a loop inside somebody else's request.
    compiled: external (HTTPS and WebSocket) or the in-process glue, which
    joins under the Transport API at two calls, `updates_for` to hear and the
    Game service's submit function to act. The bot is generic over the trait
-   (`Bot<L: GameLink>`), never `dyn`.
+   (`Bot<L: GameLink>`).
 4. **Server**: Transport API, Game service, `apply`, and the Event stream, a
    broadcast channel per game, with `updates_for`, which redacts it for one
    viewer and serves both transports.
@@ -1048,8 +1048,9 @@ An external harness (#10's) learns of a turn the way any client does — from th
 message carrying the previous move, or the game starting, on a socket it already
 holds for that game. A game left waiting while the harness was down is picked up
 by the first yield of its socket for that game. A socket that subscribes to
-every seated game also learns of a new seat from a seat notice, whose shape
-is #10's ([§8](71-data-model.md#8--the-engine)).
+every seated game also learns of a new seat from a seat notice, which §8
+defines; the shape of the socket is #10's
+([§8](71-data-model.md#8--the-engine)).
 
 **A bot plays as a bot account, wherever the engine runs.** The harness
 authenticates as the bot, not as the person running it — so a bot's moves
