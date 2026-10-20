@@ -704,7 +704,7 @@ survives the move to `(player_id, edition)`.
 | `app/events.rs` (105) | gains `publish(Applied)` — persist, publish, one place — and `updates_for`, the one redacted subscription, that a socket and the in-process glue both use; the channels and their rules are in [§8](#8--the-engine) |
 | `app/sweeps_game.rs` (301), `app/scheduler_jobs.rs` (297) | timeouts and reminders go through `apply` rather than writing rows, which is what makes them visible to clients. A scheduler job is a caller like any other |
 | `app/sweeps_capacity.rs` (81) | expiring a finished or aborted game deletes it rather than changing it, so it does not call `apply`; it goes through the Event stream ([§8](#8--the-engine)) |
-| `app/admin.rs` (430) | force-resign and force-end become `GameMessage`s; `admin_delete_game` goes through the Event stream as the `app/sweeps_capacity.rs` row says |
+| `app/admin.rs` (430) | force-resign and force-end become `GameMessage`s; `admin_delete_game` goes through the Event stream ([§8](#8--the-engine)) |
 | `stats.rs`, `app/ratings.rs` | unchanged in substance; read `Applied.finished` instead of inspecting status transitions |
 | `crates/ui/src/app.rs` (5,522) | section 7 |
 | `crates/engine-core` | **unchanged.** The trait already takes a request and returns an action; what changes is who calls it |
@@ -829,7 +829,8 @@ on each update from the link:               // one object per seat held; the
                                             // link holds the identity, the
                                             // object none
     GameUpdate::Game { view, .. }:
-        if view.current_seat == seat:       // seat is the object's own
+        if view.status == Active
+           && view.current_seat == seat:    // seat is the object's own
             if let Some(msg) = take_turn(engine, &view, seat, budget) {
                 link.submit(view.game_id, msg)
             }
@@ -870,9 +871,9 @@ full, unredacted state to its game's channel only, so an event reaches the
 sockets of its game and no others, and the cost of a change grows with that
 game's receivers only. **Each account also has a `watch` of its full list of
 seats**, a `Vec<SeatRef>` (§3), which `publish` and the deletion of a game
-write. A seat stays in the list until its game is deleted, finished or not; a
-bot object in a finished game is never on turn. The scope decides what a
-subscriber receives:
+write. A seat leaves the list when it is removed or its game is deleted;
+finishing a game keeps its seats, and a bot object takes a turn only in an
+active game. The scope decides what a subscriber receives:
 
 | scope | who subscribes | receives |
 | --- | --- | --- |
@@ -909,15 +910,15 @@ closes every receiver, so `updates_for` yields `GameRemoved` on every receiver
 of that game, and an object's link ends with it. The seat list losing the
 `SeatRef` makes [the glue's loop](#what-changes-who-calls-it) drop the object.
 Dropping an object that has already ended is harmless, so `GameRemoved` on the
-object's link and `Seats` losing the `SeatRef` may come in either order. A seat
+object's link and `Seats` losing the `SeatRef` arrive in either order. A seat
 removed from a game that stays shrinks the seat list, and `updates_for` leaves
 that game's channel only when the list holds no seat in it.
 
 **The server never iterates over its clients, and nothing dispatches on the kind
 of subscriber.** `publish` writes the new state to the game's `watch` once.
 Every subscriber is its own task compiled for one concrete type: a WebSocket
-task converts the state to a frame and writes its socket; a task of
-`Bot<InProcessLink>` gives the state to its engine. Each WebSocket task runs
+task converts the state to a frame and writes its socket; a bot's task gives
+the state to its objects, and each object to its engine. Each WebSocket task runs
 `updates_for` for its socket. The glue runs one task per listed bot, which runs
 `updates_for` once over every seated game and holds one `Bot` object per seat
 that bot holds, made and dropped by
