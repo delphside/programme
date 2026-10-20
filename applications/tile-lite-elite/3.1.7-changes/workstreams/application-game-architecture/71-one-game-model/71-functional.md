@@ -882,7 +882,7 @@ where it becomes obvious: most of what happens in a game is not on it.
 **Arrows with no command.** Timing out and being swept away are the clock, not
 a caller. Any design built on "state changes because somebody asked" gets
 these wrong — which is why the sweeps and the scheduler's jobs have to bump the
-version and broadcast through the same path a request does, rather than quietly
+version and publish through the same path a request does, rather than quietly
 writing a row.
 
 So the alignment worth having is not arrow-to-message. It is one level up, and

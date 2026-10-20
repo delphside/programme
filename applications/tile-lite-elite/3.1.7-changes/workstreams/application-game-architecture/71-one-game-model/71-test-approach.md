@@ -18,7 +18,7 @@ crate. When it ran it could connect in the same way as the real client. It is
 the client that initiates everything."*
 
 **Two instances of it cover the whole fault class.** Everything the server does
-is either a response to a client, or a broadcast provoked by another one — so
+is either a response to a client, or an update provoked by another one — so
 nothing needs a server-side harness to make it happen, only a second client
 doing something. That is exactly the *"second client watching"* without which,
 as #71 says, none of its three faults would have been caught.

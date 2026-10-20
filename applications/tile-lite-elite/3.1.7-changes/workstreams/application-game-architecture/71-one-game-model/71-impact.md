@@ -169,12 +169,11 @@ stream and submits through the
 drives it.
 
 **Artefacts WP A adds for the bot.** The Event stream in `app/events.rs`
-becomes a registry of `watch` channels per game, each holding only the latest
-state, with a `watch` of the full list of seats per account, and `updates_for`
-subscribes to those instead of filtering one shared channel. Every subscriber is
-its own task for one concrete type, so the server never iterates over its
-clients. Each engine strength is its own listed bot. The server's settings gain `TILE_LITE_ELITE_BOTS` (proposed), the
-list of bots it runs in-process, which the configuration reference documents
+becomes a registry of `watch` channels, and `updates_for` subscribes to those
+instead of filtering one shared channel; the mechanism is in
+[§8](71-data-model.md#8--the-engine). The server's settings gain
+`TILE_LITE_ELITE_BOTS` (proposed), the list of bots it runs in-process, which
+the configuration reference documents
 ([4.4.1 Configuration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md)).
 The generic `Bot<L: GameLink>` is in
 [§3](71-data-model.md#3--the-interface-layer); the mechanism and the bot list

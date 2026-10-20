@@ -266,7 +266,8 @@ this derivation breaks silently, which is worth a test rather than a comment.
 
 ### The message
 
-`GameMessage` is in the note. What it needs alongside it is the result:
+`GameMessage` is in the note and is defined in `game-wire` (§3). What it needs
+alongside it is the result:
 
 ```rust
 pub struct Applied {
@@ -483,9 +484,10 @@ knowing nothing about the wire.
 ```text
 crates/api            DTOs and serde. No rules, no engine.
 crates/rules-shared   the domain: GameState, Rack, Tile, MoveCandidate.
-crates/game-wire      NEW. depends on both. GameView, GameLink, Bot and
-                      take_turn, and GameView's conversion to and from the
-                      DTOs. Never sees GameSession.
+crates/game-wire      NEW. depends on both. GameView, GameMessage,
+                      GameUpdate, GameLink, Bot and take_turn, and
+                      GameView's conversion to and from the DTOs. Never
+                      sees GameSession.
 crates/server-game    depends on game-wire. Builds each GameView.
 crates/ui             depends on game-wire.
 crates/test-client    NEW. depends on game-wire.  (see 71-test-approach.md)
@@ -550,35 +552,60 @@ What a viewer may see is proved where `view_for` is, in `server-game`: a viewer
 holding two seats sees both racks, and every other rack is `Hidden`.
 
 **The client core** is the one interface every client sits on, and it is in
-`game-wire` too. It has two calls, and no server type in either:
+`game-wire` too. `game-wire` defines what crosses it as two enums, one for each
+direction, and a link moves those and nothing else:
+
+```rust
+// crates/game-wire
+/// To the server: a move, pass, exchange, resign and the rest. The variants
+/// are in 71-design.md, "One version, moved in one place".
+pub enum GameMessage { /* ... */ }
+
+/// From the server: what a subscriber is told.
+pub enum GameUpdate {
+    /// A game's new state, and the event that produced it. `because` is
+    /// absent when the receiver has skipped states (§8).
+    Game { view: GameView, because: Option<GameEvent> },
+    /// The account's new list of seats, as the games it holds a seat in.
+    Seats(Vec<GameId>),
+    /// A game no longer exists; nothing more follows for it.
+    GameRemoved(GameId),
+}
+```
+
+`GameUpdate` is a proposed name. The client core has two calls, and no server
+type in either:
 
 ```rust
 pub trait GameLink {
-    /// The next view in this subscription's scope, as a GameView; the view
-    /// carries the game's id. Scope is what the transport subscribed to: the
-    /// seat's game for the link of each in-process bot object, one game for
-    /// each link of the web client or an external harness.
-    async fn on_event(&mut self) -> Result<GameView, LinkError>;
+    /// The next update in this subscription's scope. A GameView carries its
+    /// game's id. Scope is what the transport subscribed to: the seat's game
+    /// for the link of each in-process bot object, one game for each link of
+    /// the web client or an external harness.
+    async fn on_event(&mut self) -> Result<GameUpdate, LinkError>;
     /// Send a message for a game; the answer is the server's, accepted or refused.
     async fn submit(&self, game_id: &str, message: GameMessage) -> Result<(), SubmitError>;
 }
 ```
 
 The web client, the test client, an external harness and the in-process bot each
-call these two. A transport is an adapter behind them (§8).
+call these two, and see only the two enums. A transport is an adapter behind
+them (§8).
 
 **`GameLink` is a trait with two implementations, chosen at compile time.**
 `Bot<L: GameLink>`, with `take_turn`, is in `game-wire`, where the server and
 the harness of #10 share it. The implementations are `InProcessLink`, which
-stays in `server-game` with the glue, and `ExternalLink` (the name is proposed),
-which speaks HTTPS and WebSocket. The server builds `Bot<InProcessLink>` and a
+stays in `server-game` with the glue and hands the enums over as Rust values,
+and `ExternalLink` (the name is proposed), which turns them into JSON and back
+over HTTPS and the WebSocket, through the DTOs and `game_to_dto` and
+`game_from_dto`. The server builds `Bot<InProcessLink>` and a
 harness builds `Bot<ExternalLink>`. The web client uses `ExternalLink` with a
 one-game scope and builds no `Bot`.
 
-**Sign-in belongs to the link, never to the bot.** An `ExternalLink` is built by
-signing in and keeps the token; an `InProcessLink` is built with the listed
-bot's identity. `Bot<L>` never signs in, so it is the same code on a client and
-in the server.[^watch]
+**Sign-in belongs to the link.** An `ExternalLink` is built by signing in and
+keeps the token; an `InProcessLink` is built with the listed bot's identity.
+`Bot<L>` never signs in, so it is the same code on a client and in the
+server.[^watch]
 
 ## 4 · Access
 
@@ -652,7 +679,7 @@ survives the move to `(player_id, edition)`.
 | `app/invitations.rs` (442) | send/accept/decline become `GameMessage`s; the table write stays, the seat write moves into `apply` |
 | `app/events.rs` (105) | gains `publish(Applied)` — persist, publish, one place — and `updates_for`, the one redacted subscription, over a `watch` channel per game and a seat list per account, that a socket and the in-process glue both use |
 | `app/sweeps_game.rs` (301), `app/scheduler_jobs.rs` (297) | timeouts and reminders go through `apply` rather than writing rows, which is what makes them visible to clients. A scheduler job is a caller like any other |
-| `app/sweeps_capacity.rs` (81) | expiring a finished game deletes it rather than changing it, so it publishes the removal and does not call `apply` |
+| `app/sweeps_capacity.rs` (81) | expiring a finished game deletes it rather than changing it, so it does not call `apply`; the Event stream drops the game's sender, which closes every receiver, and `updates_for` yields `GameRemoved` (§8) |
 | `app/admin.rs` (430) | force-resign and force-end become `GameMessage`s |
 | `stats.rs`, `app/ratings.rs` | unchanged in substance; read `Applied.finished` instead of inspecting status transitions |
 | `crates/ui/src/app.rs` (5,522) | section 7 |
@@ -747,17 +774,17 @@ and only the third differs by where the bot runs:
 
 1. **Bot**: `Bot<L: GameLink>`, the engine and `take_turn`. The same wherever
    it runs.
-2. **Client core**: `GameLink`, §3. It yields a `GameView` from each event and
-   submits a `GameMessage`.
-3. **Transport**, an adapter behind `GameLink`. *External*: HTTPS and
-   WebSocket; the link signs in as the bot's account when it is built. *In-process glue*: `GameLink`'s
-   two calls with no socket, over `updates_for` and the Game service's submit
-   function. Each build compiles one (§3): the server's bots are
-   `Bot<InProcessLink>`.
+2. **Client core**: `GameLink`, §3. It yields a `GameUpdate` and submits a
+   `GameMessage`, the two enums `game-wire` defines.
+3. **Transport**, an adapter behind `GameLink` that moves those enums and
+   nothing else. *External*: `ExternalLink` turns them into JSON and back over
+   HTTPS and the WebSocket. *In-process glue*: `InProcessLink` hands them over
+   as Rust values, over `updates_for` and the Game service's submit function.
+   Each build compiles one (§3): the server's bots are `Bot<InProcessLink>`.
 4. **Server**: Transport API, Game service, `apply`; `publish` sends each
    change to its game's channel in the Event stream, and `updates_for`
    subscribes to the channels in its scope and redacts for one viewer, under
-   both transports. Every subscriber is its own task (below).
+   both transports. Every subscriber is its own task.
 
 ```rust
 /// Same code in the server and in a client. Given a view of a game and an
@@ -775,8 +802,9 @@ pub fn take_turn(
 ```text
 on each event from the link:       // a Bot<L: GameLink>, one per seat held;
                                    // the link holds the identity, the bot none
-    view = the GameView it yields  // in-process: this seat's game; external:
-                                   // one of the games its links were opened for
+    view = the GameView of a GameUpdate::Game  // in-process: this seat's game;
+                                   // external: one of the games its links
+                                   // were opened for
     // seat is the object's own seat
     if view.current_seat == seat:
         if let Some(msg) = take_turn(engine, &view, seat, budget) {
@@ -792,71 +820,121 @@ no caller spawns a bot task. The request that applies a move returns at once.
 `updates_for` to hear, and the Game service's submit function to act.
 
 **`on_event` hears through `updates_for(scope, &ViewerAccess)`**, the one
-function that redacts for a recipient, below both transports. **The Event
-stream is a registry from game id to that game's `watch` channel**
-(`app/events.rs`, tokio), which holds only the latest state. Every game event
-carries the whole state, so each update supersedes the last: a slow receiver
-reads the newest and skips the stale ones, and a receiver never lags.
-`updates_for` creates a game's channel on its first subscriber and drops it with
-its last. `publish` writes the full, unredacted state to its game's channel
-only, so an event reaches the sockets of its game and no others, and the cost of
-a change grows with that game's receivers only. **Each account also has a
-`watch` of its full list of seats**, which `publish` updates when a change seats
-the account; it supersedes in the same way, so no seat is missed. The scope
-decides what a subscriber receives:
+function that redacts for a recipient, below both transports. The Event
+stream is a registry from game id to that game's `watch` channel
+(`app/events.rs`, tokio), which holds only the latest state. `updates_for`
+creates a game's channel on its first subscriber and drops it with its last.
+`publish` writes the full, unredacted state to its game's channel only, so an
+event reaches the sockets of its game and no others, and the cost of a change
+grows with that game's receivers only. **Each account also has a `watch` of its
+full list of seats**, which `publish` updates when a change seats or unseats
+the account. The scope decides what a subscriber receives:
 
 | scope | who subscribes | receives |
 | --- | --- | --- |
 | one game | the WebSocket handler, as today | that game's channel |
 | every seated game | the glue, once per listed bot; an external harness over its socket | the channel of each game it holds a seat in, and the account's seat list; `updates_for` joins the channel of any game newly in the list, so a seat added later brings that game into scope |
 
-Both scopes first yield the current `GameView` of each game in scope, then each
-change, built with `view_for` for this recipient. The first yield covers
-start-up and, for a WebSocket, reconnection, so a game already on the bot's
-turn is played. `updates_for` joins a game's channel before it reads the game,
-so no change falls between. The socket converts each `GameView` to a frame with
-`game_to_dto`; the glue gives each view, as it is, to the bot object of each
-seat the bot holds in that game.
+Both scopes first yield the current `GameView` of each game in scope, as a
+`GameUpdate::Game`, then each change, built with `view_for` for this recipient.
+The first yield covers start-up and, for a WebSocket, reconnection, so a game
+already on the bot's turn is played. `updates_for` joins a game's channel before
+it reads the game, so no change falls between. The socket converts each
+`GameView` to a frame with `game_to_dto`; the glue gives each view, as it is,
+to the bot object of each seat the bot holds in that game.
 
-**The server never iterates over its clients, and nothing uses a vtable.**
-`publish` writes the new state to the game's `watch` once. Every subscriber is
-its own task compiled for one concrete type: a WebSocket task converts the state
-to a frame and writes its socket; a `Bot<InProcessLink>` task gives the state to
-its engine. Nothing branches on the kind of subscriber.
+**The state supersedes; the `because` of a skipped state is dropped by
+design.** A `watch` value is the state with its `because` (§2's envelope). A
+receiver that keeps up sees every value and always reads the latest state, so it
+never lags. A slow one skips states: it sees the version jump by more than one
+and treats `because` as absent, which rebuilds everything (§1's *nothing*
+case). The move list is part of the state, so nothing is lost. Push notifications are
+sent by the server, not by the watch, so a skipped value loses none. This keeps
+today's behaviour: the client already applies an update only if its version is
+higher (`should_apply_update`, `crates/ui/src/app.rs`).[^watch]
 
-How one move from a person reaches both tasks, and how a new seat joins:
+**A removed game or seat leaves the channel.** When a game is removed, the Event
+stream drops the game's sender, which closes every receiver; `updates_for`
+yields `GameUpdate::GameRemoved` for it and stops following it. A seat removed
+shrinks the seat list, and `updates_for` leaves that game's channel.
+
+**The server never iterates over its clients, and nothing dispatches on the
+kind of subscriber.** `publish` writes the new state to the game's `watch` once.
+Every subscriber is its own task compiled for one concrete type: a WebSocket
+task converts the state to a frame and writes its socket; a task of
+`Bot<InProcessLink>` gives the state to its engine. (`take_turn` takes a
+`&dyn GameEngine`; that is the engine, not a kind of subscriber.) Each task
+runs `updates_for` for itself. The glue runs one task per listed bot, which
+holds one `Bot` object per seat that bot holds.[^watch]
+
+A person's move reaches both tasks and the bot replies (the arrows are the
+sequences' in [71-design.md](71-design.md): `->>` a call, `-->>` a return,
+`--)` an asynchronous delivery):
 
 ```mermaid
 sequenceDiagram
-  title One move from a person, and a seat added while running
-  participant W as WebSocket task (a person's client)
-  participant B as Bot task (Bot of InProcessLink)
-  participant U as updates_for
-  participant GW as Game watch
-  participant SW as Seat-list watch
+  title One move from a person, and the bot's reply
+  participant C as Person's client
+  participant R as Route handler
   participant GS as Game service
   participant A as apply
   participant P as publish
+  participant GW as Game watch
+  participant UW as updates_for, in the WebSocket task
+  participant WT as WebSocket task (one per socket)
+  participant UB as updates_for, in the bot's task
+  participant BT as Bot task (one per listed bot)
+  participant B as Bot#lt;InProcessLink#gt;, one per seat
 
-  W->>GS: submit the move
+  C->>R: submit the move over HTTPS
+  R->>GS: call the Game service
   GS->>A: apply the message
   A-->>GS: Applied
   GS->>P: publish
-  P->>GW: write the new state, once
-  GW-->>U: wakes the WebSocket task's subscription
-  GW-->>U: wakes the bot task's subscription
-  U-->>W: latest state, redacted for the person
-  W->>W: convert to a frame, write the socket
-  U-->>B: latest state, redacted for the bot's account
-  B->>B: the engine decides
-  B->>GS: submit the bot's move through the link
-  Note over GS,P: the same path again, from apply
+  P->>GW: write the new state with its because, once
+  GS-->>R: confirmed
+  R-->>C: confirmation
+  GW--)UW: new value
+  UW--)WT: state redacted for the person
+  WT--)C: frame over the WebSocket
+  GW--)UB: new value
+  UB--)BT: GameUpdate redacted for the bot's account
+  BT--)B: the update, for that seat's game
+  B->>B: take_turn, the engine decides
+  B->>GS: submit through the link
   GS->>A: apply the bot's message
-  Note over P,SW: a seat added while running
-  P->>SW: write the account's full list of seats
-  SW-->>U: wakes the seat-list subscription
-  U->>GW: join the channel of the game newly in the list
-  U-->>B: current view of that game first
+  A-->>GS: Applied
+  GS->>P: publish
+  P->>GW: write the new state, and the fan-out repeats
+```
+
+A seat added while the server runs starts from its own trigger, a creator adding
+the bot's seat:
+
+```mermaid
+sequenceDiagram
+  title A seat added while running
+  participant C as Creator's client
+  participant GS as Game service
+  participant A as apply
+  participant P as publish
+  participant SW as Seat-list watch
+  participant NW as New game's watch
+  participant UB as updates_for, in the bot's task
+  participant BT as Bot task
+  participant NB as New Bot#lt;InProcessLink#gt;
+
+  C->>GS: add the bot's seat (through the route handler)
+  GS->>A: apply the message
+  A-->>GS: Applied
+  GS->>P: publish
+  P->>SW: write the bot account's full list of seats
+  SW--)UB: new value
+  UB--)BT: GameUpdate::Seats, naming the new game
+  BT->>NB: create the object for the new seat
+  UB->>NW: join the channel, then read the game
+  UB--)BT: GameUpdate::Game, the current view
+  BT--)NB: the first view
 ```
 
 **`submit` calls the same Game service function a route handler calls** after
@@ -875,13 +953,15 @@ the socket's shape is #10's.
   one identity, which is one account. Its ratings are its account's, one per
   edition, however many games it plays.
 - Each engine strength is its own listed bot, with its own account and its own
-  rating per edition.
+  rating per edition.[^watch]
 - An `InProcessLink` is built with the listed identity and passes it on every
   message, so no session record exists.
 - The glue subscribes once per listed bot, for every game it holds a seat in,
   and creates one bot object per seat, each with a link scoped to its seat,
-  including a seat a notice adds while the server runs, and several where the
-  bot holds several seats in one game. The bot showdown requires that.
+  including a seat the seat list gains while the server runs, and several where
+  the bot holds several seats in one game, as in a bot showdown (a game between
+  bots, one bot holding several seats). The showdown requires that, and a
+  seat the list loses drops its object.
 - All of a bot's objects share its identity and run under `engine_limit`.
 - The list is the programme owner's, who is accountable for the bots on it.
 - In-process bots are compiled into the server from reviewed code. A
@@ -975,8 +1055,9 @@ is used, and `moves.len()` was only ever a coincidence.
 [^d69]: Decision #469 (D69): a change exists once saved; a failed save reloads the game.
 [^d62]: Decision #462 (D62): `engine_limit` bounds parallel searches and hints.
 [^watch]: Owner, 2026-10-20: the per-game channel is a `watch`, the account's
-    seat notice becomes a `watch` of its seats, one bot holds several seats,
-    one bot per strength, sign-in belongs to the link, one task per subscriber.
+    seats are a `watch`, one bot holds several seats, one bot per strength,
+    sign-in belongs to the link, one task per subscriber, and `game-wire`
+    defines `GameMessage` and `GameUpdate`, the only things a link moves.
 [^layers]: Owner, 2026-10-20: `game-wire` converts `GameView` both ways and
     never sees `GameSession`; the server builds the view. A bot harness
     behaves like the existing client, over the internet or in-process.
