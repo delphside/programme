@@ -432,7 +432,7 @@ class DocumentReviews(Cases):
         self.expect("rounds in number order, names in any case, R01 as R1",
                     ("By round: R1 5k for 1 (5k each); R2 20k for 1 (20k each); R10 10k for 0", 1),
                     (ordered.value().split(". ")[1], ordered.found["truth"]))
-        for body, tokens in (("reader 1,200k", 0), ("reader 1.2.5k", 0), ("reader 1_000k", 0), ("reader v1.2k", 0), ("reader 60k, 80%; truth 1,200k", 60)):
+        for body, tokens in (("reader 1,200k", 0), ("reader 1.2.5k", 0), ("reader 1_000k", 0), ("reader v1.2k", 0), ("reader 60k, 80%; truth 1,200k", 60), ("reader 60k; truth 1_000k", 60), ("reader 60k; truth v1.2k", 60)):
             c = RoundCount().add(f"- R1 cost: {body}")
             self.expect(f"a malformed figure is not read: {body}", (tokens, 1), (c.tokens, c.unread_costs))
         self.expect("a week with no figure read still counts its uncosted findings",
