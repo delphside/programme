@@ -46,7 +46,8 @@ written otherwise.
 | #439's open rows: friends and blocking (the old address is told of a change: R6, NOTE-1) | owner, on #439 |
 | closing your own account, suspension, support requests and complaints | #296 (R1 to R5) |
 | The as-is design map (#406) is on Tile Lite Elite main (delphside/tile-lite-elite#523). Check-docs step 8 starts checking it when #522 moves the `programme/` pin; if it reports stale, regenerate with `programme/scripts/docs/design-map/design-map.py --write` | #522 |
-| [`71-map-change.md`](71-map-change.md) is a prototype: WP A and WP C only. The format's three gaps are closed (programme #41), and [`71-map-diagrams.md`](71-map-diagrams.md) is generated from it with `design-map.py --change`. Next: WP A's full to-be. Tile Lite Elite runs the mode from `../programme` until its `programme/` pin moves past programme #41 | owner, next #71 work |
+| [`71-map-change.md`](71-map-change.md) is a prototype: WP A and WP C only. The format's three gaps are closed (programme #41), and [`71-map-diagrams.md`](71-map-diagrams.md) is generated from it with `design-map.py --change`. WP A's to-be is drawn and designed (programme #60 and #62): the layering, per-game latest-state channels, `game-wire`'s two message enums, the seat list and the bot list ([71-data-model.md §8](71-data-model.md#8--the-engine)). Tile Lite Elite runs the mode from `../programme` until its `programme/` pin moves past programme #41 | owner: how dense a package's drawing may be |
+| WP A's code branch: show the owner the `game-wire` types (`GameMessage`, `GameUpdate`, `SeatRef`, `GameLink`) once written | WP A Development |
 
 ## A tooling defect met on the way
 
