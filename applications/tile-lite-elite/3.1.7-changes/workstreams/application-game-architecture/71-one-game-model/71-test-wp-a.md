@@ -38,10 +38,12 @@ missing (`71-test-approach.md`).
 - [ ] **Claude** — every `GameMessage` arm has a test that it moves `version`, and a refused one that it changes nothing
 - [ ] **Claude** — the round-trip property passes over generated `GameView`s, and `view_for` gives a viewer holding two seats both racks
 - [ ] **Claude** — the in-process bot is handed only the games its account holds a seat in, each redacted for its account, and is never answered 429
-- [ ] **Claude** — a bot seated in a new game while running plays it: `updates_for` acts on the seat notice and joins that game's channel before it reads the game
+- [ ] **Claude** — a bot seated in a new game while running plays it: the seat list gains the game, and `updates_for` joins that game's channel before it reads the game
 - [ ] **Claude** — a game already on an in-process bot's turn at the server's start-up is played
 - [ ] **Claude** — a bot holding two seats in one game plays each seat
 - [ ] **Claude** — an event for one game reaches no socket of another game
+- [ ] **Claude** — a slow receiver reads the newest state and skips the stale ones, and is given neither an error nor a disconnect
+- [ ] **Claude** — a bot showdown game, one listed bot holding several seats, settles with a net rating change of zero for the bot
 - [ ] **Claude** — two seats of one listed bot share one account and one rating per edition
-- [ ] **Claude** — a scripted second client sees every change the first makes, invitations included, within one broadcast
+- [ ] **Claude** — a scripted second client sees every change the first makes, invitations included, within one update
 - [ ] **Claude** — the same engine plays the same move through the glue and through the external transport

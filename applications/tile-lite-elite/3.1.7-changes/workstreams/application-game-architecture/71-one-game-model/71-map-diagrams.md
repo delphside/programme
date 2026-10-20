@@ -8,7 +8,7 @@ Green is new, yellow changed, red removed. A relationship's label starts with
 its state too. Each work package is drawn alone: the packages it builds on are
 not applied.
 
-Sources hash: `f07067a6c38cb87310ea3fbd96a80a0ac849eaeb07b5445e5e531e92a86a4f97`.
+Sources hash: `6105fa855ec24ba1e5696e16bec7c004fdd16bc814ade9d196326e7de9749f28`.
 
 ## WP A, #268 Core Game Lifecycle
 
@@ -33,7 +33,7 @@ graph TB
         style 14 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
         15["<div style='font-weight: bold'>Invitations</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Open and emailed invitations<br />to a seat.</div>"]
         style 15 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-        16["<div style='font-weight: bold'>Event stream</div><div style='font-size: 70%; margin-top: 0px'>[Component: WebSocket]</div><div style='font-size: 80%; margin-top:10px'>Saves each applied change,<br />logs it and pushes the game's<br />state to its players over a<br />channel per game.</div>"]
+        16["<div style='font-weight: bold'>Event stream</div><div style='font-size: 70%; margin-top: 0px'>[Component: WebSocket]</div><div style='font-size: 80%; margin-top:10px'>Saves each applied change,<br />logs it and pushes the game's<br />latest state to its players<br />over a `watch` channel per<br />game.</div>"]
         style 16 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
         19["<div style='font-weight: bold'>Admin endpoints</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>The loopback-only /admin<br />routes.</div>"]
         style 19 fill:#fff8c5,stroke:#9a6700,color:#4d2d00

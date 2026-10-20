@@ -43,7 +43,7 @@ Inside `server-game`, the parts this change touches:
 ### One version, moved in one place
 
 **The design**: every change goes through one handler taking a `GameMessage`,
-which applies, advances the version, records and broadcasts.
+which applies, advances the version, records and publishes.
 
 **Measured**: `game_state.rs` has **33 `pub fn`**, of which **17 call
 `mark_changed()`**. Those 17 are the candidate message variants, and they line
@@ -169,9 +169,11 @@ stream and submits through the
 drives it.
 
 **Artefacts WP A adds for the bot.** The Event stream in `app/events.rs`
-becomes a registry of channels per game, with a seat-notice channel per
-account, and `updates_for` subscribes to those instead of filtering one shared
-channel. The server's settings gain `TILE_LITE_ELITE_BOTS` (proposed), the
+becomes a registry of `watch` channels per game, each holding only the latest
+state, with a `watch` of the full list of seats per account, and `updates_for`
+subscribes to those instead of filtering one shared channel. Every subscriber is
+its own task for one concrete type, so the server never iterates over its
+clients. Each engine strength is its own listed bot. The server's settings gain `TILE_LITE_ELITE_BOTS` (proposed), the
 list of bots it runs in-process, which the configuration reference documents
 ([4.4.1 Configuration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md)).
 The generic `Bot<L: GameLink>` is in
@@ -263,7 +265,7 @@ the note concludes. They are the natural first cuts.
   SQL. A measurement, not a judgement, and it decides whether the note's
   rejected option was rejected for the right reason.
 - **Whether any current version comparison is affected by per-viewer
-  redaction.** Two clients receive different DTOs from one broadcast; if a
+  redaction.** Two clients receive different DTOs from one published state; if a
   per-aspect counter were ever introduced it would have to be
   redaction-invariant. Not a problem today — one counter, set before
   redaction — but worth stating before granularity is revisited.
