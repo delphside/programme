@@ -34,7 +34,7 @@ enough.
 ## Already checked
 
 For a review in rounds, the claims that earlier rounds checked and found true,
-copied from their reports, so this round starts on the rest. "None" in the
+copied from their reports, so this round covers the rest. "None" in the
 first round.
 
 ## Agreed but not yet written down
