@@ -8,7 +8,7 @@ Green is new, yellow changed, red removed. A relationship's label starts with
 its state too. Each work package is drawn alone: the packages it builds on are
 not applied.
 
-Sources hash: `bd9a0404e5e6317cfd05c26e505b8daf9f01145f12b5736941d466f71e38ff8f`.
+Sources hash: `454ecb93afe694f4b342a84c22338a50f52eeec4c50c494197e93a08279a200d`.
 
 ## WP A, #268 Core Game Lifecycle
 
@@ -49,19 +49,23 @@ graph TB
         style 24 fill:#f6f8fa,stroke:#8c959f,color:#1f2328
         25["<div style='font-weight: bold'>Persistence</div><div style='font-size: 70%; margin-top: 0px'>[Component: sqlx]</div><div style='font-size: 80%; margin-top:10px'>Reads and writes games and<br />accounts.</div>"]
         style 25 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-        93["<div style='font-weight: bold'>In-process bot</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>An engine seat as a client of<br />the game, without the socket.</div>"]
+        93["<div style='font-weight: bold'>In-process bot</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>An engine seat as a client of<br />the game: the bot and the<br />client core, over the glue.</div>"]
         style 93 fill:#dafbe1,stroke:#1a7f37,color:#0a3622
-        94["<div style='font-weight: bold'>Game wire</div><div style='font-size: 70%; margin-top: 0px'>[Component: Rust crate]</div><div style='font-size: 80%; margin-top:10px'>The conversion between the<br />game and its DTOs, in both<br />directions.</div>"]
+        94["<div style='font-weight: bold'>In-process glue</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>The in-process transport: the<br />bot's two calls without a<br />socket.</div>"]
         style 94 fill:#dafbe1,stroke:#1a7f37,color:#0a3622
+        95["<div style='font-weight: bold'>Game wire</div><div style='font-size: 70%; margin-top: 0px'>[Component: Rust crate]</div><div style='font-size: 80%; margin-top:10px'>GameView, and its conversion<br />to and from the DTOs.</div>"]
+        style 95 fill:#dafbe1,stroke:#1a7f37,color:#0a3622
       end
 
     end
 
+    19-. "<div>new: sends force-resign and<br />force-end messages to apply</div><div style='font-size: 70%'></div>" .->21
     13-. "<div>new: deletes old games and expired<br />sessions, records the<br />database size</div><div style='font-size: 70%'></div>" .->25
-    16-. "<div>new: tells it it is on turn</div><div style='font-size: 70%'></div>" .->93
+    93-. "<div>new: hears of each change through,<br />and submits its move through</div><div style='font-size: 70%'></div>" .->94
     93-. "<div>new: searches with, holding no<br />lock</div><div style='font-size: 70%'></div>" .->23
-    93-. "<div>new: submits its move to apply,<br />re-validated on arrival</div><div style='font-size: 70%'></div>" .->21
-    93-. "<div>new: publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    93-. "<div>new: reads each event as a<br />GameView with</div><div style='font-size: 70%'></div>" .->95
+    94-. "<div>new: subscribes to, through the<br />filter and redaction the<br />WebSocket also uses</div><div style='font-size: 70%'></div>" .->16
+    94-. "<div>new: submits the bot's GameMessage<br />to, as the bot's account</div><div style='font-size: 70%'></div>" .->13
     12-. "<div>new: sends UpdateUserDetails to<br />each game the player is in</div><div style='font-size: 70%'></div>" .->21
     12-. "<div>new: publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
     16-. "<div>new: saves each applied change and<br />appends it to the game log</div><div style='font-size: 70%'></div>" .->25
@@ -69,12 +73,12 @@ graph TB
     14-. "<div>new: updates invitation rows</div><div style='font-size: 70%'></div>" .->25
     15-. "<div>new: writes invitation rows</div><div style='font-size: 70%'></div>" .->25
     20-. "<div>new: reads player rows</div><div style='font-size: 70%'></div>" .->25
-    13-. "<div>new: builds each GameStateDto and<br />reads each MoveCandidateDto<br />with</div><div style='font-size: 70%'></div>" .->94
-    14-. "<div>new: builds each GameStateDto with</div><div style='font-size: 70%'></div>" .->94
-    15-. "<div>new: builds each GameStateDto with</div><div style='font-size: 70%'></div>" .->94
-    19-. "<div>new: builds each GameStateDto with</div><div style='font-size: 70%'></div>" .->94
-    16-. "<div>new: builds each connection's<br />GameStateDto with</div><div style='font-size: 70%'></div>" .->94
-    94-. "<div>new: converts to and from the<br />types of</div><div style='font-size: 70%'></div>" .->24
+    13-. "<div>new: converts each GameView to a<br />GameStateDto and reads each<br />MoveCandidateDto with</div><div style='font-size: 70%'></div>" .->95
+    14-. "<div>new: converts each GameView to a<br />GameStateDto with</div><div style='font-size: 70%'></div>" .->95
+    15-. "<div>new: converts each GameView to a<br />GameStateDto with</div><div style='font-size: 70%'></div>" .->95
+    19-. "<div>new: converts each GameView to a<br />GameStateDto with</div><div style='font-size: 70%'></div>" .->95
+    16-. "<div>new: converts each connection's<br />GameView to a GameStateDto<br />with</div><div style='font-size: 70%'></div>" .->95
+    95-. "<div>new: converts to and from the<br />domain types of</div><div style='font-size: 70%'></div>" .->24
     13-. "<div>removed: applies the move to the<br />GameSession</div><div style='font-size: 70%'></div>" .->21
     13-. "<div>previews and suggests<br />MoveCandidate with</div><div style='font-size: 70%'></div>" .->24
     13-. "<div>removed: runs engine turns with</div><div style='font-size: 70%'></div>" .->22
@@ -103,7 +107,6 @@ graph TB
     14-. "<div>new: sends seat messages to apply</div><div style='font-size: 70%'></div>" .->21
     15-. "<div>new: sends invitation messages to<br />apply</div><div style='font-size: 70%'></div>" .->21
     20-. "<div>new: sends due messages to apply</div><div style='font-size: 70%'></div>" .->21
-    19-. "<div>new: sends force-resign and<br />force-end messages to apply</div><div style='font-size: 70%'></div>" .->21
 
   end
   linkStyle 0 stroke:#1a7f37,stroke-width:2px
@@ -124,23 +127,24 @@ graph TB
   linkStyle 15 stroke:#1a7f37,stroke-width:2px
   linkStyle 16 stroke:#1a7f37,stroke-width:2px
   linkStyle 17 stroke:#1a7f37,stroke-width:2px
-  linkStyle 18 stroke:#cf222e,stroke-width:2px
+  linkStyle 18 stroke:#1a7f37,stroke-width:2px
+  linkStyle 19 stroke:#1a7f37,stroke-width:2px
   linkStyle 20 stroke:#cf222e,stroke-width:2px
-  linkStyle 21 stroke:#cf222e,stroke-width:2px
   linkStyle 22 stroke:#cf222e,stroke-width:2px
   linkStyle 23 stroke:#cf222e,stroke-width:2px
   linkStyle 24 stroke:#cf222e,stroke-width:2px
+  linkStyle 25 stroke:#cf222e,stroke-width:2px
   linkStyle 26 stroke:#cf222e,stroke-width:2px
-  linkStyle 27 stroke:#cf222e,stroke-width:2px
-  linkStyle 34 stroke:#cf222e,stroke-width:2px
-  linkStyle 35 stroke:#cf222e,stroke-width:2px
+  linkStyle 28 stroke:#cf222e,stroke-width:2px
+  linkStyle 29 stroke:#cf222e,stroke-width:2px
   linkStyle 36 stroke:#cf222e,stroke-width:2px
   linkStyle 37 stroke:#cf222e,stroke-width:2px
-  linkStyle 42 stroke:#1a7f37,stroke-width:2px
-  linkStyle 43 stroke:#1a7f37,stroke-width:2px
+  linkStyle 38 stroke:#cf222e,stroke-width:2px
+  linkStyle 39 stroke:#cf222e,stroke-width:2px
   linkStyle 44 stroke:#1a7f37,stroke-width:2px
   linkStyle 45 stroke:#1a7f37,stroke-width:2px
   linkStyle 46 stroke:#1a7f37,stroke-width:2px
+  linkStyle 47 stroke:#1a7f37,stroke-width:2px
 ```
 
 ## WP C, #270 Additional Game Lifecycle
