@@ -307,6 +307,10 @@ PAIR = ("reader", "truth")
 REVIEWERS = {"reader", "truth", "change", "owner"}
 
 
+# The line a new draft's *Notes* opens with; it is not a note.
+PLACEHOLDER = "Anything noticed during the week, for the review."
+
+
 def note_records(notes: str) -> list[str]:
     """The notes split into records, one per top-level `- ` line other than a
     round, cost or owner line, so each record's cost lines pay only for its own
@@ -509,15 +513,14 @@ def draft(code: str, first_day: str) -> str:
     """Next week's report, before it is written: only a Notes section, for
     whatever occurs to either of us during the week (the programme's docs/1.4)."""
     return (f"# Weekly digest, from {first_day}\n\n`{code}`\n\n{DRAFT}\n\n"
-            "## Notes\n\nAnything noticed during the week, for the review.\n")
+            f"## Notes\n\n{PLACEHOLDER}\n")
 
 
 def notes_of(text: str) -> str:
     """The Notes section a draft collected, without its placeholder line."""
-    placeholder = "Anything noticed during the week, for the review."
     notes = section(text, "Notes")
-    if notes.startswith(placeholder):
-        notes = notes[len(placeholder):].strip()
+    if notes.startswith(PLACEHOLDER):
+        notes = notes[len(PLACEHOLDER):].strip()
     return notes
 
 
