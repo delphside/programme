@@ -1,0 +1,45 @@
+# Puts every open issue and pull request in the organisation on the board,
+# whichever repository it is in (delphside/tile-lite-elite#485 R2). GitHub's
+# own auto-add watches one repository per rule, is set by hand and is capped by
+# the plan, so this reads every repository instead and a new one needs nothing
+# set up. `scripts/board/board-add.py` says what it adds and why.
+#
+# **It needs `BOARD_TOKEN`**, as Tile Lite Elite's `pr-state.yml` does: the
+# automatic token cannot write a Projects v2 board. Here it must also read the
+# issues and pull requests of every repository, the private ones included, so
+# the fine-grained token's repository access is "All repositories". Without it
+# this run warns and changes nothing.
+name: Board add
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: board-add
+  cancel-in-progress: false
+
+jobs:
+  add:
+    name: add every repository's open items to the board
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Add
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.BOARD_TOKEN }}
+          # The programme's own checkout holds the programme file at its top,
+          # not under a submodule.
+          PROGRAMME_CONFIG: config/programme.toml
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::warning::BOARD_TOKEN is not set, so nothing was added. See this file's header."
+            exit 0
+          fi
+          python3 scripts/board/board-add.py
