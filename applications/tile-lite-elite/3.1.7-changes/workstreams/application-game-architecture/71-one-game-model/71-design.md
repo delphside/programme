@@ -1048,9 +1048,8 @@ An external harness (#10's) learns of a turn the way any client does — from th
 message carrying the previous move, or the game starting, on a socket it already
 holds for that game. A game left waiting while the harness was down is picked up
 by the first yield of its socket for that game. A socket that subscribes to
-every seated game also learns of a new seat from a seat notice, which §8
-defines; the shape of the socket is #10's
-([§8](71-data-model.md#8--the-engine)).
+every seated game also learns of a new seat from a seat notice
+([§8](71-data-model.md#8--the-engine)); the shape of the socket is #10's.
 
 **A bot plays as a bot account, wherever the engine runs.** The harness
 authenticates as the bot, not as the person running it — so a bot's moves

@@ -483,9 +483,9 @@ knowing nothing about the wire.
 ```text
 crates/api            DTOs and serde. No rules, no engine.
 crates/rules-shared   the domain: GameState, Rack, Tile, MoveCandidate.
-crates/game-wire      NEW. depends on both. GameView, GameLink and take_turn,
-                      and GameView's conversion to and from the DTOs. Never
-                      sees GameSession.
+crates/game-wire      NEW. depends on both. GameView, GameLink, Bot and
+                      take_turn, and GameView's conversion to and from the
+                      DTOs. Never sees GameSession.
 crates/server-game    depends on game-wire. Builds each GameView.
 crates/ui             depends on game-wire.
 crates/test-client    NEW. depends on game-wire.  (see 71-test-approach.md)
@@ -569,11 +569,11 @@ call these two. A transport is an adapter behind them (§8).
 
 **`GameLink` is a trait with two implementations, chosen at compile time.**
 `Bot<L: GameLink>`, with `take_turn`, is in `game-wire`, where the server and
-the harness of #10 share it. `GameLink` has exactly two implementations:
-`InProcessLink`, which stays in `server-game` with the glue, and
-`ExternalLink` (the name is proposed), which speaks HTTPS and WebSocket. The
-server builds `Bot<InProcessLink>` and a harness builds `Bot<ExternalLink>`.
-The web client uses `ExternalLink` with a one-game scope and builds no `Bot`.
+the harness of #10 share it. The implementations are `InProcessLink`, which
+stays in `server-game` with the glue, and `ExternalLink` (the name is proposed),
+which speaks HTTPS and WebSocket. The server builds `Bot<InProcessLink>` and a
+harness builds `Bot<ExternalLink>`. The web client uses `ExternalLink` with a
+one-game scope and builds no `Bot`.
 
 ## 4 · Access
 
@@ -802,15 +802,15 @@ receives:
 | scope | who subscribes | receives |
 | --- | --- | --- |
 | one game | the WebSocket handler, as today | that game's channel |
-| every seated game | the glue, once per listed bot; an external harness over its socket | the channel of each game it holds a seat in, and the account's seat notice, on which `updates_for` joins the new game's channel, so a seat added later brings that game into scope |
+| every seated game | the glue, once per listed bot; an external harness over its socket | the channel of each game it holds a seat in, and the account's seat notice; on each notice `updates_for` joins the new game's channel, so a seat added later brings that game into scope |
 
 Both scopes first yield the current `GameView` of each game in scope, then each
 change, built with `view_for` for this recipient. The first yield covers
 start-up and, for a WebSocket, reconnection, so a game already on the bot's
 turn is played. `updates_for` joins a game's channel before it reads the game,
 so no change falls between. The socket converts each `GameView` to a frame with
-`game_to_dto`; the glue gives each view to the bot object of each seat the bot holds in that
-game, as it is.
+`game_to_dto`; the glue gives each view, as it is, to the bot object of each
+seat the bot holds in that game.
 
 **`submit` calls the same Game service function a route handler calls** after
 its sign-in check, passing the bot's account id as the caller. The service
@@ -831,8 +831,8 @@ the socket's shape is #10's.
   every message, so no session record exists.
 - The glue subscribes once per listed bot, for every game it holds a seat in,
   and creates one bot object per seat, each with a link scoped to its seat,
-  including a seat a notice adds while the server runs. A bot may hold several
-  seats in one game; the glue creates one bot object per seat.
+  including a seat a notice adds while the server runs, and several where the
+  bot holds several seats in one game.
 - All of a bot's objects share its identity and run under `engine_limit`.
 - The list is the programme owner's, who is accountable for the bots on it.
 - In-process bots are compiled into the server from reviewed code. A
