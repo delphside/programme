@@ -555,9 +555,9 @@ holding two seats sees both racks, and every other rack is `Hidden`.
 ```rust
 pub trait GameLink {
     /// The next view in this subscription's scope, as a GameView; the view
-    /// carries the game's id. Scope is what the transport subscribed to: every
-    /// game the account holds a seat in for the in-process bot, one game for
-    /// each link of the web client or an external harness.
+    /// carries the game's id. Scope is what the transport subscribed to: the
+    /// seat's game for each in-process bot object, one game for each link of
+    /// the web client or an external harness.
     async fn on_event(&mut self) -> Result<GameView, LinkError>;
     /// Send a message for a game; the answer is the server's, accepted or refused.
     async fn submit(&self, game_id: &str, message: GameMessage) -> Result<(), SubmitError>;
@@ -566,6 +566,12 @@ pub trait GameLink {
 
 The web client, the test client, an external harness and the in-process bot each
 call these two. A transport is an adapter behind them (§8).
+
+**`GameLink` is a trait with two implementations, chosen at compile time.** The
+bot is generic over it, `Bot<L: GameLink>`, and never holds a
+`dyn GameLink`. Each build picks its transport: the server builds
+`Bot<InProcessLink>`; a harness or the web client uses the external one. There
+is no late binding.
 
 ## 4 · Access
 
@@ -637,7 +643,7 @@ survives the move to `(player_id, edition)`.
 | `app/games.rs` (1,030 lines) | the action handlers become thin: parse, build a `GameMessage`, call `apply`, publish. `run_engine_turns` and `MAX_ENGINE_TURNS_PER_TRIGGER` go |
 | `app/roster.rs` (391) | seat add/remove/swap become `GameMessage`s |
 | `app/invitations.rs` (442) | send/accept/decline become `GameMessage`s; the table write stays, the seat write moves into `apply` |
-| `app/events.rs` (105) | gains `publish(Applied)` — persist, broadcast, one place — and `updates_for`, the one filtered, redacted subscription that a socket and the in-process glue both use |
+| `app/events.rs` (105) | gains `publish(Applied)` — persist, broadcast, one place — and `updates_for`, the one redacted subscription, over a channel per game and a seat notice per account, that a socket and the in-process glue both use |
 | `app/sweeps_game.rs` (301), `app/scheduler_jobs.rs` (297) | timeouts and reminders go through `apply` rather than writing rows, which is what makes them visible to clients. A scheduler job is a caller like any other |
 | `app/sweeps_capacity.rs` (81) | expiring a finished game deletes it rather than changing it, so it publishes the removal and does not call `apply` |
 | `app/admin.rs` (430) | force-resign and force-end become `GameMessage`s |
@@ -738,10 +744,12 @@ and only the third differs by where the bot runs:
 3. **Transport**, an adapter behind `GameLink`. *External*: HTTPS and
    WebSocket, signed in as the bot's account. *In-process glue*: `GameLink`'s
    two calls with no socket, over `updates_for` and the Game service's submit
-   function.
+   function. Each build compiles one (§3): the server's bots are
+   `Bot<InProcessLink>`.
 4. **Server**: Transport API, Game service, `apply`; `publish` sends each
-   change to the Event stream, and `updates_for` filters and redacts that
-   stream for one viewer, under both transports.
+   change to its game's channel in the Event stream, and `updates_for`
+   subscribes to the channels in its scope and redacts for one viewer, under
+   both transports.
 
 ```rust
 /// Same code in the server and in a client. Given a view of a game and an
@@ -757,47 +765,63 @@ pub fn take_turn(
 **The loop is the client's, through either transport:**
 
 ```text
-sign in as the bot account (external) / hold the bot's account id (in-process)
-on each event from the link:
-    view = the GameView it yields     // in-process: any game the account
-                                      // has a seat in; external: one of the
-                                      // games its links were opened for
-    for seat in my_seats(view.game_id):
-        if view.current_seat == seat:
-            if let Some(msg) = take_turn(engine, &view, seat, budget) {
-                link.submit(view.game_id, msg)
-            }
+sign in as the bot account (external) / the glue substitutes the listed
+identity (in-process)
+on each event from the link:       // a Bot<L: GameLink>, one per seat held
+    view = the GameView it yields  // in-process: this seat's game; external:
+                                   // one of the games its links were opened for
+    if view.current_seat == seat:
+        if let Some(msg) = take_turn(engine, &view, seat, budget) {
+            link.submit(view.game_id, msg)
+        }
 ```
 
-**The bot hears it is on turn from the broadcast**, the same stream every
-client subscribes to, and never from the caller of `apply`: no caller spawns a
-bot task. The request that applies a move returns at once.
+**The bot hears it is on turn from the broadcast of its game**, the stream
+every client of that game subscribes to, and never from the caller of `apply`:
+no caller spawns a bot task. The request that applies a move returns at once.
 
 **The in-process glue joins under the Transport API at two calls**:
 `updates_for` to hear, and the Game service's submit function to act.
 
-- `on_event` hears through `updates_for`. The Event stream is one channel for
-  every game and carries the full, unredacted state (`app/events.rs`), so
-  filtering and redaction are the server's, below both transports: one
-  function, `updates_for(scope, &ViewerAccess)`, where the scope is one game
-  or every game the account holds a seat in. The scope follows the account's
-  seats as they change: a seat added later brings that game into scope,
-  starting with the change that seated it. On subscribing it first yields
-  the current `GameView` of each game in scope, then each change, built with
-  `view_for`. The first yield covers start-up and, for a WebSocket,
-  reconnection, so a game already on the bot's turn is played. The WebSocket
-  handler subscribes with one game, as today; the glue with every game the
-  bot's account holds a seat in. The socket converts each `GameView` to a
-  frame with `game_to_dto`; the glue hands it to the bot as it is.
+- `on_event` hears through `updates_for`. **The Event stream is a registry
+  from game id to that game's broadcast channel** (`app/events.rs`), with many
+  receivers each. A channel is created on its first subscriber and dropped
+  when its last leaves. `publish` sends the full, unredacted state to its
+  game's channel only, so an event reaches the sockets of its game and no
+  others, and the cost of a change grows with that game's receivers, not with
+  every open socket. **Each account also has a small seat-notice channel**,
+  which carries only "you now hold a seat in game X" and is sent by the change
+  that seats the account. Redaction and scope are the server's, below both
+  transports: one function, `updates_for(scope, &ViewerAccess)`, where the
+  scope is one game or every game the account holds a seat in. A subscriber
+  of one game receives that game's channel. A subscriber of every seated game
+  receives the channel of each game it holds a seat in, and the account's seat
+  notice: a notice joins the new game's channel, so a seat added later brings
+  that game into scope. It joins the channel before it reads the game, so no
+  change falls between. The first yield is the current `GameView` of each game
+  in scope, then each change, built with `view_for` for this recipient. The
+  first yield covers start-up and, for a WebSocket, reconnection, so a game
+  already on the bot's turn is played. The WebSocket handler subscribes with
+  one game, as today; the glue with every game the bot's account holds a seat
+  in. The socket converts each `GameView` to a frame with `game_to_dto`; the
+  glue gives each view to the bot object of that game's seat as it is.
 - `submit` calls the same Game service function a route handler calls after
   its sign-in check, passing the bot's account id as the caller. The service
   still checks that the caller holds the seat and that it is on turn, and
   calls `apply`.
 
 **Over the external transport, `GameLink` opens one WebSocket per game**, as
-today, for the games the account's game list names.
-How a running harness learns of a game it is newly seated in is an
-[open question](#open-questions-this-raises).
+today, for the games the account's game list names. A harness subscribing to
+every seated game over its socket learns of a new seat from the seat notice;
+the socket's shape is #10's.
+
+**The server runs the bots its settings list.** `TILE_LITE_ELITE_BOTS`
+(proposed) lists the bots run in-process, each with one identity: one account
+and one rating per bot, however many games it plays. In-process, sign-in is a
+stub and the glue substitutes the listed identity on every message, so no
+session record exists. Each seat a bot holds gets its own bot object; all
+share the bot's identity and run under `engine_limit`. The list is the
+programme owner's, who is accountable for the bots on it.
 
 **The submitted move is re-validated on arrival**, because the game may have
 moved — aborted, or the seat retired. A rejection is normal, not an error.
@@ -863,17 +887,24 @@ pool. The cost is that a caller can forget to publish. Enforceable by making
 server side otherwise gets.
 
 **How does the server act as the bot accounts it runs in-process, and do they
-need an owner?** The configuration that names the accounts the server plays
-for is left for WP A's code. A bot account has no session in-process, so the
-design's rule, *an external client authenticates as a person before it can
-assume a bot* ([`71-design.md`](71-design.md#open-questions), *A bot plays
-as a bot account*), governs external harnesses only. Whether an in-process
-bot's account needs an owner the same way is for the programme owner to
-confirm.
+need an owner?** Settled by owner, 2026-10-20: the settings list the bots
+(`TILE_LITE_ELITE_BOTS`, proposed), the glue substitutes each listed identity,
+and no session exists ([§8](#8--the-engine)). The design's rule, *an external
+client authenticates as a person before it can assume a bot*
+([`71-design.md`](71-design.md#open-questions), *A bot plays as a bot
+account*), governs external harnesses only. The list is the programme owner's,
+who is accountable for every bot on it, so a listed bot needs no owner of its
+own.
 
-**How does an external harness learn of a game it is newly seated in?** A
-seat-scope socket, or polling its game list; #10's to settle. Start-up and
-reconnection are in [§8](#8--the-engine).
+**How does an external harness learn of a game it is newly seated in?**
+Settled by owner, 2026-10-20: the seat notice, over a socket that subscribes
+to every seated game ([§8](#8--the-engine)). The socket's shape, and how a
+harness polls instead, are #10's. Start-up and reconnection are in §8 too.
+
+**Third-party bots in-process.** A bot compiled into the server from a
+reviewed crate costs nothing extra. Loading unreviewed code would need a
+sandbox, for example WebAssembly with memory and CPU limits. Whether to allow
+it is a requirement for the programme owner, and this note does not settle it.
 
 **Does `turn` need to be persisted separately from `moves.len()`?** Settled by
 undo, 2026-08-29: yes. Under undo `turn` walks backwards while `moves` does not

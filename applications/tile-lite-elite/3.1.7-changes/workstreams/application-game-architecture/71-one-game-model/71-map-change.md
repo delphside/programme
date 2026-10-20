@@ -35,12 +35,12 @@ Each heading titles its package's section of
 ### WP A, #268 Core Game Lifecycle
 
 `GameSession::apply` (Game model) is the one method that changes a game, and
-`events::publish` (Event stream) saves, logs and broadcasts what it changed.
-Every caller sends `apply` a `GameMessage`: the handlers (Game service), the
-Roster, the Invitations, the Scheduler's timeouts and reminders, the admin
-routes (Admin endpoints) and the account service (Accounts) for a rename. The
-engine proxy goes; the in-process bot is a client of the game, hears it is on
-turn from the Event stream and submits through the
+`events::publish` (Event stream) saves, logs and broadcasts what it changed, to
+that game's channel only. Every caller sends `apply` a `GameMessage`: the
+handlers (Game service), the Roster, the Invitations, the Scheduler's timeouts
+and reminders, the admin routes (Admin endpoints) and the account service
+(Accounts) for a rename. The engine proxy goes; the in-process bot is a client
+of the game, hears it is on turn from the Event stream and submits through the
 [in-process glue](71-data-model.md#8--the-engine) to the Game service, which
 calls `apply` for it. The server builds each `GameView`; the `game-wire` crate
 (Game wire) converts it to and from the DTOs, which stay in `crates/api`.
@@ -76,10 +76,10 @@ workspace extends model.dsl {
             description "GameSession: one game's authoritative state, and apply, the one method that changes it."
         }
         // 71-data-model.md, "6 · Modules" (app/events.rs): publish saves,
-        // logs and broadcasts in one place.
+        // logs and broadcasts in one place, on the game's own channel (§8).
         !element tle.server.events {
             tags "changed" "wp:268"
-            description "Saves each applied change, logs it, and pushes the game's state to its players."
+            description "Saves each applied change, logs it, and pushes the game's state to its players over a channel per game."
         }
         // 71-data-model.md, "6 · Modules" (app/roster.rs): seat changes
         // become messages. Its relationships change, its description stays
@@ -119,7 +119,7 @@ workspace extends model.dsl {
         !element tle.server {
             // 71-design.md, "The engine is a client", and 71-data-model.md,
             // "8 · The engine". The design names no path.
-            bot = component "In-process bot" "An engine seat as a client of the game: the in-process bot, over the glue." {
+            bot = component "In-process bot" "An engine seat as a client of the game: one in-process bot object per seat, over the glue." {
                 tags "new" "wp:268"
                 properties {
                     "artefact" "crates/server-game/src/bot.rs (proposed)"
@@ -240,7 +240,7 @@ workspace extends model.dsl {
         tle.server.bot -> tle.server.wire "uses GameView, GameLink and take_turn from" {
             tags "new" "wp:268"
         }
-        tle.server.glue -> tle.server.events "hears of changes through updates_for, which the WebSocket also uses, to" {
+        tle.server.glue -> tle.server.events "hears of its games' changes and new seats through updates_for, which the WebSocket also uses, from" {
             tags "new" "wp:268"
         }
         tle.server.glue -> tle.server.games "submits the bot's GameMessage to, as the bot's account" {

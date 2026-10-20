@@ -189,11 +189,13 @@ everybody — and the second is discarded as already held, because it carries a
 version no higher than the one just applied. Without that the client would
 apply its own move twice, or need to recognise its own echo some other way.
 
-**Every update goes to every client.** Filtering by who a change affects would
-be fragile and buys nothing — no change to a game is invisible to everybody,
-and the cost of not filtering is a refetch nobody needed. Per-viewer concerns
-stay where they are: redaction decides what each connection may see, and
-hiding a game is a flag on a seat.
+**Every update goes to every client of its game.** Choosing recipients within a
+game by who a change affects would be fragile and buys nothing — no change to a
+game is invisible to everybody, and the cost of not choosing is a refetch nobody
+needed. Each game has its own channel ([§8](71-data-model.md#8--the-engine)), so
+an update reaches no other game's clients. Per-viewer concerns stay where they
+are: redaction decides what each connection may see, and hiding a game is a flag
+on a seat.
 
 ## Seat state belongs to the seat
 
@@ -647,7 +649,8 @@ driven by a loop inside somebody else's request.
 - **Every bot is a client, and none runs inside a request** (owner,
   2026-10-14). External bots run outside the server, in #10's harness or
   their own client. The server's own bots are the
-  [in-process bot](71-data-model.md#8--the-engine), reached through the glue.
+  [in-process bot](71-data-model.md#8--the-engine), reached through the glue
+  and listed in the server's settings, one identity and one rating each.
   `engine_limit` bounds the in-process bot's searches and the hint, for as
   long as the hint is computed in the server.
 - **A search that fails stays the bot's problem.** An engine error, a panic or
@@ -671,13 +674,14 @@ driven by a loop inside somebody else's request.
 
 1. **Bot**: the engine and `take_turn`, identical wherever it runs.
 2. **Client core**: what every client shares, from `game-wire`.
-3. **Transport**, one of two adapters behind it: external (HTTPS and
-   WebSocket) or the in-process glue, which joins under the Transport API at
-   two calls, `updates_for` to hear and the Game service's submit function to
-   act.
-4. **Server**: Transport API, Game service, `apply`, and the Event stream with
-   `updates_for`, which filters and redacts it for one viewer and serves both
-   transports.
+3. **Transport**, one of two adapters behind it, chosen when the build is
+   compiled: external (HTTPS and WebSocket) or the in-process glue, which
+   joins under the Transport API at two calls, `updates_for` to hear and the
+   Game service's submit function to act. The bot is generic over the trait
+   (`Bot<L: GameLink>`), never `dyn`.
+4. **Server**: Transport API, Game service, `apply`, and the Event stream, a
+   broadcast channel per game, with `updates_for`, which redacts it for one
+   viewer and serves both transports.
 
 An in-process engine and an external one therefore differ only by transport.
 That is what makes the external harness a plug-in rather than a second way to
@@ -1044,15 +1048,16 @@ is played.
 An external harness (#10's) learns of a turn the way any client does — from the
 message carrying the previous move, or the game starting, on a socket it already
 holds for that game. A game left waiting while the harness was down is picked up
-by the first yield of its socket for that game
-([§8](71-data-model.md#8--the-engine)).
+by the first yield of its socket for that game, and a new seat reaches it as a
+seat notice ([§8](71-data-model.md#8--the-engine)).
 
 **A bot plays as a bot account, wherever the engine runs.** The harness
 authenticates as the bot, not as the person running it — so a bot's moves
 move a bot's rating, and nothing has to declare after the fact which moves
 were whose. A server-run bot's seat carries the same kind of account id; the
 in-process glue passes it to the Game service, which checks it as it checks
-any caller.
+any caller. The server's settings list those bots, each with one account and
+one rating however many games it plays.
 
 That keeps where the engine runs out of the data model entirely, which is the
 note's whole purpose. A bot playing from a client and a bot playing in the
@@ -1060,11 +1065,12 @@ server are the same game.
 
 **An external client authenticates as a person before it can assume a bot.**
 Everything but `/health`, registering and logging in requires a session, and a
-bot session is taken on top of a human one. The in-process bot holds no
-session; whether its account needs an owner is an
-[open question](71-data-model.md#open-questions-this-raises). For an external
-bot, rating follows the bot and accountability follows the person, so one
-behaving badly has an owner to disable.
+bot session is taken on top of a human one. The in-process bot holds no session:
+the glue substitutes the identity the settings list, and the list is the
+programme owner's, who is accountable for the bots on it
+([§8](71-data-model.md#8--the-engine)). For an external bot, rating follows the
+bot and accountability follows the person, so one behaving badly has an owner to
+disable.
 
 It is worth being plain that this is revocation and not prevention:
 registration is open, so anybody can create a throwaway account and a bot
@@ -1120,7 +1126,9 @@ accidental bound on them, so a bound replaces it: `engine_limit`, default 2
 because the VM has two cores [^d62], taken by every search and every hint.
 Memory is unchanged in kind: every live game is held in the map as
 today, one lock each. The whole-state-per-update wire costs a few kilobytes per
-message per connection, which is what is sent today.
+message per connection, which is what is sent today. Each game has its own
+broadcast channel, so a change costs that game's receivers and not every open
+socket, however many games and players there are.
 
 **Failure.** A refused message changes nothing. An engine that errors, panics
 or overruns leaves its seat on turn for the move time limit. A failed save is
@@ -1138,10 +1146,11 @@ limit is the game's own setting. Request throttling is unchanged
 **Secrets and access.** No new secret. An external bot is an account with an
 owner and authenticates as one, so a harness holds a session token like any
 client; how long that session lives is ACC-1's, with no exemption for bots
-(D66). The in-process bot holds no session: its accounts are the
-[open question](71-data-model.md#open-questions-this-raises). What a connection
-may see is the union over the seats its account holds; a broadcast event never
-names who acted on a seat beyond the seat itself.
+(D66). The in-process bot holds no session: the glue substitutes the identity
+the settings list (`TILE_LITE_ELITE_BOTS`, proposed), and the programme owner,
+who owns the list, is accountable for the bots on it. What a connection may see
+is the union over the seats its account holds; a broadcast event never names who
+acted on a seat beyond the seat itself.
 
 ## Work packages
 
@@ -1276,7 +1285,7 @@ sequenceDiagram
 
   Note over S,B: the request is over — the bot's turn is not part of it
 
-  E--)L: broadcast version N, the full state
+  E--)L: broadcast version N, the full state, on the game's channel
   Note over E,L: updates_for redacts per recipient, to the glue and to each socket
   L--)B: on event
   B->>RB: search, holding no lock
@@ -1311,9 +1320,9 @@ flowchart LR
 
   subgraph Server
     Api[Transport API]
-    Events[Event Stream]
+    Events[Event Stream<br/>— a channel per game]
     Glue[In-process Glue<br/>— joins under the Transport API<br/>at two calls]
-    Updates[updates_for<br/>— filters and redacts per viewer]
+    Updates[updates_for<br/>— redacts per viewer]
     Game[Game Service]
     Rules[Authoritative Rules Engine]
     InProc[In-process Bot<br/>— a client without the socket]

@@ -8,7 +8,7 @@ Green is new, yellow changed, red removed. A relationship's label starts with
 its state too. Each work package is drawn alone: the packages it builds on are
 not applied.
 
-Sources hash: `44adf97ccbbdba36c91e78947d64e6dd42fe03bc7af0b44d878063594163aaea`.
+Sources hash: `3bcecb88cf39cb666664e94e7334e7d6959eb68ea8da5377ee43673ddfd92bdd`.
 
 ## WP A, #268 Core Game Lifecycle
 
@@ -33,7 +33,7 @@ graph TB
         style 14 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
         15["<div style='font-weight: bold'>Invitations</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>Open and emailed invitations<br />to a seat.</div>"]
         style 15 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-        16["<div style='font-weight: bold'>Event stream</div><div style='font-size: 70%; margin-top: 0px'>[Component: WebSocket]</div><div style='font-size: 80%; margin-top:10px'>Saves each applied change,<br />logs it, and pushes the<br />game's state to its players.</div>"]
+        16["<div style='font-weight: bold'>Event stream</div><div style='font-size: 70%; margin-top: 0px'>[Component: WebSocket]</div><div style='font-size: 80%; margin-top:10px'>Saves each applied change,<br />logs it, and pushes the<br />game's state to its players<br />over a channel per game.</div>"]
         style 16 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
         19["<div style='font-weight: bold'>Admin endpoints</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>The loopback-only /admin<br />routes.</div>"]
         style 19 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
@@ -49,7 +49,7 @@ graph TB
         style 24 fill:#f6f8fa,stroke:#8c959f,color:#1f2328
         25["<div style='font-weight: bold'>Persistence</div><div style='font-size: 70%; margin-top: 0px'>[Component: sqlx]</div><div style='font-size: 80%; margin-top:10px'>Reads and writes games and<br />accounts.</div>"]
         style 25 fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-        93["<div style='font-weight: bold'>In-process bot</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>An engine seat as a client of<br />the game: the in-process bot,<br />over the glue.</div>"]
+        93["<div style='font-weight: bold'>In-process bot</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>An engine seat as a client of<br />the game: one in-process bot<br />object per seat, over the<br />glue.</div>"]
         style 93 fill:#dafbe1,stroke:#1a7f37,color:#0a3622
         94["<div style='font-weight: bold'>In-process glue</div><div style='font-size: 70%; margin-top: 0px'>[Component]</div><div style='font-size: 80%; margin-top:10px'>The in-process transport: the<br />bot's two calls without a<br />socket.</div>"]
         style 94 fill:#dafbe1,stroke:#1a7f37,color:#0a3622
@@ -64,7 +64,7 @@ graph TB
     93-. "<div>new: hears of each change through,<br />and submits its move through</div><div style='font-size: 70%'></div>" .->94
     93-. "<div>new: searches with, holding no<br />lock</div><div style='font-size: 70%'></div>" .->23
     93-. "<div>new: uses GameView, GameLink and<br />take_turn from</div><div style='font-size: 70%'></div>" .->95
-    94-. "<div>new: hears of changes through<br />updates_for, which the<br />WebSocket also uses, to</div><div style='font-size: 70%'></div>" .->16
+    94-. "<div>new: hears of its games' changes<br />and new seats through<br />updates_for, which the<br />WebSocket also uses, from</div><div style='font-size: 70%'></div>" .->16
     94-. "<div>new: submits the bot's GameMessage<br />to, as the bot's account</div><div style='font-size: 70%'></div>" .->13
     12-. "<div>new: sends UpdateUserDetails to<br />each game the player is in</div><div style='font-size: 70%'></div>" .->21
     12-. "<div>new: publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
