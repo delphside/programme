@@ -304,6 +304,8 @@ _COST = re.compile(r"^\s*-\s*R\d+\s+cost:\s*(.*)$")
 _ROUND = re.compile(r"^\s*-\s*R(\d+)")
 _SPENT = re.compile(r"([A-Za-z]+)\s+(\d+(?:\.\d+)?)k\b", re.I)
 _TOKENS = re.compile(r"(?<![\d,.])(\d+(?:\.\d+)?)k\b", re.I)
+# Anything shaped like a figure in k, read or not, so a malformed one is counted.
+_ANY_K = re.compile(r"\d[\d,.]*k\b", re.I)
 # The pair whose shared findings are counted: the two document reviewers.
 PAIR = ("reader", "truth")
 REVIEWERS = {"reader", "truth", "change", "owner"}
@@ -377,7 +379,8 @@ class RoundCount:
                     costed.setdefault(round_, set())
                     self.spent[round_] += sum(float(t) for t in figures)
                 named = _SPENT.findall(m.group(1))
-                self.unread_costs += (not figures) + max(0, len(figures) - len(named))
+                shaped = len(_ANY_K.findall(m.group(1)))
+                self.unread_costs += max(0, shaped - len(named)) if shaped else 1
                 self.tokens += sum(float(t) for t in figures)
                 for who, k in named:
                     who = who.lower()

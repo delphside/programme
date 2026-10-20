@@ -428,12 +428,13 @@ class DocumentReviews(Cases):
                     RoundCount().add("- R1 reader — x — a\n- R1 cost: 150k").value())
         shared = RoundCount().add("- R1 change — x — a (also owner)\n- R1 cost: reader 10k")
         self.expect("a finding is counted once however many lack a figure", 1, shared.unfigured)
-        ordered = RoundCount().add("- R10 cost: reader 10k\n- R2 cost: Truth 20k\n- R2 truth — x — y\n- R01 reader — x — z\n- R1 cost: reader 5k")
+        ordered = RoundCount().add("- R10 cost: reader 10k\n- R2 cost: Truth 20k\n- R2 truth — x — y\n- R1 reader — x — z\n- R01 cost: reader 5k")
         self.expect("rounds in number order, names in any case, R01 as R1",
                     ("By round: R1 5k for 1 (5k each); R2 20k for 1 (20k each); R10 10k for 0", 1),
                     (ordered.value().split(". ")[1], ordered.found["truth"]))
-        self.expect("a figure with a thousands comma is not read", (0, 1),
-                    (RoundCount().add("- R1 cost: reader 1,200k").tokens, RoundCount().add("- R1 cost: reader 1,200k").unread_costs))
+        for body, tokens in (("reader 1,200k", 0), ("reader 1.2.5k", 0), ("reader 60k, 80%; truth 1,200k", 60)):
+            c = RoundCount().add(f"- R1 cost: {body}")
+            self.expect(f"a malformed figure is not read: {body}", (tokens, 1), (c.tokens, c.unread_costs))
         self.expect("an empty week says what it lacks", "cost lines with no k figure; 1 finding(s) not costed",
                     RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 60000").cost())
         unnamed = RoundCount().add("- R1 reader — x — y\n- R1 cost: about 50k")
