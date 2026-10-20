@@ -43,8 +43,8 @@ however clean the document reads.
    changed section is read in its place. Where the handover asks for a
    document whole, every section is in scope. Where the handover's *Already
    checked* lists rules or sections found sound, review the rest, and return to
-   a listed one only where the diff since the earlier round touches it. Answer a
-   listed rule in *Checks* as **already checked**.
+   a listed one only where the diff since the round that found it sound touches
+   it. Answer a listed rule or section in *Checks* as **already checked**.
 4. The document's row in 1.5's *Who each range is for*: who is reading, and
    what the section carries and leaves out.
 
@@ -84,7 +84,7 @@ those rules:
 - **Facts in prose** (1.5 *Prose for reasons, structure for facts*): a
   paragraph holding a sequence, two or more conditions, a set of items or a
   flow a diagram would show; a sentence in a list, table or diagram where a
-  phrase carries it.
+  phrase carries it without ambiguity.
 - **Unwrapped prose** (1.5 *Wrap prose at 80 characters*): a line over 80
   characters in a changed paragraph, an unchanged paragraph rewrapped, or a
   long link, text and target, split across lines.
@@ -102,7 +102,8 @@ Your final message is the report, and nothing else is read.
 
 - **Checks**: every rule on your checklist, and every *Done when* item and
   question in the handover, each answered **holds**, **finding** (with its
-  number) or **could not check** (and why). None left out.
+  number), **could not check** (and why) or **already checked** (listed in the
+  handover's *Already checked*). None left out.
 - **Findings**, numbered, most serious first. Each gives:
   - The file and line, and the words quoted.
   - The rule broken, cited as `1.5 *<heading>*` or `Google: <section>`.
