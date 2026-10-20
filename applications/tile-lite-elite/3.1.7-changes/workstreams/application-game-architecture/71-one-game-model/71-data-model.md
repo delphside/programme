@@ -556,8 +556,8 @@ holding two seats sees both racks, and every other rack is `Hidden`.
 pub trait GameLink {
     /// The next view in this subscription's scope, as a GameView; the view
     /// carries the game's id. Scope is what the transport subscribed to: the
-    /// seat's game for each in-process bot object, one game for each link of
-    /// the web client or an external harness.
+    /// seat's game for the link of each in-process bot object, one game for
+    /// each link of the web client or an external harness.
     async fn on_event(&mut self) -> Result<GameView, LinkError>;
     /// Send a message for a game; the answer is the server's, accepted or refused.
     async fn submit(&self, game_id: &str, message: GameMessage) -> Result<(), SubmitError>;
@@ -567,11 +567,12 @@ pub trait GameLink {
 The web client, the test client, an external harness and the in-process bot each
 call these two. A transport is an adapter behind them (§8).
 
-**`GameLink` is a trait with two implementations, chosen at compile time.** The
-bot is generic over it, `Bot<L: GameLink>`, and never holds a
-`dyn GameLink`. Each build picks its transport: the server builds
-`Bot<InProcessLink>`; a harness or the web client uses the external one. There
-is no late binding.
+**`GameLink` is a trait with two implementations, chosen at compile time.**
+`Bot<L: GameLink>`, with `take_turn`, is in `game-wire`, where the server and
+the harness of #10 share it, and is never a `dyn GameLink`. The server's
+`InProcessLink` and the glue stay in `server-game`, and the server builds
+`Bot<InProcessLink>`. A harness builds `Bot<ExternalLink>` (the name is
+proposed). The web client implements `GameLink` but builds no `Bot`.
 
 ## 4 · Access
 
@@ -738,7 +739,8 @@ be lifted out at all**, and it is already true today.
 A bot behaves like the existing client.[^layers] It is four layers, top-down,
 and only the third differs by where the bot runs:
 
-1. **Bot**: the engine and `take_turn`. The same wherever it runs.
+1. **Bot**: `Bot<L: GameLink>`, the engine and `take_turn`. The same wherever
+   it runs.
 2. **Client core**: `GameLink`, §3. It yields a `GameView` from each event and
    submits a `GameMessage`.
 3. **Transport**, an adapter behind `GameLink`. *External*: HTTPS and
@@ -770,6 +772,7 @@ identity (in-process)
 on each event from the link:       // a Bot<L: GameLink>, one per seat held
     view = the GameView it yields  // in-process: this seat's game; external:
                                    // one of the games its links were opened for
+    // seat is the object's own seat
     if view.current_seat == seat:
         if let Some(msg) = take_turn(engine, &view, seat, budget) {
             link.submit(view.game_id, msg)
@@ -783,45 +786,53 @@ no caller spawns a bot task. The request that applies a move returns at once.
 **The in-process glue joins under the Transport API at two calls**:
 `updates_for` to hear, and the Game service's submit function to act.
 
-- `on_event` hears through `updates_for`. **The Event stream is a registry
-  from game id to that game's broadcast channel** (`app/events.rs`), with many
-  receivers each. A channel is created on its first subscriber and dropped
-  when its last leaves. `publish` sends the full, unredacted state to its
-  game's channel only, so an event reaches the sockets of its game and no
-  others, and the cost of a change grows with that game's receivers, not with
-  every open socket. **Each account also has a small seat-notice channel**,
-  which carries only "you now hold a seat in game X" and is sent by the change
-  that seats the account. Redaction and scope are the server's, below both
-  transports: one function, `updates_for(scope, &ViewerAccess)`, where the
-  scope is one game or every game the account holds a seat in. A subscriber
-  of one game receives that game's channel. A subscriber of every seated game
-  receives the channel of each game it holds a seat in, and the account's seat
-  notice: a notice joins the new game's channel, so a seat added later brings
-  that game into scope. It joins the channel before it reads the game, so no
-  change falls between. The first yield is the current `GameView` of each game
-  in scope, then each change, built with `view_for` for this recipient. The
-  first yield covers start-up and, for a WebSocket, reconnection, so a game
-  already on the bot's turn is played. The WebSocket handler subscribes with
-  one game, as today; the glue with every game the bot's account holds a seat
-  in. The socket converts each `GameView` to a frame with `game_to_dto`; the
-  glue gives each view to the bot object of that game's seat as it is.
-- `submit` calls the same Game service function a route handler calls after
-  its sign-in check, passing the bot's account id as the caller. The service
-  still checks that the caller holds the seat and that it is on turn, and
-  calls `apply`.
+**`on_event` hears through `updates_for(scope, &ViewerAccess)`**, the one
+function that redacts for a recipient, below both transports. **The Event
+stream is a registry from game id to that game's broadcast channel**
+(`app/events.rs`), with many receivers each. `updates_for` creates a game's
+channel on its first subscriber and drops it with its last. `publish` sends the
+full, unredacted state to its game's channel only, so an event reaches the
+sockets of its game and no others, and the cost of a change grows with that
+game's receivers only. **Each account also has a small seat-notice channel**,
+which carries "you now hold a seat in game X" and nothing else; `publish` sends
+it when a change seats the account. The scope decides what a subscriber
+receives:
+
+| scope | who subscribes | receives |
+| --- | --- | --- |
+| one game | the WebSocket handler, as today | that game's channel |
+| every seated game | the glue, once per listed bot; an external harness over its socket | the channel of each game it holds a seat in, and the account's seat notice, which joins the new game's channel, so a seat added later brings that game into scope |
+
+Both scopes first yield the current `GameView` of each game in scope, then each
+change, built with `view_for` for this recipient. The first yield covers
+start-up and, for a WebSocket, reconnection, so a game already on the bot's
+turn is played. `updates_for` joins a game's channel before it reads the game,
+so no change falls between. The socket converts each `GameView` to a frame with
+`game_to_dto`; the glue gives each view to the bot object of the seat as it is.
+
+**`submit` calls the same Game service function a route handler calls** after
+its sign-in check, passing the bot's account id as the caller. The service
+still checks that the caller holds the seat and that it is on turn, and calls
+`apply`.
 
 **Over the external transport, `GameLink` opens one WebSocket per game**, as
-today, for the games the account's game list names. A harness subscribing to
-every seated game over its socket learns of a new seat from the seat notice;
+today, for the games the account's game list names. A harness that subscribes
+to every seated game over its socket learns of a new seat from the seat notice;
 the socket's shape is #10's.
 
 **The server runs the bots its settings list.** `TILE_LITE_ELITE_BOTS`
-(proposed) lists the bots run in-process, each with one identity: one account
-and one rating per bot, however many games it plays. In-process, sign-in is a
-stub and the glue substitutes the listed identity on every message, so no
-session record exists. Each seat a bot holds gets its own bot object; all
-share the bot's identity and run under `engine_limit`. The list is the
-programme owner's, who is accountable for the bots on it.
+(proposed) lists the bots run in-process, each with one identity, which is one
+account. Its ratings are its account's, one per edition, however many games it
+plays. In-process, sign-in is a stub and the glue substitutes the listed
+identity on every message, so no session record exists. The glue subscribes
+once per listed bot, for every game it holds a seat in, and creates one bot
+object per seat, each with a link scoped to its seat, including a seat a notice
+adds while the server runs. A bot may hold several seats in one game, and gets
+the bot object of each seat it holds in that game. All of a bot's objects share
+its identity and run under `engine_limit`. The list is the programme owner's,
+who is accountable for the bots on it. In-process bots are compiled into the
+server from reviewed code; a third-party bot runs as an external client, which
+can be co-hosted beside the server if ever needed (owner, 2026-10-20).
 
 **The submitted move is re-validated on arrival**, because the game may have
 moved — aborted, or the seat retired. A rejection is normal, not an error.
@@ -887,24 +898,12 @@ pool. The cost is that a caller can forget to publish. Enforceable by making
 server side otherwise gets.
 
 **How does the server act as the bot accounts it runs in-process, and do they
-need an owner?** Settled by owner, 2026-10-20: the settings list the bots
-(`TILE_LITE_ELITE_BOTS`, proposed), the glue substitutes each listed identity,
-and no session exists ([§8](#8--the-engine)). The design's rule, *an external
-client authenticates as a person before it can assume a bot*
-([`71-design.md`](71-design.md#open-questions), *A bot plays as a bot
-account*), governs external harnesses only. The list is the programme owner's,
-who is accountable for every bot on it, so a listed bot needs no owner of its
-own.
+need an owner?** Settled by owner, 2026-10-20: see [§8](#8--the-engine).
 
 **How does an external harness learn of a game it is newly seated in?**
-Settled by owner, 2026-10-20: the seat notice, over a socket that subscribes
-to every seated game ([§8](#8--the-engine)). The socket's shape, and how a
-harness polls instead, are #10's. Start-up and reconnection are in §8 too.
+Settled by owner, 2026-10-20: see §8.
 
-**Third-party bots in-process.** A bot compiled into the server from a
-reviewed crate costs nothing extra. Loading unreviewed code would need a
-sandbox, for example WebAssembly with memory and CPU limits. Whether to allow
-it is a requirement for the programme owner, and this note does not settle it.
+**Third-party bots in-process?** Settled by owner, 2026-10-20: no; see §8.
 
 **Does `turn` need to be persisted separately from `moves.len()`?** Settled by
 undo, 2026-08-29: yes. Under undo `turn` walks backwards while `moves` does not
