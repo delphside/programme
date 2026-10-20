@@ -31,6 +31,12 @@ The issue, document or branch, and the commit or stamp it runs from.
 Anything beyond the agent's standing reading list. "None" if its list is
 enough.
 
+## Already checked
+
+For a review in rounds, the claims that earlier rounds checked and found true,
+copied from their reports, so this round starts on the rest. "None" in the
+first round.
+
 ## Agreed but not yet written down
 
 Decisions from Claude's conversation with the owner that the documents do not

@@ -50,7 +50,8 @@ reads.
 
 Every changed section is in scope. Where the handover asks for a document
 whole, every section is, and a fault in unchanged text is reported as
-**pre-existing**.
+**pre-existing**. Where the handover's *Already checked* lists claims, check the
+others first, and recheck a listed claim only where a fix has touched it since.
 
 ## What to check
 
