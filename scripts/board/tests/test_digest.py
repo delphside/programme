@@ -282,6 +282,8 @@ class Conclusions(Cases):
         self.expect("continuation stays with its note", True,
                     with_conclusions("- one\n  more of one\n- two").startswith("- one\n  more of one\n  - *Conclusion"))
         self.expect("text with no bullets is one note", 1, with_conclusions("plain note").count(CONCLUDE))
+        self.expect("text before the first bullet takes none; each bullet takes one", 2,
+                    with_conclusions("Anything noticed during the week.\n- one\n- two").count(CONCLUDE))
         self.expect("a note's top-level round lines share its conclusion", 1,
                     with_conclusions("- abc1234 rounds:\n- R1 reader — x — y\n- R1 cost: reader 5k").count(CONCLUDE))
         self.expect("no notes, nothing to conclude", "", with_conclusions(""))
@@ -387,7 +389,7 @@ class DocumentReviews(Cases):
 
     def test_round_lines_at_the_top_level_stay_with_their_note(self):
         notes = ("Before the notes.\n- abc1234 rounds:\n- R1 reader — x — y\n- R1 truth — x — z\n"
-                 "- R1 cost: reader 50k, 80%; truth 60k\n- def5678 rounds:\n  - R1 none")
+                 "- R1 cost: reader 50k, 80%; truth 60k\n- R2 none\n- owner — none\n- def5678 rounds:\n  - R1 none")
         self.expect("records", 3, len(note_records(notes)))
         text = render(digest(reviews=[]), notes=notes)
         self.expect("cost paid for both findings", True,
