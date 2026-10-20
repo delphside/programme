@@ -20,13 +20,14 @@ where a bug would flatter the report or repeat a settled question:
 No network and no git: canned counts and issues only."""
 
 import collections
+import re
 import unittest
 
 import subprocess
 import tempfile
 from pathlib import Path
 
-from board.digest import (CONCLUDE, RoundCount, review_rounds, unlessoned_projects, DRAFT, Digest, with_conclusions, Window, claude_lessons, draft, in_window, issue_lessons,
+from board.digest import (CONCLUDE, RoundCount, review_rounds, unrecorded, unlessoned_projects, DRAFT, Digest, with_conclusions, Window, claude_lessons, draft, in_window, issue_lessons,
                           notes_for_write, notes_of, register_rows, render, section, MEASURED_AT)
 from board.model import RawIssue
 from board.sources import MergedPullRequest
@@ -351,17 +352,24 @@ class DocumentReviews(Cases):
         self.expect("nothing", ({}, 0), (dict(c.by_reviewer), c.owner))
         self.expect("an owner finding counts", 1, RoundCount().add("- owner — a wrong link").owner)
 
-    def test_the_overlap_gives_a_capture_recapture_estimate(self):
-        c = RoundCount().add(self.ROUNDS)
-        # a=2, b=4, c=1: about 8 in all, against 5 distinct found.
-        self.expect("estimate", "about 8 faults in all, against 5 found: about 3 still to find",
-                    c.estimate())
-        none_shared = RoundCount().add("- R1 reader — x — y\n- R1 truth — x — z")
-        self.expect("no overlap is not read as nothing left", True,
-                    "more remain to be found" in none_shared.estimate())
-        other = RoundCount().add(self.ROUNDS + "\n- R1 change — x — a third reviewer")
-        self.expect("a third reviewer does not remove the estimate", True,
-                    other.estimate().startswith("about 8"))
+    def test_the_missed_share_and_the_cost_are_counts(self):
+        c = RoundCount().add(self.ROUNDS + "\n- R1 cost: reader 60k, 80%; truth 90.5k, 75%")
+        self.expect("missed share", "1 of 5 findings missed by an earlier round (20%)",
+                    c.missed_share())
+        self.expect("cost", "150k tokens, about 30k per material finding", c.cost())
+        self.expect("a cost line is not a finding", 5, c.findings)
+        self.expect("no findings", "no findings", RoundCount().missed_share())
+        self.expect("no cost lines", "no cost lines", RoundCount().add(self.ROUNDS).cost())
+
+    def test_the_example_in_docs_1_1_counts_as_it_should(self):
+        # The record's form is docs/1.1's example; the parser is tested against it.
+        doc = (Path(__file__).resolve().parents[3] / "docs" / "1.1-programme-tooling.md").read_text()
+        example = re.search(r"```text\n(- R1 reader.*?)```", doc, re.S).group(1)
+        c = RoundCount().add(example)
+        self.expect("counts",
+                    ({"reader": 2, "truth": 3}, 1, 1, 1, 1, 0, 4, 370),
+                    (dict(c.by_reviewer), c.both, c.from_fix, c.crossed, c.missed, c.owner,
+                     c.findings, c.tokens))
 
     def test_rounds_in_the_notes_are_counted_for_a_change_with_no_pull_request(self):
         notes = "- 2026-09-22, review rounds for abc1234:\n  - R1 reader — x — y (also truth)\n  - R2 none"
@@ -372,6 +380,18 @@ class DocumentReviews(Cases):
         prs = [MergedPullRequest("o/p", 1, "docs", "## Review rounds\n\n" + self.ROUNDS),
                MergedPullRequest("o/p", 2, "code", "Before: x")]
         self.expect("one", [1], [n for _, n, _, _ in review_rounds(prs)])
+
+    def test_none_owed_is_told_apart_from_no_record(self):
+        prs = [MergedPullRequest("o/p", 1, "docs", "## Review rounds\n\n" + self.ROUNDS),
+               MergedPullRequest("o/p", 2, "report", "## Review rounds\n\nNone owed: a report."),
+               MergedPullRequest("o/p", 3, "code", "Before: x")]
+        self.expect("rounds", [1], [n for _, n, _, _ in review_rounds(prs)])
+        self.expect("unrecorded", [3], [n for _, n, _ in unrecorded(prs)])
+        text = render(digest(reviews=review_rounds(prs), unrecorded=unrecorded(prs)))
+        self.expect("named in the digest", True,
+                    "Merged with neither *Review rounds* nor `None owed`: o/p#3." in text)
+        self.expect("the review of the reviews has a place", True,
+                    "### Review of the reviews" in text)
 
     def test_a_search_that_did_not_answer_is_said_not_read_as_none(self):
         self.expect("unavailable", True,

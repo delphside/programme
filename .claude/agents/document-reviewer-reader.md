@@ -81,7 +81,11 @@ those rules:
   rejected ideas go in design notes*): a dropped option named in the
   description, where a design note or nothing belongs.
 - **The missing sentence** (1.5 *Every section has an audience and a use
-  case*): a place where a reader would do the wrong thing for lack of one.
+  case*), each answered on its own:
+  - an unnamed actor: a rule with no one to carry it out;
+  - a term used before it is defined;
+  - a rule, its example and the tool that reads it disagreeing;
+  - a case the reader will meet left uncovered.
 - **Facts in prose** (1.5 *Prose for reasons, structure for facts*): a
   paragraph holding a sequence, two or more conditions, a set of items or a
   flow a diagram would show; a sentence in a list, table or diagram where a
