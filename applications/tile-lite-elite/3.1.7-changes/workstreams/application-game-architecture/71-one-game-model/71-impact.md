@@ -169,16 +169,16 @@ stream and submits through the
 drives it.
 
 **Artefacts WP A adds for the bot.** The Event stream in `app/events.rs`
-becomes a registry from game id to a broadcast channel, created on its first
-subscriber and dropped when its last leaves, with a seat-notice channel per
-account; `updates_for` subscribes to those instead of filtering one shared
-channel. `GameLink` stays a trait and the bot is generic over it, so the
-server's build holds `Bot<InProcessLink>` and no `dyn GameLink`. The server's
-settings gain a list of the bots it runs in-process, `TILE_LITE_ELITE_BOTS`
-(proposed), each entry one account and its engine, which the configuration
-reference documents ([4.4.1 Configuration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md)). In-process, sign-in is a stub and the glue substitutes the
-listed identity, so the change adds no session records. `client_rules.rs` in
-`ui` loses its copies of the conversions, as the DTO section above says.
+becomes a registry of channels per game, with a seat notice per account, and
+`updates_for` subscribes to those instead of filtering one shared channel. The
+server's settings gain `TILE_LITE_ELITE_BOTS` (proposed), the list of bots it
+runs in-process, which the configuration reference documents
+([4.4.1 Configuration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md)).
+The mechanism, the generic `Bot<L: GameLink>` and the identity each listed bot
+holds are in [§8](71-data-model.md#8--the-engine). `client_rules.rs` in `ui`
+loses its copies of the conversions, as
+[DTOs are invisible, and redaction is in the model](#dtos-are-invisible-and-redaction-is-in-the-model)
+says.
 
 **A comment becomes untrue.** In `app/throttle.rs`, the comment on the test
 `a_caller_that_obeys_retry_after_is_served` ("A remote client barely exercises

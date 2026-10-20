@@ -191,11 +191,11 @@ apply its own move twice, or need to recognise its own echo some other way.
 
 **Every update goes to every client of its game.** Choosing recipients within a
 game by who a change affects would be fragile and buys nothing — no change to a
-game is invisible to everybody, and the cost of not choosing is a refetch nobody
-needed. Each game has its own channel ([§8](71-data-model.md#8--the-engine)), so
-an update reaches no other game's clients. Per-viewer concerns stay where they
-are: redaction decides what each connection may see, and hiding a game is a flag
-on a seat.
+game is invisible to everybody, and the cost of not choosing is a refetch
+nobody needed. Each game has its own channel
+([§8](71-data-model.md#8--the-engine)), so an update reaches no other game's
+clients. Per-viewer concerns stay where they are: redaction decides what each
+connection may see, and hiding a game is a flag on a seat.
 
 ## Seat state belongs to the seat
 
@@ -649,8 +649,7 @@ driven by a loop inside somebody else's request.
 - **Every bot is a client, and none runs inside a request** (owner,
   2026-10-14). External bots run outside the server, in #10's harness or
   their own client. The server's own bots are the
-  [in-process bot](71-data-model.md#8--the-engine), reached through the glue
-  and listed in the server's settings, one identity and one rating each.
+  [in-process bot](71-data-model.md#8--the-engine), reached through the glue.
   `engine_limit` bounds the in-process bot's searches and the hint, for as
   long as the hint is computed in the server.
 - **A search that fails stays the bot's problem.** An engine error, a panic or
@@ -1048,16 +1047,17 @@ is played.
 An external harness (#10's) learns of a turn the way any client does — from the
 message carrying the previous move, or the game starting, on a socket it already
 holds for that game. A game left waiting while the harness was down is picked up
-by the first yield of its socket for that game, and a new seat reaches it as a
-seat notice ([§8](71-data-model.md#8--the-engine)).
+by the first yield of its socket for that game. A socket that subscribes to
+every seated game also learns of a new seat from a seat notice, whose shape
+is #10's ([§8](71-data-model.md#8--the-engine)).
 
 **A bot plays as a bot account, wherever the engine runs.** The harness
 authenticates as the bot, not as the person running it — so a bot's moves
 move a bot's rating, and nothing has to declare after the fact which moves
 were whose. A server-run bot's seat carries the same kind of account id; the
 in-process glue passes it to the Game service, which checks it as it checks
-any caller. The server's settings list those bots, each with one account and
-one rating however many games it plays.
+any caller. The server's settings list the bots it runs
+([§8](71-data-model.md#8--the-engine)).
 
 That keeps where the engine runs out of the data model entirely, which is the
 note's whole purpose. A bot playing from a client and a bot playing in the
@@ -1065,9 +1065,8 @@ server are the same game.
 
 **An external client authenticates as a person before it can assume a bot.**
 Everything but `/health`, registering and logging in requires a session, and a
-bot session is taken on top of a human one. The in-process bot holds no session:
-the glue substitutes the identity the settings list, and the list is the
-programme owner's, who is accountable for the bots on it
+bot session is taken on top of a human one. The in-process bot holds no
+session: the glue substitutes the identity the settings list
 ([§8](71-data-model.md#8--the-engine)). For an external bot, rating follows the
 bot and accountability follows the person, so one behaving badly has an owner to
 disable.
@@ -1127,8 +1126,8 @@ because the VM has two cores [^d62], taken by every search and every hint.
 Memory is unchanged in kind: every live game is held in the map as
 today, one lock each. The whole-state-per-update wire costs a few kilobytes per
 message per connection, which is what is sent today. Each game has its own
-broadcast channel, so a change costs that game's receivers and not every open
-socket, however many games and players there are.
+broadcast channel, so a change costs that game's receivers only, however many
+games and players there are.
 
 **Failure.** A refused message changes nothing. An engine that errors, panics
 or overruns leaves its seat on turn for the move time limit. A failed save is
@@ -1368,6 +1367,7 @@ The Game service publishes each change to the Event stream.
 
 | Document | What changes |
 | --- | --- |
+| [4.4.1 Configuration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md) | `TILE_LITE_ELITE_BOTS` (proposed), the list of bots the server runs in-process |
 | [4.4.2 Database Schema](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.2-database-schema.md) | seat state columns; `game_invitations` reduced to the record of who was asked; `player_ratings.subject_kind` removed; `game_moves`; foreign keys and the delete behaviour they enforce, with `rating_history.game_id` set null when its game goes |
 | [4.4.3 API Schema](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.3-api-schema.md) | the seat and rack DTOs, `ViewerAccess`, structured events, `RatingPointDto.game_id` optional, the api major version |
 | [4.4.4 snapshot_json](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.4-snapshot-json-schema.md) | the schema version field, seat shape, the event log |
