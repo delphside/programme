@@ -37,11 +37,11 @@ Each heading titles its package's section of
 `GameSession::apply` (Game model) is the one method that changes a game, and
 `events::publish` (Event stream) saves, logs and publishes what it changed, to
 that game's `watch` channel only, which holds the latest state. Every caller
-sends `apply` a `GameMessage`: the
-handlers (Game service), the Roster, the Invitations, the Scheduler's timeouts
-and reminders, the admin routes (Admin endpoints) and the account service
-(Accounts) for a rename. The engine proxy goes; the in-process bot is a client
-of the game, hears it is on turn from the Event stream and submits through the
+sends `apply` a `GameMessage`: the handlers (Game service), the Roster, the
+Invitations, the Scheduler's timeouts and reminders, the admin routes (Admin
+endpoints) and the account service (Accounts) for a rename. The engine proxy
+goes; the in-process bot is a client of the game, hears it is on turn from the
+Event stream and submits through the
 [in-process glue](71-data-model.md#8--the-engine) to the Game service, which
 calls `apply` for it. The server builds each `GameView`; the `game-wire` crate
 (Game wire) converts it to and from the DTOs, which stay in `crates/api`.
@@ -206,6 +206,25 @@ workspace extends model.dsl {
             tags "removed" "wp:268"
         }
 
+        // publish writes the game's state, with its cause, to that game's
+        // watch (71-data-model.md, "8 · The engine"), so the old label
+        // "publishes GameEventDto to" is no longer true on these five.
+        !relationships "tle.server.games -> tle.server.events" {
+            tags "removed" "wp:268"
+        }
+        !relationships "tle.server.roster -> tle.server.events" {
+            tags "removed" "wp:268"
+        }
+        !relationships "tle.server.invitations -> tle.server.events" {
+            tags "removed" "wp:268"
+        }
+        !relationships "tle.server.scheduler -> tle.server.events" {
+            tags "removed" "wp:268"
+        }
+        !relationships "tle.server.adminApi -> tle.server.events" {
+            tags "removed" "wp:268"
+        }
+
         // The replacements, 71-design.md, "One version, moved in one place".
         tle.server.games -> tle.server.session "sends each action as a GameMessage to apply" {
             tags "new" "wp:268"
@@ -223,6 +242,24 @@ workspace extends model.dsl {
             tags "new" "wp:268"
         }
         tle.server.games -> tle.server.store "deletes old games and expired sessions, records the database size" {
+            tags "new" "wp:268"
+        }
+
+        // The replacements for the five above, 71-data-model.md, "8 · The
+        // engine".
+        tle.server.games -> tle.server.events "publishes the game's state, with its cause, to" {
+            tags "new" "wp:268"
+        }
+        tle.server.roster -> tle.server.events "publishes the game's state, with its cause, to" {
+            tags "new" "wp:268"
+        }
+        tle.server.invitations -> tle.server.events "publishes the game's state, with its cause, to" {
+            tags "new" "wp:268"
+        }
+        tle.server.scheduler -> tle.server.events "publishes the game's state, with its cause, to" {
+            tags "new" "wp:268"
+        }
+        tle.server.adminApi -> tle.server.events "publishes the game's state, with its cause, to" {
             tags "new" "wp:268"
         }
 

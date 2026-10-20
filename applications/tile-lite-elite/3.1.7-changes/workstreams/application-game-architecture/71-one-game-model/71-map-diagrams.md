@@ -8,7 +8,7 @@ Green is new, yellow changed, red removed. A relationship's label starts with
 its state too. Each work package is drawn alone: the packages it builds on are
 not applied.
 
-Sources hash: `e4dfe9b27b0e2fa7f4f579cb4bdfea7e3f0f6f79a7453d684140a23d1c6e0953`.
+Sources hash: `0f155652e199db97756cd6e3ca80ba40e5a90d2e11a203577e35be42e131e567`.
 
 ## WP A, #268 Core Game Lifecycle
 
@@ -61,6 +61,11 @@ graph TB
 
     19-. "<div>new: sends force-resign and<br />force-end messages to apply</div><div style='font-size: 70%'></div>" .->21
     13-. "<div>new: deletes old games and expired<br />sessions, records the<br />database size</div><div style='font-size: 70%'></div>" .->25
+    13-. "<div>new: publishes the game's state,<br />with its cause, to</div><div style='font-size: 70%'></div>" .->16
+    14-. "<div>new: publishes the game's state,<br />with its cause, to</div><div style='font-size: 70%'></div>" .->16
+    15-. "<div>new: publishes the game's state,<br />with its cause, to</div><div style='font-size: 70%'></div>" .->16
+    20-. "<div>new: publishes the game's state,<br />with its cause, to</div><div style='font-size: 70%'></div>" .->16
+    19-. "<div>new: publishes the game's state,<br />with its cause, to</div><div style='font-size: 70%'></div>" .->16
     93-. "<div>new: hears of each change through,<br />and submits its move through</div><div style='font-size: 70%'></div>" .->94
     93-. "<div>new: searches with, holding no<br />lock</div><div style='font-size: 70%'></div>" .->23
     93-. "<div>new: uses GameView, GameLink, Bot<br />and take_turn from</div><div style='font-size: 70%'></div>" .->95
@@ -90,11 +95,11 @@ graph TB
     22-. "<div>removed: requests an EngineAction from</div><div style='font-size: 70%'></div>" .->23
     22-. "<div>removed: applies the EngineAction to<br />the GameSession</div><div style='font-size: 70%'></div>" .->21
     23-. "<div>searches the GameState with</div><div style='font-size: 70%'></div>" .->24
-    13-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
-    14-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
-    15-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
-    20-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
-    19-. "<div>publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    13-. "<div>removed: publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    14-. "<div>removed: publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    15-. "<div>removed: publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    20-. "<div>removed: publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
+    19-. "<div>removed: publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
     13-. "<div>removed: saves the GameSession,<br />deletes old games and expired<br />sessions, records the<br />database size</div><div style='font-size: 70%'></div>" .->25
     14-. "<div>removed: saves the GameSession,<br />updates invitation rows</div><div style='font-size: 70%'></div>" .->25
     15-. "<div>removed: saves the GameSession and<br />invitation rows</div><div style='font-size: 70%'></div>" .->25
@@ -129,22 +134,32 @@ graph TB
   linkStyle 17 stroke:#1a7f37,stroke-width:2px
   linkStyle 18 stroke:#1a7f37,stroke-width:2px
   linkStyle 19 stroke:#1a7f37,stroke-width:2px
-  linkStyle 20 stroke:#cf222e,stroke-width:2px
-  linkStyle 22 stroke:#cf222e,stroke-width:2px
-  linkStyle 23 stroke:#cf222e,stroke-width:2px
-  linkStyle 24 stroke:#cf222e,stroke-width:2px
+  linkStyle 20 stroke:#1a7f37,stroke-width:2px
+  linkStyle 21 stroke:#1a7f37,stroke-width:2px
+  linkStyle 22 stroke:#1a7f37,stroke-width:2px
+  linkStyle 23 stroke:#1a7f37,stroke-width:2px
+  linkStyle 24 stroke:#1a7f37,stroke-width:2px
   linkStyle 25 stroke:#cf222e,stroke-width:2px
-  linkStyle 26 stroke:#cf222e,stroke-width:2px
+  linkStyle 27 stroke:#cf222e,stroke-width:2px
   linkStyle 28 stroke:#cf222e,stroke-width:2px
   linkStyle 29 stroke:#cf222e,stroke-width:2px
+  linkStyle 30 stroke:#cf222e,stroke-width:2px
+  linkStyle 31 stroke:#cf222e,stroke-width:2px
+  linkStyle 33 stroke:#cf222e,stroke-width:2px
+  linkStyle 34 stroke:#cf222e,stroke-width:2px
   linkStyle 36 stroke:#cf222e,stroke-width:2px
   linkStyle 37 stroke:#cf222e,stroke-width:2px
   linkStyle 38 stroke:#cf222e,stroke-width:2px
   linkStyle 39 stroke:#cf222e,stroke-width:2px
-  linkStyle 44 stroke:#1a7f37,stroke-width:2px
-  linkStyle 45 stroke:#1a7f37,stroke-width:2px
-  linkStyle 46 stroke:#1a7f37,stroke-width:2px
-  linkStyle 47 stroke:#1a7f37,stroke-width:2px
+  linkStyle 40 stroke:#cf222e,stroke-width:2px
+  linkStyle 41 stroke:#cf222e,stroke-width:2px
+  linkStyle 42 stroke:#cf222e,stroke-width:2px
+  linkStyle 43 stroke:#cf222e,stroke-width:2px
+  linkStyle 44 stroke:#cf222e,stroke-width:2px
+  linkStyle 49 stroke:#1a7f37,stroke-width:2px
+  linkStyle 50 stroke:#1a7f37,stroke-width:2px
+  linkStyle 51 stroke:#1a7f37,stroke-width:2px
+  linkStyle 52 stroke:#1a7f37,stroke-width:2px
 ```
 
 ## WP C, #270 Additional Game Lifecycle
