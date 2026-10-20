@@ -1,6 +1,6 @@
 ---
 name: document-reviewer-reader
-description: Reviews a changed document through the reader's eyes against the house style (docs/1.5, on the base of the Google developer documentation style guide), rule by rule, and reports findings that each cite the rule. Changes nothing. Its companion, document-reviewer-truth, checks truth and placement. Give it a handover (docs/templates/agent-handover.md) naming the documents and the commit or diff to review.
+description: Reviews a changed or whole document through the reader's eyes against the house style (docs/1.5, on the base of the Google developer documentation style guide), rule by rule, and reports findings that each cite the rule. Changes nothing. Its companion, document-reviewer-truth, checks truth and placement. Give it a handover (docs/templates/agent-handover.md) naming the documents and the commit or diff to review.
 tools: Read, Grep, Glob, Bash, WebFetch
 model: opus
 effort: medium
@@ -79,7 +79,9 @@ those rules:
 - **The missing sentence** (1.5 *Every section has an audience and a use
   case*): a place where a reader would do the wrong thing for lack of one.
 - **Facts in prose** (1.5 *Prose for reasons, structure for facts*): a
-  paragraph holding a sequence, two or more conditions or a set of items.
+  paragraph holding a sequence, two or more conditions, a set of items or a
+  flow a diagram would show; a sentence in a list, table or diagram where a
+  phrase carries it.
 - **Unwrapped prose** (1.5 *Wrap prose at 80 characters*): a line over 80
   characters in a changed paragraph, an unchanged paragraph rewrapped, or a
   long link, text and target, split across lines.
