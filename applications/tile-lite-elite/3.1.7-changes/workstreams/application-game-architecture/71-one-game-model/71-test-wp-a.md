@@ -42,6 +42,7 @@ missing (`71-test-approach.md`).
 - [ ] **Claude** — a game already on an in-process bot's turn at the server's start-up is played
 - [ ] **Claude** — a bot holding two seats in one game plays each seat, and when one seat is removed `updates_for` stays in the game's channel for the other
 - [ ] **Claude** — an event for one game reaches no socket of another game
+- [ ] **Claude** — a deleted game (the sweep or `admin_delete_game`) ends the bot objects of its seats and leaves every seat list that held it
 - [ ] **Claude** — a slow receiver reads the newest state and skips the stale ones, and is given neither an error nor a disconnect
 - [ ] **Claude** — a game in which one listed bot holds every seat (a bot showdown) settles with a net rating change of zero for that bot
 - [ ] **Claude** — two seats of one listed bot share one account and one rating per edition

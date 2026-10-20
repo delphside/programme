@@ -208,7 +208,8 @@ workspace extends model.dsl {
 
         // publish writes the game's state, with its cause, to that game's
         // watch (71-data-model.md, "8 · The engine"), so the old label
-        // "publishes GameEventDto to" is no longer true on these five.
+        // "publishes GameEventDto to" is replaced on these five by the
+        // relationships below.
         !relationships "tle.server.games -> tle.server.events" {
             tags "removed" "wp:268"
         }
