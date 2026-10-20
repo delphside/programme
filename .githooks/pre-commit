@@ -49,7 +49,7 @@ run_board() {
       echo
       sed 's/^/  /' "$err"
       echo
-      echo "  Every rule below asks the technical profile (programme.toml) or the"
+      echo "  Every rule below asks the technical profile (app-profile.toml) or the"
       echo "  programme file; with neither, none of them can say yes or no."
     } >&2
     rm -f "$err"
@@ -150,7 +150,7 @@ if [ "$MERGING" -eq 0 ] && [ "$BRANCH" = "main" ]; then
       echo "  the reason in the message."
       echo
       echo "  If one of those genuinely does not ship, add it to ships.non_shipping in"
-      echo "  the technical profile (programme.toml) and say why."
+      echo "  the technical profile (app-profile.toml) and say why."
     } >&2
     exit 1
   fi

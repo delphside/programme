@@ -84,7 +84,7 @@ class TheMissingFile(Cases):
         bare.mkdir()
         git(bare, "init", "-q")
         technical = command("get", "versions.stamp", cwd=bare, PROGRAMME_PROFILE=None)
-        self.refused(technical, str(bare / "programme.toml"))
+        self.refused(technical, str(bare / "app-profile.toml"))
         config = command("get", "accounts.owner", cwd=bare, PROGRAMME_CONFIG=None)
         self.refused(config, str(bare / "programme" / "config" / "programme.toml"), "submodule")
 

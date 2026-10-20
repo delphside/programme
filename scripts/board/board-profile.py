@@ -14,7 +14,7 @@ Keys are dotted. The first part says which file answers:
   (`config/programme.toml`, from the pinned submodule; `PROGRAMME_CONFIG` replaces it);
 - `profile`: the application's programme profile, in the live checkout
   (`profile.identity.repository`, `profile.environments`, `profile.records.3`);
-- anything else: the application's technical profile, `programme.toml` at its
+- anything else: the application's technical profile, `app-profile.toml` at its
   root (`PROGRAMME_PROFILE` replaces it): `versions.stamp`, `release.tag_prefix`.
 
 A list of tables (`hooks.pre_commit`) prints one block per table: a `name=value`

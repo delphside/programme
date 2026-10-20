@@ -10,13 +10,13 @@ tooling finds a table by its heading and a value by its first column.
 
 Put a value in backticks where it is read by a script. The technical facts
 (how a version is read, what ships, the commands) are not here: they are in
-the technical profile, programme.toml at the root of the application's
+the technical profile, app-profile.toml at the root of the application's
 repository, which this profile names and does not repeat.
 -->
 
 # 3.n.6 *Application* profile
 
-*One line: what the application is.* The technical profile is `programme.toml`
+*One line: what the application is.* The technical profile is `app-profile.toml`
 at the root of [its repository](https://github.com/*owner*/*repository*).
 
 ## Identity

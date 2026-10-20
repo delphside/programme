@@ -2,7 +2,7 @@
 # tooling through scripts/board/profile.py (delphside/tile-lite-elite#485,
 # stage 2). An application's own facts are in its programme profile
 # (applications/<app>/3.n.6-profile.md) and its technical profile
-# (programme.toml at its repository's root).
+# (app-profile.toml at its repository's root).
 #
 # Issue types, field names and option strings are still in the tooling's model.
 

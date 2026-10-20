@@ -3,7 +3,7 @@
 A test here changes the profile and shows the answer change with it, which a
 test against one fixed profile cannot: the fake application's values equal the
 old built-in ones in places, so passing against it proves little. Each case
-reads `fixtures/programme.toml` and then `fixtures/programme-other.toml` (a
+reads `fixtures/app-profile.toml` and then `fixtures/programme-other.toml` (a
 different stamp, tag prefix, version files and ships list) or a profile with
 the key removed, which must fail naming the key.
 """
@@ -61,7 +61,7 @@ class WhatShips(Cases):
 
     def test_a_profile_without_the_list_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
-            bare = Path(tmp) / "programme.toml"
+            bare = Path(tmp) / "app-profile.toml"
             bare.write_text('application = "widget"\n')
             with using(bare):
                 raises_naming(self, "ships.non_shipping", lambda: shipping.reaches_image("a"))

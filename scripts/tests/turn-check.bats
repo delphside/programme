@@ -82,7 +82,7 @@ JSON
 # The marker is spliced into the filter as a JSON string literal, so a quote or a
 # backslash in it is a character of the marker and not part of the filter.
 @test "a marker with a quote or a backslash is a value, not part of the filter" {
-  sed 's/^deploy_marker = .*/deploy_marker = "\\"] \\\\ ("/' "$FAKES/programme.toml" > "$BATS_TEST_TMPDIR/odd.toml"
+  sed 's/^deploy_marker = .*/deploy_marker = "\\"] \\\\ ("/' "$FAKES/app-profile.toml" > "$BATS_TEST_TMPDIR/odd.toml"
   grep -q 'deploy_marker = ' "$BATS_TEST_TMPDIR/odd.toml"
   odd="$(PROGRAMME_PROFILE="$BATS_TEST_TMPDIR/odd.toml" "$BATS_TEST_DIRNAME/../../.claude/hooks/turn-check.sh" --print-filter)"
   grep -qF 'startswith("\"] \\ (")' <<< "$odd"

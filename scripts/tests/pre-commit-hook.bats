@@ -493,7 +493,7 @@ fmt_case() {   # <cargo-fmt-exit> <file>
 }
 
 @test "main: a profile with no scripts.groups is not read as none, and the commit is refused" {
-  grep -v '^groups = ' "$FAKES/programme.toml" | grep -v '^\[scripts\]$' > "$BATS_TEST_TMPDIR/no-groups.toml"
+  grep -v '^groups = ' "$FAKES/app-profile.toml" | grep -v '^\[scripts\]$' > "$BATS_TEST_TMPDIR/no-groups.toml"
   PROGRAMME_PROFILE="$BATS_TEST_TMPDIR/no-groups.toml" commit_on main scripts/make/build.sh
   assert_equal "$status" 1
   assert_output --partial "commit refused: the profile the rules read cannot be used"
@@ -699,7 +699,7 @@ TOML
 # image change was committed to main. `profile.run` makes it 70, and `run_board`
 # takes 1 as an answer only from `version-bump`.
 broken_regex_profile() {
-  sed "s|^non_shipping = \[|non_shipping = [\n  'docs/(',|" "$FAKES/programme.toml" > "$BATS_TEST_TMPDIR/broken.toml"
+  sed "s|^non_shipping = \[|non_shipping = [\n  'docs/(',|" "$FAKES/app-profile.toml" > "$BATS_TEST_TMPDIR/broken.toml"
   grep -q "'docs/('" "$BATS_TEST_TMPDIR/broken.toml"
 }
 
