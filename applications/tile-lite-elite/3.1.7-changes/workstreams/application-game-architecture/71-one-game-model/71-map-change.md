@@ -40,10 +40,10 @@ Every caller sends `apply` a `GameMessage`: the handlers (Game service), the
 Roster, the Invitations, the Scheduler's timeouts and reminders, the admin
 routes (Admin endpoints) and the account service (Accounts) for a rename. The
 engine proxy goes; a bot is a client of the game, hears it is on turn from the
-Event stream and submits through the [in-process
-glue](71-data-model.md#8--the-engine) to the Game service, which calls
-`apply` for it. The server builds each `GameView`; the `game-wire` crate (Game
-wire) converts it to and from the DTOs, which stay in `crates/api`.
+Event stream and submits through the
+[in-process glue](71-data-model.md#8--the-engine) to the Game service, which
+calls `apply` for it. The server builds each `GameView`; the `game-wire` crate
+(Game wire) converts it to and from the DTOs, which stay in `crates/api`.
 
 ### WP C, #270 Additional Game Lifecycle
 
@@ -127,8 +127,9 @@ workspace extends model.dsl {
             }
             // 71-design.md, "The engine is a client" (the four layers), and
             // 71-data-model.md, "8 · The engine": the in-process transport,
-            // which joins below the Transport API and the rate limiter. The
-            // client core is game-wire's (§3), so it is not drawn.
+            // which joins under the Transport API (§8 gives the two
+            // calls). The client core is game-wire's (§3), so it is not
+            // drawn.
             glue = component "In-process glue" "The in-process transport: the bot's two calls without a socket." {
                 tags "new" "wp:268"
                 properties {

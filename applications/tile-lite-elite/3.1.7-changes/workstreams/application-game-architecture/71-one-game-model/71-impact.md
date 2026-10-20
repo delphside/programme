@@ -163,14 +163,16 @@ what makes "the engine is a client that takes as long as it takes" true rather
 than aspirational; this work package then removes the remaining coupling.
 
 **What is new** is the bot as a client: it hears it is on turn from the Event
-stream and submits through the [in-process
-glue](71-data-model.md#8--the-engine), which joins at the Game service, so no
-caller of `apply` drives it.
+stream and submits through the
+[in-process glue](71-data-model.md#8--the-engine), so no caller of `apply`
+drives it.
 
-**A comment becomes untrue.** `app/throttle.rs` says an in-process engine
-(#71) will schedule retries from `Retry-After` (the `retry_after` doc comment,
-~314–318, and the test comment, ~693–698). The in-process bot is never
-answered 429, so WP A rewrites both to name the external harness (#10) alone.
+**A comment becomes untrue.** In `app/throttle.rs`, the comment on the test
+`a_caller_that_obeys_retry_after_is_served` ("A remote client barely exercises
+this margin…") says an engine driven as a client (#71) would retry from inside
+this process and is named in `retry_after`. The in-process bot is never
+answered 429, so WP A rewrites it to name the external harness (#10) alone.
+The `retry_after` doc comment names only external callers and stays.
 
 ### Migration, and the snapshot schema version
 
