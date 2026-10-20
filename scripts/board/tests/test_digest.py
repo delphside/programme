@@ -17,8 +17,8 @@ where a bug would flatter the report or repeat a settled question:
                   cannot be derived; an empty section must say it was not
                   written, never that there was nothing
 
-No network and no git: canned counts and issues, and docs/1.1's example of
-the review record."""
+No network: canned counts and issues, a temporary git repository, and
+docs/1.1's example of the review record."""
 
 import collections
 import re
@@ -28,7 +28,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from board.digest import (CONCLUDE, RoundCount, review_rounds, unrecorded, unlessoned_projects, DRAFT, Digest, with_conclusions, Window, claude_lessons, draft, in_window, issue_lessons,
+from board.digest import (CONCLUDE, RoundCount, note_records, review_rounds, unrecorded, unlessoned_projects, DRAFT, Digest, with_conclusions, Window, claude_lessons, draft, in_window, issue_lessons,
                           notes_for_write, notes_of, register_rows, render, section, MEASURED_AT)
 from board.model import RawIssue
 from board.sources import MergedPullRequest
@@ -382,6 +382,14 @@ class DocumentReviews(Cases):
     def test_a_week_whose_rounds_found_nothing_still_reports_its_cost(self):
         text = render(digest(reviews=[("o/p", 1, "docs", "- R1 none\n- R1 cost: reader 40k, 90%")]))
         self.expect("cost", True, "Cost: 40k tokens." in text)
+
+    def test_round_lines_at_the_top_level_stay_with_their_note(self):
+        notes = ("Before the notes.\n- abc1234 rounds:\n- R1 reader — x — y\n- R1 truth — x — z\n"
+                 "- R1 cost: reader 50k, 80%; truth 60k\n- def5678 rounds:\n  - R1 none")
+        self.expect("records", 3, len(note_records(notes)))
+        text = render(digest(reviews=[]), notes=notes)
+        self.expect("cost paid for both findings", True,
+                    "110k tokens, about 55k per material finding." in text)
 
     def test_the_example_in_docs_1_1_counts_as_it_should(self):
         # The record's form is docs/1.1's example; the parser is tested against it.
