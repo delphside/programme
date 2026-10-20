@@ -547,8 +547,9 @@ holding two seats sees both racks, and every other rack is `Hidden`.
 
 ```rust
 pub trait GameLink {
-    /// The next change to any game this account holds a seat in, as a
-    /// GameView; the view carries the game's id.
+    /// The next view in this subscription's scope, as a GameView; the view
+    /// carries the game's id. Scope is what the transport subscribed to: every
+    /// game the account holds a seat in for a bot, one game for the web client.
     async fn on_event(&mut self) -> Result<GameView, LinkError>;
     /// Send a message for a game; the answer is the server's, accepted or refused.
     async fn submit(&self, game_id: &str, message: GameMessage) -> Result<(), SubmitError>;
@@ -761,24 +762,27 @@ on each event from the link:
 client subscribes to, and never from the caller of `apply`: no caller spawns a
 bot task. The request that applies a move returns at once.
 
-**The in-process glue joins the server at the Game service**, under the
-Transport API:
+**The in-process glue joins under the Transport API at two calls**:
+`updates_for` to hear, and the Game service's submit function to act.
 
-- `on_event` subscribes as the bot's account. The Event stream is one channel
-  for every game and carries the full, unredacted state (`app/events.rs`), so
+- `on_event` hears through `updates_for`. The Event stream is one channel for
+  every game and carries the full, unredacted state (`app/events.rs`), so
   filtering and redaction are the server's, below both transports: one
-  function, `updates_for(game_id, &ViewerAccess)`, subscribes to one game,
-  keeps its events and yields each as a `GameView` built with `view_for`. The
-  WebSocket handler and the glue both call it, so neither can see what the
-  other could not. The glue calls it once for each game in which the bot's
-  account holds a seat, and `on_event` yields the next `GameView` from any of
-  them. The socket then converts each `GameView` to a frame with
-  `game_to_dto`; the glue hands it to the bot as it is.
+  function, `updates_for(scope, &ViewerAccess)`, where the scope is one game
+  or every game the account holds a seat in. On subscribing it first yields
+  the current `GameView` of each game in scope, then each change, built with
+  `view_for`. The WebSocket handler subscribes with one game, as today; the
+  glue with every game the bot's account holds a seat in; an external harness
+  may use the second later. Neither can see what the other could not. The
+  first yield covers a bot seated after it subscribed (the seat change is an
+  update of a game now in scope) and a game already on the bot's turn when
+  the server starts or the socket reconnects. The socket converts each
+  `GameView` to a frame with `game_to_dto`; the glue hands it to the bot as
+  it is.
 - `submit` calls the same Game service function a route handler calls after
   its sign-in check, passing the bot's account id as the caller. The service
-  still checks that the caller holds the seat and that it is on turn, and it
-  calls `apply`; the glue does not.
-- It skips HTTP framing and the rate limiter, which sit above that function.
+  still checks that the caller holds the seat and that it is on turn, and
+  calls `apply`.
 
 **The submitted move is re-validated on arrival**, because the game may have
 moved — aborted, or the seat retired. A rejection is normal, not an error.
@@ -788,11 +792,11 @@ games write lock, so searches run one at a time by accident and `engine_limit`
 (`TILE_LITE_ELITE_ENGINE_CONCURRENCY`, default 2, the VM's core count) is read
 but never acquired. Once a search holds nothing, N bot games on turn are N
 parallel searches, so the bot acquires `engine_limit` before searching, and the
-hint does the same [^d62]. The permit moves into the
-blocking thread and drops when the engine returns, not when the time runs out.
-`ENGINE_TURN_TIMEOUT` starts when the permit is held.
-`EngineRequest` gains a `stop: &AtomicBool`, set when the time runs out, which
-the engine checks as it searches; one that ignores it keeps its permit.
+hint does the same [^d62]. The permit moves into the blocking thread and
+drops when the engine returns, not when the time runs out.
+`ENGINE_TURN_TIMEOUT` starts when the permit is held. `EngineRequest` gains a
+`stop: &AtomicBool`, set when the time runs out, which the engine checks as it
+searches; one that ignores it keeps its permit.
 
 **A search that fails, panics or runs out of time** leaves the seat on turn,
 exactly as a silent human is, and the move time limit retires it. It is logged
@@ -843,13 +847,13 @@ pool. The cost is that a caller can forget to publish. Enforceable by making
 `Applied` `#[must_use]`, which is weaker than the type-level guarantee the
 server side otherwise gets.
 
-**Which bot accounts does the server run in-process?** The configuration that
-names the accounts the server plays for is left for WP A's code. A bot account
-has no session in-process, so the design's rule, *an external client
-authenticates as a person before it can assume a bot*
-([`71-design.md`](71-design.md), *A bot plays as a bot account*), governs
-external harnesses only. Whether an in-process bot's account needs an owner
-the same way is the owner's to confirm.
+**How does the server act as the bot accounts it runs in-process, and do they
+need an owner?** The configuration that names the accounts the server plays
+for is left for WP A's code. A bot account has no session in-process, so the
+design's rule, *an external client authenticates as a person before it can
+assume a bot* ([`71-design.md`](71-design.md#open-questions), *A bot plays
+as a bot account*), governs external harnesses only. Whether an in-process
+bot's account needs an owner the same way is the owner's to confirm.
 
 **How does the harness discover its turn on startup?** The note settles this —
 polling on start, socket thereafter. What it does not settle is what the
@@ -871,6 +875,6 @@ is used, and `moves.len()` was only ever a coincidence.
 [^d65]: Decision #465 (D65): #71 Core designs the shared error body and response header.
 [^d69]: Decision #469 (D69): a change exists once saved; a failed save reloads the game.
 [^d62]: Decision #462 (D62): `engine_limit` bounds parallel searches and hints.
-[^layers]: Owner, 2026-10-20: `game-wire` converts `GameView` both ways and never
-    sees `GameSession`; the server builds the view. A bot harness behaves like
-    the existing client, over the internet or in-process.
+[^layers]: Owner, 2026-10-20: `game-wire` converts `GameView` both ways and
+    never sees `GameSession`; the server builds the view. A bot harness
+    behaves like the existing client, over the internet or in-process.

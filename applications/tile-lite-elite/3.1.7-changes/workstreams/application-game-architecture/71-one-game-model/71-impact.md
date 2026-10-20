@@ -151,7 +151,7 @@ arrival.
 **Where the work is**: `engine-core` (503 lines) barely changes — the note
 says the rules engine, dictionaries, scoring and validation do not change. The
 work is in how it is driven, which lives in `games.rs`: `run_engine_turns`
-(`:913`), `MAX_ENGINE_TURNS_PER_TRIGGER` (400), `ENGINE_TURN_TIMEOUT` (5s), and
+(`:945`), `MAX_ENGINE_TURNS_PER_TRIGGER` (400), `ENGINE_TURN_TIMEOUT` (5s), and
 the `engine_limit` setting in `app.rs` (`TILE_LITE_ELITE_ENGINE_CONCURRENCY`,
 default 2), which is read but never acquired (#429). Whether it becomes the
 bound on parallel searches is Decision #462 (D62).
@@ -166,6 +166,11 @@ than aspirational; this work package then removes the remaining coupling.
 stream and submits through the [in-process
 glue](71-data-model.md#8--the-engine), which joins at the Game service, so no
 caller of `apply` drives it.
+
+**A comment becomes untrue.** `app/throttle.rs` says an in-process engine
+(#71) will schedule retries from `Retry-After` (the `retry_after` doc comment,
+~314–318, and the test comment, ~693–698). The in-process bot is never
+answered 429, so WP A rewrites both to name the external harness (#10) alone.
 
 ### Migration, and the snapshot schema version
 
@@ -187,9 +192,9 @@ active` before the migration, not as a formality.
 into `snapshot_json`; `claim_seat` (`:394`) takes one as an argument.
 
 Removing them touches the DTO assembly in three places that already add
-per-read data: `app/common.rs:42` (invitation status), `crates/server-game/src/stats.rs:494` (current
-ratings), `app/events.rs:73` (redaction). *Inferred*: display name joins that
-set rather than adding a new mechanism.
+per-read data: `app/common.rs:42` (invitation status), `stats.rs:494`
+(current ratings), `app/events.rs:73` (redaction). *Inferred*: display name
+joins that set rather than adding a new mechanism.
 
 ---
 

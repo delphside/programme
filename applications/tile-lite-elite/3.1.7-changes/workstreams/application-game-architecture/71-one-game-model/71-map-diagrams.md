@@ -8,7 +8,7 @@ Green is new, yellow changed, red removed. A relationship's label starts with
 its state too. Each work package is drawn alone: the packages it builds on are
 not applied.
 
-Sources hash: `bea4d05c7e05a8dba2fd28adfa63cb7b3f6bad91525479aa68d9b884f0b90a2a`.
+Sources hash: `8b905853047923b6b236ee41427a9fc2af02e2673feebb793ae75749e840f91f`.
 
 ## WP A, #268 Core Game Lifecycle
 
@@ -64,7 +64,7 @@ graph TB
     93-. "<div>new: hears of each change through,<br />and submits its move through</div><div style='font-size: 70%'></div>" .->94
     93-. "<div>new: searches with, holding no<br />lock</div><div style='font-size: 70%'></div>" .->23
     93-. "<div>new: uses GameView, GameLink and<br />take_turn from</div><div style='font-size: 70%'></div>" .->95
-    94-. "<div>new: subscribes to, through the<br />filter and redaction the<br />WebSocket also uses</div><div style='font-size: 70%'></div>" .->16
+    94-. "<div>new: hears of changes through<br />updates_for, which the<br />WebSocket also uses, to</div><div style='font-size: 70%'></div>" .->16
     94-. "<div>new: submits the bot's GameMessage<br />to, as the bot's account</div><div style='font-size: 70%'></div>" .->13
     12-. "<div>new: sends UpdateUserDetails to<br />each game the player is in</div><div style='font-size: 70%'></div>" .->21
     12-. "<div>new: publishes GameEventDto to</div><div style='font-size: 70%'></div>" .->16
