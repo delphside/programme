@@ -42,9 +42,8 @@ routes (Admin endpoints) and the account service (Accounts) for a rename. The
 engine proxy goes; a bot is a client of the game, hears it is on turn from the
 Event stream and submits through the [in-process
 glue](71-data-model.md#8--the-engine) to the Game service, which calls
-`apply` for it. The server
-builds each `GameView`; the `game-wire` crate (Game wire) converts it to and
-from the DTOs, which stay in `crates/api`.
+`apply` for it. The server builds each `GameView`; the `game-wire` crate (Game
+wire) converts it to and from the DTOs, which stay in `crates/api`.
 
 ### WP C, #270 Additional Game Lifecycle
 
@@ -227,9 +226,10 @@ workspace extends model.dsl {
 
         // 71-design.md, "The engine is a client": a bot hears it is on turn
         // from the Event stream, searches holding no lock, and submits to the
-        // Game service as the bot's account. The glue skips the Transport API
-        // and the rate limiter; the Game service calls apply (see "In-process
-        // glue" in 71-data-model.md, "8 · The engine").
+        // Game service as the bot's account. The glue joins under the
+        // Transport API at two calls, so it skips the rate limiter; the Game
+        // service calls apply (see "The in-process glue joins under the
+        // Transport API at two calls" in 71-data-model.md, "8 · The engine").
         tle.server.bot -> tle.server.glue "hears of each change through, and submits its move through" {
             tags "new" "wp:268"
         }
@@ -239,7 +239,7 @@ workspace extends model.dsl {
         tle.server.bot -> tle.server.wire "uses GameView, GameLink and take_turn from" {
             tags "new" "wp:268"
         }
-        tle.server.glue -> tle.server.events "subscribes to, through the filter and redaction the WebSocket also uses" {
+        tle.server.glue -> tle.server.events "hears of changes through updates_for, which the WebSocket also uses, to" {
             tags "new" "wp:268"
         }
         tle.server.glue -> tle.server.games "submits the bot's GameMessage to, as the bot's account" {

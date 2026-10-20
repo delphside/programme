@@ -22,8 +22,9 @@ is an identity over what a viewer may see, and an engine is a client.
   on the same position, producing the same move.
 
 A run against `localhost:3000` covers the external transport only: it
-exercises HTTP, WebSocket, JSON and the rate limiter. The glue's test is the
-acceptance box about the in-process bot.
+exercises HTTP, WebSocket, JSON and the rate limiter. The glue is covered by
+the acceptance boxes about the in-process bot and about the same engine
+playing the same move both ways.
 
 ## The journeys and rules it covers
 
@@ -37,5 +38,6 @@ missing (`71-test-approach.md`).
 - [ ] **Claude** — every `GameMessage` arm has a test that it moves `version`, and a refused one that it changes nothing
 - [ ] **Claude** — the round-trip property passes over generated `GameView`s, and `view_for` gives a viewer holding two seats both racks
 - [ ] **Claude** — the in-process bot is handed only the games its account holds a seat in, each redacted for its account, and is never answered 429
+- [ ] **Claude** — a bot seated after start-up, and a game already on its turn at start-up, are both played
 - [ ] **Claude** — a scripted second client sees every change the first makes, invitations included, within one broadcast
 - [ ] **Claude** — the same engine plays the same move through the glue and through the external transport
