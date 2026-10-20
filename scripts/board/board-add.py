@@ -14,19 +14,19 @@ Refuses (exit 2) when:
   - the organisation's repositories, or one repository's issues or pull
     requests, cannot be read
     -> "board-add: could not read ..."
-    Nothing is added on a partial read: a repository the token cannot see
-    reads as empty to GitHub, so it is reported rather than taken as done.
+    Nothing is added on a partial read.
 
-Reports (exit 1) from --check when:
-  - an open item is not on the board
-    -> "  <repo>#N (<issue|pull request>) is not on the board"
-
-Warns without failing (the run continues, exit unaffected) when:
+Reports (exit 1), after adding what it can, when:
+  - a repository the programme file names (`organisation.repositories`) is
+    not among those the organisation lists, because the token cannot see it
+    or it was renamed
+    -> "  <repo> is not visible to this token — its items were not read"
   - an item could not be added
     -> "  <repo>#N could not be added"
+  and from --check, which adds nothing, when an open item is not on the board
+    -> "  <repo>#N (<issue|pull request>) is not on the board"
 
-Exit 0 from --check when the board holds every open item, and from the plain
-form once it has added what it found.
+Exit 0 when the board holds every open item of every repository it must.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from board import org_sync  # noqa: E402
+from board import org_sync, profile  # noqa: E402
 from board.sources import (Unavailable, add_to_project,  # noqa: E402
                            open_items, organisation_repositories)
 
@@ -49,24 +49,26 @@ def main(argv: list[str]) -> int:
         return 0
     checking = "--check" in argv
     try:
-        items = [i for repo in organisation_repositories() for i in open_items(repo)]
+        repos = organisation_repositories()
+        items = [i for repo in repos for i in open_items(repo)]
     except Unavailable as exc:
         print(f"{NAME}: could not read the organisation's issues and pull requests ({exc})",
               file=sys.stderr)
         return 2
 
+    unseen = org_sync.unseen(repos, profile.programme_file().strings("organisation.repositories"))
+    for repo in unseen:
+        print(f"  {repo} is not visible to this token — its items were not read",
+              file=sys.stderr, flush=True)
     tally = org_sync.check(items) if checking else org_sync.apply(items, add_to_project)
     for err, text in tally.lines:
         print(text, file=sys.stderr if err else sys.stdout, flush=True)
     if checking:
-        if not tally.missing:
-            print(f"{NAME}: the board holds every open issue and pull request")
-            return 0
-        print(f"{NAME}: {tally.missing} missing")
-        return 1
-    print(f"{NAME}: {tally.added} added of {tally.missing} missing")
-    return 0
-
+        print(f"{NAME}: {tally.missing} missing, {len(unseen)} repository(ies) unseen")
+        return 1 if tally.missing or unseen else 0
+    print(f"{NAME}: {tally.added} added of {tally.missing} missing, "
+          f"{len(unseen)} repository(ies) unseen")
+    return 1 if tally.failed or unseen else 0
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
