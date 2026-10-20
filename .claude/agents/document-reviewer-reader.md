@@ -43,7 +43,8 @@ however clean the document reads.
    changed section is read in its place. Where the handover asks for a
    document whole, every section is in scope. Where the handover's *Already
    checked* lists rules or sections found sound, review the rest, and return to
-   a listed one only where the diff since that round touches it.
+   a listed one only where the diff since the earlier round touches it. Answer a
+   listed rule in *Checks* as **already checked**.
 4. The document's row in 1.5's *Who each range is for*: who is reading, and
    what the section carries and leaves out.
 
