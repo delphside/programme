@@ -397,6 +397,15 @@ class DocumentReviews(Cases):
         self.expect("cost paid for both findings", True,
                     "110k tokens, about 55k per material finding." in text)
 
+    def test_bang_for_buck_is_by_reviewer_and_by_round(self):
+        c = RoundCount().add("- R1 reader — x — y (also truth)\n- R1 truth — x — z\n"
+                             "- R1 cost: reader 60k, 80%; truth 90k, 75%\n"
+                             "- R2 none\n- R2 cost: reader 40k; truth 60k")
+        self.expect("value", "by reviewer: reader 100k for 1 (100k each); truth 150k for 2 (75k each). "
+                    "By round: R1 150k for 2 (75k each); R2 100k for 0", c.value())
+        self.expect("an uncosted record is left out", "no cost lines",
+                    RoundCount().add("- R1 reader — x — y").value())
+
     def test_the_example_in_docs_1_1_counts_as_it_should(self):
         # The record's form is docs/1.1's example; the parser is tested against it.
         doc = (Path(__file__).resolve().parents[3] / "docs" / "1.1-programme-tooling.md").read_text()
