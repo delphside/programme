@@ -181,5 +181,10 @@ class TheCommandsExitStatuses(Cases):
     def test_a_read_that_fails_exits_2(self):
         self.expect("the repositories unreadable exits 2", 2,
                     self.check(GH_FAIL="repos").returncode)
-        self.expect("an issue list unreadable exits 2", 2,
-                    self.check(GH_FAIL="issues").returncode)
+        issues = self.check(GH_FAIL="issues")
+        self.expect("an issue list unreadable exits 2", 2, issues.returncode)
+        # A refused read names what it was reading, so a token's gap is found
+        # from the run's log rather than by testing each read by hand.
+        self.expect("names the read", True, "programme's issues" in issues.stderr)
+        self.expect("names the listing", True, "the organisation's repositories"
+                    in self.check(GH_FAIL="repos").stderr)
