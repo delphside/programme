@@ -179,6 +179,7 @@ class OpenItem:
 REQUIREMENT_STATE = "Requirement State"
 PROJECT_STATE = "Project State"
 PR_STATE = "PR State"
+TICKET_STATE = "Ticket State"
 
 
 RELEASE = "Production Release"
@@ -569,6 +570,20 @@ class Decision(Issue):
 
 
 @dataclass(frozen=True)
+class Ticket(Issue):
+    """A service desk Ticket (docs/1.8). Its journey is `Ticket State`; it owes
+    the project rules nothing, so only the rules every issue owes apply."""
+
+    @property
+    def step(self) -> str | None:
+        return self.field(TICKET_STATE)
+
+    @property
+    def step_field(self) -> str:
+        return TICKET_STATE
+
+
+@dataclass(frozen=True)
 class PullRequest(Issue):
     """The review surface. Its journey is `PR State`.
 
@@ -611,6 +626,8 @@ def classify(raw: RawIssue) -> Issue:
             if raw.parent is not None:
                 return WorkPackage(raw)
             return StandaloneProject(raw)
+        case "Ticket":
+            return Ticket(raw)
         case "Requirement":
             return Requirement(
                 raw, stage_was_defaulted=raw.fields.get(REQUIREMENT_STATE) is None
