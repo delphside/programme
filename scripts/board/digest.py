@@ -356,9 +356,8 @@ class RoundCount:
     # Cost lines with no figure in k, and figures naming no reviewer, which
     # add tokens to the total but to no reviewer.
     unread_costs: int = 0
-    # Findings in a costed round by a reviewer its cost line gives no figure,
-    # one for each such reviewer, so no finding leaves the by-reviewer list
-    # unsaid.
+    # Findings in a costed round with a reviewer its cost line gives no figure,
+    # so no finding leaves the by-reviewer list unsaid.
     unfigured: int = 0
     # Bang for buck, from the rounds that carry cost lines: tokens and
     # findings by reviewer and by round number.
@@ -376,6 +375,7 @@ class RoundCount:
                 figures = _TOKENS.findall(m.group(1))
                 if figures:
                     costed.setdefault(round_, set())
+                    self.spent[round_] += sum(float(t) for t in figures)
                 named = _SPENT.findall(m.group(1))
                 self.unread_costs += (not figures) + max(0, len(figures) - len(named))
                 self.tokens += sum(float(t) for t in figures)
@@ -386,7 +386,6 @@ class RoundCount:
                         self.spent[who] += float(k)
                     else:
                         self.unread_costs += 1
-                    self.spent[round_] += float(k)
         for line in lines:
             if _COST.match(line):
                 continue
@@ -403,7 +402,7 @@ class RoundCount:
                     self.found[round_] += 1
                     for reviewer in who & costed[round_]:
                         self.found[reviewer] += 1
-                    self.unfigured += len(who - costed[round_])
+                    self.unfigured += bool(who - costed[round_])
                 else:
                     self.uncosted += 1
                 self.both += set(PAIR) <= who
