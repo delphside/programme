@@ -505,12 +505,11 @@ pub fn move_candidate_from_dto(candidate: MoveCandidateDto,
     rules: &VariantRules) -> Result<MoveCandidate, WireError>;
 ```
 
-The four `*_from_dto` functions replace two sets of copies: `board_from_dto`,
-`tile_from_dto` and `move_candidate_from_dto` in `server-game`
+The board, tile, rack and move-candidate conversions replace two sets of copies:
+`board_from_dto`, `tile_from_dto` and `move_candidate_from_dto` in `server-game`
 (`game_state.rs`), which return a `String` error, and `to_rules_tile`,
 `to_rules_candidate`, `to_rules_board_state` and `to_rules_rack` in the UI
-(`crates/ui/src/client_rules.rs`). The `game-wire` functions return
-`WireError`, and both sets are removed.
+(`crates/ui/src/client_rules.rs`). The `game-wire` functions return `WireError`.
 
 **`GameView` is what a client can rebuild** — the game as this viewer is
 entitled to see it, with `SeatRack::Hidden` where a rack was withheld. It is
@@ -796,8 +795,7 @@ bot task. The request that applies a move returns at once.
   calls `apply`.
 
 **Over the external transport, `GameLink` opens one WebSocket per game**, as
-today, for the games the account's game list names; each socket's first yield
-gives the current view, which covers start-up and reconnection for its game.
+today, for the games the account's game list names.
 How a running harness learns of a game it is newly seated in is an
 [open question](#open-questions-this-raises).
 
