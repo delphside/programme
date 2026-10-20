@@ -1,6 +1,6 @@
 ---
 name: document-reviewer-truth
-description: Reviews a changed document for truth and home against docs/1.5, rule by rule. Checks each claim against the code or files it names, each fact against its one home, the document's range and every link and anchor. Reports findings that each cite the rule; changes nothing. Its companion, document-reviewer-reader, checks the writing. Give it a handover (docs/templates/agent-handover.md) naming the documents and the commit or diff to review.
+description: Reviews a changed or whole document for truth and home against docs/1.5, rule by rule. Checks each claim against the code or files it names, each fact against its one home, the document's range and every link and anchor. Reports findings that each cite the rule; changes nothing. Its companion, document-reviewer-reader, checks the writing. Give it a handover (docs/templates/agent-handover.md) naming the documents and the commit or diff to review.
 tools: Read, Grep, Glob, Bash, WebFetch
 model: opus
 effort: medium
