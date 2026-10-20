@@ -483,8 +483,9 @@ knowing nothing about the wire.
 ```text
 crates/api            DTOs and serde. No rules, no engine.
 crates/rules-shared   the domain: GameState, Rack, Tile, MoveCandidate.
-crates/game-wire      NEW. depends on both. GameView, and its conversion to
-                      and from the DTOs. Never sees GameSession.
+crates/game-wire      NEW. depends on both. GameView, GameLink and take_turn,
+                      and GameView's conversion to and from the DTOs. Never
+                      sees GameSession.
 crates/server-game    depends on game-wire. Builds each GameView.
 crates/ui             depends on game-wire.
 crates/test-client    NEW. depends on game-wire.  (see 71-test-approach.md)
@@ -509,6 +510,8 @@ entitled to see it, with `SeatRack::Hidden` where a rack was withheld. It is
 not `GameSession`: a client has no bag and no other player's tiles, and a type
 that pretended otherwise would be lying in the type system. The type is
 defined in `game-wire`, because the server builds it and every client reads it.
+It carries its game's id, so a client holding several games reads which one a
+view is of from the view.
 
 **The server builds the `GameView`; `game-wire` only converts it.**
 `GameSession::view_for` lives in `server-game` (`game_state.rs`), where the
@@ -544,7 +547,8 @@ holding two seats sees both racks, and every other rack is `Hidden`.
 
 ```rust
 pub trait GameLink {
-    /// The next change to a game this account may see, as a GameView.
+    /// The next change to any game this account holds a seat in, as a
+    /// GameView; the view carries the game's id.
     async fn on_event(&mut self) -> Result<GameView, LinkError>;
     /// Send a message for a game; the answer is the server's, accepted or refused.
     async fn submit(&self, game_id: &str, message: GameMessage) -> Result<(), SubmitError>;
@@ -624,11 +628,11 @@ survives the move to `(player_id, edition)`.
 | `app/games.rs` (1,030 lines) | the action handlers become thin: parse, build a `GameMessage`, call `apply`, publish. `run_engine_turns` and `MAX_ENGINE_TURNS_PER_TRIGGER` go |
 | `app/roster.rs` (391) | seat add/remove/swap become `GameMessage`s |
 | `app/invitations.rs` (442) | send/accept/decline become `GameMessage`s; the table write stays, the seat write moves into `apply` |
-| `app/events.rs` (105) | gains `publish(Applied)` — persist, broadcast, one place — and one subscription that a socket and the in-process glue both use |
-| `app/sweeps_game.rs` (301), `app/scheduler_jobs.rs` (248) | timeouts and reminders go through `apply` rather than writing rows, which is what makes them visible to clients. A scheduler job is a caller like any other |
+| `app/events.rs` (105) | gains `publish(Applied)` — persist, broadcast, one place — and `updates_for`, the one filtered, redacted subscription that a socket and the in-process glue both use |
+| `app/sweeps_game.rs` (301), `app/scheduler_jobs.rs` (297) | timeouts and reminders go through `apply` rather than writing rows, which is what makes them visible to clients. A scheduler job is a caller like any other |
 | `app/sweeps_capacity.rs` (81) | expiring a finished game deletes it rather than changing it, so it publishes the removal and does not call `apply` |
 | `app/admin.rs` (430) | force-resign and force-end become `GameMessage`s |
-| `app/stats.rs`, `ratings.rs` | unchanged in substance; read `Applied.finished` instead of inspecting status transitions |
+| `stats.rs`, `app/ratings.rs` | unchanged in substance; read `Applied.finished` instead of inspecting status transitions |
 | `crates/ui/src/app.rs` (5,522) | section 7 |
 | `crates/engine-core` | **unchanged.** The trait already takes a request and returns an action; what changes is who calls it |
 
@@ -716,17 +720,18 @@ be lifted out at all**, and it is already true today.
 
 ### What changes: who calls it
 
-A bot behaves like the existing client. It is four layers, top-down, and only
-the third differs by where the bot runs:
+A bot behaves like the existing client.[^layers] It is four layers, top-down,
+and only the third differs by where the bot runs:
 
 1. **Bot**: the engine and `take_turn`. The same wherever it runs.
-2. **Client core**: `GameLink`, §3. It builds a `GameView` from each event and
+2. **Client core**: `GameLink`, §3. It yields a `GameView` from each event and
    submits a `GameMessage`.
 3. **Transport**, an adapter behind `GameLink`. *External*: HTTPS and
    WebSocket, signed in as the bot's account. *In-process glue*: the same two
    calls with no socket.
 4. **Server**: Transport API, Game service, `apply`; `publish` sends each
-   change to the Event stream.
+   change to the Event stream, and `updates_for` filters and redacts that
+   stream for one viewer, under both transports.
 
 ```rust
 /// Same code in the server and in a client. Given a view of a game and an
@@ -744,11 +749,11 @@ pub fn take_turn(
 ```text
 sign in as the bot account (external) / hold the bot's account id (in-process)
 on each event from the link:
-    view = the GameView it yields
-    for seat in my_seats:
+    view = the GameView it yields     // from any game the account has a seat in
+    for seat in my_seats(view.game_id):
         if view.current_seat == seat:
             if let Some(msg) = take_turn(engine, &view, seat, budget) {
-                link.submit(game_id, msg)
+                link.submit(view.game_id, msg)
             }
 ```
 
@@ -756,22 +761,23 @@ on each event from the link:
 client subscribes to, and never from the caller of `apply`: no caller spawns a
 bot task. The request that applies a move returns at once.
 
-**The in-process glue joins the server at the Game service**, just under the
-Transport API, as loopback in TCP/IP skips the IP layer and uses only the top
-layers [^layers]:
+**The in-process glue joins the server at the Game service**, under the
+Transport API:
 
 - `on_event` subscribes as the bot's account. The Event stream is one channel
   for every game and carries the full, unredacted state (`app/events.rs`), so
-  filtering happens before the transport is chosen: one server function,
-  `updates_for(game_id, &ViewerAccess)`, subscribes, keeps its game's events
-  and yields each as a `GameView` built with `view_for`. The WebSocket handler
-  and the glue both call it, so neither can see what the other could not. The
-  socket then converts each `GameView` to a frame with `game_to_dto`; the glue
-  hands it to the bot as it is.
+  filtering and redaction are the server's, below both transports: one
+  function, `updates_for(game_id, &ViewerAccess)`, subscribes to one game,
+  keeps its events and yields each as a `GameView` built with `view_for`. The
+  WebSocket handler and the glue both call it, so neither can see what the
+  other could not. The glue calls it once for each game in which the bot's
+  account holds a seat, and `on_event` yields the next `GameView` from any of
+  them. The socket then converts each `GameView` to a frame with
+  `game_to_dto`; the glue hands it to the bot as it is.
 - `submit` calls the same Game service function a route handler calls after
   its sign-in check, passing the bot's account id as the caller. The service
-  still checks that the caller holds the seat and that it is on turn. The glue
-  never calls `apply`.
+  still checks that the caller holds the seat and that it is on turn, and it
+  calls `apply`; the glue does not.
 - It skips HTTP framing and the rate limiter, which sit above that function.
 
 **The submitted move is re-validated on arrival**, because the game may have
@@ -784,7 +790,7 @@ but never acquired. Once a search holds nothing, N bot games on turn are N
 parallel searches, so the bot acquires `engine_limit` before searching, and the
 hint does the same [^d62]. The permit moves into the
 blocking thread and drops when the engine returns, not when the time runs out.
-`ENGINE_TURN_TIMEOUT` is counted from the permit, not from the spawn.
+`ENGINE_TURN_TIMEOUT` starts when the permit is held.
 `EngineRequest` gains a `stop: &AtomicBool`, set when the time runs out, which
 the engine checks as it searches; one that ignores it keeps its permit.
 
@@ -794,8 +800,8 @@ and never answered to the human whose move triggered it.
 
 **A harness meets the throttle; the in-process bot does not.** An external
 harness posts like any client and can be answered 429 with `Retry-After`; its
-retry policy is #10's. The in-process glue joins below the rate limiter, which
-protects the service from callers outside it, so the bot is not counted by it.
+retry policy is #10's. The rate limiter protects the service from callers
+outside the server, and counts only them; the in-process glue joins below it.
 
 **Nothing mediates.** There is no proxy and no bot-specific route: an external
 bot posts the action a person posts, over the session of the bot's own
@@ -823,9 +829,9 @@ absent one.
 
 A bot seat carries an account id whichever side runs the search. The in-process
 glue passes that account id to the Game service; a harness signs in as the same
-account. Nothing downstream — ratings, stats,
-DEL-2 — can tell the difference, and that is the goal at the top of the design
-note stated as a property of the schema.
+account. Nothing downstream (ratings, stats, DEL-2) can tell the difference, and
+that is the goal at the top of the design note stated as a property of the
+schema.
 
 ## Open questions this raises
 
@@ -837,15 +843,13 @@ pool. The cost is that a caller can forget to publish. Enforceable by making
 `Applied` `#[must_use]`, which is weaker than the type-level guarantee the
 server side otherwise gets.
 
-**Is `GameView` one type or two?** Settled, 2026-10-20: one. The server builds
-a `GameView` of its own game with `view_for` and calls the same `take_turn` and
-the same conversion a client does (§3).
-
-**Which bot accounts does the server run in-process?** The subscription call
-is `updates_for` (§8), shared by the socket and the glue. The configuration
-that names the accounts the server plays for is left for WP A's code. A bot account has no session in-process,
-so *a client signs in as a person before assuming a bot* (the note) governs
-external harnesses only; that this is acceptable is the owner's to confirm.
+**Which bot accounts does the server run in-process?** The configuration that
+names the accounts the server plays for is left for WP A's code. A bot account
+has no session in-process, so the design's rule, *an external client
+authenticates as a person before it can assume a bot*
+([`71-design.md`](71-design.md), *A bot plays as a bot account*), governs
+external harnesses only. Whether an in-process bot's account needs an owner
+the same way is the owner's to confirm.
 
 **How does the harness discover its turn on startup?** The note settles this —
 polling on start, socket thereafter. What it does not settle is what the
