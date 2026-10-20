@@ -373,9 +373,9 @@ class DocumentReviews(Cases):
         c.add("- R1 reader — x — a\n- R1 truth — x — b")
         self.expect("mixed", "100k tokens, about 100k per material finding; "
                     "2 finding(s) not costed", c.cost())
-        self.expect("a cost line with no k figure is said", "no cost figure read; 1 cost figure(s) not read",
+        self.expect("a cost line with no k figure is said", "no cost figure read; 1 cost figure(s) not read or for no reviewer",
                     RoundCount().add("- R1 cost: reader 60000").cost())
-        self.expect("and counted beside one that has", "50k tokens; 1 cost figure(s) not read",
+        self.expect("and counted beside one that has", "50k tokens; 1 cost figure(s) not read or for no reviewer",
                     RoundCount().add("- R1 cost: reader 50k\n- R2 cost: reader 60000").cost())
 
     def test_each_note_is_its_own_record(self):
@@ -436,10 +436,12 @@ class DocumentReviews(Cases):
             c = RoundCount().add(f"- R1 cost: {body}")
             self.expect(f"a malformed figure is not read: {body}", (tokens, 1), (c.tokens, c.unread_costs))
         self.expect("a week with no figure read still counts its uncosted findings",
-                    "no cost figure read; 1 finding(s) not costed; 1 cost figure(s) not read",
+                    "no cost figure read; 1 finding(s) not costed; 1 cost figure(s) not read or for no reviewer",
                     RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 1,200k").cost())
         self.expect("a figure of 0k is read", "0k tokens, about 0k per material finding",
                     RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 0k").cost())
+        self.expect("a marker's names in any case", 1,
+                    RoundCount().add("- R1 truth — x — y\n- R2 reader — x — z (from a fix to R1 Truth)").crossed)
         unnamed = RoundCount().add("- R1 reader — x — y\n- R1 cost: about 50k")
         self.expect("an empty reviewer list is not printed", "By round: R1 50k for 1 (50k each). By a reviewer with no cost figure: 1 finding(s)",
                     unnamed.value())
