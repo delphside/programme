@@ -319,8 +319,8 @@ What checks Tile Lite Elite's own code stays there rather than becoming a
 setting: `check-api-errors.py` and `check-run-log-events.py` (to
 `develop/`), `comment-inventory.py` (to `measure/`), the `cargo fmt` hook
 step, `cloud-setup.sh`, and check-docs's two application steps. The
-reference reviewer's file table moves into a Tile Lite Elite document the
-agent reads through the technical profile.
+reference reviewer's file table moves into the technical profile itself, as
+`[[documents.reference]]` entries the agent reads.
 
 #### Two profiles
 
