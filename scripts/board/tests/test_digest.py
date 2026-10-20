@@ -373,7 +373,7 @@ class DocumentReviews(Cases):
         c.add("- R1 reader — x — a\n- R1 truth — x — b")
         self.expect("mixed", "100k tokens, about 100k per material finding; "
                     "2 finding(s) not costed", c.cost())
-        self.expect("a cost line with no k figure is said", "cost lines with no k figure",
+        self.expect("a cost line with no k figure is said", "no cost figure read; 1 cost figure(s) not read",
                     RoundCount().add("- R1 cost: reader 60000").cost())
         self.expect("and counted beside one that has", "50k tokens; 1 cost figure(s) not read",
                     RoundCount().add("- R1 cost: reader 50k\n- R2 cost: reader 60000").cost())
@@ -421,7 +421,7 @@ class DocumentReviews(Cases):
                     (unfigured.found["change"], unfigured.unfigured,
                      unfigured.value().endswith("By a reviewer with no cost figure: 1 finding(s)")))
         bare = RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 60000")
-        self.expect("a cost line with no k figure costs nothing", (0, 1, "Cost lines with no k figure. Not costed: 1 finding(s)"),
+        self.expect("a cost line with no k figure costs nothing", (0, 1, "No cost figure read. Not costed: 1 finding(s)"),
                     (bare.costed_findings, bare.uncosted, bare.value()))
         self.expect("a bare figure is its round's", ("By round: R1 150k for 1 (150k each). "
                                                     "By a reviewer with no cost figure: 1 finding(s)"),
@@ -432,11 +432,14 @@ class DocumentReviews(Cases):
         self.expect("rounds in number order, names in any case, R01 as R1",
                     ("By round: R1 5k for 1 (5k each); R2 20k for 1 (20k each); R10 10k for 0", 1),
                     (ordered.value().split(". ")[1], ordered.found["truth"]))
-        for body, tokens in (("reader 1,200k", 0), ("reader 1.2.5k", 0), ("reader 60k, 80%; truth 1,200k", 60)):
+        for body, tokens in (("reader 1,200k", 0), ("reader 1.2.5k", 0), ("reader 1_000k", 0), ("reader v1.2k", 0), ("reader 60k, 80%; truth 1,200k", 60)):
             c = RoundCount().add(f"- R1 cost: {body}")
             self.expect(f"a malformed figure is not read: {body}", (tokens, 1), (c.tokens, c.unread_costs))
-        self.expect("an empty week says what it lacks", "cost lines with no k figure; 1 finding(s) not costed",
-                    RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 60000").cost())
+        self.expect("a week with no figure read still counts its uncosted findings",
+                    "no cost figure read; 1 finding(s) not costed; 1 cost figure(s) not read",
+                    RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 1,200k").cost())
+        self.expect("a figure of 0k is read", "0k tokens, about 0k per material finding",
+                    RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 0k").cost())
         unnamed = RoundCount().add("- R1 reader — x — y\n- R1 cost: about 50k")
         self.expect("an empty reviewer list is not printed", "By round: R1 50k for 1 (50k each). By a reviewer with no cost figure: 1 finding(s)",
                     unnamed.value())
