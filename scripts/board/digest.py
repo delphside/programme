@@ -269,7 +269,7 @@ def unlessoned_projects(closed_raw, start: str) -> list[tuple[int, str]]:
 
 
 def _none_owed(text: str) -> bool:
-    return text.strip().lower().startswith("none owed")
+    return text.strip().lstrip("-* ").lower().startswith("none owed")
 
 
 def review_rounds(pull_requests) -> list[tuple[str, int, str, str]]:
@@ -284,10 +284,11 @@ def review_rounds(pull_requests) -> list[tuple[str, int, str, str]]:
 
 
 def unrecorded(pull_requests) -> list[tuple[str, int, str]]:
-    """Merged pull requests with neither review rounds nor `None owed`, so a
-    skipped review is told apart from a change that owed none."""
+    """Merged pull requests with no *Review rounds* section, so a skipped
+    review is told apart from a change that owed none. One a bot opened owes
+    none and is left out."""
     return [(pr.repository, pr.number, pr.title) for pr in pull_requests
-            if not section(pr.body, "Review rounds")]
+            if not pr.bot and not section(pr.body, "Review rounds")]
 
 
 _FINDING = re.compile(r"^\s*-\s*R\d+\s+(\S+)\s+—\s*(.*)$")
@@ -300,7 +301,7 @@ _OWNER = re.compile(r"^\s*-\s*owner\s+—\s*(.*)$")
 # `- R2 cost: reader 60k, 80%; truth 90k, 75%`: each reviewer's tokens and its
 # completeness estimate in that round.
 _COST = re.compile(r"^\s*-\s*R\d+\s+cost:\s*(.*)$")
-_TOKENS = re.compile(r"(\d+(?:\.\d+)?)k\b")
+_TOKENS = re.compile(r"(\d+(?:\.\d+)?)k\b", re.I)
 # The pair whose shared findings are counted: the two document reviewers.
 PAIR = ("reader", "truth")
 REVIEWERS = {"reader", "truth", "change", "owner"}
@@ -324,15 +325,22 @@ class RoundCount:
     missed: int = 0
     owner: int = 0
     tokens: float = 0
+    cost_lines: int = 0
+    # Findings in the records that carry a cost line, so tokens are divided
+    # only by the findings they paid for; and the records with findings and none.
+    costed_findings: int = 0
+    uncosted: int = 0
 
     def add(self, text: str) -> "RoundCount":
+        findings, cost_lines = 0, 0
         for line in (text or "").splitlines():
             if m := _COST.match(line):
+                cost_lines += 1
                 self.tokens += sum(float(t) for t in _TOKENS.findall(m.group(1)))
             elif m := _FINDING.match(line):
                 if m.group(2).strip().lower() == "none":
                     continue
-                self.findings += 1
+                findings += 1
                 who = {m.group(1)} | set(_ALSO.findall(line))
                 for reviewer in who:
                     self.by_reviewer[reviewer] += 1
@@ -345,10 +353,16 @@ class RoundCount:
                 self.missed += "(missed in R" in line
             elif (m := _OWNER.match(line)) and m.group(1).strip().lower() not in ("none", "not reviewed"):
                 self.owner += 1
+        self.findings += findings
+        self.cost_lines += cost_lines
+        if cost_lines:
+            self.costed_findings += findings
+        elif findings:
+            self.uncosted += 1
         return self
 
     def __bool__(self) -> bool:
-        return bool(self.by_reviewer) or bool(self.owner)
+        return bool(self.by_reviewer) or bool(self.owner) or bool(self.cost_lines)
 
     def summary(self) -> str:
         found = ", ".join(f"{who} {n}" for who, n in sorted(self.by_reviewer.items())) or "none"
@@ -361,15 +375,19 @@ class RoundCount:
         found: a count, where a capture-recapture estimate assumes reviewers
         alike, which the two lenses are briefed not to be."""
         if not self.findings:
-            return "no findings"
+            return "no reviewer findings"
         return (f"{self.missed} of {self.findings} findings missed by an earlier round "
                 f"({100 * self.missed / self.findings:.0f}%)")
 
     def cost(self) -> str:
-        if not self.tokens:
+        if not self.cost_lines:
             return "no cost lines"
-        per = f", about {self.tokens / self.findings:.0f}k per material finding" if self.findings else ""
-        return f"{self.tokens:.0f}k tokens{per}"
+        if not self.tokens:
+            return "cost lines with no k figure"
+        per = (f", about {self.tokens / self.costed_findings:.0f}k per material finding"
+               if self.costed_findings else "")
+        gap = f"; {self.uncosted} record(s) with findings and no cost line" if self.uncosted else ""
+        return f"{self.tokens:.0f}k tokens{per}{gap}"
 
 
 def claude_lessons(memory_repo: Path, start: str) -> list[tuple[str, str]] | None:
@@ -611,7 +629,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
         out.append("*Not available: the search for merged pull requests did not answer.*")
         out.append("")
     elif not d.reviews:
-        out.append("No pull request merged this week recorded its review rounds.")
+        out.append("No pull request merged this week recorded review rounds; one that owed none is not listed.")
         out.append("")
     for repository, number, title, text in d.reviews or []:
         out.append(f"#### {repository}#{number} {title}")
@@ -635,19 +653,13 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
         out.append(f"**This week:** {total.summary()}. Missed: {total.missed_share()}. "
                    f"Cost: {total.cost()}.")
         out.append("")
-        out.append("*Analysis, at the weekly review: what the findings show about how the "
-                   "reviews are working, read finding by finding, with conclusions. For example, "
-                   "whether the reviewers find the same faults or different ones, whether more "
-                   "remain to be found, and whether a fault kind nobody caught calls for another "
-                   "reviewer with that focus.*")
-        out.append("")
     # The programme's docs/1.4: a Fable agent reads the week's rounds and counts
     # beside last week's digest; its report is written in here.
     out.append("### Review of the reviews")
     out.append("")
-    out.append("*To be written at the weekly review: the Fable agent's reading of this "
-               "week's rounds and counts beside last week's digest, what changed, and the "
-               "lessons ranked.*")
+    out.append("*To be written at the weekly review: Claude runs a Fable agent on this "
+               "week's rounds and counts, with last week's digest, and writes its report "
+               "here: what changed since last week, and the lessons ranked.*")
     out.append("")
     out.append("### Claude's own, added to its memory this week")
     out.append("")
@@ -696,7 +708,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     out.append("")
     out.append("## Review")
     out.append("")
-    out.append("- [ ] **Claude** — weekly review: lessons, notes, problems and initiatives assessed, "
+    out.append("- [ ] **Claude** — weekly review: the review of the reviews written; lessons, notes, problems and initiatives assessed, "
                "the registers updated, and each section and measure checked for use")
     out.append("- [ ] **owner** — monthly review (`improvement-review`): Claude ticks this when the "
                "owner says it is done; the report is fixed once ticked")

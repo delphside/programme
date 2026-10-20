@@ -17,7 +17,8 @@ where a bug would flatter the report or repeat a settled question:
                   cannot be derived; an empty section must say it was not
                   written, never that there was nothing
 
-No network and no git: canned counts and issues only."""
+No network and no git: canned counts and issues, and docs/1.1's example of
+the review record."""
 
 import collections
 import re
@@ -358,8 +359,20 @@ class DocumentReviews(Cases):
                     c.missed_share())
         self.expect("cost", "150k tokens, about 30k per material finding", c.cost())
         self.expect("a cost line is not a finding", 5, c.findings)
-        self.expect("no findings", "no findings", RoundCount().missed_share())
+        self.expect("no findings", "no reviewer findings", RoundCount().missed_share())
         self.expect("no cost lines", "no cost lines", RoundCount().add(self.ROUNDS).cost())
+
+    def test_tokens_are_divided_only_by_the_findings_they_paid_for(self):
+        c = RoundCount().add("- R1 reader — x — y\n- R1 cost: reader 100K, 80%")
+        c.add("- R1 reader — x — a\n- R1 truth — x — b")
+        self.expect("mixed", "100k tokens, about 100k per material finding; "
+                    "1 record(s) with findings and no cost line", c.cost())
+        self.expect("a cost line with no k figure is said", "cost lines with no k figure",
+                    RoundCount().add("- R1 cost: reader 60000").cost())
+
+    def test_a_week_whose_rounds_found_nothing_still_reports_its_cost(self):
+        text = render(digest(reviews=[("o/p", 1, "docs", "- R1 none\n- R1 cost: reader 40k, 90%")]))
+        self.expect("cost", True, "Cost: 40k tokens." in text)
 
     def test_the_example_in_docs_1_1_counts_as_it_should(self):
         # The record's form is docs/1.1's example; the parser is tested against it.
@@ -384,12 +397,16 @@ class DocumentReviews(Cases):
     def test_none_owed_is_told_apart_from_no_record(self):
         prs = [MergedPullRequest("o/p", 1, "docs", "## Review rounds\n\n" + self.ROUNDS),
                MergedPullRequest("o/p", 2, "report", "## Review rounds\n\nNone owed: a report."),
-               MergedPullRequest("o/p", 3, "code", "Before: x")]
+               MergedPullRequest("o/p", 3, "code", "Before: x"),
+               MergedPullRequest("o/p", 4, "bump", "Bumps x", bot=True),
+               MergedPullRequest("o/p", 5, "record", "## Review rounds\n\n- None owed: a record"),
+               MergedPullRequest("o/p", 6, "empty", "## Review rounds\n\n## Next")]
         self.expect("rounds", [1], [n for _, n, _, _ in review_rounds(prs)])
-        self.expect("unrecorded", [3], [n for _, n, _ in unrecorded(prs)])
+        self.expect("unrecorded: no section or an empty one, and no bot's", [3, 6],
+                    [n for _, n, _ in unrecorded(prs)])
         text = render(digest(reviews=review_rounds(prs), unrecorded=unrecorded(prs)))
         self.expect("named in the digest", True,
-                    "Merged with neither *Review rounds* nor `None owed`: o/p#3." in text)
+                    "Merged with neither *Review rounds* nor `None owed`: o/p#3, o/p#6." in text)
         self.expect("the review of the reviews has a place", True,
                     "### Review of the reviews" in text)
 

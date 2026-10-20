@@ -492,6 +492,7 @@ class MergedPullRequest:
     number: int
     title: str
     body: str
+    bot: bool = False
 
 
 def merged_pull_requests(since: str) -> tuple[MergedPullRequest, ...]:
@@ -508,7 +509,7 @@ def merged_pull_requests(since: str) -> tuple[MergedPullRequest, ...]:
         run = subprocess.run(
             ["gh", "api", "-X", "GET", "search/issues", "-f", f"q={query}",
              "-f", "per_page=100",
-             "--jq", ".items[] | [.repository_url, .number, .title, (.body // \"\")] | @json"],
+             "--jq", ".items[] | [.repository_url, .number, .title, (.body // \"\"), .user.type == \"Bot\"] | @json"],
             capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise Unavailable(f"could not search for merged pull requests: {exc}") from exc
@@ -516,8 +517,8 @@ def merged_pull_requests(since: str) -> tuple[MergedPullRequest, ...]:
         raise Unavailable(f"could not search for merged pull requests: {run.stderr.strip()[:200]}")
     out = []
     for line in run.stdout.splitlines():
-        url, number, title, body = json.loads(line)
-        out.append(MergedPullRequest("/".join(url.split("/")[-2:]), number, title, body))
+        url, number, title, body, bot = json.loads(line)
+        out.append(MergedPullRequest("/".join(url.split("/")[-2:]), number, title, body, bot))
     return tuple(sorted(out, key=lambda p: (p.repository, p.number)))
 
 
