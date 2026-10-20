@@ -349,40 +349,56 @@ class RoundCount:
     owner: int = 0
     tokens: float = 0
     cost_lines: int = 0
-    # Findings in the records that carry a cost line, so tokens are divided
-    # only by the findings they paid for; and the records with findings and none.
+    # Findings in rounds that carry a cost line, so tokens are divided only by
+    # the findings they paid for; and the findings in rounds with none.
     costed_findings: int = 0
     uncosted: int = 0
-    # Cost lines with no figure in k, which add no tokens.
+    # Cost lines with no figure in k, and figures naming no reviewer, which
+    # add tokens to the total but to no reviewer.
     unread_costs: int = 0
-    # Bang for buck, from the records that carry cost lines: tokens and
+    # Bang for buck, from the rounds that carry cost lines: tokens and
     # findings by reviewer and by round number.
     spent: collections.Counter = field(default_factory=collections.Counter)
     found: collections.Counter = field(default_factory=collections.Counter)
 
     def add(self, text: str) -> "RoundCount":
-        findings, cost_lines = 0, 0
-        spent, found = collections.Counter(), collections.Counter()
-        for line in (text or "").splitlines():
+        lines = (text or "").splitlines()
+        # A record's cost lines first, so each finding is charged to its own round.
+        costed: dict[str, set[str]] = {}
+        for line in lines:
             if m := _COST.match(line):
-                cost_lines += 1
+                self.cost_lines += 1
+                round_ = "R" + _ROUND.match(line).group(1)
+                costed.setdefault(round_, set())
                 figures = _TOKENS.findall(m.group(1))
                 self.unread_costs += not figures
                 self.tokens += sum(float(t) for t in figures)
-                round_ = "R" + _ROUND.match(line).group(1)
                 for who, k in _SPENT.findall(m.group(1)):
-                    spent[who.lower()] += float(k)
-                    spent[round_] += float(k)
-            elif m := _FINDING.match(line):
+                    who = who.lower()
+                    if who in REVIEWERS:
+                        costed[round_].add(who)
+                        self.spent[who] += float(k)
+                    else:
+                        self.unread_costs += 1
+                    self.spent[round_] += float(k)
+        for line in lines:
+            if _COST.match(line):
+                continue
+            if m := _FINDING.match(line):
                 if m.group(2).strip().lower() == "none":
                     continue
-                findings += 1
-                who = {m.group(1)} | set(_ALSO.findall(line))
-                found["R" + _ROUND.match(line).group(1)] += 1
-                for reviewer in who:
-                    found[reviewer] += 1
+                self.findings += 1
+                who = {w.lower() for w in {m.group(1)} | set(_ALSO.findall(line))}
+                round_ = "R" + _ROUND.match(line).group(1)
                 for reviewer in who:
                     self.by_reviewer[reviewer] += 1
+                if round_ in costed:
+                    self.costed_findings += 1
+                    self.found[round_] += 1
+                    for reviewer in who & costed[round_]:
+                        self.found[reviewer] += 1
+                else:
+                    self.uncosted += 1
                 self.both += set(PAIR) <= who
                 if fix := _FROM_FIX.search(line):
                     self.from_fix += 1
@@ -392,14 +408,6 @@ class RoundCount:
                 self.missed += "(missed in R" in line
             elif (m := _OWNER.match(line)) and m.group(1).strip().lower() not in ("none", "not reviewed"):
                 self.owner += 1
-        self.findings += findings
-        self.cost_lines += cost_lines
-        if cost_lines:
-            self.costed_findings += findings
-            self.spent.update(spent)
-            self.found.update(found)
-        elif findings:
-            self.uncosted += 1
         return self
 
     def __bool__(self) -> bool:
@@ -427,23 +435,26 @@ class RoundCount:
             return "cost lines with no k figure"
         per = (f", about {self.tokens / self.costed_findings:.0f}k per material finding"
                if self.costed_findings else "")
-        gap = f"; {self.uncosted} record(s) with findings and no cost line" if self.uncosted else ""
-        unread = f"; {self.unread_costs} cost line(s) with no k figure" if self.unread_costs else ""
+        gap = f"; {self.uncosted} finding(s) in rounds with no cost line" if self.uncosted else ""
+        unread = f"; {self.unread_costs} cost figure(s) not read" if self.unread_costs else ""
         return f"{self.tokens:.0f}k tokens{per}{gap}{unread}"
 
 
     def value(self) -> str:
-        """Tokens per material finding by reviewer, then by round: which lens
-        and which round paid for itself."""
+        """Tokens per material finding by reviewer, then by round number, over
+        the rounds that carry cost lines: which lens and which round paid for
+        itself. A shared finding counts for each of its reviewers."""
         def per(key: str) -> str:
             n = self.found[key]
             return f"{key} {self.spent[key]:.0f}k for {n}" + (f" ({self.spent[key] / n:.0f}k each)" if n else "")
-        reviewers = sorted(k for k in self.spent if not re.fullmatch(r"R\d+", k))
-        rounds = sorted((k for k in self.spent if re.fullmatch(r"R\d+", k)), key=lambda k: int(k[1:]))
-        if not reviewers and not rounds:
+        keys = set(self.spent) | set(self.found)
+        reviewers = sorted(k for k in keys if not re.fullmatch(r"R\d+", k))
+        rounds = sorted((k for k in keys if re.fullmatch(r"R\d+", k)), key=lambda k: int(k[1:]))
+        if not keys:
             return "no cost lines"
-        return ("by reviewer: " + "; ".join(per(k) for k in reviewers)
-                + ". By round: " + "; ".join(per(k) for k in rounds))
+        gap = f". Not costed: {self.uncosted} finding(s)" if self.uncosted else ""
+        return ("by reviewer, a shared finding counting for each: " + "; ".join(per(k) for k in reviewers)
+                + ". By round: " + "; ".join(per(k) for k in rounds) + gap)
 
 
 def claude_lessons(memory_repo: Path, start: str) -> list[tuple[str, str]] | None:
