@@ -305,7 +305,7 @@ _ROUND = re.compile(r"^\s*-\s*R(\d+)")
 _SPENT = re.compile(r"([A-Za-z]+)\s+(\d+(?:\.\d+)?)k\b", re.I)
 _TOKENS = re.compile(r"(?<![\w,.])(\d+(?:\.\d+)?)k\b", re.I)
 # Anything shaped like a figure in k, read or not, so a malformed one is counted.
-_ANY_K = re.compile(r"(?<![\w,.])\d[\d,.]*k\b", re.I)
+_ANY_K = re.compile(r"\d[\d,.]*k\b", re.I)
 # The pair whose shared findings are counted: the two document reviewers.
 PAIR = ("reader", "truth")
 REVIEWERS = {"reader", "truth", "change", "owner"}
