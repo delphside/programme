@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""board-pr-state.py — put every pull request on the board, and set `PR State`
-from what GitHub already knows.
+"""board-pr-state.py — put the pull requests of the application it runs in on
+the board, and set `PR State` from what GitHub already knows.
 
     programme/scripts/board/board-pr-state.py            # add what is missing, set what is wrong
     programme/scripts/board/board-pr-state.py --check    # report the drift and change nothing

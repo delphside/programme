@@ -8,7 +8,8 @@ requests of the application it runs in. So this asks every repository the
 organisation holds, archived ones aside, and adds what is open and absent.
 
 Open items only: anything closed has already been dealt with, and adding the
-organisation's whole history would bury the board.
+organisation's whole history would bury the board. An item archived on the
+board still counts as held, so it is not added back.
 
 **A repository the token cannot see is not listed at all**, rather than listed
 and empty, so reading every repository cannot say what it missed. The
@@ -28,17 +29,14 @@ from .model import OpenItem
 from .sources import Unavailable
 
 
-Item = OpenItem   # the record lives with the others, in model.py
-
-
-def missing(items: Iterable[Item]) -> list[Item]:
+def missing(items: Iterable[OpenItem]) -> list[OpenItem]:
     """The items the board does not hold, in the order they were read."""
     return [i for i in items if not i.on_board]
 
 
 def unseen(listed: Iterable[str], expected: Iterable[str]) -> list[str]:
     """The repositories the board must hold that the organisation's listing
-    left out: the token cannot see them, or they were renamed."""
+    left out: the token cannot see them, or they were renamed or archived."""
     have = set(listed)
     return [r for r in expected if r not in have]
 
@@ -57,7 +55,7 @@ class Tally:
         self.lines.append((err, text))
 
 
-def check(items: Iterable[Item]) -> Tally:
+def check(items: Iterable[OpenItem]) -> Tally:
     """Report what is missing and change nothing."""
     tally = Tally()
     for i in missing(items):
@@ -66,7 +64,7 @@ def check(items: Iterable[Item]) -> Tally:
     return tally
 
 
-def apply(items: Iterable[Item], add: Callable[[str], str]) -> Tally:
+def apply(items: Iterable[OpenItem], add: Callable[[str], str]) -> Tally:
     """Add what is missing. `add(node_id)` raises `Unavailable` when GitHub
     refuses; a failed add is reported and not counted."""
     tally = Tally()
