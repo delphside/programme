@@ -41,7 +41,9 @@ however clean the document reads.
 3. The diff the handover names (`git -C <repo> diff <range> -- <file>`), and
    any new or untracked file whole; then each changed document whole, so a
    changed section is read in its place. Where the handover asks for a
-   document whole, every section is in scope.
+   document whole, every section is in scope. Where the handover's *Already
+   checked* lists rules or sections found sound, review the rest, and return to
+   a listed one only where the diff since that round touches it.
 4. The document's row in 1.5's *Who each range is for*: who is reading, and
    what the section carries and leaves out.
 
