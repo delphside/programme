@@ -104,12 +104,12 @@ join the enum with #272. Anything that changes what a client of the game could
 be shown is a variant; there is no other way in.
 
 The handler applies the change, advances the version, records the event and
-broadcasts — in that order, in one place. Nothing else writes to a game.
+publishes — in that order, in one place. Nothing else writes to a game.
 
 **Two messages save without advancing the version.** `Hide` changes one
 player's own list, not the game, and `ReminderSent` records that a reminder
 went so it is not sent twice. Neither is anything another client is shown,
-so each is saved under the same lock and nothing is broadcast; neither counts
+so each is saved under the same lock and nothing is published; neither counts
 as activity for RET-3.
 
 **A rejected message changes nothing.** The handler validates against the game
@@ -118,7 +118,7 @@ exchange or placement leaves the racks and the bag as they were.
 
 **A change has happened only once it is in the database** [^d69]. Under the
 game's own lock the handler sets the game's *unsaved* flag, applies the change
-in memory, saves it, and clears the flag; only then does it broadcast. The lock
+in memory, saves it, and clears the flag; only then does it publish. The lock
 keeps every other reader out until the flag clears. A save that fails with a
 transient error is retried while the player waits, as the error's class
 allows. If it still fails, the change did not happen: the player is told to
@@ -154,7 +154,7 @@ shape; #408 designs its deadline index, loading and eviction on top of it [^d70]
 out-of-turn messages commute. It is that there is no order to preserve.
 
 An in-turn move cannot be made until the previous one has been applied and
-broadcast, because that is how a client learns it is its turn — so in-turn
+published, because that is how a client learns it is its turn — so in-turn
 moves arrive in an order the game itself created. Everything else is
 independent action by separate clients, and which reaches the server first is
 luck. **Any order the handler sees is a valid one**, because no other order
@@ -184,7 +184,7 @@ client that waits for that before sending its next message never has two in
 flight, and the window above does not exist for it.
 
 The same version then earns a second keep. The client sees each change twice —
-once in the response to its own message, once in the broadcast that goes to
+once in the response to its own message, once in the update that goes to
 everybody — and the second is discarded as already held, because it carries a
 version no higher than the one just applied. Without that the client would
 apply its own move twice, or need to recognise its own echo some other way.
@@ -658,7 +658,7 @@ driven by a loop inside somebody else's request.
   the human whose move set it off.
 - **Every change can put a bot on turn**, not only a move: a timeout, a
   force-resign or a seat leaving each hand the turn on, and each is published,
-  so the bot hears of it from the broadcast whichever it was.
+  so the bot hears of it from its game's channel whichever it was.
 - **The submitted move is re-validated on arrival**, because the game may have
   moved while the engine was thinking — aborted, or its seat retired. A human
   gets that check today; a bot searching off the lock needs the same one. That
@@ -674,13 +674,16 @@ driven by a loop inside somebody else's request.
 1. **Bot**: the engine and `take_turn`, identical wherever it runs.
 2. **Client core**: what every client shares, from `game-wire`.
 3. **Transport**, one of two adapters behind it, chosen when the build is
-   compiled: external (HTTPS and WebSocket) or the in-process glue, which
+   compiled: external (HTTPS and WebSocket; the link signs in when it is built)
+   or the in-process glue (built with the listed bot's identity), which
    joins under the Transport API at two calls, `updates_for` to hear and the
    Game service's submit function to act. The bot is generic over the trait
    (`Bot<L: GameLink>`).
 4. **Server**: Transport API, Game service, `apply`, and the Event stream, a
-   broadcast channel per game, with `updates_for`, which redacts it for one
-   viewer and serves both transports.
+   `watch` channel per game holding only the latest state, with `updates_for`,
+   which redacts it for one viewer and serves both transports. Every subscriber
+   is its own task compiled for one concrete type, so the server never iterates
+   over its clients.
 
 An in-process engine and an external one therefore differ only by transport.
 That is what makes the external harness a plug-in rather than a second way to
@@ -984,7 +987,7 @@ other than the one the server was written in — which matters for a service
 already shipping Spanish dictionaries.
 
 **A change to user details is a `GameMessage` like any other**, sent once per
-game that player is in. It bumps the version, records the event and broadcasts,
+game that player is in. It bumps the version, records the event and publishes,
 through the same handler as a move.
 
 **It carries nothing to apply**, and that is the point rather than a wrinkle.
@@ -1013,8 +1016,8 @@ a rename genuinely changes the state a client should be showing, and saying so
 is what the version is for.
 
 It is also required rather than tidy. `should_apply_update` takes an incoming
-state only when its version is higher, so a broadcast carrying the same version
-is a broadcast every client correctly ignores. Sending the data without moving
+state only when its version is higher, so an update carrying the same version
+is an update every client correctly ignores. Sending the data without moving
 the version would be sending nothing.
 
 **And it scales the right way, which is the reverse of what I assumed.** A
@@ -1048,7 +1051,7 @@ An external harness (#10's) learns of a turn the way any client does — from th
 message carrying the previous move, or the game starting, on a socket it already
 holds for that game. A game left waiting while the harness was down is picked up
 by the first yield of its socket for that game. A socket that subscribes to
-every seated game also learns of a new seat from a seat notice
+every seated game also learns of a new seat from the account's seat list
 ([§8](71-data-model.md#8--the-engine)); the shape of the socket is #10's.
 
 **A bot plays as a bot account, wherever the engine runs.** The harness
@@ -1066,7 +1069,7 @@ server are the same game.
 **An external client authenticates as a person before it can assume a bot.**
 Everything but `/health`, registering and logging in requires a session, and a
 bot session is taken on top of a human one. The in-process bot holds no
-session: the glue substitutes the identity the settings list
+session: its link is built with the identity the settings list
 ([§8](71-data-model.md#8--the-engine)). For an external bot, rating follows the
 bot and accountability follows the person, so one behaving badly has an owner to
 disable.
@@ -1126,14 +1129,18 @@ because the VM has two cores [^d62], taken by every search and every hint.
 Memory is unchanged in kind: every live game is held in the map as
 today, one lock each. The whole-state-per-update wire costs a few kilobytes per
 message per connection, which is what is sent today. Each game has its own
-broadcast channel, so a change costs that game's receivers only, however many
-games and players there are.
+`watch` channel holding the latest state, so a change costs that game's
+receivers only, however many games and players there are. Every connection for
+a game must reach the server that owns the game, because the channels are
+in-process; bots on another server are ordinary external clients over HTTPS.
+Routing clients to that server belongs to a future identity and routing
+application, outside #71, and is assumed here.
 
 **Failure.** A refused message changes nothing. An engine that errors, panics
 or overruns leaves its seat on turn for the move time limit. A failed save is
 retried if transient, then reloads the game, and the change did not happen
 [^d69]; a game that cannot be reloaded refuses messages until it can. A
-client that misses a broadcast catches up on reconnect, because every message
+client that misses an update catches up on reconnect, because every message
 carries the whole state and its version.
 
 **Limits and timeouts.** `ENGINE_TURN_TIMEOUT` (5 s) bounds a search, as today,
@@ -1145,10 +1152,10 @@ limit is the game's own setting. Request throttling is unchanged
 **Secrets and access.** No new secret. An external bot is an account with an
 owner and authenticates as one, so a harness holds a session token like any
 client; how long that session lives is ACC-1's, with no exemption for bots
-(D66). The in-process bot holds no session: the glue substitutes the identity
+(D66). The in-process bot holds no session: its link is built with the identity
 the settings list (`TILE_LITE_ELITE_BOTS`, proposed), and the programme owner,
 who owns the list, is accountable for the bots on it. What a connection may see
-is the union over the seats its account holds; a broadcast event never names who
+is the union over the seats its account holds; an event never names who
 acted on a seat beyond the seat itself.
 
 ## Work packages
@@ -1284,7 +1291,7 @@ sequenceDiagram
 
   Note over S,B: the request is over — the bot's turn is not part of it
 
-  E--)L: broadcast version N, the full state, on the game's channel
+  E--)L: publish version N, the full state, to the game's channel
   Note over E,L: updates_for redacts per recipient, to the glue and to each socket
   L--)B: on event
   B->>RB: search, holding no lock
@@ -1292,10 +1299,10 @@ sequenceDiagram
   L->>G: call as the bot's account — revalidate, the game may have moved
   G->>G: apply, bump to version N+1
   G->>E: publish version N+1
-  E--)P: broadcast version N+1
+  E--)P: publish version N+1
 ```
 
-The confirmation to `P` matters as much as the broadcast: a client that has
+The confirmation to `P` matters as much as the published state: a client that has
 submitted a move waits for its own answer before submitting another, which is
 what makes concurrent submissions from one client a non-question.
 
