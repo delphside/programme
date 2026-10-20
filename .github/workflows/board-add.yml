@@ -7,8 +7,11 @@
 # **It needs `BOARD_TOKEN`**, as Tile Lite Elite's `pr-state.yml` does: the
 # automatic token cannot write a Projects v2 board. Here it must also read the
 # issues and pull requests of every repository, the private ones included, so
-# the fine-grained token's repository access is "All repositories". Without it
-# this run warns and changes nothing.
+# the fine-grained token's repository access is "All repositories", with Issues
+# and Pull requests read, and Projects read and write on the organisation.
+# Without it this run warns and changes nothing. A run that could not see a
+# repository the programme file names, or could not add an item, fails, so the
+# red run is the report.
 name: Board add
 
 on:
@@ -27,6 +30,8 @@ jobs:
   add:
     name: add every repository's open items to the board
     runs-on: ubuntu-latest
+    # A few hundred reads and adds at most; a hung call is cut at 120 s each.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 

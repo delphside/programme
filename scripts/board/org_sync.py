@@ -8,9 +8,15 @@ requests of the application it runs in. So this asks every repository the
 organisation holds, archived ones aside, and adds what is open and absent.
 
 Open items only: anything closed has already been dealt with, and adding the
-organisation's whole history would bury the board. Run by
-`programme/scripts/board/board-add.py`. The decision is here, apart from
-GitHub, so it can be tested on its own.
+organisation's whole history would bury the board.
+
+**A repository the token cannot see is not listed at all**, rather than listed
+and empty, so reading every repository cannot say what it missed. The
+programme file names the repositories the board must hold
+(`organisation.repositories`), and one absent from the listing is reported.
+
+Run by `scripts/board/board-add.py`. The decision is here, apart from GitHub,
+so it can be tested on its own.
 """
 
 from __future__ import annotations
@@ -18,27 +24,23 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
+from .model import OpenItem
 from .sources import Unavailable
 
 
-@dataclass(frozen=True)
-class Item:
-    """An open issue or pull request, and whether the board holds it."""
-
-    repo: str
-    kind: str               # "issue" or "pull request"
-    number: int
-    node_id: str
-    on_board: bool
-
-    @property
-    def name(self) -> str:
-        return f"{self.repo}#{self.number}"
+Item = OpenItem   # the record lives with the others, in model.py
 
 
 def missing(items: Iterable[Item]) -> list[Item]:
     """The items the board does not hold, in the order they were read."""
     return [i for i in items if not i.on_board]
+
+
+def unseen(listed: Iterable[str], expected: Iterable[str]) -> list[str]:
+    """The repositories the board must hold that the organisation's listing
+    left out: the token cannot see them, or they were renamed."""
+    have = set(listed)
+    return [r for r in expected if r not in have]
 
 
 @dataclass
@@ -47,6 +49,7 @@ class Tally:
 
     added: int = 0
     missing: int = 0
+    failed: int = 0
     # (to stderr, text), in the order they were said
     lines: list[tuple[bool, str]] = field(default_factory=list)
 
@@ -72,6 +75,7 @@ def apply(items: Iterable[Item], add: Callable[[str], str]) -> Tally:
         try:
             add(i.node_id)
         except Unavailable:
+            tally.failed += 1
             tally.say(f"  {i.name} could not be added", err=True)
             continue
         tally.added += 1

@@ -12,7 +12,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from board.org_sync import Item, apply, check, missing
+from board.org_sync import Item, apply, check, missing, unseen
 from board.sources import Unavailable
 
 from .cases import Cases
@@ -47,6 +47,14 @@ class Missing(Cases):
         self.assertEqual(missing([item(1, on_board=True)]), [])
 
 
+class Unseen(Cases):
+
+    def test_a_named_repository_the_listing_left_out(self):
+        self.assertEqual(unseen(["programme"], ["programme", "service-desk"]),
+                         ["service-desk"])
+        self.assertEqual(unseen(["programme", "other"], ["programme"]), [])
+
+
 class Apply(Cases):
 
     def test_adds_each_missing_item_once(self):
@@ -59,7 +67,7 @@ class Apply(Cases):
         board = Board(refuse={"I_service-desk_1"})
         tally = apply([item(1), item(2)], board.add)
         self.assertEqual(board.added, ["I_service-desk_2"])
-        self.assertEqual((tally.added, tally.missing), (1, 2))
+        self.assertEqual((tally.added, tally.missing, tally.failed), (1, 2, 1))
         self.assertIn((True, "  service-desk#1 could not be added"), tally.lines)
 
 
@@ -74,18 +82,22 @@ class Check(Cases):
 
 class Help(Cases):
 
-    def test_help_names_both_forms(self):
+    def test_help_lists_its_messages_and_exits_0(self):
         out = run("board/board-add.py", "--help")
-        self.assertEqual(out.returncode, 0)
-        self.assertIn("--check", out.stdout)
+        self.expect("exit 0", 0, out.returncode)
+        for message in ("--check", "is not on the board", "could not be added",
+                        "is not visible to this token", "could not read"):
+            self.expect(message, True, message in out.stdout)
 
 
-# A stub `gh`, first on PATH: the organisation holds two repositories, each with
-# one open issue and no pull requests. `programme`'s issue is on the fake board
-# (`PVT_fakeboard`); `service-desk`'s is not. GH_FAIL=repos refuses the
-# repository list, GH_FAIL=issues one repository's issues. Any write exits 9,
-# so `--check` is seen to make none.
-_STUB_GH = r'''#!/usr/bin/env python3
+# A stub `gh`, first on PATH. The organisation lists `programme` and
+# `service-desk`, or only `programme` under GH_HIDE=service-desk, as a token that
+# cannot see a repository leaves it out. Each repository has two open issues,
+# answered a page at a time, and one open pull request. `programme`'s items are
+# on the fake board (`PVT_fakeboard`); `service-desk`'s are not. GH_FAIL=repos
+# refuses the listing, GH_FAIL=issues one repository's issues. Any write exits
+# 9, so `--check` is seen to make none.
+_STUB_GH = r"""#!/usr/bin/env python3
 import json, os, sys
 args = dict(a.split("=", 1) for a in sys.argv if "=" in a)
 query = args.get("query", "")
@@ -96,22 +108,30 @@ def answer(what, data):
         sys.exit(1)
     print(json.dumps({"data": data}))
     sys.exit(0)
-page = {"hasNextPage": False, "endCursor": None}
+def node(number, repo):
+    board = "PVT_fakeboard" if repo == "programme" else "PVT_other"
+    return {"number": number, "id": f"I_{repo}_{number}",
+            "projectItems": {"nodes": [{"project": {"id": board}}]}}
 if "mutation" in query:
     sys.exit(9)
 if "organization(" in query:
-    answer("repos", {"organization": {"repositories": {"pageInfo": page,
-        "nodes": [{"name": "programme"}, {"name": "service-desk"}]}}})
+    names = [n for n in ("programme", "service-desk") if n != os.environ.get("GH_HIDE")]
+    answer("repos", {"organization": {"repositories": {
+        "pageInfo": {"hasNextPage": False, "endCursor": None},
+        "nodes": [{"name": n} for n in names]}}})
+repo = args.get("repo", "")
 if "pullRequests(" in query:
-    answer("prs", {"repository": {"pullRequests": {"pageInfo": page, "nodes": []}}})
+    answer("prs", {"repository": {"pullRequests": {
+        "pageInfo": {"hasNextPage": False, "endCursor": None},
+        "nodes": [node(9, repo)]}}})
 if "issues(" in query:
-    held = args.get("repo") == "programme"
-    answer("issues", {"repository": {"issues": {"pageInfo": page, "nodes": [
-        {"number": 7, "id": "I_" + args.get("repo", ""), "projectItems": {"nodes":
-            [{"project": {"id": "PVT_fakeboard" if held else "PVT_other"}}]}}]}}})
+    second = args.get("cursor") == "page2"
+    answer("issues", {"repository": {"issues": {
+        "pageInfo": {"hasNextPage": not second, "endCursor": None if second else "page2"},
+        "nodes": [node(8 if second else 7, repo)]}}})
 print("stub: unexpected query", file=sys.stderr)
 sys.exit(8)
-'''
+"""
 
 
 class TheCommandsExitStatuses(Cases):
@@ -133,12 +153,19 @@ class TheCommandsExitStatuses(Cases):
                     **env)
         return run("board/board-add.py", "--check", env=full)
 
-    def test_check_names_what_is_missing_in_every_repository_and_exits_1(self):
+    def test_check_names_every_missing_item_on_every_page_and_exits_1(self):
         out = self.check()
         self.expect("exit 1", 1, out.returncode)
-        self.expect("names the missing one", True,
-                    "service-desk#7 (issue) is not on the board" in out.stdout)
-        self.expect("not the held one", False, "programme#7" in out.stdout)
+        for name in ("service-desk#7 (issue)", "service-desk#8 (issue)",
+                     "service-desk#9 (pull request)"):
+            self.expect(name, True, f"{name} is not on the board" in out.stdout)
+        self.expect("not the held ones", False, "programme#" in out.stdout)
+
+    def test_a_repository_the_token_cannot_see_is_reported(self):
+        out = self.check(GH_HIDE="service-desk")
+        self.expect("exit 1", 1, out.returncode)
+        self.expect("names it", True,
+                    "service-desk is not visible to this token" in out.stderr)
 
     def test_a_read_that_fails_exits_2(self):
         self.expect("the repositories unreadable exits 2", 2,

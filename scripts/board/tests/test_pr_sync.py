@@ -177,7 +177,9 @@ if "pullRequests(" in query:
 if "items(first:100" in query:
     answer("board", {"node": {"items": {
         "pageInfo": {"hasNextPage": False, "endCursor": None},
-        "nodes": [{"id": "PVTI_1", "content": {"number": 1}, "fieldValues": {"nodes": [
+        "nodes": [{"id": "PVTI_other", "content": {"number": 1, "repository": {"nameWithOwner": "fakeorg/other"}},
+                   "fieldValues": {"nodes": [{"name": "Approved", "field": {"name": "PR State"}}]}},
+                  {"id": "PVTI_1", "content": {"number": 1, "repository": {"nameWithOwner": "fakeorg/widget"}}, "fieldValues": {"nodes": [
             {"name": os.environ.get("BOARD_VALUE", "Merged"), "field": {"name": "PR State"}}]}}]}}})
 print("stub: unexpected query", file=sys.stderr)
 sys.exit(8)
@@ -209,6 +211,12 @@ class TheCommandsExitStatuses(Cases):
         self.expect("and names it", True,
                     "#1 says 'Approved', GitHub says 'Merged'" in drift.stdout)
         self.expect("the board agreeing exits 0", 0, self.check(BOARD_VALUE="Merged").returncode)
+
+    def test_another_repositorys_pull_request_with_the_same_number_is_not_this_ones(self):
+        # The stub's board holds fakeorg/other#1 at Approved before fakeorg/widget#1.
+        out = self.check(BOARD_VALUE="Merged")
+        self.expect("exit 0", 0, out.returncode)
+        self.expect("other's value not read as ours", False, "Approved" in out.stdout)
 
     def test_a_read_that_fails_exits_2(self):
         field = self.check(GH_FAIL="field")

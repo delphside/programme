@@ -150,6 +150,22 @@ class RawBoardItem:
     pr_state: str | None    # None when the field is unset
 
 
+@dataclass(frozen=True)
+class OpenItem:
+    """An open issue or pull request in any of the organisation's repositories,
+    and whether the board holds it (`board-add.py`)."""
+
+    repo: str
+    kind: str               # "issue" or "pull request"
+    number: int
+    node_id: str
+    on_board: bool
+
+    @property
+    def name(self) -> str:
+        return f"{self.repo}#{self.number}"
+
+
 # --------------------------------------------------------------------------
 # Routes: the values of the Route field, decided here once
 # --------------------------------------------------------------------------

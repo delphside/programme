@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Sequence
 
 from . import profile
-from .model import (PR_STATE, RawBoardItem, RawIssue, RawPullRequest,
+from .model import (PR_STATE, OpenItem, RawBoardItem, RawIssue, RawPullRequest,
                     RawSubIssue)
 
 
@@ -678,19 +678,23 @@ def pull_requests() -> tuple[RawPullRequest, ...]:
 
 
 def board_pull_requests(field: str = PR_STATE) -> tuple[RawBoardItem, ...]:
-    """Every pull request on the project board, with its value of `field`.
+    """Every pull request of this application's on the project board, with its
+    value of `field`.
 
     Every page, because a partial read looks exactly like an absent item --
     which is how "no pull requests are on the board" was once reported when
-    three were.
+    three were. Only this application's repository: the board holds every
+    repository's pull requests (`board-add.py`), and their numbers overlap, so
+    a number alone would match another repository's item.
     """
     query = """query($project:ID!, $cursor:String) { node(id:$project) {
       ... on ProjectV2 { items(first:100, after:$cursor) {
         pageInfo { hasNextPage endCursor }
-        nodes { id content { ... on PullRequest { number } }
+        nodes { id content { ... on PullRequest { number repository { nameWithOwner } } }
           fieldValues(first:25) { nodes { ... on ProjectV2ItemFieldSingleSelectValue {
             name field { ... on ProjectV2FieldCommon { name } } } } } } } } } }"""
     out: list[RawBoardItem] = []
+    mine = "/".join(_repository())
     cursor = None
     while True:
         payload = _gh_graphql(query, project=_project_id(), cursor=cursor)
@@ -701,8 +705,11 @@ def board_pull_requests(field: str = PR_STATE) -> tuple[RawBoardItem, ...]:
         if block is None:
             raise Unavailable("the project board could not be read")
         for n in block["nodes"]:
-            number = ((n or {}).get("content") or {}).get("number")
+            content = (n or {}).get("content") or {}
+            number = content.get("number")
             if number is None:
+                continue
+            if (content.get("repository") or {}).get("nameWithOwner") != mine:
                 continue
             value = next((v.get("name") for v in n["fieldValues"]["nodes"]
                           if v and (v.get("field") or {}).get("name") == field), None)
@@ -732,10 +739,9 @@ def organisation_repositories() -> tuple[str, ...]:
         cursor = block["pageInfo"]["endCursor"]
 
 
-def open_items(repo: str):
+def open_items(repo: str) -> list[OpenItem]:
     """A repository's open issues and pull requests, each saying whether the
-    board holds it. A list of `org_sync.Item`."""
-    from .org_sync import Item
+    board holds it."""
     project = _project_id()
     out = []
     for connection, kind in (("issues", "issue"), ("pullRequests", "pull request")):
@@ -744,7 +750,7 @@ def open_items(repo: str):
             payload = _gh_graphql(f"""query($owner:String!, $repo:String!, $cursor:String) {{
               repository(owner:$owner, name:$repo) {{
                 {connection}(first:100, after:$cursor, states:OPEN) {{
-                  nodes {{ number id projectItems(first:20) {{ nodes {{ project {{ id }} }} }} }}
+                  nodes {{ number id projectItems(first:100) {{ nodes {{ project {{ id }} }} }} }}
                   pageInfo {{ hasNextPage endCursor }} }} }} }}""",
                                   owner=profile.organisation(), repo=repo, cursor=cursor)
             block = (((payload.get("data") or {}).get("repository") or {})
@@ -756,7 +762,7 @@ def open_items(repo: str):
                     continue
                 projects = {((p or {}).get("project") or {}).get("id")
                             for p in n["projectItems"]["nodes"]}
-                out.append(Item(repo, kind, n["number"], n["id"], project in projects))
+                out.append(OpenItem(repo, kind, n["number"], n["id"], project in projects))
             if not block["pageInfo"]["hasNextPage"]:
                 break
             cursor = block["pageInfo"]["endCursor"]

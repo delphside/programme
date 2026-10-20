@@ -1,6 +1,7 @@
 # A fake programme file, for the tests: not the programme's.
 [organisation]
 login = "fakeorg"
+repositories = ["programme", "service-desk"]
 
 [board]
 project_id = "PVT_fakeboard"
