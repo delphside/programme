@@ -60,7 +60,7 @@ docs/1.6 records the app it works through.
   brought to him, and everything else is Claude's to find and move.
 - Triage is done jointly with the owner, never alone, and Claude leads it:
   bring the reading and the proposal, then agree it. **Except in Process
-  Definition, Programme Tooling and Delivery Tooling, and for type `tooling` or `documentation` in
+  Definition, Programme Tooling and each application's Delivery Tooling, and for type `tooling` or `documentation` in
   any workstream, where Claude triages alone** — D54, 2026-09-17. Anything
   reaching production, the product and its rules, and anything irreversible
   outside git still come to the owner whatever their workstream. Minimum: clear short
