@@ -285,16 +285,21 @@ all until they were given `Triage` as well — one silence exchanged for another
 A new requirement takes `Requirement State` `Triage`; a new project takes `Project State` `Scope`. Approval is the `pre-approved` **milestone**, not a field — there is no `Pre-approved` field, it was deleted on 2026-09-04.
 
 | `Workstream` | `IFSS_kgDOAsE6Iw` |
-| … Application & Game Architecture | `IFSSO_kgDOBNJpRg` |
-| … Game Rules | `IFSSO_kgDOBNQ2zQ` |
-| … Engine Player | `IFSSO_kgDOBNJpRw` |
-| … Client UI | `IFSSO_kgDOBNJpSA` |
-| … Client Management | `IFSSO_kgDOBNJpSQ` |
-| … Authentication & Authorisation | `IFSSO_kgDOBNJpSg` |
-| … Capacity Planning | `IFSSO_kgDOBNJpSw` |
-| … Operations & Infrastructure | `IFSSO_kgDOBNJpTA` |
-| … Delivery Tooling | `IFSSO_kgDOBNJpTQ` |
 | … Process Definition | `IFSSO_kgDOBNJpTg` |
+| … Programme Tooling | `IFSSO_kgDOBP3fBQ` |
+| … Operations & Infrastructure | `IFSSO_kgDOBNJpTA` |
+| … Capacity Planning | `IFSSO_kgDOBNJpSw` |
+| … TLE: Application Architecture | `IFSSO_kgDOBNJpRg` |
+| … TLE: Delivery Tooling | `IFSSO_kgDOBNJpTQ` |
+| … TLE: Security & Access | `IFSSO_kgDOBNJpSg` |
+| … TLE: Client | `IFSSO_kgDOBNJpSA` |
+| … TLE: Client Management | `IFSSO_kgDOBNJpSQ` |
+| … TLE: Game Rules | `IFSSO_kgDOBNQ2zQ` |
+| … TLE: Engine Player | `IFSSO_kgDOBNJpRw` |
+| … DP: Application Architecture | `IFSSO_kgDOBRoupw` |
+| … DP: Market Analysis | `IFSSO_kgDOBRouqA` |
+| … DP: Client | `IFSSO_kgDOBRouqQ` |
+| … DP: Delivery Tooling | `IFSSO_kgDOBRovkQ` |
 | `Type of change` | `IFSS_kgDOAr-w2g` |
 | … documentation | `IFSSO_kgDOBM-znA` |
 | … tooling | `IFSSO_kgDOBM-zng` |

@@ -143,7 +143,7 @@ letters were already written in the delivery log (`3.n.1`) and never set on the 
 
 **Triaging alone outside D54's scope.** Folding closes issues and un-folding
 is manual, so the cost of getting this wrong is asymmetric. Inside Process
-Definition, Programme Tooling and Delivery Tooling, and for type `tooling` or `documentation`,
+Definition, Programme Tooling and each application's Delivery Tooling, and for type `tooling` or `documentation`,
 triaging alone is now correct; everywhere else it is still the expensive
 mistake. Check the workstream and the type before deciding which case you are
 in.

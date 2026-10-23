@@ -9,7 +9,7 @@ no column that can show them.
 
     programme/scripts/board/roadmap-diagram.py                        # the whole roadmap
     programme/scripts/board/roadmap-diagram.py --parent 71            # one project's packages
-    programme/scripts/board/roadmap-diagram.py --workstream "Client UI"
+    programme/scripts/board/roadmap-diagram.py --workstream "TLE: Client"
     programme/scripts/board/roadmap-diagram.py --write                # into the roadmap document (documents.roadmap)
     programme/scripts/board/roadmap-diagram.py --project 71           # one project's allocation
 
