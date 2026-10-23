@@ -23,9 +23,9 @@ until Infrastructure has a capacity plan of its own.
 
 | | consumed | ceiling | headroom |
 | --- | --- | --- | --- |
-| **the collector's memory** | | not yet set (Market Data) | |
-| **the analysis's memory** (DuckDB) | | not yet set (Market Analysis) | |
-| **stored data** | | not yet set: retention is Market Data's | |
+| **the collector's memory** | | not yet set (DP: Application Architecture) | |
+| **the analysis's memory** (DuckDB) | | not yet set (DP: Market Analysis) | |
+| **stored data** | | not yet set: retention is DP: Application Architecture's | |
 | **Blizzard API quota** | | 36,000 requests an hour, 100 a second (Blizzard's published client limit) | |
 
 Held until Infrastructure plans them:
