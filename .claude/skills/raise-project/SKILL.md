@@ -293,7 +293,7 @@ A new requirement takes `Requirement State` `Triage`; a new project takes `Proje
 | … TLE: Delivery Tooling | `IFSSO_kgDOBNJpTQ` |
 | … TLE: Security & Access | `IFSSO_kgDOBNJpSg` |
 | … TLE: Client | `IFSSO_kgDOBNJpSA` |
-| … TLE: Client Management | `IFSSO_kgDOBNJpSQ` |
+| … TLE: Client Distribution | `IFSSO_kgDOBNJpSQ` |
 | … TLE: Game Rules | `IFSSO_kgDOBNQ2zQ` |
 | … TLE: Engine Player | `IFSSO_kgDOBNJpRw` |
 | … DP: Application Architecture | `IFSSO_kgDOBRoupw` |
