@@ -75,7 +75,7 @@ hosts' plan takes each application's footprint from it.
 | capacity | the hosts' capacity plan carries each host's resources against its application's footprint: Tile Lite Elite's 954 MB VMs, Dark Portal's 6 GB A1 VM; each application's own plan covers its rate limits and bottlenecks |
 | failure | none shared, because no host or component serves both applications; each fails alone |
 | limits and timeouts | none new, because nothing is added between a user and an application |
-| secrets and access | none new: Dark Portal's deploy and tunnel use SSH, as Tile Lite Elite's do. Production access stays the owner's to run |
+| secrets and access | none new, because Dark Portal's deploy and tunnel use SSH, as Tile Lite Elite's do. Production access stays the owner's to run |
 
 ## Still to design
 
