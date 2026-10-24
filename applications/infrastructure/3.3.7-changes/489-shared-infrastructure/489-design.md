@@ -6,7 +6,7 @@ second application, Dark Portal, and what the applications share becomes an
 application of its own. Each application has a host of its own.
 
 *Nothing here is built.* This is the scope-stage design: the as-is, the target,
-and the options still to choose. When it is complete, the design moves into
+and the decisions taken. When it is complete, the design moves into
 the programme's living documents (owner, 2026-10-14) and this note is deleted.
 
 ## The state today
@@ -40,7 +40,7 @@ documents:
 Dark Portal runs on its own Oracle Always Free A1 VM, `aarch64`, built on
 2026-10-21 (delphside/dark-portal#6). An ETL and analysis application does not
 belong beside a transactional one, and it may want the memory (owner,
-2026-10-21). No host is shared between applications (owner, 2026-10-24).
+2026-10-21, delphside/dark-portal#4). No host is shared between applications (owner, 2026-10-24).
 
 ### How Dark Portal is reached: privately
 
@@ -63,7 +63,7 @@ version.
 
 Capacity is planned at two levels (owner, 2026-10-16). The infrastructure
 application plans the VMs' resources: memory, CPU and disk on each host,
-against every hosted application's measured footprint. Each application plans
+against the measured footprint of the application on it. Each application plans
 its own: rate limiting, its bottlenecks, and what its users can drive it to.
 So Tile Lite Elite keeps a capacity plan, without the host totals, and the
 hosts' plan takes each application's footprint from it.
@@ -75,7 +75,7 @@ hosts' plan takes each application's footprint from it.
 | capacity | the hosts' capacity plan carries each host's resources against its application's footprint: Tile Lite Elite's 954 MB VMs, Dark Portal's 6 GB A1 VM; each application's own plan covers its rate limits and bottlenecks |
 | failure | none shared, because no host or component serves both applications; each fails alone |
 | limits and timeouts | none new, because nothing is added between a user and an application |
-| secrets and access | each host has its own SSH key; Dark Portal's deploy and tunnel use SSH, as Tile Lite Elite's do. Production access stays the owner's to run |
+| secrets and access | none new: Dark Portal's deploy and tunnel use SSH, as Tile Lite Elite's do. Production access stays the owner's to run |
 
 ## Still to design
 
