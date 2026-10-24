@@ -288,7 +288,7 @@ A new requirement takes `Requirement State` `Triage`; a new project takes `Proje
 | … Process Definition | `IFSSO_kgDOBNJpTg` |
 | … Programme Tooling | `IFSSO_kgDOBP3fBQ` |
 | … Operations & Infrastructure | `IFSSO_kgDOBNJpTA` |
-| … Capacity Planning | `IFSSO_kgDOBNJpSw` |
+| … Capacity & Performance | `IFSSO_kgDOBNJpSw` |
 | … TLE: Application Architecture | `IFSSO_kgDOBNJpRg` |
 | … TLE: Delivery Tooling | `IFSSO_kgDOBNJpTQ` |
 | … TLE: Security & Access | `IFSSO_kgDOBNJpSg` |
