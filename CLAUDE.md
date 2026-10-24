@@ -21,10 +21,13 @@ docs/1.6 records the app it works through.
   is being set aside, does what he decided, and records it where the work is
   recorded: the issue, the delivery-log row or the commit message. A rule that
   is continually set aside suggests a defect in the rule: consider changing it.
-- Something that should be true and is not becomes a Requirement issue. Raise
-  it quickly. Discussion happens in the comments; the conclusions go in the
-  body, which is edited to stay current. Where the project is already clear,
-  raise the project instead and skip the requirement.
+- A change that seems possible takes one or more of four vehicles: a
+  pre-approved change where it is already agreed and needs no branch, a
+  Requirement issue where what to do about it, if anything, is open, a project
+  where it certainly needs doing, and a note in the next weekly digest where
+  it is a lesson for continual improvement (docs/1.2 *Where a possible change
+  goes*). Raise it quickly. Discussion happens in the comments; the
+  conclusions go in the body, which is edited to stay current.
 - **Raise quickly, but into an existing requirement where one covers the area.**
   Look first; a new row in a table beats a new number. Seventy-five issues were
   raised in the fourteen days to 2026-09-17 and ten of them were facets of one

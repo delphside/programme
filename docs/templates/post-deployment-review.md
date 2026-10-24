@@ -17,7 +17,9 @@ The shape follows the **After Action Review**, whose four questions are the
 oldest and clearest form of this: what did we set out to do, what happened, why
 the difference, what do we do next. PRINCE2's Lessons Report adds the part the
 AAR leaves out — that a lesson is only worth capturing if somebody can act on
-it, which is why every finding here ends as an issue or is explicitly dropped.
+it. So the findings and lessons here go to the next weekly digest as a note, and
+a finding that may need a change also takes a pre-approved change, a requirement
+or a project ([1.2](../1.2-change-lifecycle.md#where-a-possible-change-goes)).
 
 Delete these comments as you go.
 -->
@@ -36,8 +38,9 @@ as such.
 | --- | --- | --- |
 | | | |
 
-**Anything deferred:** where did it go — a new issue, a later project, or
-nowhere? "Nowhere" is a legitimate answer and the one worth recording.
+**Anything deferred:** where did it go — a pre-approved change, a requirement, a
+project, or nowhere? "Nowhere" is a legitimate answer and the one worth
+recording.
 
 ## 2. What happened that we did not plan for?
 
@@ -54,7 +57,7 @@ when someone looked"* to *"we forgot to check"*.
 Every finding is an action or a deliberate non-action. An observation with
 neither is a note nobody will read again.
 
-| finding | issue raised | or why not |
+| finding | pre-approved change, requirement or project | or why no change |
 | --- | --- | --- |
 | | | |
 
@@ -85,4 +88,5 @@ each has cost us something before.
 
 The one or two sentences a future project would want. If there are none, say
 so — a review with nothing to say is a good outcome, and pretending otherwise
-teaches nobody anything.
+teaches nobody anything. Each lesson goes to the next weekly digest as a note
+([1.4](../1.4-programme-activities.md#reviewing-it)).
