@@ -1,6 +1,6 @@
 # Dark Portal (application 2)
 
-An analysis tool for the World of Warcraft auction house, in development. Its
+An analysis tool for the World of Warcraft auction house, in design. Its
 repository is `delphside/dark-portal`, its own documents are numbered `5.x`,
 and its issues appear on the programme board in a view of their own.
 The numbering is in the [root README](../../README.md), and the list of
