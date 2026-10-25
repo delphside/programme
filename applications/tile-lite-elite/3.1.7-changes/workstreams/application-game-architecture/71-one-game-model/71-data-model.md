@@ -778,18 +778,32 @@ server cache**, not one writer of everything.
 
 ## 8 · The engine
 
-### What does not change
+### What the engine gains: levels
+
+**An engine plays at a level, given when a seat's game starts.**[^levels]
+Levels count from 1, the weakest; an engine whose `max_level` is 1 has one
+level. `start` refuses a level outside 1 to `max_level` and returns the player
+for that seat's game, which may keep what it learns between turns:
 
 ```rust
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Level(pub u8);
+
 pub trait GameEngine: Send + Sync {
     fn metadata(&self) -> &EngineMetadata;
-    fn choose_action(&self, request: EngineRequest<'_>) -> EngineResponse;
+    fn max_level(&self) -> Level;
+    fn default_level(&self) -> Level;
+    fn start(&self, level: Level) -> Result<Box<dyn EnginePlayer>, LevelError>;
+}
+
+pub trait EnginePlayer: Send {
+    fn choose_action(&mut self, request: EngineRequest<'_>) -> EngineResponse;
 }
 ```
 
-`EngineRequest` borrows `&GameState`, `&Rack`, `&VariantRules` — all
-`rules-shared` types, none of them server types. **That is why the engine can
-be lifted out at all**, and it is already true today.
+`EngineRequest` is unchanged: it borrows `&GameState`, `&Rack` and
+`&VariantRules`, all `rules-shared` types, none of them server types. **That is
+why the engine can be lifted out at all**, and it is already true today.
 
 ### What changes: who calls it
 
@@ -811,10 +825,10 @@ and only the third differs by where the bot runs:
    both transports. Every subscriber is its own task.
 
 ```rust
-/// Same code in the server and in a client. Given a view of a game and an
-/// engine, decide whether it is this seat's turn and what to do about it.
+/// Same code in the server and in a client. Given a view of a game and the
+/// seat's engine player, decide whether it is this seat's turn and what to do about it.
 pub fn take_turn(
-    engine: &dyn GameEngine,
+    player: &mut dyn EnginePlayer,
     view:   &GameView,          // from GameLink::on_event
     seat:   u8,
     budget: Option<Duration>,
@@ -831,7 +845,7 @@ on each update from the link:               // one object per seat held; the
     GameUpdate::Game { view, .. }:
         if view.status == Active
            && view.current_seat == seat:    // seat is the object's own
-            if let Some(msg) = take_turn(engine, &view, seat, budget) {
+            if let Some(msg) = take_turn(player, &view, seat, budget) {
                 link.submit(view.game_id, msg)
             }
     GameUpdate::GameRemoved(_):
@@ -1010,8 +1024,12 @@ the socket's shape is #10's.
 - `TILE_LITE_ELITE_BOTS` (proposed) lists the bots run in-process, each with
   one identity, which is one account. Its ratings are its account's, one per
   edition, however many games it plays.
-- Each engine strength is its own listed bot, with its own account and its own
-  rating per edition.[^watch]
+- Each listed bot is an engine at one level, or at the engine's default, with
+  its own account and its own rating per edition, so a rating always means one
+  strength.[^watch][^levels] A game's creator picks the level by picking the
+  bot; a UI may show one engine's bots as one choice with a level field.
+- Each `Bot` object starts its engine at the listed level when it is made, so
+  a level the engine refuses is caught before the bot plays.
 - An `InProcessLink` is built with the listed identity and passes it on every
   message, so no session record exists.
 - Each listed bot's task runs `updates_for` once, over every seated game. It
@@ -1116,6 +1134,9 @@ is used, and `moves.len()` was only ever a coincidence.
     seats are a `watch`, one bot holds several seats, one bot per strength,
     sign-in belongs to the link, one task per subscriber, and `game-wire`
     defines `GameMessage` and `GameUpdate`.
+[^levels]: Owner, 2026-10-25: an engine takes a level at the start of a game
+    and exposes its maximum and default; a maximum of 1 means one level; how
+    the creator picks a level is the UI's.
 [^layers]: Owner, 2026-10-20: `game-wire` converts `GameView` both ways and
     never sees `GameSession`; the server builds the view. A bot harness
     behaves like the existing client, over the internet or in-process.
