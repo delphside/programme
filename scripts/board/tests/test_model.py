@@ -72,7 +72,7 @@ class TheBoardModel(Cases):
     def test_a_parent_owes_no_route_a_delivery_owes_one(self):
         """a parent owes no route, a delivery owes one"""
         parent = classify(issue(1, subs=[RawSubIssue(2, "Project")],
-                                fields={"Route": "Programme Tooling and Docs"}))
+                                fields={"Route": "Docs and Programme Tooling"}))
         ids = {f.obligation.id: f.answer for f in assess(parent)}
         self.expect("a parent with a Route set reports it missing",
               Answer.MISSING, ids.get("parent-no-route"))
@@ -134,7 +134,7 @@ class TheBoardModel(Cases):
 | R1 | read it | **passed** |
 """
         i = classify(issue(252, parent=9, fields={"Project State": "Post-deployment",
-                                                  "Route": "Programme Tooling and Docs"},
+                                                  "Route": "Docs and Programme Tooling"},
                            body=body, milestone="pre-approved"))
         self.expect("unticked boxes across the whole body", 1, i.unticked_boxes)
         self.expect("unticked inside the post-deployment section", 0,
@@ -143,25 +143,23 @@ class TheBoardModel(Cases):
         self.expect("answered post-deployment checks are not reported as missing",
               Answer.MET, ids.get("wp-post-deployment"))
 
-    def test_a_tooling_delivery_owes_no_milestone(self):
-        """a tooling delivery owes no milestone; a release still does"""
+    def test_only_docs_and_programme_tooling_owes_no_milestone(self):
+        """Docs and Programme Tooling owes no milestone; the other routes still do"""
         # Owner, 2026-10-26: it is delivered, but not at one point in time, and
-        # the `pre-approved` milestone that used to satisfy this is retired.
-        tooling = classify(issue(601, parent=9, fields={"Project State": "Post-deployment",
-                                                        "Route": "Programme Tooling and Docs"}))
-        ids = {f.obligation.id: f.answer for f in assess(tooling)}
-        self.expect("no milestone is fine on Programme Tooling and Docs", Answer.MET,
-              ids.get("wp-milestone"))
-        application = classify(issue(603, parent=9, fields={"Project State": "Post-deployment",
-                                                            "Route": "Application Tooling and Docs"}))
-        ids = {f.obligation.id: f.answer for f in assess(application)}
-        self.expect("no milestone is fine on Application Tooling and Docs", Answer.MET,
-              ids.get("wp-milestone"))
-        other = classify(issue(602, parent=9, fields={"Project State": "Post-deployment",
-                                                      "Route": "Production Release"}))
-        ids = {f.obligation.id: f.answer for f in assess(other)}
-        self.expect("a Production Release still owes one", Answer.MISSING,
-              ids.get("wp-milestone"))
+        # the `pre-approved` milestone that used to satisfy this is retired. The
+        # route decides the shape, so Application Tooling still takes a letter.
+        def answer(number, route):
+            wp = classify(issue(number, parent=9, fields={"Project State": "Post-deployment",
+                                                          "Route": route}))
+            return {f.obligation.id: f.answer for f in assess(wp)}.get("wp-milestone")
+        self.expect("no milestone is fine on Docs and Programme Tooling", Answer.MET,
+              answer(601, "Docs and Programme Tooling"))
+        self.expect("and on its former name, until GitHub's option is renamed", Answer.MET,
+              answer(602, "Programme Tooling and Docs"))
+        self.expect("Application Tooling still owes one", Answer.MISSING,
+              answer(603, "Application Tooling"))
+        self.expect("so does a Production Release", Answer.MISSING,
+              answer(604, "Production Release"))
 
     def test_a_post_deployment_check_is_answered_not_merely_present(self):
         """a post-deployment check is answered, not merely present"""
@@ -178,7 +176,7 @@ class TheBoardModel(Cases):
 | R2 | look at it | |
 """
         i = classify(issue(374, parent=9, fields={"Project State": "Post-deployment",
-                                                  "Route": "Programme Tooling and Docs"},
+                                                  "Route": "Docs and Programme Tooling"},
                            body=blank, milestone="pre-approved"))
         self.expect("a blank answer cell is one unanswered row", 1,
               i.unanswered_rows_in("Post-deployment checks against requirements"))
@@ -192,7 +190,7 @@ class TheBoardModel(Cases):
         prose = blank.replace("| R2 | look at it | |",
                               "| R2 | look at it | measured on the 9th: it does not |")
         i = classify(issue(374, parent=9, fields={"Project State": "Post-deployment",
-                                                  "Route": "Programme Tooling and Docs"},
+                                                  "Route": "Docs and Programme Tooling"},
                            body=prose, milestone="pre-approved"))
         ids = {f.obligation.id: f.answer for f in assess(i)}
         self.expect("an answer in other words is still an answer", Answer.MET,

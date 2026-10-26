@@ -183,9 +183,22 @@ TICKET_STATE = "Ticket State"
 
 
 RELEASE = "Production Release"
-APPLICATION_TOOLING = "Application Tooling and Docs"
-PROGRAMME_TOOLING = "Programme Tooling and Docs"
+APPLICATION_TOOLING = "Application Tooling"
+PROGRAMME_TOOLING = "Docs and Programme Tooling"
 OTHER = "Other"
+
+# The two tooling options were renamed on 2026-10-26 (owner): every document
+# changed on its own is now the second's. Issues may carry the old names until
+# the field's options are renamed in GitHub, so both are read.
+FORMER_NAMES = {
+    "Application Tooling and Docs": APPLICATION_TOOLING,
+    "Programme Tooling and Docs": PROGRAMME_TOOLING,
+}
+
+
+def route_of(value: str | None) -> str | None:
+    """The route a Route field value names, reading a former name as its new one."""
+    return FORMER_NAMES.get(value or "", value)
 
 # The Repository Change route split in two on 2026-09-29 (#421 R4). The old
 # option stays on the field, marked deprecated, because closed issues carry
@@ -199,7 +212,7 @@ def delivered_by_merge(route: str | None) -> bool:
     Both repository routes are: nothing deploys them. A Production Release
     waits for its deploy, and Other is applied by hand.
     """
-    return route in (APPLICATION_TOOLING, PROGRAMME_TOOLING) or (
+    return route_of(route) in (APPLICATION_TOOLING, PROGRAMME_TOOLING) or (
         route or "").startswith(DEPRECATED_REPOSITORY)
 
 
