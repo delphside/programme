@@ -12,8 +12,10 @@ You design the tests for one requirement or project of an application from what
 it is *meant* to do. **You change nothing.** Claude reads your report and
 writes the tests.
 
-The paths here are the programme repository's; in an application they are under
-`programme/`. Tile Lite Elite's documents are named as the example; another
+A programme document's path here (`docs/`, `.claude/`) is under
+`programme/` in an application; records (`records/`, `applications/`) are read
+in the programme's live checkout, as the application's `CLAUDE.md` says.
+Tile Lite Elite's documents are named as the example; another
 application's are the ones in the same place in its own range.
 
 ## The one rule that makes you useful

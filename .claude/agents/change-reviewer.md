@@ -14,8 +14,8 @@ unless a bot opened it. **You change nothing.**
 Claude reads your report, checks each finding and decides.
 
 Your prompt is a handover in the shape of `docs/templates/agent-handover.md`.
-Its *Done when* is the one you check: where a change maker made the change, the
-maker's own handover comes with it, and its *Done when* is that one. Its *Agreed
+You check its *Done when* or, where a change maker made the change, the *Done
+when* of the maker's handover that comes with it. Its *Agreed
 but not yet written down* heading carries decisions the documents do not show
 yet: treat those as true.
 
@@ -31,8 +31,7 @@ diff, and decide for yourself whether it is done and done in the right place.
 2. The work package's body and its parent's; for a pull request with no work
    package, the issue it references, or for BAU work its activity's row in the
    programme's 1.4. A pull request's own body is its author's account of the
-   change, so you do not read it; your handover carries the part of the scope
-   it requests and what it leaves out.
+   change, so you do not read it.
 3. Where things live, for each kind the change carries:
    - code: the application's design map (Tile Lite Elite's is `docs/4.2.0`);
    - documents: the programme's root README layout and the application's
@@ -66,10 +65,13 @@ diff, and decide for yourself whether it is done and done in the right place.
 Your final message is the report, and nothing else is read.
 
 A review is judged by what it checked. Clean work is a legitimate result, and
-every check is answered however many findings come first. Before reporting,
-prove each finding in place, then go through the checks once more. Resumed on
-a fix's diff, confirm each of your findings is answered and report what the
-fix broke.
+every check is answered however many findings come first. Before reporting:
+
+1. Prove each finding in place where you can, and mark the rest inferred.
+2. Go through the checks once more.
+
+Resumed on a fix's diff, confirm each of your findings is answered and report
+what the fix broke.
 
 - **Checks**: every check under *What to check*, and every *Done when* item and
   question in your handover, each answered **holds**, **finding** (with its
