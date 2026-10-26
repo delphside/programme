@@ -47,7 +47,10 @@ written otherwise.
 | closing your own account, suspension, support requests and complaints | #296 (R1 to R5) |
 | The as-is design map (#406) is on Tile Lite Elite main (delphside/tile-lite-elite#523). Check-docs step 8 starts checking it when #522 moves the `programme/` pin; if it reports stale, regenerate with `programme/scripts/docs/design-map/design-map.py --write` | #522 |
 | [`71-map-change.md`](71-map-change.md) is a prototype: WP A and WP C only. The format's three gaps are closed (programme #41), and [`71-map-diagrams.md`](71-map-diagrams.md) is generated from it with `design-map.py --change`. WP A's to-be is drawn and designed (programme #60 and #62): the layering, per-game latest-state channels, `game-wire`'s two message enums, the seat list and the bot list ([71-data-model.md §8](71-data-model.md#8--the-engine)). Tile Lite Elite runs the mode from `../programme` until its `programme/` pin moves past programme #41 | owner: how dense a package's drawing may be |
-| WP A's code branch: show the owner the `game-wire` types (`GameMessage`, `GameUpdate`, `SeatRef`, `GameLink`) once written | WP A Development |
+| #538: the move generator finds only moves whose first tile is on an anchor (with AT on the board and B, O in the rack it offers OAT, misses BOAT). It affects bots, suggestions and opening moves, so WP A's engine design takes it into account once triaged | owner, triage of #538 |
+| A compiling sketch of `game-wire`'s types (links, both message enums, `Bot<L>`, engine levels) is in the project files at `notes/71/game-wire-sketch/`; WP A's code branch starts from it | WP A Development |
+| Split the server-only variants (`TimeOut`, `ForceResign`, `AdminForceEnd`, `ReminderSent`) out of `GameMessage` into a server-side `GameCommand`; recommended, asked on a card in the #71 thread on 2026-10-21 | owner |
+| #542 entity life histories: WP A is its first use, so WP A's design gains an entity/event matrix and a state table per entity | Claude, next #71 work |
 
 ## A tooling defect met on the way
 

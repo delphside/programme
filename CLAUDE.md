@@ -63,7 +63,7 @@ docs/1.6 records the app it works through.
   brought to him, and everything else is Claude's to find and move.
 - Triage is done jointly with the owner, never alone, and Claude leads it:
   bring the reading and the proposal, then agree it. **Except in Process
-  Definition, Programme Tooling and Delivery Tooling, and for type `tooling` or `documentation` in
+  Definition, Programme Tooling and each application's Delivery Tooling, and for type `tooling` or `documentation` in
   any workstream, where Claude triages alone** — D54, 2026-09-17. Anything
   reaching production, the product and its rules, and anything irreversible
   outside git still come to the owner whatever their workstream. Minimum: clear short
@@ -271,16 +271,21 @@ docs/1.6 records the app it works through.
   needs no milestone and no Route: it has no delivery role, and both answer how
   a change reaches its users. One could be derived from the packages, but it
   would be information rather than a fact about the parent. A milestone may still
-  be set — a target release, say — and is then ignored: a deploy settles the
-  milestone's packages and skips the parent. A Route may not: `board-check.py`
-  reports one on a parent, because in delphside/tile-lite-elite#297 parents were given routes to silence
+  be set — a target release, say — and is then ignored: making the release
+  leaves the parent out of the record, so no deploy settles it. A Route may
+  not: `board-check.py` reports one on a parent, because in delphside/tile-lite-elite#297 parents were given routes to silence
   a report that had asked for the wrong thing.
 - The parent runs Scope, the queue, and Design and Test Approach, then stops —
   oversight is a design role. It may reach Post-deployment for a requirement no
   single delivery satisfies, and Project Closedown to close. A work package may
   delegate lessons learnt to the parent, and says so.
-- A release milestone is a shipping list. The deploy settles everything in
-  it, so move out what is not shipping before deploying.
+- **A release is made once, at the end of regression; deploying it is
+  choosing a version.** Making the release, once the owner judges rehearsal
+  passed, checks the milestone, writes the release record, tags the version and
+  bumps `main` to the next patch; the deploy checks only the record, the schema
+  and a smoke test. docs/1.2 *Making a release* has the steps.
+- A release milestone is a shipping list: move out what is not shipping before
+  the release is made (docs/1.2 §2.5).
 - `no-release` is provisional. Resolve it to `pre-approved` or a letter
   milestone before the issue closes, or the record of how the change reached
   main is lost. `pre-approved` is closed by hand; no deploy settles it.

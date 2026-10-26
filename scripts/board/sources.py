@@ -725,11 +725,14 @@ def organisation_repositories() -> tuple[str, ...]:
     names: list[str] = []
     cursor = None
     while True:
-        payload = _gh_graphql("""query($org:String!, $cursor:String) {
-          organization(login:$org) {
-            repositories(first:100, after:$cursor, isArchived:false) {
-              nodes { name } pageInfo { hasNextPage endCursor } } } }""",
-                              org=profile.organisation(), cursor=cursor)
+        try:
+            payload = _gh_graphql("""query($org:String!, $cursor:String) {
+              organization(login:$org) {
+                repositories(first:100, after:$cursor, isArchived:false) {
+                  nodes { name } pageInfo { hasNextPage endCursor } } } }""",
+                                  org=profile.organisation(), cursor=cursor)
+        except Unavailable as exc:
+            raise Unavailable(f"the organisation's repositories: {exc}") from None
         block = (((payload.get("data") or {}).get("organization") or {})
                  .get("repositories"))
         if block is None:
@@ -748,12 +751,16 @@ def open_items(repo: str) -> list[OpenItem]:
     for connection, kind in (("issues", "issue"), ("pullRequests", "pull request")):
         cursor = None
         while True:
-            payload = _gh_graphql(f"""query($owner:String!, $repo:String!, $cursor:String) {{
-              repository(owner:$owner, name:$repo) {{
-                {connection}(first:100, after:$cursor, states:OPEN) {{
-                  nodes {{ number id projectItems(first:100) {{ nodes {{ project {{ id }} }} }} }}
-                  pageInfo {{ hasNextPage endCursor }} }} }} }}""",
-                                  owner=profile.organisation(), repo=repo, cursor=cursor)
+            try:
+                payload = _gh_graphql(f"""query($owner:String!, $repo:String!, $cursor:String) {{
+                  repository(owner:$owner, name:$repo) {{
+                    {connection}(first:100, after:$cursor, states:OPEN) {{
+                      nodes {{ number id projectItems(first:100) {{ nodes {{ project {{ id }} }} }} }}
+                      pageInfo {{ hasNextPage endCursor }} }} }} }}""",
+                                      owner=profile.organisation(), repo=repo, cursor=cursor)
+            except Unavailable as exc:
+                # Name the read, so a refused token says which repository it lacks.
+                raise Unavailable(f"{repo}'s {connection}: {exc}") from None
             block = (((payload.get("data") or {}).get("repository") or {})
                      .get(connection))
             if block is None:

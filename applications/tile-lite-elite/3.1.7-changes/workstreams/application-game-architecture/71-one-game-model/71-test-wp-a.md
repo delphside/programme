@@ -48,3 +48,4 @@ missing (`71-test-approach.md`).
 - [ ] **Claude** — two seats of one listed bot share one account and one rating per edition
 - [ ] **Claude** — a scripted second client sees every change the first makes, invitations included, within one update
 - [ ] **Claude** — the same engine plays the same move through the glue and through the external transport
+- [ ] **Claude** — an engine refuses a level of 0 or above its maximum when its game starts, starts at its default when the bot list gives none, and one with a maximum of 1 plays at level 1

@@ -85,6 +85,11 @@ class TheBoardModel(Cases):
 
     def test_defaults_and_both_are_flagged(self):
         """defaults, and both are flagged"""
+        ticket = classify(issue(12, kind="Ticket", fields={"Ticket State": "New"}))
+        self.expect("a Ticket is a Ticket, not an untyped Requirement", "Ticket", ticket.kind)
+        self.expect("its step is its Ticket State", "New", ticket.step)
+        self.expect("and only the rules every issue owes apply",
+                    {"type-set", "boxes-labelled"}, {f.obligation.id for f in assess(ticket)})
         untyped = classify(issue(1, kind=None))
         self.expect("untyped -> Requirement", "Requirement", untyped.kind)
         self.expect("and the default is flagged", True, untyped.type_was_defaulted)
