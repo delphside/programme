@@ -1,13 +1,12 @@
 ---
 name: unit-test-checklist
-description: A nudge to run through RIGHT-BICEP/CORRECT before calling a change's unit tests done. Use whenever writing or reviewing unit tests for new or changed logic. Technical (Rehearsal) and Functional user (Preview) tests are a different question, answered in the application's testing document (Tile Lite Elite's docs/4.3.3).
+description: A nudge to run through RIGHT-BICEP/CORRECT before calling a change's unit tests done. Use whenever writing or reviewing unit tests for new or changed logic. Technical tests — Rehearsal and Functional user tests — Preview are a different question, answered in the application's testing document (Tile Lite Elite's docs/4.3.3).
 ---
 
 # Unit test checklist
 
 **The checklist lives in one place**: the application's testing document
-(Tile Lite Elite's `docs/4.3.3-testing-ci-and-release.md` §2.2.4, *What a unit
-test is expected to cover*). Read it there.
+([Tile Lite Elite's 4.3.3 §2.2.4](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#224-what-a-unit-test-is-expected-to-cover)). Read it there.
 
 ## When this fires
 
