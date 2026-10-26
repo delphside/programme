@@ -97,7 +97,7 @@ status. Redirect to a file if you need the output.
 | Item | How |
 | --- | --- |
 | the delivery-log row | Claude writes it into the delivery log (`3.n.1`); the release does not |
-| a lettered milestone | closed by hand by the local session: the letter form is not valid semver, so nothing matches it |
+| a lettered or dated milestone | closed by hand by the local session: neither form is valid semver, so nothing matches it |
 | post-deployment checks | answered by Claude on the work package, each row, from what the owner's production reads return, with `passed`, `cannot be tested` or `failed` |
 
 ## The other routes

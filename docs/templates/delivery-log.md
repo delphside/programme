@@ -2,7 +2,7 @@
 <!--
 The delivery log: one row per project delivery, appended, oldest first. The
 rule is docs/1.2 §2.14, "The delivery log row is part of the delivery", and
-the identifiers are 1.2, "A delivery that ships no application code". The
+the identifiers are 1.2 §1.1 "What a milestone says". The
 instance is a programme record. Delete these comments.
 -->
 
@@ -15,7 +15,7 @@ before it.*
 
 | id | date (UTC) | kind | where | what | outcome |
 | --- | --- | --- | --- | --- | --- |
-| *the release version, or production's version plus a letter* | *when it reached its users* | *release, image, host, drill, service or repository* | *the environment or service it reached* | *the project and delivery, and what it changed* | ***done**, or what was descoped, and how it was proved* |
+| *the release version, production's version plus a letter, or the date (`YYYY.MM.DD-n`) in the infrastructure application's log* | *when it reached its users* | *release, image, host, drill, service or repository* | *the environment or service it reached* | *the project and delivery, and what it changed* | ***done**, or what was descoped, and how it was proved* |
 
 ## What each delivery left behind that git does not show
 
