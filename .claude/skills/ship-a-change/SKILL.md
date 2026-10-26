@@ -24,10 +24,9 @@ The route decides which steps apply.
 and each is its own work package. Documentation is the exception: it rides on
 the release it accompanies, one milestone, no second row.
 
-**A Requirement never carries a milestone.** If
-the thing shipping is a requirement, it needs a work package to own the
-delivery, or the record says a delivery happened with nothing responsible for
-it.
+**A Requirement never carries a milestone.** If the thing shipping is a
+requirement, it needs a work package to own the delivery, or the record says a
+delivery happened with nothing responsible for it.
 
 ## The lap, for a Production Release
 

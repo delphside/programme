@@ -147,9 +147,8 @@ docs/1.6 records the app it works through.
   version is needed while the work is in progress; otherwise commit straight
   to main, which is what pre-approved means. A document-only change never takes a
   branch: they live too long, main moves, and the review does not happen. A
-  cloud session's branch and pull request are incidental, not the route's. One
-  branch per project, and everything
-  the project touches goes on it, its technical documentation included. Programme
+  cloud session's branch and pull request are incidental to the route. One
+  branch per project, and everything the project touches goes on it, its technical documentation included. Programme
   documents, generic assets and records alike (docs/1.3; the list is
   `programme/scripts/board/documents.py`'s), belong to no project and change on main.
 - A pull request is what gives a review mechanics: a diff, a place to comment,
@@ -227,10 +226,9 @@ docs/1.6 records the app it works through.
   delivery happened with no work package to own it. An application's deploy
   script can warn about this.
 - **Milestones are only semvers, letters and dates** — owner, 2026-10-26.
-  `pre-approved`, `no-release`, `patch`, `minor` and `major` are retired:
-  `Route` and `Type of change` say what they said. A Programme Tooling and
-  Docs change is delivered, but not at one point in time, so it takes no
-  milestone and no delivery-log row.
+  `pre-approved`, `no-release`, `patch`, `minor` and `major` are retired;
+  `Route`, `Type of change` and the requirement and project states carry their
+  meaning (docs/1.2 §2.15).
 - **A routine update owes what its route owes, and nothing more.** A
   `Production Release` bump (a base image, a dependency, the toolchain) reaches
   `main` by pull request, so CI is its regression check, and waits for the next
@@ -302,8 +300,8 @@ docs/1.6 records the app it works through.
   steps.
 - A release milestone is a shipping list: move out what is not shipping before
   the release is made (docs/1.2 §2.5).
-- A change straight to main, with no milestone, is closed by hand; no deploy
-  settles it.
+- An issue whose change went straight to main has no milestone, and is
+  closed by hand; no deploy settles it.
 - After deploying, run the application's verification and trust exit status,
   not read output. Each application's CLAUDE.md names its script and says
   what a deploy does.

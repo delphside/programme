@@ -290,7 +290,8 @@ neither is invisible in the same way an untyped one is: the Requirement rules ke
 on `Requirement State` and the Project rules on `Project State`, so an issue with no stage is asked
 for nothing. Typing the ten untyped issues on 2026-09-10 surfaced no findings at
 all until they were given `Triage` as well — one silence exchanged for another.
-A new requirement takes `Requirement State` `Triage`; a new project takes `Project State` `Scope`.
+A new requirement takes `Requirement State` `Triage`; a new project takes
+`Project State` `Scope`.
 
 | field or option | id |
 | --- | --- |
