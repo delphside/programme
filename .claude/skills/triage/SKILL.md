@@ -117,9 +117,9 @@ need a sub-project issue is 1.2's table in
 [*The model, and the four cases that follow from it*](../../../docs/1.2-change-lifecycle.md#the-model-and-the-four-cases-that-follow-from-it).
 
 **`no-release` is provisional.** It says *not a release* before anybody knows
-how the change will reach `main`. Resolve it to `pre-approved`, a letter, a date or a
-semver before the issue closes, or the record of how that change was delivered
-is lost.
+how the change will reach `main`. Resolve it to `pre-approved`, a letter, a
+date or a semver before the issue closes, or the record of how that change was
+delivered is lost.
 
 ## Common mistakes
 
