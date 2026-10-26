@@ -41,10 +41,14 @@ Elite's single-delivery release runs, by section of its 4.3.3:
 3. 1.3 deploy to preview, at the commit you will ship.
 4. 1.4 user testing, on preview.
 5. 1.5 rehearse the release, and run the technical tests.
-6. 1.9 step 3: fast-forward `main` to the proven branch.
-7. 1.6 ship it, from the `main` tree: the owner's step.
-8. 1.7 verify what is live: `verify.sh`.
-9. 1.10 delete the branch.
+6. Once the owner judges rehearsal passed, the release is made (for Tile Lite
+   Elite, until delphside/tile-lite-elite#545 splits it out of `deploy.sh`,
+   that is this point): Claude writes its delivery-log row (`3.n.1`), saying
+   *released, not deployed*.
+7. 1.9 step 3: fast-forward `main` to the proven branch.
+8. 1.6 ship it, from the `main` tree: the owner's step.
+9. 1.7 verify what is live: `verify.sh`.
+10. 1.10 delete the branch.
 
 ### Tile Lite Elite's traps, each of which has cost a run
 
@@ -95,7 +99,7 @@ status. Redirect to a file if you need the output.
 
 | Item | How |
 | --- | --- |
-| the delivery-log row | Claude writes it into the delivery log (`3.n.1`) when the release is made, saying *released, not deployed*, and completes it with the deploy's date and outcome after production |
+| the delivery-log row | Claude completes the row written when the release was made (step 6) with its deployed date and outcome |
 | a lettered or dated milestone | closed by hand by the local session: neither form is valid semver, so nothing matches it |
 | post-deployment checks | answered by Claude on the work package, each row, from what the owner's production reads return, with `passed`, `cannot be tested` or `failed` |
 
