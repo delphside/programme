@@ -110,9 +110,9 @@ The rules are
 | a decision | none: it routes work |
 
 **What was done decides.** A change that took a branch and a pull request, or
-was applied on a host or in a console, has made a delivery at one point in time: a milestone and a row in the
-delivery log (`3.n.1`). Which deliveries need a sub-project issue is 1.2's
-table in
+was applied on a host or in a console, has made a delivery at one point in
+time: a milestone and a row in the delivery log (`3.n.1`). Which deliveries
+need a sub-project issue is 1.2's table in
 [*The model, and the four cases that follow from it*](../../../docs/1.2-change-lifecycle.md#the-model-and-the-four-cases-that-follow-from-it).
 
 **`no-release` is provisional.** It says *not a release* before anybody knows

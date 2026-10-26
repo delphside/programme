@@ -5,9 +5,9 @@ description: A nudge to run through RIGHT-BICEP/CORRECT before calling a change'
 
 # Unit test checklist
 
-**The checklist lives in one place**: the application's testing document (Tile
-Lite Elite's `docs/4.3.3-testing-ci-and-release.md` §2.2.4, *What a unit test is
-expected to cover*). Read it there.
+**The checklist lives in one place**: the application's testing document
+(Tile Lite Elite's `docs/4.3.3-testing-ci-and-release.md` §2.2.4, *What a unit
+test is expected to cover*). Read it there.
 
 ## When this fires
 
