@@ -19,6 +19,7 @@ from typing import Callable
 
 from . import refs
 from .model import (
+    PROGRAMME_TOOLING,
     Decision,
     Issue,
     ParentProject,
@@ -331,11 +332,14 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         lambda i: i.ticked_in("Functional user tests — Preview") > 0
                   or i.unticked_in("Functional user tests — Preview") == 0,
     ),
+    # A Programme Tooling and Docs delivery is not one point in time -- many
+    # edits over many commits -- so it takes no milestone (owner, 2026-10-26;
+    # docs/1.2 §1.1). It used to carry `pre-approved`, which met this check.
     Obligation(
         "wp-milestone", DELIVERING, ("Deployment", "Post-deployment"),
-        "a milestone",
+        "a milestone, unless it is Programme Tooling and Docs",
         "a delivery made at one point in time is placed in the sequence",
-        lambda i: bool(i.milestone),
+        lambda i: bool(i.milestone) or i.field("Route") == PROGRAMME_TOOLING,
     ),
     Obligation(
         "wp-built", DELIVERING, ("Deployment",),
