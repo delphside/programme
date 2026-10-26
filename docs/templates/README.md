@@ -65,11 +65,11 @@ one place, whichever half they land on first.
 
 ## Notes
 
-**Why a template rather than the prose that describes it.** `docs/1.9`'s
-"How a test design specification is built" explains what a specification must
-get right. That is the right document to read once; it is the wrong thing to work from every time,
-because turning a description into a document is work repeated at every use, and
-the part you forget is invisible.
+**Why a template rather than the prose that describes it.** `docs/1.9`'s "How a
+test design specification is built" explains what a specification must get
+right. That is the right document to read once; it is the wrong thing to work
+from every time, because turning a description into a document is work repeated
+at every use, and the part you forget is invisible.
 
 **Keep the reasoning out of the template.** The template carries what to write
 and nothing else, with pointers to where the reasoning lives. A template that
