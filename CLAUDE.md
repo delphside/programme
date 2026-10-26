@@ -168,8 +168,11 @@ docs/1.6 records the app it works through.
   back to awaiting review rather than leaving it sitting as answered. The board
   reads both from `reviewDecision`, so skipping the re-request leaves it in the
   wrong column and waiting on nobody.
-- Commits say `Refs #N`, or `Closes #N` only when the change never leaves the
-  repository. Programme BAU work needs no issue: its commits say
+- Commits and pull requests say `Refs #N`, never `Closes #N`: no merge closes
+  an issue, because even a change that never leaves the repository enters
+  Post-deployment at its merge. Each repository has GitHub's auto-close
+  setting off (docs/1.6); the deploy settles its milestone, and anything else
+  is closed by hand (owner, 2026-10-26). Programme BAU work needs no issue: its commits say
   `Activity: <id>` from docs/1.4's register, and `Initiative: <id>` where there
   is one. BAU is its own triage, so a change above its budget
   or to an asset it does not own becomes a project, never a requirement
