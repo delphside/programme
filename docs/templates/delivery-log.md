@@ -13,9 +13,9 @@ before it.*
 
 ## The deliveries
 
-| id | date (UTC) | kind | where | what | outcome |
-| --- | --- | --- | --- | --- | --- |
-| *the release version, production's version plus a letter, or the date (`YYYY.MM.DD-n`) in the infrastructure application's log* | *when it was made or applied; a release's deploy date goes in its outcome* | *release, image, host, drill, service or repository* | *the environment or service it reached* | *the project and delivery, and what it changed* | *for a release, **released, not deployed** until production, then the deploy's date; **done**, or what was descoped, and how it was proved* |
+| id | released (UTC) | deployed (UTC) | kind | where | what | outcome |
+| --- | --- | --- | --- | --- | --- | --- |
+| *the release version, production's version plus a letter, or the date (`YYYY.MM.DD-n`) in the infrastructure application's log* | *for a release, when it was made; otherwise when it was applied* | *when it reached its users; blank while a release is not yet deployed* | *release, image, host, drill, service or repository* | *the environment or service it is for* | *the project and delivery, and what it changed* | *for a release, **released, not deployed** until production; then **done**, or what was descoped, and how it was proved* |
 
 ## What each delivery left behind that git does not show
 
