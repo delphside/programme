@@ -146,8 +146,9 @@ docs/1.6 records the app it works through.
 - Otherwise a branch exists to hold a change back. Branch only when the old
   version is needed while the work is in progress; otherwise commit straight
   to main, which is what pre-approved means. A document-only change never takes a
-  branch: they live too long, main moves, and the review does not happen. Approval is
-  the `pre-approved` milestone; anything else, including none, means not pre-approved. One branch per project, and everything
+  branch: they live too long, main moves, and the review does not happen. A
+  cloud session's branch and pull request are incidental, not the route's. One
+  branch per project, and everything
   the project touches goes on it, its technical documentation included. Programme
   documents, generic assets and records alike (docs/1.3; the list is
   `programme/scripts/board/documents.py`'s), belong to no project and change on main.
@@ -219,13 +220,17 @@ docs/1.6 records the app it works through.
   back on a branch, which then owes a pull request, a milestone and a row in
   the delivery log. The branch is what makes a delivery a point in time; the
   milestone is what places that point in the sequence.
-- **A Requirement never carries a milestone except `pre-approved`** — owner,
-  2026-09-19: *"that is the only way they can deliver change apart from folding
-  into a project."* A requirement is a statement that something should be true;
-  it delivers either by folding into a project, and then the project's work
-  package carries the milestone, or straight to `main` as pre-approved. Any
-  other milestone on a requirement means a delivery happened with no work
-  package to own it. An application's deploy script can warn about this.
+- **A Requirement never carries a milestone.** A requirement is a statement
+  that something should be true; it delivers either by folding into a project,
+  and then the project's work package carries the milestone, or straight to
+  `main` as pre-approved, with none. A milestone on a requirement means a
+  delivery happened with no work package to own it. An application's deploy
+  script can warn about this.
+- **Milestones are only semvers, letters and dates** — owner, 2026-10-26.
+  `pre-approved`, `no-release`, `patch`, `minor` and `major` are retired:
+  `Route` and `Type of change` say what they said. A Programme Tooling and
+  Docs change is delivered, but not at one point in time, so it takes no
+  milestone and no delivery-log row.
 - **A routine update owes what its route owes, and nothing more.** A
   `Production Release` bump (a base image, a dependency, the toolchain) reaches
   `main` by pull request, so CI is its regression check, and waits for the next
@@ -297,12 +302,8 @@ docs/1.6 records the app it works through.
   steps.
 - A release milestone is a shipping list: move out what is not shipping before
   the release is made (docs/1.2 §2.5).
-- `no-release` is provisional. Resolve it to `pre-approved`, a letter or a
-  date milestone before the issue closes, or the record of how the change
-  reached main is lost. `pre-approved` is closed by hand; no deploy settles it.
-- A requirement carries no milestone, unless the change is made directly
-  without raising a project, when it carries `pre-approved`. Any other change
-  needs a project, and the project carries the milestone.
+- A change straight to main, with no milestone, is closed by hand; no deploy
+  settles it.
 - After deploying, run the application's verification and trust exit status,
   not read output. Each application's CLAUDE.md names its script and says
   what a deploy does.

@@ -33,7 +33,7 @@ no work packages is a standalone project, which carries all eight and a
 | Non-functional design | **owns** | answers, or points at the parent's |
 | Test approach | points at its packages' | **owns** |
 | Dependencies and related work | **owns** | links |
-| Deliveries | **owns** — the list, each row a sub-project or `pre-approved` | its own steps |
+| Deliveries | **owns** — the list, each row a sub-project or straight to `main` | its own steps |
 | Post-deployment checks | only for a requirement no delivery satisfies | **owns** — a check is answered per delivery |
 
 **`board-check.py` asks each for what it owes**, telling them apart by the
@@ -159,7 +159,7 @@ time takes a **milestone**, and packages sharing one go live together. The
 milestone never has an issue of its own. The parent owns the requirements,
 the design and the documents, carries no milestone once it has work packages
 (in case A it is the package), and lists its deliveries:
-each row names the work packages it carries, or says `pre-approved`.
+each row names the work packages it carries, or says straight to `main`.
 
 **Four cases decide whether a sub-project is needed at all** — the owner's, and
 `docs/1.2` carries them:
@@ -200,7 +200,7 @@ started* after it had merged. The post-merge hook finds the package from the pul
 request and moves its Project State anyway; the commits it cannot fix.
 
 **A delivery's steps live in one place** — in its sub-project, or under the
-parent's list for a pre-approved one. Never both.
+parent's list for one straight to `main`. Never both.
 
 **The design starts with the as-is.** How the thing works today, then how it
 will work. Owner, 2026-09-03: *"sometimes, especially with the scripts, I don't
@@ -290,7 +290,7 @@ neither is invisible in the same way an untyped one is: the Requirement rules ke
 on `Requirement State` and the Project rules on `Project State`, so an issue with no stage is asked
 for nothing. Typing the ten untyped issues on 2026-09-10 surfaced no findings at
 all until they were given `Triage` as well — one silence exchanged for another.
-A new requirement takes `Requirement State` `Triage`; a new project takes `Project State` `Scope`. Approval is the `pre-approved` **milestone**, not a field — there is no `Pre-approved` field, it was deleted on 2026-09-04.
+A new requirement takes `Requirement State` `Triage`; a new project takes `Project State` `Scope`.
 
 | field or option | id |
 | --- | --- |
