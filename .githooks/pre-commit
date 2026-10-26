@@ -247,8 +247,9 @@ fi
 # deploy or recovery; a branch holds the old version while it is tried on preview
 # or rehearsal. The folders are the technical profile's `scripts.groups` (#447's
 # grouping, #485 stage 2), decided in `board/shipping.py` and asked through
-# `board-shipping.py`, as the image rule is. A one-line correction is fine here,
-# which is why this only says so. Not during a merge: a branch landing on `main`
+# `board-shipping.py`, as the image rule is. Application Tooling always takes a
+# branch (docs/1.2 §2.2); the warning leaves room for the owner's override. Not
+# during a merge: a branch landing on `main`
 # is the rule working. A profile that cannot be read is not "no": `run_board`
 # refuses the commit on exit 70.
 

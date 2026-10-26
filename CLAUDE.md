@@ -143,10 +143,11 @@ docs/1.6 records the app it works through.
   must stabilise while main moves on, not for one delivery. D55. The condition
   that makes this safe lives in the emergency path: cut an emergency from the
   last released tag, never from main.
-- Otherwise a branch exists to hold a change back. Branch only when the old
-  version is needed while the work is in progress; otherwise commit straight
-  to main, which is what pre-approved means. A document-only change never takes
-  a branch: they live too long, main moves, and the review does not happen. A
+- Otherwise the route decides (docs/1.2 §2.2). Application Tooling takes a
+  branch, because main is where it runs; Docs and Programme Tooling commits
+  straight to main, which is what pre-approved means. A document-only change
+  never takes a branch: they live too long, main moves, and the review does not
+  happen. A
   cloud session's branch and pull request are incidental to the route. One
   branch per project, and everything the project touches goes on it, its
   technical documentation included. Programme documents, generic assets and

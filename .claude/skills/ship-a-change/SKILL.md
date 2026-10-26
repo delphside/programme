@@ -16,7 +16,7 @@ The route decides which steps apply.
 | Route | What shipping means |
 | --- | --- |
 | **Production Release** | anything in the image, and what the application installs on its production host. Semver, branch, pull request, the full lap |
-| **Application Tooling** | scripts that build, test, deploy, operate or measure the application, its CI and tests. Branch and pull request, a letter and a row; live at merge, with no deploy |
+| **Application Tooling** | scripts that build, test, deploy, operate or measure the application, its CI and tests, and an application document change large enough to want a branch. Branch and pull request, a letter and a row; live at merge, with no deploy |
 | **Docs and Programme Tooling** | every document changed on its own, and anything else in the repository. Straight to `main` (by pull request from a cloud session); no deploy |
 | **Other** | a console, a cloud resource, host maintenance, preview or rehearsal. Whatever applying it takes, plus a row in the delivery log (`3.n.1`; the infrastructure application's for host maintenance) |
 
