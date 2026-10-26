@@ -105,7 +105,7 @@ The rules are
 | a parent project | none: it has no delivery role |
 | a requirement or project done straight on `main` | `pre-approved` |
 | a work package shipping in a release | the semver |
-| a work package delivering without an image | production's current version plus a letter |
+| a work package delivering without an image, other than host maintenance | production's current version plus a letter |
 | a host-maintenance work package | the infrastructure application's date, `YYYY.MM.DD-n` |
 | work packages delivered together | the same milestone |
 | a decision | none: it routes work |
@@ -117,7 +117,7 @@ need a sub-project issue is 1.2's table in
 [*The model, and the four cases that follow from it*](../../../docs/1.2-change-lifecycle.md#the-model-and-the-four-cases-that-follow-from-it).
 
 **`no-release` is provisional.** It says *not a release* before anybody knows
-how the change will reach `main`. Resolve it to `pre-approved`, a letter or a
+how the change will reach `main`. Resolve it to `pre-approved`, a letter, a date or a
 semver before the issue closes, or the record of how that change was delivered
 is lost.
 
