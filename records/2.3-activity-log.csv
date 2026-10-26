@@ -12,3 +12,4 @@ date,activity,who,note
 2026-10-19,benchmark-run,owner,"engine_timing_results.csv commit 65d0339 — laptop, rehearsal and production; runbook in 3.1.7 capacity-planning"
 2026-10-19,capacity-plan,Claude,TLE_CP_2026_10 — the second; adds the GitHub Actions minutes row
 2026-10-19,improvement-review,owner,"PRG_WD_2026_W43 reviewed; its conclusions agreed, and Claude applied them to 1.1, 1.4, 1.5 and the change reviewer's agent file (programme #49)"
+2026-10-26,board-sweep,Claude,"swept from REST issue fields (GraphQL unreachable from the cloud); TLE #543 and #457 folded into #545; #542 pre-approved; #482 fields set; DP #2 on hold; #538 TLE, #79 and #84 programme, and the Candidate Project 1 order brought to the owner; coordinator context 9%"
