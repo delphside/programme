@@ -6,7 +6,11 @@ Copy to the project's folder as `post-deployment-review.md` and fill it in.
 the work is worst placed to notice what it cost, and best placed to remember
 what happened.
 
-**Where:** a section of the issue body when the project has no other documents, otherwise this file in its folder, pointed to from the body (docs/1.2).
+**Where:** a section of the issue body when the project has no other
+documents, otherwise this file in its folder, pointed to from the body
+(docs/1.2). Either way the body carries section 6's lessons under
+`## Lessons learnt`. When the review is in the body, section 6 takes that title
+without its number.
 
 **When:** once the project's last release is live and has been used — not on
 the day it ships. A week is usually enough for the interesting failures to
@@ -84,7 +88,7 @@ each has cost us something before.
 - **The process** — which rule helped, which was in the way, and which was
   quietly ignored? A rule ignored twice is a defect in the rule
 
-## 6. Lessons worth keeping
+## 6. Lessons learnt
 
 The one or two sentences a future project would want. If there are none, say
 so — a review with nothing to say is a good outcome, and pretending otherwise
