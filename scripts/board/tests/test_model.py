@@ -143,8 +143,8 @@ class TheBoardModel(Cases):
         self.expect("answered post-deployment checks are not reported as missing",
               Answer.MET, ids.get("wp-post-deployment"))
 
-    def test_a_programme_tooling_delivery_owes_no_milestone(self):
-        """a Programme Tooling and Docs delivery owes no milestone; others still do"""
+    def test_a_tooling_delivery_owes_no_milestone(self):
+        """a tooling delivery owes no milestone; a release still does"""
         # Owner, 2026-10-26: it is delivered, but not at one point in time, and
         # the `pre-approved` milestone that used to satisfy this is retired.
         tooling = classify(issue(601, parent=9, fields={"Project State": "Post-deployment",
@@ -153,9 +153,9 @@ class TheBoardModel(Cases):
         self.expect("no milestone is fine on Programme Tooling and Docs", Answer.MET,
               ids.get("wp-milestone"))
         other = classify(issue(602, parent=9, fields={"Project State": "Post-deployment",
-                                                      "Route": "Application Tooling and Docs"}))
+                                                      "Route": "Production Release"}))
         ids = {f.obligation.id: f.answer for f in assess(other)}
-        self.expect("Application Tooling and Docs still owes one", Answer.MISSING,
+        self.expect("a Production Release still owes one", Answer.MISSING,
               ids.get("wp-milestone"))
 
     def test_a_post_deployment_check_is_answered_not_merely_present(self):

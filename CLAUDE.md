@@ -145,12 +145,13 @@ docs/1.6 records the app it works through.
   last released tag, never from main.
 - Otherwise a branch exists to hold a change back. Branch only when the old
   version is needed while the work is in progress; otherwise commit straight
-  to main, which is what pre-approved means. A document-only change never takes a
-  branch: they live too long, main moves, and the review does not happen. A
+  to main, which is what pre-approved means. A document-only change never takes
+  a branch: they live too long, main moves, and the review does not happen. A
   cloud session's branch and pull request are incidental to the route. One
-  branch per project, and everything the project touches goes on it, its technical documentation included. Programme
-  documents, generic assets and records alike (docs/1.3; the list is
-  `programme/scripts/board/documents.py`'s), belong to no project and change on main.
+  branch per project, and everything the project touches goes on it, its
+  technical documentation included. Programme documents, generic assets and
+  records alike (docs/1.3; the list is `programme/scripts/board/documents.py`'s),
+  belong to no project and change on main.
 - A pull request is what gives a review mechanics: a diff, a place to comment,
   a recorded approval, a merge that waits for a tick. Pre-approved does not mean
   unreviewed — it means the discussion was the review, which is enough where a
