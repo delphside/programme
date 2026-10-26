@@ -126,7 +126,7 @@ class TheProgramme(Cases):
 
     def test_the_commits_and_the_board_can_disagree_and_that_is_reported(self):
         """the commits and the board can disagree, and that is reported"""
-        snap = Snapshot((issue(10, fields={"Route": "Programme Tooling and Docs", "Project State": "Scope"}),),
+        snap = Snapshot((issue(10, fields={"Route": "Docs and Programme Tooling", "Project State": "Scope"}),),
                         0.0, 0.0, 1, False)
         got = changes(snap, commits(released=scope(closes=[10])))[0]
         self.expect("shipped, but the board says Scope", True, got.disagrees)
@@ -135,7 +135,7 @@ class TheProgramme(Cases):
         # derivation was what was wrong.
         self.expect("an old mention is not a contradiction", False,
               changes(snap, commits(released=scope(refs=[10])))[0].disagrees)
-        snap = Snapshot((issue(11, fields={"Route": "Programme Tooling and Docs",
+        snap = Snapshot((issue(11, fields={"Route": "Docs and Programme Tooling",
                                            "Project State": "Post-deployment"}),), 0.0, 0.0, 1, False)
         self.expect("shipped and the board agrees", False,
               changes(snap, commits(released=scope(closes=[11])))[0].disagrees)

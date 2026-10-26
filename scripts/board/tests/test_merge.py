@@ -36,7 +36,9 @@ class WhatAMergeMoves(Cases):
         # The Repository Change route split in two (owner, 2026-09-29, #421
         # R4); a merge delivers both, and the deprecated option, under
         # whatever name it now carries, is history that behaves as it did.
-        for route in ("Application Tooling and Docs", "Programme Tooling and Docs",
+        # The two were renamed on 2026-10-26, and the old names still read.
+        for route in ("Application Tooling", "Docs and Programme Tooling",
+                      "Application Tooling and Docs", "Programme Tooling and Docs",
                       "Repository Change", "Repository Change DEPRECATED"):
             self.expect(f"a merge delivers {route}", "Post-deployment",
                         next_phase(wp("User testing", route)))

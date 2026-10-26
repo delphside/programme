@@ -66,8 +66,8 @@ of them means "nothing here".*
 | route | in this delivery | artefacts | branch | PR |
 | --- | --- | --- | --- | --- |
 | **Production Release** | yes/no | | **always yes** | **always yes** |
-| **Application Tooling and Docs** | yes/no | | yes | yes |
-| **Programme Tooling and Docs** | yes/no | | | |
+| **Application Tooling** | yes/no | | yes | yes |
+| **Docs and Programme Tooling** | yes/no | | | |
 | **Other** | yes/no | | | |
 
 *A **Production Release** row set to yes forces a branch and a pull request for
@@ -319,8 +319,8 @@ A new requirement takes `Requirement State` `Triage`; a new project takes
 | … functional | `IFSSO_kgDOBM-zmQ` |
 | `Route` | `IFSS_kgDOAsQ80g` |
 | … Production Release | `IFSSO_kgDOBNeykw` |
-| … Application Tooling and Docs | `IFSSO_kgDOBPfgTQ` |
-| … Programme Tooling and Docs | `IFSSO_kgDOBPfgTg` |
+| … Application Tooling | `IFSSO_kgDOBPfgTQ` |
+| … Docs and Programme Tooling | `IFSSO_kgDOBPfgTg` |
 | … Repository Change DEPRECATED, never set | `IFSSO_kgDOBNeylA` |
 | … Other | `IFSSO_kgDOBNeylg` |
 | `Priority` | `IFSS_kgDOAr9K2w` |

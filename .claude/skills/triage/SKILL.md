@@ -126,7 +126,7 @@ project owns it now; the project carries the milestone and the requirement
 carries none. The `folded` label is the signal.
 
 **Answering "does it reach users" from `Type of change`.** It is `Route`:
-`Application Tooling and Docs` and `Programme Tooling and Docs` are routes, and
+`Application Tooling` and `Docs and Programme Tooling` are routes, and
 `documentation` and `tooling` are types of change.
 
 ## Afterwards

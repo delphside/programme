@@ -25,8 +25,9 @@ from .model import (
     PullRequest,
     Requirement,
     StandaloneProject,
+    PROGRAMME_TOOLING,
     WorkPackage,
-    delivered_by_merge,
+    route_of,
 )
 
 ANY_STEP = ()
@@ -332,15 +333,16 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         lambda i: i.ticked_in("Functional user tests — Preview") > 0
                   or i.unticked_in("Functional user tests — Preview") == 0,
     ),
-    # A tooling change straight to main is not one point in time -- many edits
-    # over many commits -- so it takes no milestone (owner, 2026-10-26; docs/1.2
-    # §1.1). It used to carry `pre-approved`, which met this check. Application
-    # tooling with a branch owes a letter, but nothing here can see the branch.
+    # A Docs and Programme Tooling change goes straight to main and is not one
+    # point in time -- many edits over many commits -- so it takes no milestone
+    # (owner, 2026-10-26; docs/1.2 §1.1). It used to carry `pre-approved`,
+    # which met this check. Application Tooling always takes a branch, so owes
+    # a letter like any other delivery.
     Obligation(
         "wp-milestone", DELIVERING, ("Deployment", "Post-deployment"),
-        "a milestone, unless it is a tooling route",
+        "a milestone, unless it is Docs and Programme Tooling",
         "a delivery made at one point in time is placed in the sequence",
-        lambda i: bool(i.milestone) or delivered_by_merge(i.field("Route")),
+        lambda i: bool(i.milestone) or route_of(i.field("Route")) == PROGRAMME_TOOLING,
     ),
     Obligation(
         "wp-built", DELIVERING, ("Deployment",),

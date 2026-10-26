@@ -20,8 +20,8 @@ artefacts take each route.
 | route | this application's artefacts |
 | --- | --- |
 | Production Release | *what ships, and what the application installs on its production host* |
-| Application Tooling and Docs | *the scripts that build, test, deploy, operate or measure it, and their documents* |
-| Programme Tooling and Docs | *anything else in the repository* |
+| Application Tooling | *the scripts that build, test, deploy, operate or measure it, its CI and tests* |
+| Docs and Programme Tooling | *every document changed on its own, and anything else in the repository* |
 | Other | *cloud resources, GitHub objects, preview and rehearsal deploys* |
 
 ## *Where they live: a host, a cloud provider, a hosted service*
