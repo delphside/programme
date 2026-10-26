@@ -23,11 +23,12 @@ docs/1.6 records the app it works through.
   is continually set aside suggests a defect in the rule: consider changing it.
 - A change that seems possible takes one or more of four vehicles: a
   pre-approved change where it is already agreed and needs no branch, a
-  Requirement issue where what to do about it, if anything, is open, a project
-  where it certainly needs doing, and a note in the next weekly digest where
-  it is a lesson for continual improvement (docs/1.2 *Where a possible change
-  goes*). Raise it quickly. Discussion happens in the comments; the
-  conclusions go in the body, which is edited to stay current.
+  Requirement issue where what to do about it, if anything, is open or how it
+  is grouped or split into projects is not yet decided, a project where it
+  certainly needs doing and that is decided, and a note in the next weekly
+  digest where it is a lesson for continual improvement (docs/1.2 *Where a
+  possible change goes*). Raise it quickly. Discussion happens in the comments;
+  the conclusions go in the body, which is edited to stay current.
 - **Raise quickly, but into an existing requirement where one covers the area.**
   Look first; a new row in a table beats a new number. Seventy-five issues were
   raised in the fourteen days to 2026-09-17 and ten of them were facets of one
