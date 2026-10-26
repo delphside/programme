@@ -17,7 +17,7 @@ The route decides which steps apply.
 | --- | --- |
 | **Production Release** | anything in the image. Semver, branch, pull request, the full lap |
 | **Application Tooling and Docs** | scripts that build, test, deploy, operate or measure the application, and their documents. Branch and pull request; live at merge, with no deploy |
-| **Programme Tooling and Docs** | anything else in the repository. Straight to `main` (from a cloud session, a pull request); no deploy |
+| **Programme Tooling and Docs** | anything else in the repository. Straight to `main` (by pull request from a cloud session); no deploy |
 | **Other** | a console, a cloud resource, a host package, a reboot, preview or rehearsal. Whatever applying it takes, plus a row in the delivery log (`3.n.1`) |
 
 **A delivery has one route.** Work spanning several splits into a delivery each,
@@ -96,15 +96,15 @@ status. Redirect to a file if you need the output.
 
 | Item | How |
 | --- | --- |
-| the delivery-log row | written by hand into the delivery log (`3.n.1`). The release does not write it |
-| a lettered milestone | closed by hand: the letter form is not valid semver, so nothing matches it |
-| post-deployment checks | answered by Claude on the work package, each row, with `passed`, `cannot be tested` or `failed` |
+| the delivery-log row | Claude writes it into the delivery log (`3.n.1`); the release does not |
+| a lettered milestone | closed by hand by the local session: the letter form is not valid semver, so nothing matches it |
+| post-deployment checks | answered by Claude on the work package, each row, from what the owner's production reads return, with `passed`, `cannot be tested` or `failed` |
 
 ## The other routes
 
 | Route | Tried | Milestone | Delivery-log row | Live |
 | --- | --- | --- | --- | --- |
-| Application Tooling and Docs | its first use against production is a post-deployment check | a letter | yes | at merge |
+| Application Tooling and Docs | its tests and CI, on its branch | a letter | yes | at merge |
 | Programme Tooling and Docs | none | `pre-approved`, or none | no; its record is the commit | at the push or merge |
 | Other | as applying it allows | a letter off **production's** current version | yes | when applied |
 

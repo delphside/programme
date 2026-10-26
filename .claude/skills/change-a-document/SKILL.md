@@ -47,7 +47,7 @@ this go?"* is answered by this procedure, never by *"where I already am"*.
 each range holds, who reads it, how it is written and where it differs from
 Google's guide. Write to it; the two document reviewers apply it.
 
-Three homes are easy to miss:
+## Three homes that are easy to miss
 
 - **A new application script** is registered in the application's tools
   register (its technical profile's `documents.tools_registers`; Tile Lite

@@ -95,23 +95,25 @@ The outcome is one of five:
 
 ## What carries a milestone
 
-The rules are [1.2 §1.1](../../../docs/1.2-change-lifecycle.md); in short:
+The rules are
+[1.2 §1.1](../../../docs/1.2-change-lifecycle.md#11-what-a-milestone-says); in short:
 
 | Issue | Milestone |
 | --- | --- |
 | a requirement, ordinarily | none: it is not a thing that ships |
 | a requirement done directly, no project raised | `pre-approved` |
 | a parent project | none: it has no delivery role |
-| work that goes straight to `main` | `pre-approved` |
+| a requirement or project done straight on `main` | `pre-approved` |
 | a work package shipping in a release | the semver |
 | a work package delivering without an image | production's current version plus a letter |
 | work packages delivered together | the same milestone |
 | a decision | none: it routes work |
 
 **What was done decides.** A change that took a branch and a pull request, or
-was applied on a host or in a console, has made a delivery: a milestone and a
-row in the delivery log (`3.n.1`). Which deliveries need a sub-project issue is
-1.2's table in *Every delivery is a work package*.
+was applied on a host or in a console, has made a delivery at one point in time: a milestone and a row in the
+delivery log (`3.n.1`). Which deliveries need a sub-project issue is 1.2's
+table in
+[*The model, and the four cases that follow from it*](../../../docs/1.2-change-lifecycle.md#the-model-and-the-four-cases-that-follow-from-it).
 
 **`no-release` is provisional.** It says *not a release* before anybody knows
 how the change will reach `main`. Resolve it to `pre-approved`, a letter or a
@@ -124,10 +126,9 @@ is lost.
 project owns it now; the project carries the milestone and the requirement
 carries none. The `folded` label is the signal.
 
-**Leaving `no-release` on a closed issue.**
-
 **Answering "does it reach users" from `Type of change`.** It is `Route`:
-`documentation` and `tooling` are not the two tooling routes.
+`Application Tooling and Docs` and `Programme Tooling and Docs` are routes, and
+`documentation` and `tooling` are types of change.
 
 ## Afterwards
 
