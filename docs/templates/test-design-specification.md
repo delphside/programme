@@ -21,7 +21,7 @@ Worked examples:
 These are at the level of Project, if there is one, otherwise issue.
 
 This is NOT a test plan in the standards' sense — that is a management document
-of scope, schedule and resources, which we do not write.  See docs/1.9.
+of scope, schedule and resources, which the programme does not write.  See docs/1.9.
 -->
 
 Issue: #N · type of change: `functional` / … · route: `Production Release` / …

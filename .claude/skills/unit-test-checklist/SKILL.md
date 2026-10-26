@@ -1,12 +1,12 @@
 ---
 name: unit-test-checklist
-description: A nudge to run through RIGHT-BICEP/CORRECT before calling a change's unit tests done. Use whenever writing or reviewing unit tests for new or changed logic. Technical tests — Rehearsal and Functional user tests — Preview are a different question, answered by the test strategy in docs/1.9.
+description: A nudge to run through RIGHT-BICEP/CORRECT before calling a change's unit tests done. Use whenever writing or reviewing unit tests for new or changed logic. Technical tests and functional user tests are a different question, answered by each project's test approach at the levels docs/1.9 sets.
 ---
 
 # Unit test checklist
 
 **The checklist lives in one place**:
-[1.9 *What a unit test is expected to cover*](../../../docs/1.9-testing-standards.md#what-a-unit-test-is-expected-to-cover).
+[1.9 *What a unit test covers*](../../../docs/1.9-testing-standards.md#what-a-unit-test-covers).
 Read it there.
 
 ## When this fires
