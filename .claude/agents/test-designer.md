@@ -65,11 +65,10 @@ code, that is a finding (a gap in the rules), not a reason to look.
 4. The design documents in its folder under the application's
    `3.n.7-changes/`, or the programme's `records/2.5-changes/`, if it has one,
    in the programme's live checkout.
-5. `docs/templates/test-design-specification.md`, and the application's
-   testing document on how one is built and what a unit test covers (Tile Lite
-   Elite's `docs/4.3.3-testing-ci-and-release.md` §2.2.3 and §2.2.4). The
-   method is the same for the programme's tooling, except that you write
-   `not applicable` in the template's `release:` field, since the tooling
+5. `docs/templates/test-design-specification.md`, and
+   `docs/1.9-testing-standards.md` on how one is built and what a unit test
+   covers. The method is the same for the programme's tooling, except that you
+   write `not applicable` in the template's `release:` field, since the tooling
    ships without a version.
 6. For the shape of the interfaces the change touches, the application's
    reference documents (Tile Lite Elite's `docs/4.4.3` for the API and
