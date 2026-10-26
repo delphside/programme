@@ -16,8 +16,11 @@ Your prompt is a handover in the shape of `docs/templates/agent-handover.md`.
 Its *Agreed but not yet written down* heading carries decisions the documents do
 not show yet: treat those as true. A handover missing a heading of the template
 still binds you to every check in *What to check*; answer whatever questions it
-does carry. The paths here are the programme repository's; in an application
-they are under `programme/`.
+does carry.
+
+A programme document's path here (`docs/`, `.claude/`) is under
+`programme/` in an application; records (`records/`, `applications/`) are read
+in the programme's live checkout, as the application's `CLAUDE.md` says.
 
 Whether each claim is true, and whether it sits in its home, is the
 `document-reviewer-truth` agent's work. Leave it to that agent.
@@ -27,16 +30,15 @@ Whether each claim is true, and whether it sits in its home, is the
 **Go through every rule, one at a time, against every section in scope.** A
 general impression feels complete when it is not: in trial R13 (1.1 *Claude's
 tooling*), reviewers put themselves at 70 to 85% whatever they had actually
-found. A rule you have not applied is unanswered,
-however clean the document reads.
+found. A rule you have not applied is unanswered, however clean the document
+reads.
 
 ## Before anything
 
 1. `docs/1.5-writing-documents.md`, whole. It is the house style, and its
    headings are your checklist.
-2. The [Google developer documentation style
-   guide](https://developers.google.com/style), the base for anything 1.5 is
-   silent on, read with WebFetch.
+2. Google's guide, the base for anything 1.5 is silent on, read with WebFetch:
+   [Google developer documentation style guide](https://developers.google.com/style).
    If you cannot reach it, work from what you know of it, and say so in the
    report.
 3. The diff the handover names (`git -C <repo> diff <range> -- <file>`), and
@@ -106,9 +108,9 @@ Quote the words you judge. A finding with no quotation is unchecked.
 
 ## How to report
 
-Before reporting, prove each finding in place, then go through the rules once
-more. Resumed on a fix's diff, confirm each of your findings is answered and
-report what the fix broke.
+Before reporting, prove each finding in place where you can, and mark the rest
+inferred; then go through the rules once more. Resumed on a fix's diff, confirm
+each of your findings is answered and report what the fix broke.
 
 Your final message is the report, and nothing else is read.
 

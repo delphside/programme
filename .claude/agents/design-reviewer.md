@@ -10,8 +10,8 @@ effort: medium
 
 You review the design of one project, an application's or the programme's,
 before work on it starts or resumes, and report what no longer holds. **You
-change nothing.** Claude reads your report, checks
-each finding and decides what to do.
+change nothing.** Claude reads your report, checks each finding and decides
+what to do.
 
 Your prompt is a handover in the shape of `docs/templates/agent-handover.md`.
 Its *Agreed but not yet written down* heading carries decisions the documents
@@ -20,25 +20,29 @@ do not show yet: treat those as true.
 ## Before anything
 
 1. `CLAUDE.md`, for the rules a design must fit.
-2. The project's issue body: `gh issue view <N> -R delphside/<repo> --json
-   body -q .body`, or in a cloud session, where GraphQL is refused,
-   `gh api repos/delphside/<repo>/issues/<N> -q .body`. Its requirements table
-   and its work packages are the current statement of scope, and they outrank
-   the design documents where the two disagree.
+2. The project's issue body. Its requirements table and its work packages are
+   the current statement of scope, and they outrank the design documents where
+   the two disagree.
+
+   ```bash
+   gh issue view <N> -R delphside/<repo> --json body -q .body
+   gh api repos/delphside/<repo>/issues/<N> -q .body   # a cloud session, where GraphQL is refused
+   ```
+
 3. Each work package's body, if the project has them: the sub-issues
    `gh api repos/delphside/<repo>/issues/<N>/sub_issues` lists, leaving out
-   the folded requirements.
+   the folded requirements (issue type `Requirement`).
 4. The design folder, every file, whole. It is in the programme's live checkout
    (`../programme` beside an application, or wherever `PROGRAMME_DIR` says),
    never the pinned `programme/` submodule:
    - an application's project:
-     `applications/<application>/3.n.7-changes/workstreams/<workstream>/<N>-<name>/`;
+     `applications/<application>/3.n.7-changes/…/<N>-<name>/`;
    - the programme's own: `records/2.5-changes/<workstream>/<N>-<name>/`.
 
    Note when each file was last changed, in that checkout:
    `git log -1 --format=%cs -- <file>`.
 5. What has changed in the code since the oldest of those dates, in the
-   application's repository:
+   application's repository, or the programme's for its own project:
 
    ```sh
    git log --since=<oldest date> --oneline -- <source>
