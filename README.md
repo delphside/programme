@@ -28,14 +28,14 @@ applications and their indexes are in [2.1](records/2.1-applications.md).
 
 - The application's repository carries this one as a pinned git submodule at
   `programme/`, and its `CLAUDE.md` imports `programme/CLAUDE.md`. The pin moves
-  by a commit of the application's own. How its skills, agents and hooks reach
-  the programme's is [1.1 *Two kinds of
-  tooling*](docs/1.1-programme-tooling.md#two-kinds-of-tooling)'s.
+  by a commit of the application's own. How its hooks reach the programme's is
+  in
+  [1.1 *Two kinds of tooling*](docs/1.1-programme-tooling.md#two-kinds-of-tooling).
 - Every session has this repository checked out beside the application's, and
   writes records here: a commit to `main` locally, a short-lived branch and
   pull request from a cloud session.
 - One programme board shows every repository's issues
   ([1.6](docs/1.6-github-project-board.md)).
 
-The design is in [the programme repository's
-design](records/2.5-changes/programme-tooling/485-programme-repository/485-design.md).
+The design is in
+[the programme repository's design](records/2.5-changes/programme-tooling/485-programme-repository/485-design.md).
