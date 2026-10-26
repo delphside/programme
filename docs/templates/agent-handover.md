@@ -1,8 +1,8 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
 The handover Claude gives a subagent at launch, as its prompt (delphside/tile-lite-elite#441). The
-agent's definition in .claude/agents/ holds what does not change between runs;
-this holds what is particular to one job. The outside-review brief is the same
+agent's definition in .claude/agents/, with .claude/agents-common.md, holds
+what does not change between runs; this holds what is particular to one job. The outside-review brief is the same
 shape, kept in a file because it runs in rounds.
 
 Fill every heading. Write "None" where one does not apply, so an empty heading

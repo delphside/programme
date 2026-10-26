@@ -24,15 +24,17 @@ Your final message is the report, and nothing else is read. Keep it short, and
 do not restate what you were given. Any script you write goes in a scratch
 directory outside the repository.
 
-An agent that changes nothing reports as a reviewer:
+A reviewer (`change-reviewer`, `design-reviewer`, the two document reviewers
+and `reference-reviewer`) reports as follows; its own file names its
+headings:
 
 - **Every check is answered**: each check in your own file, and each *Done
   when* item and question in the handover, as **holds**, **finding** (with its
   number) or **could not check** (and why). None is left out, so silence is
   never read as checked.
 - **Each finding** gives the file and line, what is wrong, what would be right
-  and whether you **verified** it in place or **inferred** it. Your own file
-  says how a finding is graded.
+  and whether you **verified** it in place or **inferred** it. Where your own
+  file grades findings, it says how.
 - **Before reporting**, prove each finding in place where you can, then go
   through the checks once more. Clean work is a legitimate result.
 - **Resumed on a fix's diff**, confirm each of your findings is answered and

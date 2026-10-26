@@ -90,8 +90,8 @@ Each check is answered by name:
 - **Checks**: every check in *What to check*, and every *Done when* item and
   question in the handover, answered as the common file says, or **already
   checked** (listed in the handover's *Already checked*, not marked *recheck*,
-  and holding on the lines changed since). List the claims you checked and found true in
-  one line, so a claim left unlisted is known to be unchecked.
+  and holding on the lines changed since). List the claims you checked and
+  found true in one line, so a claim left unlisted is known to be unchecked.
 - **Findings**, numbered, most serious first. Each gives:
   - The file and line, and the words quoted.
   - The rule broken, cited as `1.5 *<heading>*`.
