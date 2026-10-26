@@ -145,10 +145,10 @@ docs/1.6 records the app it works through.
   last released tag, never from main.
 - Otherwise the route decides (docs/1.2 §2.2). Application Tooling takes a
   branch, because main is where it runs; Docs and Programme Tooling commits
-  straight to main, which is what pre-approved means. A document-only change
-  never takes a branch: they live too long, main moves, and the review does not
-  happen. A
-  cloud session's branch and pull request are incidental to the route. One
+  straight to main, which is what pre-approved means. A document change takes
+  no branch unless it is large enough to be given Application Tooling: a
+  document branch lives too long, main moves, and the review does not happen.
+  A cloud session's branch and pull request are incidental to the route. One
   branch per project, and everything the project touches goes on it, its
   technical documentation included. Programme documents, generic assets and
   records alike (docs/1.3; the list is `programme/scripts/board/documents.py`'s),

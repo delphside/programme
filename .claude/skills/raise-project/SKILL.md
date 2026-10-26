@@ -75,8 +75,9 @@ the whole delivery — `main` is what gets deployed, so a release commit there
 cannot be guaranteed to work and blocks every other release until it is.*
 
 *Application Tooling always takes a branch; Docs and Programme Tooling and
-Other never do. A document-only change never takes one: they live too long,
-`main` moves, and the review does not happen.*
+Other never do. A document change takes none unless it is large enough to be
+given Application Tooling: a document branch lives too long, `main` moves, and
+the review does not happen.*
 
 *The branch and PR columns answer **yes or no first**, then say which — `yes —
 rides the same branch`, `yes — rides #341`. A cell that only explains has not
