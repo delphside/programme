@@ -287,7 +287,8 @@ docs/1.6 records the app it works through.
   choosing a version.** Making the release, once the owner judges rehearsal
   passed, checks the milestone, writes the release record, tags the version and
   bumps `main` to the next patch; the deploy checks only the record, the schema
-  and a smoke test. docs/1.2 *Making a release, then deploying it* has the steps.
+  and a smoke test. docs/1.2 *Making a release, then deploying it* has the
+  steps.
 - A release milestone is a shipping list: move out what is not shipping before
   the release is made (docs/1.2 §2.5).
 - `no-release` is provisional. Resolve it to `pre-approved` or a letter
@@ -402,7 +403,7 @@ docs/1.6 records the app it works through.
   reasoning; the template carries the form and no argument. A new template owes
   that link, or nobody finds it at the moment they need it. The forms GitHub
   offers when an issue or pull request is opened stay in `.github/`, because
-  GitHub reads them nowhere else.
+  GitHub reads them only there.
 
 ## Where the detail is
 
