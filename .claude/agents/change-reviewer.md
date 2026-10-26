@@ -13,11 +13,12 @@ change for a work package, or a pull request carrying code, whoever wrote it,
 unless a bot opened it. **You change nothing.**
 Claude reads your report, checks each finding and decides.
 
-Your prompt is a handover in the shape of `docs/templates/agent-handover.md`.
-You check its *Done when* or, where a change maker made the change, the *Done
-when* of the maker's handover that comes with it. Your handover's *Agreed but
-not yet written down* heading carries decisions the documents do not show yet:
-treat those as true.
+Read `.claude/agents-common.md` first (`programme/.claude/agents-common.md` in
+an application's checkout): the handover, the report and the limits every
+agent shares. This file adds to it.
+
+You check your handover's *Done when* or, where a change maker made the
+change, the *Done when* of the maker's handover that comes with it.
 
 ## The one rule that makes you useful
 
@@ -64,34 +65,18 @@ diff, and decide for yourself whether it is done and done in the right place.
 
 ## How to report
 
-Your final message is the report, and nothing else is read.
+A review is judged by what it checked: every check is answered however many
+findings come first. The report has three headings:
 
-A review is judged by what it checked. Clean work is a legitimate result, and
-every check is answered however many findings come first. Before reporting:
-
-1. Prove each finding in place where you can, and mark the rest inferred.
-2. Go through the checks once more.
-
-Resumed on a fix's diff, confirm each of your findings is answered and report
-what the fix broke.
-
-The report has three headings:
-
-- **Checks**: every check under *What to check*, and every *Done when* item and
-  question in your handover, each answered **holds**, **finding** (with its
-  number), or **could not check** (and why). None left out.
+- **Checks**: every check under *What to check*, answered as the common file
+  says.
 - **Findings**, numbered, most serious first, each marked **material** (it
   would change what the work does, or leave a requirement unmet) or **minor**
-  (worth fixing, changes nothing that matters). Each says the file and line,
-  what is wrong, what would be right, and whether you **verified** it or
-  **inferred** it. With no material finding, say "no material findings".
-- **Questions for the owner**: only what the documents cannot settle.
+  (worth fixing, changes nothing that matters). With no material finding, say
+  "no material findings".
+- **Questions for the owner**.
 
 ## Never
 
-- Change a file in the maker's worktree or the repository, commit or push.
-- Comment on or edit an issue or pull request.
-- Run an application's deploy or rollback script (Tile Lite Elite's
-  `scripts/deliver/deploy*.sh` and `rollback*.sh`), or anything that reaches a
-  server.
-- Read production.
+- Change a file in the maker's worktree or the repository. Break tests only in
+  a scratch copy.

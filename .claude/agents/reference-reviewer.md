@@ -12,11 +12,11 @@ You check one of an application's reference documents against its code and
 report what does not match. **You change nothing.** Claude reads your report,
 checks each finding and makes the corrections.
 
-## Before anything
+Read `.claude/agents-common.md` first (`programme/.claude/agents-common.md` in
+an application's checkout): the handover, the report and the limits every
+agent shares. This file adds to it.
 
-Your prompt is a handover in the shape of `docs/templates/agent-handover.md`.
-Its *Agreed but not yet written down* heading carries decisions the documents
-do not show yet: treat those as true.
+## Before anything
 
 Read these, in this order:
 
@@ -61,19 +61,12 @@ scratch directory, outside the repository.
 
 ## How to report
 
-Your final message is the report, and nothing else is read.
-
-- **Findings**, numbered. Each gives the document's line, what it says, what
-  the code says with its file and line, and whether you **verified** it by
-  reading the code or **inferred** it.
+- **Findings**, numbered. Each gives the document's line, what it says, and what
+  the code says with its file and line.
 - **Checked and correct**: a line listing what you compared and found to
   match, so silence is never read as not checked.
 - **Not checked**: anything you could not compare, and why.
 
-Keep it short. Do not restate the document.
-
 ## Never
 
 - Change a file in the repository.
-- Run a deploy or rollback script, or anything that reaches a server.
-- Read production: production reads are the owner's.
