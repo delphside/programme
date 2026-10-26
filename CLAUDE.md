@@ -226,20 +226,20 @@ docs/1.6 records the app it works through.
   package carries the milestone, or straight to `main` as pre-approved. Any
   other milestone on a requirement means a delivery happened with no work
   package to own it. An application's deploy script can warn about this.
-- **A routine update owes what its route owes, and nothing more.** A `Production
-  Release` bump (a base image, a dependency, the toolchain) reaches `main` by
-  pull request, so CI is its regression check, and waits for the next release,
-  whose regression testing is the last one; it never justifies a release of its
-  own. Every update is tested for what it changes, on preview and rehearsal
-  (where the application has them) at the branch tip where only a deployed stack
-  can show it. A new toolchain or major version gets a look at its new features;
-  anything that might be worth considering is raised as a requirement, which
-  judges it. Host maintenance (a host package, the container runtime, a kernel,
-  a reboot, hand-set host configuration) has no release to ride, so it is the
-  infrastructure application's delivery: a work package and a row in its
-  delivery log, numbered by date. What an application installs on its host (its
-  scripts, systemd units and the packages it needs) is its release. `docs/1.2`
-  §2.2.1 is the table, and §2.15 the rule.
+- **A routine update owes what its route owes, and nothing more.** A
+  `Production Release` bump (a base image, a dependency, the toolchain) reaches
+  `main` by pull request, so CI is its regression check, and waits for the next
+  release, whose regression testing is the last one; it never justifies a
+  release of its own. Every update is tested for what it changes, on preview and
+  rehearsal (where the application has them) at the branch tip where only a
+  deployed stack can show it. A new toolchain or major version gets a look at
+  its new features; anything that might be worth considering is raised as a
+  requirement, which judges it. Host maintenance (a host package, the container
+  runtime, a kernel, a reboot, hand-set host configuration) has no release to
+  ride, so it is the infrastructure application's delivery: a work package and a
+  row in its delivery log, numbered by date. What an application installs on its
+  host (its scripts, systemd units and the packages it needs) is its release.
+  `docs/1.2` §2.2.1 is the table, and §2.15 the rule.
 - **Who drove the change decides the ceremony, not how big the diff is.** A
   routine dependency bump raised by tooling takes none: a Dependabot pull
   request has no project, no milestone and no delivery-log row, and its commit
@@ -298,8 +298,8 @@ docs/1.6 records the app it works through.
 - A release milestone is a shipping list: move out what is not shipping before
   the release is made (docs/1.2 §2.5).
 - `no-release` is provisional. Resolve it to `pre-approved`, a letter or a
-  date milestone before the issue closes, or the record of how the change reached
-  main is lost. `pre-approved` is closed by hand; no deploy settles it.
+  date milestone before the issue closes, or the record of how the change
+  reached main is lost. `pre-approved` is closed by hand; no deploy settles it.
 - A requirement carries no milestone, unless the change is made directly
   without raising a project, when it carries `pre-approved`. Any other change
   needs a project, and the project carries the milestone.
