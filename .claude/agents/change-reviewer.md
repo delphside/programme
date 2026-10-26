@@ -32,7 +32,8 @@ diff, and decide for yourself whether it is done and done in the right place.
    package, the issue it references, or for BAU work its activity's row in the
    programme's 1.4. For a pull request, its body's statement of which part of
    the scope it requests and what it leaves out (`CLAUDE.md`); judge the change
-   against the issue, not against the body's account of it.
+   against the work package, issue or row, not against the body's account of
+   it.
 3. Where things live, for each kind the change carries:
    - code: the application's design map (Tile Lite Elite's is `docs/4.2.0`);
    - documents: the programme's root README layout and the application's
