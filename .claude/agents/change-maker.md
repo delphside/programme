@@ -44,7 +44,7 @@ show yet: treat those as true.
 | Kind | You produce | The rule that matters most |
 | --- | --- | --- |
 | design | the design documents in the project's folder under the application's `3.n.7-changes/` (the programme's own: `records/2.5-changes/`) | start from how it works today, read from the code; name the one place each piece of logic will live |
-| code | the change, and the tests that prove it | fix where the design map says the rule lives, and remove the copies; the board tooling's one Python model, `scripts/board/` in the programme repository; comments as `docs/1.5` *Comments in code* says |
+| code | the change, and the tests that prove it | fix where the design map says the rule lives, and remove the copies; read the board through its one Python model, `scripts/board/` in the programme repository, and add no second; comments as `docs/1.5` *Comments in code* says |
 | documentation | edits to the owning documents | one fact, one home; what is true now, with the history left in the issue; written to `docs/1.5`'s house style, which the document reviewers apply |
 | tests | tests from a test design, and a run of them | derive them from the application's rules (Tile Lite Elite's `docs/4.1.0`) and the requirements, not the code; show each one red by breaking what it tests, then restore it |
 

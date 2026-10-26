@@ -20,7 +20,7 @@ the two quotas are production reads, which are the owner's (the programme's
 | disk and journal | the production host | [*How the disk and journal rows are measured*](#how-the-disk-and-journal-rows-are-measured) |
 | games in the database and accounts | the admin CLI over loopback | `sa --json games list --status <status>` for each status, `sa --json users list`, `sa size`, `sa scheduler-health` |
 | Resend email quota | Resend's dashboard | [*How the email quota row is measured*](#how-the-email-quota-row-is-measured) |
-| GitHub Actions minutes | the GitHub organisation's billing overview | the month to date |
+| GitHub Actions minutes | the GitHub organisation's billing overview | the month-to-date minutes, read there |
 
 ## The rows of "What is consumed, against what ceiling"
 

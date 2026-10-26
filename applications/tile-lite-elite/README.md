@@ -4,9 +4,9 @@ A multiplayer word-tile game, in production. Its code and its own documents,
 numbered `4.x`, are in the repository
 [`delphside/tile-lite-elite`](https://github.com/delphside/tile-lite-elite);
 its issues are on the programme board, in the Tile Lite Elite view. This folder
-holds the programme's records about it. The numbering is
-[1.5](../../docs/1.5-writing-documents.md#each-range-covers-one-scope)'s, and
-the list of applications is in [2.1](../../records/2.1-applications.md).
+holds the programme's records about it. The numbering is in
+[1.5](../../docs/1.5-writing-documents.md#each-range-covers-one-scope), and
+the list of applications in [2.1](../../records/2.1-applications.md).
 
 | Record | Document |
 | --- | --- |

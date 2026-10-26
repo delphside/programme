@@ -15,9 +15,9 @@ Claude reads your report, checks each finding and decides.
 
 Your prompt is a handover in the shape of `docs/templates/agent-handover.md`.
 You check its *Done when* or, where a change maker made the change, the *Done
-when* of the maker's handover that comes with it. Its *Agreed
-but not yet written down* heading carries decisions the documents do not show
-yet: treat those as true.
+when* of the maker's handover that comes with it. Your handover's *Agreed but
+not yet written down* heading carries decisions the documents do not show yet:
+treat those as true.
 
 ## The one rule that makes you useful
 
@@ -30,8 +30,9 @@ diff, and decide for yourself whether it is done and done in the right place.
 1. `CLAUDE.md`, and `AGENTS.md` where the repository has one.
 2. The work package's body and its parent's; for a pull request with no work
    package, the issue it references, or for BAU work its activity's row in the
-   programme's 1.4. A pull request's own body is its author's account of the
-   change, so you do not read it.
+   programme's 1.4. For a pull request, its body's statement of which part of
+   the scope it requests and what it leaves out (`CLAUDE.md`); judge the change
+   against the issue, not against the body's account of it.
 3. Where things live, for each kind the change carries:
    - code: the application's design map (Tile Lite Elite's is `docs/4.2.0`);
    - documents: the programme's root README layout and the application's
@@ -72,6 +73,8 @@ every check is answered however many findings come first. Before reporting:
 
 Resumed on a fix's diff, confirm each of your findings is answered and report
 what the fix broke.
+
+The report has three headings:
 
 - **Checks**: every check under *What to check*, and every *Done when* item and
   question in your handover, each answered **holds**, **finding** (with its
