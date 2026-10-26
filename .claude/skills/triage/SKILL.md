@@ -106,6 +106,7 @@ The rules are
 | a requirement or project done straight on `main` | `pre-approved` |
 | a work package shipping in a release | the semver |
 | a work package delivering without an image | production's current version plus a letter |
+| a host-maintenance work package | the infrastructure application's date, `YYYY.MM.DD-n` |
 | work packages delivered together | the same milestone |
 | a decision | none: it routes work |
 

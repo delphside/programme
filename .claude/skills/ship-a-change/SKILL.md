@@ -15,10 +15,10 @@ The route decides which steps apply.
 
 | Route | What shipping means |
 | --- | --- |
-| **Production Release** | anything in the image. Semver, branch, pull request, the full lap |
+| **Production Release** | anything in the image, and what the application installs on its production host. Semver, branch, pull request, the full lap |
 | **Application Tooling and Docs** | scripts that build, test, deploy, operate or measure the application, and their documents. Branch and pull request; live at merge, with no deploy |
 | **Programme Tooling and Docs** | anything else in the repository. Straight to `main` (by pull request from a cloud session); no deploy |
-| **Other** | a console, a cloud resource, a host package, a reboot, preview or rehearsal. Whatever applying it takes, plus a row in the delivery log (`3.n.1`) |
+| **Other** | a console, a cloud resource, host maintenance, preview or rehearsal. Whatever applying it takes, plus a row in the delivery log (`3.n.1`; the infrastructure application's for host maintenance) |
 
 **A delivery has one route.** Work spanning several splits into a delivery each,
 and each is its own work package. Documentation is the exception: it rides on
@@ -106,7 +106,7 @@ status. Redirect to a file if you need the output.
 | --- | --- | --- | --- | --- |
 | Application Tooling and Docs | its tests and CI, on its branch | a letter | yes | at merge |
 | Programme Tooling and Docs | none | `pre-approved`, or none | no; its record is the commit | at the push or merge |
-| Other | as applying it allows | a letter off **production's** current version | yes | when applied |
+| Other | as applying it allows | a letter off **production's** current version; for host maintenance, a date (`YYYY.MM.DD-n`) | yes | when applied |
 
 A package upgrade and a reboot are two deliveries, because either can fail
 alone and the record must say which did.
