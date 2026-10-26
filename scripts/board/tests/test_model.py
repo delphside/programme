@@ -152,6 +152,11 @@ class TheBoardModel(Cases):
         ids = {f.obligation.id: f.answer for f in assess(tooling)}
         self.expect("no milestone is fine on Programme Tooling and Docs", Answer.MET,
               ids.get("wp-milestone"))
+        application = classify(issue(603, parent=9, fields={"Project State": "Post-deployment",
+                                                            "Route": "Application Tooling and Docs"}))
+        ids = {f.obligation.id: f.answer for f in assess(application)}
+        self.expect("no milestone is fine on Application Tooling and Docs", Answer.MET,
+              ids.get("wp-milestone"))
         other = classify(issue(602, parent=9, fields={"Project State": "Post-deployment",
                                                       "Route": "Production Release"}))
         ids = {f.obligation.id: f.answer for f in assess(other)}

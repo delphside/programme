@@ -19,8 +19,6 @@ from typing import Callable
 
 from . import refs
 from .model import (
-    APPLICATION_TOOLING,
-    PROGRAMME_TOOLING,
     Decision,
     Issue,
     ParentProject,
@@ -28,6 +26,7 @@ from .model import (
     Requirement,
     StandaloneProject,
     WorkPackage,
+    delivered_by_merge,
 )
 
 ANY_STEP = ()
@@ -341,8 +340,7 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         "wp-milestone", DELIVERING, ("Deployment", "Post-deployment"),
         "a milestone, unless it is a tooling route",
         "a delivery made at one point in time is placed in the sequence",
-        lambda i: bool(i.milestone)
-                  or i.field("Route") in (APPLICATION_TOOLING, PROGRAMME_TOOLING),
+        lambda i: bool(i.milestone) or delivered_by_merge(i.field("Route")),
     ),
     Obligation(
         "wp-built", DELIVERING, ("Deployment",),
