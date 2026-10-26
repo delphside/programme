@@ -43,9 +43,14 @@ code, that is a finding (a gap in the rules), not a reason to look.
 2. The application's rules, by identifier (Tile Lite Elite's
    `docs/4.1.0-rules.md`).
 3. The requirement or project and its comments, and its work packages' bodies
-   if any: `gh issue view <N> -R delphside/<repo> --json body,comments`, or in
-   a cloud session, where GraphQL is refused, `gh api
-   repos/delphside/<repo>/issues/<N>` and its `/comments`.
+   if any:
+
+   ```bash
+   gh issue view <N> -R delphside/<repo> --json body,comments
+   gh api repos/delphside/<repo>/issues/<N>            # a cloud session, where GraphQL is refused
+   gh api repos/delphside/<repo>/issues/<N>/comments
+   ```
+
 4. The design documents in its folder under the application's
    `3.n.7-changes/`, if it has one, in the programme's live checkout.
 5. `docs/templates/test-design-specification.md`, and the application's
@@ -67,8 +72,8 @@ the parts most often got wrong:
   by one where it succeeds. Number scenarios for navigation; name each test for
   the behaviour, never by scenario number.
 - **Coverage both ways**: every rule to its scenarios, and every scenario back
-  to the rules it serves. A scenario serving no rule is either a missing rule
-  or a test with no rule to serve, which is dropped.
+  to the rules it serves. A scenario serving no rule either shows a missing
+  rule, raised as a gap, or is dropped.
 - **Gaps**: a rule that cannot be tested as written, two rules that disagree,
   or a behaviour the requirements leave open. Gaps are a main output.
 

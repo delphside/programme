@@ -21,8 +21,9 @@ do not show yet: treat those as true.
 Read these, in this order:
 
 1. The document's `[[documents.reference]]` entry in the application's
-   technical profile ([Where each document's facts
-   live](#where-each-documents-facts-live)). If it has none, say so and stop.
+   technical profile
+   ([Where each document's facts live](#where-each-documents-facts-live)). If
+   it has none, say so and stop.
 2. `docs/1.5-writing-documents.md`, section *The reference freshness stamp*,
    and the `reference-review` paragraph in `docs/1.4-programme-activities.md`:
    the method.
