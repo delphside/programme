@@ -83,8 +83,8 @@ docs/1.6 records the app it works through.
   its own, treating every use case as a customer feeding requirements for the
   generic thing; each workstream then builds its own functionality on top. The
   test is whether it would exist for only one caller. If it would, it belongs
-  to that caller's project. docs/1.3 says which workstream owns which
-  mechanism.
+  to that caller's project. docs/1.3 says how a mechanism's owning
+  workstream is chosen.
 - **A mechanism ships in the same release as its first customers**, so it is
   tested against a real requirement rather than only against its own tests —
   owner, 2026-09-21. Scoped and designed independently, scheduled jointly: its
@@ -122,8 +122,8 @@ docs/1.6 records the app it works through.
 - **A problem found in testing is fixed on the branch, and the branch is
   retested.** One found after the merge either reopens the package (a new
   branch, back to Development, tested again) or goes in a later package. A
-  merge moves a Production Release package to Deployment and a Repository
-  Change one to Post-deployment; docs/1.2 §2.1 has why. Owner, 2026-09-26.
+  merge moves a Production Release package to Deployment and a tooling-route
+  one to Post-deployment; docs/1.2 §2.1 has why. Owner, 2026-09-26.
 - **A work package is at most one delivery, and so one route.** A delivery may
   carry several packages; a package never spans two deliveries. Building a tool
   and running it are two deliveries with different routes, so two packages
@@ -287,7 +287,7 @@ docs/1.6 records the app it works through.
   choosing a version.** Making the release, once the owner judges rehearsal
   passed, checks the milestone, writes the release record, tags the version and
   bumps `main` to the next patch; the deploy checks only the record, the schema
-  and a smoke test. docs/1.2 *Making a release* has the steps.
+  and a smoke test. docs/1.2 *Making a release, then deploying it* has the steps.
 - A release milestone is a shipping list: move out what is not shipping before
   the release is made (docs/1.2 §2.5).
 - `no-release` is provisional. Resolve it to `pre-approved` or a letter
@@ -394,15 +394,15 @@ docs/1.6 records the app it works through.
   once the owner has reviewed it (until then it may be regenerated, owner
   2026-09-27; afterwards only a reference is updated, when what it points to
   moves), and is not superseded by the next one — the series is what carries
-  the meaning. The capacity plan is the first.
+  the meaning.
 - **Templates live together in `docs/templates/`, and the numbered document that
   owns the rule links to them.** Owner, 2026-09-22: *"Templates fit into
   numbered programme docs but it seems convenient to keep them together and
   reference from the numbered docs."* The document owns the rule and carries the
   reasoning; the template carries the form and no argument. A new template owes
-  that link, or nobody finds it at the moment they need it. The four GitHub
-  fills in for you stay in `.github/`, because it will not read them anywhere
-  else.
+  that link, or nobody finds it at the moment they need it. The forms GitHub
+  offers when an issue or pull request is opened stay in `.github/`, because
+  GitHub reads them nowhere else.
 
 ## Where the detail is
 
