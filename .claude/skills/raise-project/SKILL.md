@@ -1,6 +1,6 @@
 ---
 name: raise-project
-description: Raise a project issue with the seven headings, set its fields, and fold the requirements it takes. Use when a project is being raised, or a requirement is being converted into one.
+description: Raise a project issue with the eight headings, set its fields and fold the requirements it takes. Use when a project is being raised, or a requirement is being converted into one.
 ---
 
 # Raising a project
@@ -17,20 +17,21 @@ folds and closes requirements, which is not trivially reversible.
 **Straight to project is allowed** when the change certainly needs doing and how
 it is grouped or split into projects is decided: no requirement needs raising
 first. Converting an existing requirement is equally fine — edit its body into
-the seven headings and change its type.
+the eight headings and change its type.
 
-## The seven headings
+## The eight headings
 
-**A parent and a work package owe different halves of these** — D51. A project
-with no work packages is a parent that happens to have one delivery, and carries
-all seven.
+**A parent and a work package owe different halves of these.** A project with
+no work packages is a standalone project, which carries all eight and a
+`Route`.
 
 | heading | parent | work package |
 | --- | --- | --- |
 | Requirements | **owns** | links |
 | Design | **owns** | links, adding only what is its own |
-| Impacted artefacts | — | **owns**, and the parent repeats each package's table under its Deliveries list |
-| Test approach | — | **owns** |
+| Impacted artefacts | points at its packages', and repeats each package's table under its Deliveries list | **owns** |
+| Non-functional design | **owns** | answers, or points at the parent's |
+| Test approach | points at its packages' | **owns** |
 | Dependencies and related work | **owns** | links |
 | Deliveries | **owns** — the list, each row a sub-project or `pre-approved` | its own steps |
 | Post-deployment checks | only for a requirement no delivery satisfies | **owns** — a check is answered per delivery |
@@ -85,15 +86,20 @@ answered the question the column asks.*
 is yes, the other rows are **also yes**, riding that same branch and pull
 request — everything the delivery touches goes on it, documentation included.*
 
+## Non-functional design
+
+Capacity, failure, limits and timeouts, secrets and access: each answered, or
+*none, because…*. A limit says where its number came from.
+
 ## Test approach
 
 ### Functional user tests — Preview
 
-- [ ]
+- [ ] **owner** —
 
 ### Technical tests — Rehearsal
 
-- [ ]
+- [ ] **Claude** —
 
 ## Dependencies and related work
 
@@ -105,10 +111,12 @@ links, and `board-check.py` reports a line with none behind it. Only this
 section is read.
 
 ## Deliveries
+
 | # | what it delivers | milestone | steps |
 | --- | --- | --- | --- |
 
 ## Post-deployment checks against requirements
+
 | requirement | how the check is done | |
 | --- | --- | --- |
 ```
@@ -143,13 +151,14 @@ not apply says *"None."*
 listed, or listed but parented elsewhere, is the defect that put delphside/tile-lite-elite#130 and delphside/tile-lite-elite#151
 under delphside/tile-lite-elite#294 while delphside/tile-lite-elite#290 claimed them.
 
-**A work package is a sub-project; a milestone is what groups them** (D51). A
+**A work package is a sub-project; a milestone is what groups them.** A
 work package is a `Project` whose parent is this one, carrying its own milestone,
 artefacts, test approach and post-deployment checks. **Every change has a
 delivery** — it has to reach main — but only a delivery made at one point in
 time takes a **milestone**, and packages sharing one go live together. The
 milestone never has an issue of its own. The parent owns the requirements,
-the design and the documents, carries no milestone, and lists its deliveries:
+the design and the documents, carries no milestone once it has work packages
+(in case A it is the package), and lists its deliveries:
 each row names the work packages it carries, or says `pre-approved`.
 
 **Four cases decide whether a sub-project is needed at all** — the owner's, and
@@ -198,13 +207,13 @@ will work. Owner, 2026-09-03: *"sometimes, especially with the scripts, I don't
 know how they currently work which makes it difficult to understand the
 change."* Reading the code to find out is the author's job, not the reviewer's.
 
-**The two test headings are matched literally** by `verify.sh`, which counts
-unticked boxes. Write "None." under one that does not apply rather than removing
-it.
+**The two test headings are matched by `board-check.py`**, by their opening
+words, which counts unticked boxes under each. Write "None." under one that
+does not apply, and keep the heading.
 
 **A post-deployment check says how it is done**, not what is being checked,
 covers each clause of its requirement, and is answered `passed`, `cannot be
-tested`, or `failed`.
+tested` or `failed`.
 
 **Only rejected options are omitted.** While options are open, number them and
 say what each constrains; once one is chosen only it survives in the body, and
@@ -212,16 +221,13 @@ the reasoning goes in a comment.
 
 ## Writing the body
 
-**Never hard-wrap a paragraph in an issue body.** GitHub Flavoured Markdown
+**Never hard-wrap a paragraph in an issue body.** GitHub Flavored Markdown
 renders a single newline as a line break, so a paragraph wrapped at 76 characters
 comes out ragged and half the width — unlike the repository's documents, where
 markdownlint requires the wrapping. One paragraph is one line, however long.
 
 Structural lines are unaffected and keep their own line: headings, table rows,
 list items, block quotes and fenced code.
-
-**Found 2026-09-09**, by the owner reading a paragraph that would not fill the
-width. Nine issue bodies had been written document-style and needed unwrapping.
 
 ## Creating it
 
@@ -246,8 +252,8 @@ id=$(gh api graphql -f query="{repository(owner:\"${REPO%/*}\",name:\"${REPO#*/}
 untyped**, found by delphside/tile-lite-elite#361 on 2026-09-09. A `updateIssue` mutation after creation
 works, but it is a separate action that can be forgotten, interrupted or fail
 quietly, and an issue with no type is skipped by every rule keyed on type rather
-than reported — `board-check.py` branches on the three names and judges an
-untyped issue by nothing at all. Worse, a typed filter drops it silently: the
+than reported. `board-check.py` now treats an untyped issue as a requirement
+and reports it as untyped. Worse, a typed filter drops it silently: the
 source-requirements check reported *"delphside/tile-lite-elite#252 parents no requirements"* while delphside/tile-lite-elite#331
 **was** parented, because `select(.issueType.name == "Requirement")` excluded it.
 
@@ -275,8 +281,9 @@ gh api graphql -f query='mutation($i:ID!){setIssueFieldValue(input:{issueId:$i,i
 ]}){issue{number}}}' -f i="$id"
 ```
 
-A new project takes `Workstream`, `Project State` (usually `Scope`), `Effort` and
-`Priority`. `Route` when it is known.
+A new project takes `Workstream`, `Type of change`, `Project State`
+(`Scope`), `Effort` and `Priority`. A work package or a standalone project also
+takes `Route` when it is known; a parent never does.
 
 **Set the stage or the phase in the same call as the rest.** An issue with
 neither is invisible in the same way an untyped one is: the Requirement rules key
@@ -285,6 +292,8 @@ for nothing. Typing the ten untyped issues on 2026-09-10 surfaced no findings at
 all until they were given `Triage` as well — one silence exchanged for another.
 A new requirement takes `Requirement State` `Triage`; a new project takes `Project State` `Scope`. Approval is the `pre-approved` **milestone**, not a field — there is no `Pre-approved` field, it was deleted on 2026-09-04.
 
+| field or option | id |
+| --- | --- |
 | `Workstream` | `IFSS_kgDOAsE6Iw` |
 | … Process Definition | `IFSSO_kgDOBNJpTg` |
 | … Programme Tooling | `IFSSO_kgDOBP3fBQ` |
@@ -375,7 +384,8 @@ gh api graphql -f query='{repository(owner:"'"${REPO%/*}"'",name:"'"${REPO#*/}"'
 
 ## Folding the requirements it takes
 
-**Requirements only.** A `Project` absorbed into another follows the section below instead.
+**Requirements only.** A `Project` absorbed into another follows *Moving
+requirements between projects* below instead.
 
 For each one: make it a sub-issue, label it `folded`, close it as completed with
 a comment naming the project.
@@ -384,8 +394,8 @@ a comment naming the project.
 pid=$(gh api graphql -f query='{repository(owner:"'"${REPO%/*}"'",name:"'"${REPO#*/}"'"){issue(number:'"$NUM"'){id}}}' -q '.data.repository.issue.id')
 cid=$(gh api graphql -f query='{repository(owner:"'"${REPO%/*}"'",name:"'"${REPO#*/}"'"){issue(number:NNN){id}}}' -q '.data.repository.issue.id')
 gh api graphql -f query='mutation($p:ID!,$c:ID!){addSubIssue(input:{issueId:$p,subIssueId:$c}){issue{number}}}' -f p="$pid" -f c="$cid"
-gh issue edit NNN --add-label folded
-gh issue close NNN --reason completed --comment "Folded into #$NUM, which owns this requirement from here."
+gh issue edit NNN -R "$REPO" --add-label folded
+gh issue close NNN -R "$REPO" --reason completed --comment "Folded into #$NUM, which owns this requirement from here."
 ```
 
 `addSubIssue` takes `replaceParent:true` to move one that already has a parent.
@@ -428,7 +438,7 @@ enough."*
 ```bash
 programme/scripts/board/board-context.py --write N    # the context header, for N's whole family
 programme/scripts/board/board-check.py                # has it done what its phase claims?
-programme/scripts/board/roadmap-diagram.py --write    # regenerate Tile Lite Elite's docs/4.1.5
+programme/scripts/board/roadmap-diagram.py --write    # regenerate the roadmap (Tile Lite Elite's docs/4.1.5)
 ```
 
 **Never write the context header by hand.** It is generated from the family's
@@ -436,8 +446,8 @@ fields, milestones, pull requests and dependency links, and rewritten whole, so
 a hand edit inside its markers is lost on the next run. Set the facts and
 regenerate.
 
-Commit the regenerated Tile Lite Elite's `docs/4.1.5` — the diagram is derived, so it should not sit
-stale in the working tree.
+Commit the regenerated roadmap, the application's `documents.roadmap` (Tile
+Lite Elite's `docs/4.1.5`): the diagram is derived, so a stale copy is wrong.
 
 ## What goes wrong
 
