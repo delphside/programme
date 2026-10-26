@@ -65,9 +65,9 @@ one place, whichever half they land on first.
 
 ## Notes
 
-**Why a template rather than the prose that describes it.** `docs/1.9`'s "How a test
-design specification is built" explains how one is built and what it must get right. That is
-the right document to read once; it is the wrong thing to work from every time,
+**Why a template rather than the prose that describes it.** `docs/1.9`'s
+"How a test design specification is built" explains what a specification must
+get right. That is the right document to read once; it is the wrong thing to work from every time,
 because turning a description into a document is work repeated at every use, and
 the part you forget is invisible.
 
