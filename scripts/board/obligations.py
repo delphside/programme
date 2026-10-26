@@ -19,6 +19,7 @@ from typing import Callable
 
 from . import refs
 from .model import (
+    APPLICATION_TOOLING,
     PROGRAMME_TOOLING,
     Decision,
     Issue,
@@ -332,14 +333,16 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         lambda i: i.ticked_in("Functional user tests — Preview") > 0
                   or i.unticked_in("Functional user tests — Preview") == 0,
     ),
-    # A Programme Tooling and Docs delivery is not one point in time -- many
-    # edits over many commits -- so it takes no milestone (owner, 2026-10-26;
-    # docs/1.2 §1.1). It used to carry `pre-approved`, which met this check.
+    # A tooling change straight to main is not one point in time -- many edits
+    # over many commits -- so it takes no milestone (owner, 2026-10-26; docs/1.2
+    # §1.1). It used to carry `pre-approved`, which met this check. Application
+    # tooling with a branch owes a letter, but nothing here can see the branch.
     Obligation(
         "wp-milestone", DELIVERING, ("Deployment", "Post-deployment"),
-        "a milestone, unless it is Programme Tooling and Docs",
+        "a milestone, unless it is a tooling route",
         "a delivery made at one point in time is placed in the sequence",
-        lambda i: bool(i.milestone) or i.field("Route") == PROGRAMME_TOOLING,
+        lambda i: bool(i.milestone)
+                  or i.field("Route") in (APPLICATION_TOOLING, PROGRAMME_TOOLING),
     ),
     Obligation(
         "wp-built", DELIVERING, ("Deployment",),
