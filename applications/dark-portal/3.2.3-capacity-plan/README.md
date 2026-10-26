@@ -2,42 +2,47 @@
 
 Dark Portal's answers to the
 [capacity plan template](../../../docs/templates/capacity-plan.md). The plans
-will be `DP_CP_<yyyy>_<mm>.md` in this folder, with their data in
-`measurements.csv` and their charts in `charts/`. None is written yet: the first
-follows the first collection spike, which measures the empty rows below, and
-sets the recurrence.
+are named `DP_CP_<yyyy>_<mm>.md` and kept in this folder, with their data in
+`measurements.csv` and their charts in `charts/`. The first follows the memory
+sizing test of delphside/dark-portal#12, which fills the empty rows; after that
+each plan follows the `capacity-plan` activity in
+[1.4](../../../docs/1.4-programme-activities.md), which also says who writes
+and reviews it.
 
-**Who writes it.** Claude measures and writes it; the owner reviews it.
+**Where the numbers come from.**
 
-**Where the numbers come from.** Host figures are read on the `dark-portal`
-host; the owner runs the commands over SSH. The Blizzard API figures come from
-the collector's own counts, once it exists.
+| Rows | Source | Read by |
+| --- | --- | --- |
+| the collector's and the analysis's memory | the sizing test of delphside/dark-portal#12, then the host | the owner, over SSH |
+| stored data | the size of the stored data on the host | the owner, over SSH |
+| Blizzard API quota | the collector's own request counts | Claude, from the collector's output |
+| host memory, CPU and disk | [*How the host rows are measured*](#how-the-host-rows-are-measured) | the owner, over SSH |
+| Oracle Always Free, account-wide | the Oracle Cloud console | the owner |
 
-**What is planned here.** Dark Portal's own footprint. The host's memory, CPU
-and disk are Infrastructure's to plan
+**What is planned here.** The host's memory, CPU and disk, and the Oracle
+Always Free allowance, are Infrastructure's to plan
 ([489 design](../../infrastructure/3.3.7-changes/489-shared-infrastructure/489-design.md#who-plans-which-capacity-both-at-different-levels));
-they are held here, like the host in [3.2.2](../3.2.2-artefacts.md#the-host),
-until Infrastructure has a capacity plan of its own.
+they are held here until Infrastructure has a capacity plan of its own.
 
 ## The rows of "What is consumed, against what ceiling"
 
-| | consumed | ceiling | headroom |
+| Resource | Consumed | Ceiling | Headroom |
 | --- | --- | --- | --- |
-| **the collector's memory** | | not yet set (DP: Application Architecture) | |
-| **the analysis's memory** (DuckDB) | | not yet set (DP: Market Analysis) | |
-| **stored data** | | not yet set: retention is DP: Application Architecture's | |
+| **the collector's memory** | | not yet set; Application Architecture sets it | |
+| **the analysis's memory** (DuckDB) | | not yet set; Market Analysis sets it | |
+| **stored data** | | not yet set; Application Architecture sets retention | |
 | **Blizzard API quota** | | 36,000 requests an hour, 100 a second (Blizzard's published client limit) | |
 
 Held until Infrastructure plans them:
 
-| | consumed | ceiling | headroom |
+| Resource | Consumed | Ceiling | Headroom |
 | --- | --- | --- | --- |
 | **host memory** | | 6 GB (the VM's shape) | |
-| **host CPU** | | 1 OCPU, not burstable (the VM's shape) | |
-| **host disk** | | the boot volume's size, not yet read | |
+| **host CPU** | | 1 OCPU (Oracle CPU), burstable off (the VM's shape) | |
+| **host disk** | | 47 GB (the boot volume) | |
 | — Docker images | | | |
 | **Oracle Always Free, account-wide** | | | |
-| — A1 cores and memory | | 4 OCPU, 24 GB across all A1 instances (Oracle's Always Free terms) | |
+| — Ampere A1 cores and memory | | 4 OCPU, 24 GB across all A1 instances (Oracle's Always Free terms) | |
 | — block storage | | 200 GB across all volumes (Oracle's Always Free terms) | |
 
 ## How the host rows are measured
