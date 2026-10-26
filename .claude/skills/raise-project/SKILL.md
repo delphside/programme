@@ -74,8 +74,8 @@ of them means "nothing here".*
 the whole delivery — `main` is what gets deployed, so a release commit there
 cannot be guaranteed to work and blocks every other release until it is.*
 
-*The other two rows take a branch only where the old version is needed while the
-work is in progress. A document-only change never takes one: they live too long,
+*Application Tooling always takes a branch; Docs and Programme Tooling and
+Other never do. A document-only change never takes one: they live too long,
 `main` moves, and the review does not happen.*
 
 *The branch and PR columns answer **yes or no first**, then say which — `yes —
