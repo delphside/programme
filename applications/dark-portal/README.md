@@ -1,12 +1,14 @@
 # Dark Portal (application 2)
 
-An analysis tool for the World of Warcraft auction house, in design. Its
-repository is `delphside/dark-portal`, its own documents are numbered `5.x`,
-and its issues appear on the programme board in a view of their own.
-The numbering is in the [root README](../../README.md), and the list of
-applications in [2.1](../../records/2.1-applications.md).
+An analysis tool for the World of Warcraft auction house, in design. Its code
+and its own documents, numbered `5.x`, are in the repository
+[`delphside/dark-portal`](https://github.com/delphside/dark-portal); its issues
+are on the programme board, in the Dark Portal view. This folder holds the
+programme's records about it. The numbering is
+[1.5](../../docs/1.5-writing-documents.md#each-range-covers-one-scope)'s, and
+the list of applications is in [2.1](../../records/2.1-applications.md).
 
-| record | |
+| Record | Document |
 | --- | --- |
 | 3.2.1 | delivery log: not yet written |
 | 3.2.2 | [artefact register](3.2.2-artefacts.md) |

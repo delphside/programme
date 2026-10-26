@@ -4,11 +4,11 @@ A multiplayer word-tile game, in production. Its code and its own documents,
 numbered `4.x`, are in the repository
 [`delphside/tile-lite-elite`](https://github.com/delphside/tile-lite-elite);
 its issues are on the programme board, in the Tile Lite Elite view. This folder
-holds the programme's records about it. The numbering is in the
-[root README](../../README.md), and the list of applications in
-[2.1](../../records/2.1-applications.md).
+holds the programme's records about it. The numbering is
+[1.5](../../docs/1.5-writing-documents.md#each-range-covers-one-scope)'s, and
+the list of applications is in [2.1](../../records/2.1-applications.md).
 
-| record | |
+| Record | Document |
 | --- | --- |
 | 3.1.1 | [delivery log](3.1.1-delivery-log.md) |
 | 3.1.2 | [artefact register](3.1.2-artefacts.md), with the artefacts by route |
