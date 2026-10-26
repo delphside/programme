@@ -207,8 +207,9 @@ will work. Owner, 2026-09-03: *"sometimes, especially with the scripts, I don't
 know how they currently work which makes it difficult to understand the
 change."* Reading the code to find out is the author's job, not the reviewer's.
 
-**The two test headings are matched by `board-check.py`**, by their opening
-words, which counts unticked boxes under each. Write "None." under one that
+**The two test headings are matched by their opening words**: Preview by
+`board-check.py`, both by the release tooling, which count the unticked boxes
+under each. Write "None." under one that
 does not apply, and keep the heading.
 
 **A post-deployment check says how it is done**, not what is being checked,
@@ -251,9 +252,8 @@ id=$(gh api graphql -f query="{repository(owner:\"${REPO%/*}\",name:\"${REPO#*/}
 **This used to be a second step and that is how twenty issues came to be
 untyped**, found by delphside/tile-lite-elite#361 on 2026-09-09. A `updateIssue` mutation after creation
 works, but it is a separate action that can be forgotten, interrupted or fail
-quietly, and an issue with no type is skipped by every rule keyed on type rather
-than reported. `board-check.py` now treats an untyped issue as a requirement
-and reports it as untyped. Worse, a typed filter drops it silently: the
+quietly. `board-check.py` treats an untyped issue as a requirement and reports
+it as untyped. Worse, a typed filter drops it silently: the
 source-requirements check reported *"delphside/tile-lite-elite#252 parents no requirements"* while delphside/tile-lite-elite#331
 **was** parented, because `select(.issueType.name == "Requirement")` excluded it.
 
