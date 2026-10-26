@@ -14,9 +14,10 @@ owner, never assumed.
 **Triage is joint.** If the grouping has not been agreed, ask. Raising a project
 folds and closes requirements, which is not trivially reversible.
 
-**Straight to project is allowed** when the change certainly needs doing: no
-requirement needs raising first. Converting an existing requirement is equally
-fine — edit its body into the seven headings and change its type.
+**Straight to project is allowed** when the change certainly needs doing and how
+it is grouped or split into projects is decided: no requirement needs raising
+first. Converting an existing requirement is equally fine — edit its body into
+the seven headings and change its type.
 
 ## The seven headings
 
