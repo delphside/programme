@@ -101,9 +101,8 @@ The rules are
 | Issue | Milestone |
 | --- | --- |
 | a requirement, ordinarily | none: it is not a thing that ships |
-| a requirement done directly, no project raised | `pre-approved` |
 | a parent project | none: it has no delivery role |
-| a requirement or project done straight on `main` | `pre-approved` |
+| a requirement or project done straight on `main` | none: no single point in time |
 | a work package shipping in a release | the semver |
 | a work package delivering without an image, other than host maintenance | production's current version plus a letter |
 | a host-maintenance work package | the infrastructure application's date, `YYYY.MM.DD-n` |
@@ -116,14 +115,13 @@ time: a milestone and a row in the delivery log (`3.n.1`). Which deliveries
 need a sub-project issue is 1.2's table in
 [*The model, and the four cases that follow from it*](../../../docs/1.2-change-lifecycle.md#the-model-and-the-four-cases-that-follow-from-it).
 
-**`no-release` is provisional.** It says *not a release* before anybody knows
-how the change will reach `main`. Resolve it to `pre-approved`, a letter, a
-date or a semver before the issue closes, or the record of how that change was
-delivered is lost.
+**Milestones are only semvers, letters and dates.** `pre-approved`,
+`no-release`, `patch`, `minor` and `major` are retired: `Route` and `Type of
+change` say what they said.
 
 ## Common mistakes
 
-**Setting `pre-approved` on a requirement that was folded.** Folded means a
+**Setting a milestone on a requirement that was folded.** Folded means a
 project owns it now; the project carries the milestone and the requirement
 carries none. The `folded` label is the signal.
 

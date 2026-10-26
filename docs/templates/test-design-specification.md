@@ -24,9 +24,9 @@ This is NOT a test plan in the standards' sense — that is a management documen
 of scope, schedule and resources, which we do not write.  See Tile Lite Elite's docs/4.3.3 §2.2.3.
 -->
 
-Issue: #N · type: `label` · release: `patch alone` / `minor` / `major`
+Issue: #N · type of change: `functional` / … · route: `Production Release` / …
 <!-- or 
-Project: #N · type: `label` · release: `patch alone` / `minor` / `major`
+Project: #N · type of change: `functional` / … · route: `Production Release` / …
 -->
 
 ## 1. Rules
