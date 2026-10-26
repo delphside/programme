@@ -103,7 +103,7 @@ status. Redirect to a file if you need the output.
 
 | Route | Tried | Milestone | Delivery-log row | Live |
 | --- | --- | --- | --- | --- |
-| Application Tooling and Docs | its tests and CI, on its branch | a letter with a branch; none without | with a branch | at merge |
+| Application Tooling and Docs | its tests and CI | a letter with a branch; none without | with a branch | at merge |
 | Programme Tooling and Docs | none | none | no; its record is the commit | at the push or merge |
 | Other | as applying it allows | a letter off **production's** current version; for host maintenance, a date (`YYYY.MM.DD-n`) | yes | when applied |
 
