@@ -25,7 +25,7 @@ inlines a form is one nobody can copy.
 
 | template | the numbered document that owns its rule |
 | --- | --- |
-| [test-design-specification.md](test-design-specification.md) | [Tile Lite Elite's 4.3.3](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md), *How a test design specification is built* |
+| [test-design-specification.md](test-design-specification.md) | [1.9](../1.9-testing-standards.md#how-a-test-design-specification-is-built), *How a test design specification is built* |
 | [post-deployment-review.md](post-deployment-review.md) | [1.2](../1.2-change-lifecycle.md), the `Post-deployment` phase and lessons learnt |
 | [capacity-plan.md](capacity-plan.md) | [1.2](../1.2-change-lifecycle.md), *Which document goes where* — reports |
 | [agent-handover.md](agent-handover.md) | [1.1](../1.1-programme-tooling.md), the agents' register (delphside/tile-lite-elite#441) |
@@ -65,8 +65,8 @@ one place, whichever half they land on first.
 
 ## Notes
 
-**Why a template rather than the prose that describes it.** Tile Lite Elite's `docs/4.3.3`'s "How a
-test design specification is built" explains the ten parts and why each earns its place. That is
+**Why a template rather than the prose that describes it.** `docs/1.9`'s "How a test
+design specification is built" explains how one is built and what it must get right. That is
 the right document to read once; it is the wrong thing to work from every time,
 because turning a description into a document is work repeated at every use, and
 the part you forget is invisible.

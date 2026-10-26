@@ -6,7 +6,7 @@ Delete these comments as you go.
 Copy it into the project's folder, named for the project number —
   e.g. 174-test-design.md — before completing it.
 
-Guide to completion:  Tile Lite Elite's `docs/4.3.3`'s "How a test design specification is built"
+Guide to completion:  `docs/1.9`'s "How a test design specification is built"
 
 Each of these ten parts is required.  Together they ensure the tests have good
 coverage.  
@@ -21,7 +21,7 @@ Worked examples:
 These are at the level of Project, if there is one, otherwise issue.
 
 This is NOT a test plan in the standards' sense — that is a management document
-of scope, schedule and resources, which we do not write.  See Tile Lite Elite's docs/4.3.3 §2.2.3.
+of scope, schedule and resources, which we do not write.  See docs/1.9.
 -->
 
 Issue: #N · type of change: `functional` / … · route: `Production Release` / …
