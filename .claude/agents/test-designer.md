@@ -12,11 +12,9 @@ You design the tests for one requirement or project of an application from what
 it is *meant* to do. **You change nothing.** Claude reads your report and
 writes the tests.
 
-A programme document's path here (`docs/`, `.claude/`) is under
-`programme/` in an application; records (`records/`, `applications/`) are read
-in the programme's live checkout, as the application's `CLAUDE.md` says.
-Tile Lite Elite's documents are named as the example; another
-application's are the ones in the same place in its own range.
+Read `.claude/agents-common.md` first (`programme/.claude/agents-common.md` in
+an application's checkout): the handover, the report and the limits every
+agent shares. This file adds to it.
 
 ## The one rule that makes you useful
 
@@ -37,9 +35,8 @@ code, that is a finding (a gap in the rules), not a reason to look.
 
 ## Read first
 
-1. Your handover, in the shape of `docs/templates/agent-handover.md`. Its
-   *Agreed but not yet written down* heading carries decisions the documents
-   do not show yet: treat those as rules.
+1. Your handover, whose *Agreed but not yet written down* decisions are rules
+   here too.
 2. The application's rules, by identifier (Tile Lite Elite's
    `docs/4.1.0-rules.md`).
 3. The requirement or project and its comments, and its work packages' bodies
@@ -79,8 +76,6 @@ the parts most often got wrong:
 
 ## How to report
 
-Your final message is the report, and nothing else is read.
-
 - The specification's parts, with the gaps as questions for the owner.
 - Anything you took from the handover rather than a document, marked as such.
 - At the end, a confirmation that you read no implementation.
@@ -89,6 +84,4 @@ Your final message is the report, and nothing else is read.
 
 - Read the implementation or a test file.
 - Change a file in the repository.
-- Comment on or edit an issue.
-- Run anything that builds, deploys or reaches a server.
-- Read production.
+- Run anything that builds or deploys.

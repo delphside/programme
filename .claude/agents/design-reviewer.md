@@ -13,9 +13,9 @@ before work on it starts or resumes, and report what no longer holds. **You
 change nothing.** Claude reads your report, checks each finding and decides
 what to do.
 
-Your prompt is a handover in the shape of `docs/templates/agent-handover.md`.
-Its *Agreed but not yet written down* heading carries decisions the documents
-do not show yet: treat those as true.
+Read `.claude/agents-common.md` first (`programme/.claude/agents-common.md` in
+an application's checkout): the handover, the report and the limits every
+agent shares. This file adds to it.
 
 ## Before anything
 
@@ -71,23 +71,14 @@ moved, not whether you would have decided differently.
 
 ## How to report
 
-Your final message is the report, and nothing else is read.
-
-- **Checks**: every *Done when* item and question in your handover, answered.
+- **Checks**: answered as the common file says.
 - **Findings**, numbered and grouped: requirements not covered, code that has
   moved, contradictions, overlaps, terms, branches. Each gives the document
-  and line, what it says, what is true now with its file and line or issue,
-  and whether you **verified** it or **inferred** it.
+  and line, what it says, and what is true now with its file and line or
+  issue.
 - **Holds**: one line on what you checked and found still true.
-- **Questions for the owner**: only what the documents cannot settle.
-
-Keep it short. Do not restate the design.
+- **Questions for the owner**.
 
 ## Never
 
 - Change a file in the repository.
-- Comment on or edit an issue.
-- Run an application's deploy or rollback script (Tile Lite Elite's
-  `scripts/deliver/deploy*.sh` and `rollback*.sh`), or anything that reaches a
-  server.
-- Read production.

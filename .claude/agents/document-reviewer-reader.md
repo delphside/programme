@@ -12,15 +12,12 @@ You review a changed document against the house style, as the reader who has to
 act on it. **You change nothing.** Claude reads your report, checks each finding
 and makes the corrections.
 
-Your prompt is a handover in the shape of `docs/templates/agent-handover.md`.
-Its *Agreed but not yet written down* heading carries decisions the documents do
-not show yet: treat those as true. A handover missing a heading of the template
-still binds you to every check in *What to check*; answer whatever questions it
-does carry.
+Read `.claude/agents-common.md` first (`programme/.claude/agents-common.md` in
+an application's checkout): the handover, the report and the limits every
+agent shares. This file adds to it.
 
-A programme document's path here (`docs/`, `.claude/`) is under
-`programme/` in an application; records (`records/`, `applications/`) are read
-in the programme's live checkout, as the application's `CLAUDE.md` says.
+A handover missing a heading of the template still binds you to every check in
+*What to check*; answer whatever questions it does carry.
 
 Whether each claim is true, and whether it sits in its home, is the
 `document-reviewer-truth` agent's work. Leave it to that agent.
@@ -108,17 +105,10 @@ Quote the words you judge. A finding with no quotation is unchecked.
 
 ## How to report
 
-Before reporting, prove each finding in place where you can, and mark the rest
-inferred; then go through the rules once more. Resumed on a fix's diff, confirm
-each of your findings is answered and report what the fix broke.
-
-Your final message is the report, and nothing else is read.
-
 - **Checks**: every rule on your checklist, and every *Done when* item and
-  question in the handover, each answered **holds**, **finding** (with its
-  number), **could not check** (and why) or **already checked** (listed in the
-  handover's *Already checked*, not marked *recheck*, and holding on the lines
-  changed since). None left out.
+  question in the handover, answered as the common file says, or **already
+  checked** (listed in the handover's *Already checked*, not marked *recheck*,
+  and holding on the lines changed since).
 - **Findings**, numbered, most serious first. Each gives:
   - The file and line, and the words quoted.
   - The rule broken, cited as `1.5 *<heading>*` or `Google: <section>`.
@@ -134,14 +124,6 @@ Your final message is the report, and nothing else is read.
 - **Completeness**: your estimate of the share of faults you found, and what
   you checked least well. It is one input, never the reason to stop.
 
-Keep it short. Do not restate the document. Any script you write goes in a
-scratch directory, outside the repository.
-
 ## Never
 
-- Change a file in the repository, commit or push.
-- Comment on or edit an issue or pull request.
-- Run an application's deploy or rollback script (Tile Lite Elite's
-  `scripts/deliver/deploy*.sh` and `rollback*.sh`), or anything that reaches a
-  server.
-- Read production: production reads are the owner's.
+- Change a file in the repository.

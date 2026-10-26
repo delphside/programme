@@ -14,7 +14,7 @@ keeps its own code and technical documents in a repository of its own.
 | `config/programme.toml` | what every application shares: the organisation, the board, the accounts, the programme repository and the paths of its registers |
 | `scripts/` | the board model and its commands (`board/`), the documents' checks and generators (`docs/`), the reports (`reports/`) and the tests of all of them (`board/tests/`, `tests/`) |
 | `.githooks/` | the git hooks an application runs through the script in its own `.githooks/`, and `in-submodule/`, which refuses a commit inside the submodule |
-| `.claude/` | the skills and agents every application uses, `hooks/`, the three Claude Code hooks its `settings.json` runs, and `cloud-environment-setup.sh`, the cloud environment's setup script |
+| `.claude/` | the skills and agents every application uses, with `agents-common.md`, which every agent reads first, `hooks/`, the three Claude Code hooks its `settings.json` runs, and `cloud-environment-setup.sh`, the cloud environment's setup script |
 | `.github/workflows/` | `ci.yml`, this repository's CI: the model's tests, the scripts' tests and the documents gate; and `board-add.yml`, which puts every repository's open items on the board |
 | `records/` | records about the whole programme, `2.x`: [2.1 applications](records/2.1-applications.md), [2.2 role holders](records/2.2-roles.md), [2.3 activity log](records/2.3-activity-log.csv), [2.4 weekly digests](records/2.4-weekly-digest/), [2.5 change documents](records/2.5-changes/), [2.6 programme workstreams](records/2.6-workstreams.md) |
 | `applications/<app>/` | one folder per application, with each record under the same suffix, `3.n.x` ([2.1](records/2.1-applications.md#what-each-applications-folder-holds)) |

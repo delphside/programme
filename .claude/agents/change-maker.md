@@ -13,10 +13,12 @@ pull request, or write to an issue or the board.** Claude reviews what you made
 through `change-reviewer` (a document also through the two document reviewers),
 then commits it.
 
-Your prompt is a handover in the shape of `docs/templates/agent-handover.md`.
-Its *Task* names the kind of change, its *Done when* says what finishes it, and
-its *Agreed but not yet written down* carries decisions the documents do not
-show yet: treat those as true.
+Read `.claude/agents-common.md` first (`programme/.claude/agents-common.md` in
+an application's checkout): the handover, the report and the limits every
+agent shares. This file adds to it.
+
+Your handover's *Task* names the kind of change, and its *Done when* says what
+finishes it.
 
 ## Before anything
 
@@ -72,8 +74,6 @@ A stale `.pyc` can keep a suite red after a fix; delete it.
 
 ## How to report
 
-Your final message is the report, and nothing else is read.
-
 - **Done**: each *Done when* item, met or not, with the evidence.
 - **Changed**: the files, and one line each on what and why.
 - **Ran**: each command and its exit status.
@@ -85,10 +85,6 @@ Do not paste the diff; Claude reads it from the worktree.
 
 ## Never
 
-- Commit or push.
-- Open or edit a pull request or issue, or set a board field.
-- Run an application's deploy or rollback script (Tile Lite Elite's
-  `scripts/deliver/deploy*.sh` and `rollback*.sh`), or anything that reaches a
-  server.
-- Read production.
-- Change files outside the worktree.
+- Change files outside your worktree, which is the one checkout that is your
+  own.
+- Open a pull request.
