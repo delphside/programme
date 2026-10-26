@@ -232,21 +232,26 @@ docs/1.6 records the app it works through.
   release of its own. Every update is tested for what it changes, on preview
   and rehearsal (where the application has them) at the branch tip where only a deployed stack can show it. A
   new toolchain or major version gets a look at its new features; anything
-  that might be worth considering is raised as a requirement, which judges it. An `Other` one (a host package, a kernel, a reboot) has no
-  release to ride, so it supplies its own vehicle: work package, letter
-  milestone, delivery-log row. `docs/1.2` §2.2.1 is the table.
+  that might be worth considering is raised as a requirement, which judges it.
+  Host maintenance (a host package, a kernel, a reboot) has no release to
+  ride, so it is the infrastructure application's delivery: a work package and
+  a row in its delivery log, numbered by date. `docs/1.2` §2.2.1 is the table.
+- **What an application installs on its host is a release; the rest of the
+  host is infrastructure.** Its scripts, systemd units and the packages it
+  needs take its semver; OS packages, the kernel, reboots and hand-set host
+  configuration are host maintenance (docs/1.2 §2.15).
 - **Who drove the change decides the ceremony, not how big the diff is.** A
   routine dependency bump raised by tooling takes none: a Dependabot pull
   request has no project, no milestone and no delivery-log row, and its commit
   message is the record. Owner: *"I don't want to introduce ceremony for bau
   updates, especially when they are driven by tooling."* A host or dependency
   change **we** decide on and carry out is the other case — the kernel and
-  package work of 2026-09-19 — and it takes the branch, the project, the letter
-  milestone and the row.
+  package work of 2026-09-19 — and it takes the project, and its route's
+  milestone or date and row.
 - **A change to one of our own assets that reaches the image takes a new
   semver**, not a letter: each application's artefact register (`3.n.2`) lists
   them, and changing one is a Production Release. The letter form is for a delivery that ships **no** application code at all — a
-  host change, a console change, a drill.
+  console change, a drill; host maintenance is numbered by date instead.
 - **Every delivery is a work package.** Work packages sharing a milestone are
   delivered together, and that grouping has no issue of its own — the milestone
   is what identifies it. A parent lists what it delivers, each row naming the
