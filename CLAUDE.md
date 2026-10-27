@@ -268,7 +268,8 @@ docs/1.6 records the app it works through.
 - **A project that is one package is its own work package; otherwise every
   package in a milestoned delivery has a sub-project**, which shows it on the
   board and gives its tests a home of their own. A delivery with no milestone
-  needs one only after a milestoned delivery; docs/1.2 has the table.
+  may have one, where it has its own steps, tests or checks to carry; docs/1.2
+  has the table.
 - A work package is titled `#N WP A Del 1 of 2: what it delivers`, a parent
   `#N MAIN PROJECT: what it is`. `pt P of Q` is added only where a delivery
   carries more than one package, and the packages of one change split by route,
