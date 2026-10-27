@@ -56,7 +56,8 @@ The routes its deliveries take, from [1.2](../1.2-change-lifecycle.md) §2.15.
 
 ## Target architecture
 
-*A link to the application's architecture document.*
+*A link to the application's architecture document or, until it is written, to
+the issue that will write it.*
 
 ## Records
 
