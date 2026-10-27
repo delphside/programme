@@ -58,6 +58,11 @@ docs/1.6 records the app it works through.
   help a lot."*
 - Make a tooling change when something first needs it, not when it occurs to
   you. The requirement is still raised; the doing waits for the need.
+- **A fix goes ahead; an improvement waits for the owner to pick it** — owner,
+  2026-10-27. A fix cites what went wrong and what it cost him; an improvement
+  makes something that works better, and goes on the continual improvement
+  register for the monthly review. A first occurrence is left to review; one
+  that recurs is a candidate for an automatic check (docs/1.4).
 - Claude sweeps, the owner reacts. Claude looks across every open item and
   identifies what can be progressed; the owner should not have to scan the
   board to find work waiting on him. So anything genuinely needing him is
