@@ -100,7 +100,9 @@ R_PROJECT = rest_issue(
     labels=[{"name": "tooling"}], sub_issues_summary={"total": 1},
     issue_dependencies_summary={"total_blocked_by": 1, "total_blocking": 1},
     issue_field_values=[{"issue_field_name": "Project State",
-                         "single_select_option": {"name": "Development"}}])
+                         "single_select_option": {"name": "Development"}},
+                        # Not a single-select, so GraphQL does not read it and REST must not.
+                        {"issue_field_name": "Start date", "value": "2026-10-01"}])
 REST_BASE = f"repos/{OWNER_REPO}"
 
 
@@ -213,6 +215,16 @@ class TheRestFallback(Cases):
             with self.assertRaises(Unavailable) as caught:
                 sources.fetch()
         self.expect("it is not a refusal", False, isinstance(caught.exception, Refused))
+
+        gh = Gh(rest=rest_table())
+        def graphql_cannot_run(args, **kw):
+            if args[:3] == ["gh", "api", "graphql"]:
+                raise OSError("gh not found")
+            return gh(args, **kw)
+        with mock.patch.object(sources.subprocess, "run", graphql_cannot_run):
+            with self.assertRaises(Unavailable):
+                sources.fetch()
+        self.expect("and REST was not asked, though it would have answered", [], gh.rest_calls())
 
     def test_closed_issues_are_read_as_closed(self):
         table = {f"{REST_BASE}/issues?state=closed": [rest_issue(5, state="closed",

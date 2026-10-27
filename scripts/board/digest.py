@@ -20,7 +20,7 @@ report*, because an empty section and an unanswerable question look identical.
 time"*, and 2026-09-27, that the issues he meant are programme overhead,
 `tooling` and `documentation`. So the headline is that count beside the week
 before, every other type is counted with the programme's docs/1.7's reading of it, and what
-the board reports as waiting on the owner. The tooling
+GitHub reports as waiting on the owner. The tooling
 share stays as an observation: its 45% figure is provisional and its horizon is
 #383 finishing, not a date. Until 2026-09-27 this module still reported the
 share against a 45% threshold and a 2026-10-17 date, and asked for a
