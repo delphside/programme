@@ -8,8 +8,8 @@ resources and the commands that read them) are in a README beside its plans.
 **A report, not a document.** It records what was true on the day it was
 measured, and afterwards is only corrected, never reworked. Last month's is not
 superseded by this month's: the series is what says whether a number is moving,
-which is the one question a single measurement cannot answer. docs/1.2, "Which document goes
-where".
+which is the one question a single measurement cannot answer. docs/1.2,
+"Which document goes where".
 
 **Named `<CODE>_CP_<yyyy>_<mm>.md`**, because a report gets mailed, pasted and
 dropped on desktops, and the name has to mean something once it is off the
