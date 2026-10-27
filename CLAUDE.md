@@ -404,11 +404,11 @@ docs/1.6 records the app it works through.
   `3.n.3-capacity-plan/`), one file per period, named `<OWNER>_<CODE>_<period>.md`, where the owner's code is the application's in
   records/2.1, or `PRG` for a programme-wide report.** Owner, 2026-09-22 —
   the name has to mean something once it has left the folder. It is neither a numbered document
-  nor a change document: it records what was true at a moment, is never edited
-  once the owner has reviewed it (until then it may be regenerated, owner
-  2026-09-27; afterwards only a reference is updated, when what it points to
-  moves), and is not superseded by the next one — the series is what carries
-  the meaning.
+  nor a change document: it records what was true at a moment, may be
+  regenerated until the owner has reviewed it (owner, 2026-09-27), and
+  afterwards is corrected but never reworked: a broken link or a wrong value is
+  fixed, and the content is not kept open (owner, 2026-10-27). It is not
+  superseded by the next one — the series is what carries the meaning.
 - **Templates live together in `docs/templates/`, and the numbered document that
   owns the rule links to them.** Owner, 2026-09-22: *"Templates fit into
   numbered programme docs but it seems convenient to keep them together and
