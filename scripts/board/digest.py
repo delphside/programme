@@ -37,10 +37,8 @@ from __future__ import annotations
 
 import collections
 import re
-import subprocess
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from pathlib import Path
 
 from . import profile, repo
 from .model import classify
@@ -113,7 +111,6 @@ class Digest:
     # The review half (the programme's docs/1.4, owner 2026-09-27): lessons collated, and the
     # two registers tracked. None means not available, which is not "none".
     lessons: list[tuple[int, str, str]] = field(default_factory=list)
-    own_lessons: list[tuple[str, str]] | None = None
     # Projects closed in the window with neither lessons nor a delegation: the
     # closedown obligation is checked only while an issue is open.
     unlessoned: list[tuple[int, str]] = field(default_factory=list)
@@ -475,31 +472,9 @@ class RoundCount:
         return by_reviewer + "By round: " + "; ".join(per(k) for k in rounds) + gap
 
 
-def claude_lessons(memory_repo: Path, start: str) -> list[tuple[str, str]] | None:
-    """The feedback notes Claude added to its memory in the window: its own
-    lessons, which live outside this repository (owner, 2026-09-27). None when
-    the memory repository is not on this machine."""
-    if not (memory_repo / ".git").exists():
-        return None
-    run = subprocess.run(["git", "-C", str(memory_repo), "log", "--diff-filter=A", f"--since={start}",
-                          "--name-only", "--format=", "--", "projects/*/memory/feedback_*.md"],
-                         capture_output=True, text=True)
-    if run.returncode:
-        return None
-    out = []
-    for name in sorted(set(run.stdout.split())):
-        path = memory_repo / name
-        if not path.exists():
-            continue
-        m = re.search(r"^description:\s*(.+)$", path.read_text(), re.M)
-        out.append((path.stem.removeprefix("feedback_").replace("_", " "),
-                    m.group(1).strip().strip('"') if m else ""))
-    return out
-
-
 def build(open_snapshot: Snapshot, closed_snapshot: Snapshot | None,
           since: str, until: str = "HEAD", registers: str = "",
-          memory_repo: Path | None = None, merged_prs=None) -> Digest:
+          merged_prs=None) -> Digest:
     d = Digest(since=since, until=until)
     start = window_start(since)
 
@@ -539,7 +514,6 @@ def build(open_snapshot: Snapshot, closed_snapshot: Snapshot | None,
     d.unlessoned = unlessoned_projects(closed_raw, start)
     d.reviews = review_rounds(merged_prs) if merged_prs is not None else None
     d.unrecorded = unrecorded(merged_prs) if merged_prs is not None else None
-    d.own_lessons = claude_lessons(memory_repo, start) if memory_repo else None
     d.problems = register_rows(registers, "The problem register")
     d.initiatives = register_rows(registers, "The continual improvement register")
     return d
@@ -749,18 +723,6 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     out.append("")
     out.append("*To be written at the weekly review, as the programme's docs/1.4 says.*")
     out.append("")
-    out.append("### Claude's own, added to its memory this week")
-    out.append("")
-    if d.own_lessons is None:
-        out.append("*Not available: the memory repository is not on this machine.*")
-    elif d.own_lessons:
-        for name, description in d.own_lessons:
-            out.append(f"- **{name}**: {description}")
-            out.append(f"  - {CONCLUDE}")
-    else:
-        out.append("None added this week.")
-    out.append("")
-
     # The registers are the programme's docs/1.4's; the digest reports them, new ones marked.
     for title, rows, what in (("Recurring problems", d.problems, "problem"),
                               ("Improvement initiatives", d.initiatives, "initiative")):

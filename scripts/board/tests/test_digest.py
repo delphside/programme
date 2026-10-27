@@ -24,11 +24,9 @@ import collections
 import re
 import unittest
 
-import subprocess
-import tempfile
 from pathlib import Path
 
-from board.digest import (CONCLUDE, RoundCount, note_records, review_rounds, unrecorded, unlessoned_projects, DRAFT, Digest, with_conclusions, Window, claude_lessons, draft, in_window, issue_lessons,
+from board.digest import (CONCLUDE, RoundCount, note_records, review_rounds, unrecorded, unlessoned_projects, DRAFT, Digest, with_conclusions, Window, draft, in_window, issue_lessons,
                           notes_for_write, notes_of, register_rows, render, section, MEASURED_AT)
 from board.model import RawIssue
 from board.sources import MergedPullRequest
@@ -213,25 +211,9 @@ class TheReview(Cases):
         self.expect("an open initiative is shown", True, "`CI-2` ongoing work: in progress" in text)
         self.expect("a finished one is not", False, "finished work" in text)
 
-    def test_claudes_own_lessons_come_from_the_memory_repository(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = Path(tmp)
-            git = lambda *a: subprocess.run(["git", "-C", tmp, "-c", "user.email=t@t", "-c", "user.name=t", *a],
-                                            check=True, capture_output=True)
-            git("init", "-q")
-            mem = repo / "projects" / "p" / "memory"
-            mem.mkdir(parents=True)
-            (mem / "feedback_stub_the_outward.md").write_text("---\nname: x\ndescription: stub what the script reaches\n---\n")
-            (mem / "project_status.md").write_text("---\ndescription: not a lesson\n---\n")
-            git("add", "-A"); git("commit", "-q", "-m", "x")
-            found = claude_lessons(repo, "2000-01-01")
-            self.expect("a feedback note is a lesson, a project note is not",
-                        [("stub the outward", "stub what the script reaches")], found)
-        self.expect("no repository is not available, not none", None, claude_lessons(Path("/nonexistent"), "2000-01-01"))
-
-    def test_unavailable_reads_differently_from_none(self):
-        self.expect("not available", True, "*Not available: the memory repository" in render(digest(own_lessons=None)))
-        self.expect("none", True, "None added this week." in render(digest(own_lessons=[])))
+    def test_there_is_no_memory_section(self):
+        # The programme's docs/1.4, owner 2026-10-27: a lesson goes in the draft's notes.
+        self.expect("Claude's memory is not read", False, "added to its memory" in render(digest()))
 
 
 class ReviewAndNotes(Cases):
@@ -272,10 +254,6 @@ class Conclusions(Cases):
         text = render(digest(lessons=[(1, "a", "first"), (2, "b", "second")]))
         self.expect("one per lesson", 2, text.count(CONCLUDE))
 
-    def test_each_of_claudes_own_lessons_has_one(self):
-        text = render(digest(own_lessons=[("x", "one"), ("y", "two"), ("z", "three")]))
-        self.expect("one per lesson", 3, text.count(CONCLUDE))
-
     def test_each_note_has_one_whatever_its_shape(self):
         self.expect("a bullet, with its continuation line kept above it", 2,
                     with_conclusions("- one\n  more of one\n- two").count(CONCLUDE))
@@ -293,7 +271,7 @@ class Conclusions(Cases):
 
     def test_nothing_to_conclude_asks_for_nothing(self):
         self.expect("an empty week has no conclusions to decide", 0,
-                    render(digest(own_lessons=[])).count(CONCLUDE))
+                    render(digest()).count(CONCLUDE))
 
     def test_the_owners_box_is_ticked_by_claude_when_he_says(self):
         self.expect("so no review means editing a file", True,
