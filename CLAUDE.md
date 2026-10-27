@@ -268,8 +268,8 @@ docs/1.6 records the app it works through.
 - **A project that is one package is its own work package; otherwise every
   package in a milestoned delivery has a sub-project**, which shows it on the
   board and gives its tests a home of their own. A delivery with no milestone
-  may have one, where it has its own steps, tests or checks to carry; docs/1.2
-  has the table.
+  may have one to carry its own steps, tests or checks; docs/1.2 has the
+  table.
 - A work package is titled `#N WP A Del 1 of 2: what it delivers`, a parent
   `#N MAIN PROJECT: what it is`. `pt P of Q` is added only where a delivery
   carries more than one package, and the packages of one change split by route,
@@ -277,15 +277,16 @@ docs/1.6 records the app it works through.
   counts go stale and are kept anyway: a title saying `Del 1 of 2` is wrong
   loudly where `Del 1` is silently incomplete. They are derivable from the
   milestones; nothing checks them yet.
-- The parent owns the requirements, the design and the documents; a work
-  package links to them and carries its own artefacts, test approach and
-  post-deployment checks, because a check is answered per delivery. The parent
-  needs no milestone and no Route: it has no delivery role, and both answer how
-  a change reaches its users. One could be derived from the packages, but it
-  would be information rather than a fact about the parent. A milestone may still
-  be set — a target release, say — and is then ignored: making the release
-  leaves the parent out of the record, so no deploy settles it. A Route may
-  not: `board-check.py` reports one on a parent, because in delphside/tile-lite-elite#297 parents were given routes to silence
+- The parent owns the requirements, the design and the documents; a work package
+  links to them and carries its own artefacts, test approach and post-deployment
+  checks, because a check is answered per delivery. A parent with sub-projects
+  needs no milestone and no Route: it has no delivery role (with none, it is the
+  work package), and both answer how a change reaches its users. One could be
+  derived from the packages, but it would be information rather than a fact
+  about the parent. A milestone may still be set — a target release, say — and
+  is then ignored: making the release leaves the parent out of the record, so no
+  deploy settles it. A Route may not: `board-check.py` reports one on a parent,
+  because in delphside/tile-lite-elite#297 parents were given routes to silence
   a report that had asked for the wrong thing.
 - The parent runs Scope, the queue, and Design and Test Approach, then stops —
   oversight is a design role. It may reach Post-deployment for a requirement no

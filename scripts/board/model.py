@@ -523,7 +523,8 @@ class ParentProject(Project):
 
 @dataclass(frozen=True)
 class WorkPackage(Project):
-    """One delivery of a parent project. Carries a Route and a milestone."""
+    """One delivery of a parent project. Carries a Route, and a milestone where
+    its delivery has one."""
 
     @property
     def route(self) -> str | None:
