@@ -264,12 +264,12 @@ docs/1.6 records the app it works through.
   is what identifies it. A parent lists what it delivers, each row naming the
   work packages that share a milestone or saying straight to main. The four
   cases are in docs/1.2 §1.1.
-- **A project with one delivery is its own work package; with several, every
-  milestoned delivery has a sub-project.** Owner, 2026-10-26: it gives each
-  delivery visibility and makes us think it through, its tests included. A
-  delivery with no milestone has one where it comes after a milestoned one,
-  because the parent has been settled and cannot hold its phase, and may have
-  one before, to carry what the parent should not. docs/1.2 has the table.
+- **A project that is one package in one delivery is its own work package;
+  otherwise every package in a milestoned delivery has a sub-project.** Owner,
+  2026-10-26: it gives each delivery visibility and makes its tests thought
+  through. A delivery with no milestone needs a sub-project after a milestoned
+  delivery, whose release settles the parent, and may have one before.
+  docs/1.2 has the table.
 - A work package is titled `#N WP A Del 1 of 2: what it delivers`, a parent
   `#N MAIN PROJECT: what it is`. `pt P of Q` is added only where a delivery
   carries more than one package. The counts go stale and are kept anyway: a

@@ -14,7 +14,7 @@ sidebar, not here.*
 
 | artefact | new or modified | route |
 | --- | --- | --- |
-| | new · modified | repository · host · service |
+| | new · modified · reuse | Production Release · Application Tooling · Docs and Programme Tooling · Other |
 
 ### Context
 

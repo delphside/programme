@@ -82,11 +82,12 @@ section is read.
 | --- | --- | --- | --- | --- |
 
 *Then one subsection per delivery: its artefacts as a table, a row per route,
-then its steps. `Route` is a property of the artefact (`docs/1.2` §2.15) and a
-delivery has one route, so a table with two routes marked yes is a delivery
-that needs splitting. Say `no` and a dash rather
-than dropping a row: an absent row and an empty one read the same, and only one
-of them means "nothing here".*
+each named with **new**, **modified** or **reuse** and why, such as `deploy.sh
+(modified: reads the record)`; then its steps. `Route` is a property of the
+artefact (`docs/1.2` §2.15) and a delivery has one route, so a table with two
+routes marked yes, other than documents riding the branch, is a delivery that
+needs splitting. Say `no` and a dash rather than dropping a row: an absent row
+and an empty one read the same, and only one of them means "nothing here".*
 
 ### Delivery 1 — <what it delivers>
 
@@ -111,8 +112,8 @@ rides the same branch`, `yes — rides #341`. A cell that only explains has not
 answered the question the column asks.*
 
 *One branch serves the delivery, not one per row. Where a Production Release row
-is yes, the other rows are **also yes**, riding that same branch and pull
-request — everything the delivery touches goes on it, documentation included.*
+is yes, the documents it changes are **also yes**, riding that same branch and
+pull request.*
 
 *Steps: the runbook, in order, after the table.*
 
@@ -162,18 +163,10 @@ the design and the documents, carries no milestone once it has work packages
 (in case A it is the package), and lists its deliveries:
 each row names the work packages it carries, or says straight to `main`.
 
-**Four cases decide whether a sub-project is needed at all** — the owner's, and
-`docs/1.2` carries them:
-
-| | work packages | sub-projects |
-| --- | --- | --- |
-| **A** | one, one delivery | **none.** The parent is the work package and carries the milestone |
-| **B** | two, going live together | two, **the same** milestone; the parent lists one delivery carrying both |
-| **C** | two, going live separately | two, **different** milestones; two deliveries |
-| **D** | three, two together | three; two deliveries, one carrying two packages |
-
-**Case A is the common shape.** Do not create a sub-project for a project with
-one delivery — the parent and the child would say the same thing.
+**Whether a delivery needs a sub-project** is `docs/1.2` *The model, and the
+four cases that follow from it*: read it there. **Case A, one package in one
+delivery, is the common shape**, and takes no sub-project: the parent and the
+child would say the same thing.
 
 ## Naming
 
