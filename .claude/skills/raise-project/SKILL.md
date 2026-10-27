@@ -160,7 +160,8 @@ and takes no sub-project: the parent and the child would say the same thing.
 packages of one change split by route may share a letter, as `docs/1.2` *Naming*
 says. `Del 1 of 2` is which delivery carries it. `pt 1 of 2` is its share of
 that delivery and **is omitted when the delivery carries one package** —
-`pt 1 of 1` says nothing. It is what makes a shared delivery visible from a listing.
+`pt 1 of 1` says nothing. It is what makes a shared delivery visible from a
+listing.
 
 The parent's number is repeated in every child so a title sort groups the family.
 

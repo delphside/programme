@@ -279,15 +279,15 @@ docs/1.6 records the app it works through.
   milestones; nothing checks them yet.
 - The parent owns the requirements, the design and the documents; a work package
   links to them and carries its own artefacts, test approach and post-deployment
-  checks, because a check is answered per delivery. A parent with sub-projects (a
-  parent with none is the work package) needs no milestone and no Route: it has
-  no delivery role, and both answer how a change reaches its users. One could be
-  derived from the packages, but it would be information rather than a fact
-  about the parent. A milestone may still be set — a target release, say — and
-  is then ignored: making the release leaves the parent out of the record, so no
-  deploy settles it. A Route may not: `board-check.py` reports one on a parent,
-  because in delphside/tile-lite-elite#297 parents were given routes to silence
-  a report that had asked for the wrong thing.
+  checks, because a check is answered per delivery. A parent with sub-projects
+  (a parent with none is the work package) needs no milestone and no Route: it
+  has no delivery role, and both answer how a change reaches its users. One
+  could be derived from the packages, but it would be information rather than a
+  fact about the parent. A milestone may still be set — a target release, say —
+  and is then ignored: making the release leaves the parent out of the record,
+  so no deploy settles it. A Route may not: `board-check.py` reports one on a
+  parent, because in delphside/tile-lite-elite#297 parents were given routes to
+  silence a report that had asked for the wrong thing.
 - The parent runs Scope, the queue, and Design and Test Approach, then stops —
   oversight is a design role. It may reach Post-deployment for a requirement no
   single delivery satisfies, and Project Closedown to close. A work package may
