@@ -354,6 +354,14 @@ class DocumentReviews(Cases):
         shared = RoundCount().add("- R2 reader — x — y (from a fix to R1 truth reader)")
         self.expect("a reviewer who shared the finding fixed is not crossed", 0, shared.crossed)
 
+    def test_a_finding_on_resume_is_counted_and_named(self):
+        c = RoundCount().add("- R1 truth — x — y\n"
+                             "- R1 reader — x — z (from a fix to R1 truth) (on resume)\n"
+                             "- R2 reader — x — w (from a fix to R1 truth)")
+        self.expect("one on resume", 1, c.on_resume)
+        self.expect("still from a fix and crossed", (2, 2), (c.from_fix, c.crossed))
+        self.expect("the summary names it", True, "found on resume: 1" in c.summary())
+
     def test_a_round_or_owner_with_nothing_is_not_counted(self):
         c = RoundCount().add("- R3 reader — none\n- R3 none\n- owner — not reviewed")
         self.expect("nothing", ({}, 0), (dict(c.by_reviewer), c.owner))
@@ -452,8 +460,8 @@ class DocumentReviews(Cases):
         example = re.search(r"```text\n(- R1 reader.*?)```", doc, re.S).group(1)
         c = RoundCount().add(example)
         self.expect("counts",
-                    ({"reader": 2, "truth": 3}, 1, 1, 1, 1, 0, 4, 370),
-                    (dict(c.by_reviewer), c.both, c.from_fix, c.crossed, c.missed, c.owner,
+                    ({"reader": 3, "truth": 3}, 1, 2, 2, 1, 1, 0, 5, 370),
+                    (dict(c.by_reviewer), c.both, c.from_fix, c.crossed, c.on_resume, c.missed, c.owner,
                      c.findings, c.tokens))
 
     def test_rounds_in_the_notes_are_counted_for_a_change_with_no_pull_request(self):

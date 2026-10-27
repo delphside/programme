@@ -50,9 +50,9 @@ source you have not opened is unchecked, however plausible it reads.
 - Every changed section is in scope.
 - Where the handover asks for a document whole, every section is; report a
   fault in unchanged text as **pre-existing**.
-- Where the handover's *Already checked* lists claims, check the others, the
-  entries marked *recheck*, and the lines changed since against every listed
-  claim.
+- Check the whole change in every round; you do not raise a point the
+  handover's *Already checked* lists as settled unless Claude has marked it
+  *recheck*.
 
 ## What to check
 
@@ -89,9 +89,9 @@ Each check is answered by name:
 
 - **Checks**: every check in *What to check*, and every *Done when* item and
   question in the handover, answered as the common file says, or **already
-  checked** (listed in the handover's *Already checked*, not marked *recheck*,
-  and holding on the lines changed since). List the claims you checked and
-  found true in one line, so a claim left unlisted is known to be unchecked.
+  checked** (settled in the handover's *Already checked* and not marked
+  *recheck*). List the claims you checked and found true in one line, so a
+  claim left unlisted is known to be unchecked.
 - **Findings**, numbered, most serious first. Each gives:
   - The file and line, and the words quoted.
   - The rule broken, cited as `1.5 *<heading>*`.

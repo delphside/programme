@@ -34,11 +34,11 @@ enough.
 
 ## Already checked
 
-For a review in rounds, what earlier rounds checked and found sound (claims
-for the truth lens, rules or sections for the reader lens), copied from their
-reports, so this round covers the rest. Claude marks *recheck* an entry a fix
-has touched since; a listed rule still applies to the lines changed since.
-"None" in the first round.
+For a review in rounds, the points earlier rounds settled: findings fixed or
+decided against, copied from their reports. This round still reviews the whole
+change, and does not raise a listed point again unless Claude has marked it
+*recheck*, as it does where a fix has touched it since. "None" in the first
+round.
 
 ## Agreed but not yet written down
 
