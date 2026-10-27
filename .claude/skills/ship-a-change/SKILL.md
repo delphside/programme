@@ -22,8 +22,8 @@ The route decides which steps apply.
 
 **A delivery has one route.** Work spanning several splits into a delivery each,
 and each delivery is one or more work packages. Documentation is the exception:
-it rides on the branch it accompanies (`docs/1.2` §2.15, *A document is never
-Other*).
+it rides the branch of the delivery it accompanies, where that has one
+(`docs/1.2` §2.15 *Route*, *A document is never Other*).
 
 **A Requirement never carries a milestone.** If the thing shipping is a
 requirement, it needs a work package to own the delivery, or the record says a

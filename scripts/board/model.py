@@ -507,8 +507,8 @@ class ParentProject(Project):
     """Owns requirements, design and documents. Makes no delivery itself.
 
     Carries no Route and no milestone: both answer how a change reaches its
-    users, and a parent has no delivery role. Its work packages carry one
-    each. See #297 — a report asked a parent for a route and named the wrong
+    users, and a parent has no delivery role. Its work packages carry a Route
+    each, and a milestone where their delivery has one. See #297 — a report asked a parent for a route and named the wrong
     thing to fix, and two parents were given one to silence it.
     """
 
@@ -537,7 +537,7 @@ class WorkPackage(Project):
 
 @dataclass(frozen=True)
 class StandaloneProject(Project):
-    """One delivery, with no work packages under it. Carries both."""
+    """One delivery, with no work packages under it. Carries both, the milestone where its delivery has one."""
 
     @property
     def route(self) -> str | None:
