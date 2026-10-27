@@ -113,10 +113,12 @@ class Unavailable(Exception):
 
 
 class Refused(Unavailable):
-    """`gh` ran and GitHub said no. A cloud session's token is refused GraphQL
-    and the search API while REST answers, so a caller with a REST route for the
-    same facts may take it on this and on nothing else: a read that could not be
-    made at all stays `Unavailable`."""
+    """`gh` ran and exited non-zero: a refusal, which is what a cloud session's
+    token gets from GraphQL and the search API while REST answers, but also a
+    network failure, a rate limit or an error in the answer. A caller with a REST
+    route for the same facts may take it on this and on nothing else, and REST
+    must then answer or raise: a read that could not be made at all stays
+    `Unavailable`."""
 
 
 @dataclass(frozen=True)
@@ -984,8 +986,10 @@ def _rest_to_raw(rest: _Rest, owner: str, repo: str, n: dict) -> RawIssue:
     if n.get("parent_issue_url"):
         parent = int(n["parent_issue_url"].rstrip("/").split("/")[-1])
     # GraphQL's `value` of a single-select is the option's name.
-    fields = {v["issue_field_name"]: (v.get("single_select_option") or {}).get("name", v.get("value"))
-              for v in n.get("issue_field_values") or [] if v.get("issue_field_name")}
+    # Single-select only, as the GraphQL query reads, so both routes give one snapshot.
+    fields = {v["issue_field_name"]: v["single_select_option"]["name"]
+              for v in n.get("issue_field_values") or []
+              if v.get("issue_field_name") and (v.get("single_select_option") or {}).get("name")}
     return RawIssue(
         number=n["number"], title=n.get("title") or "", state=(n.get("state") or "").upper(),
         body=n.get("body") or "", issue_type=(n.get("type") or {}).get("name"),

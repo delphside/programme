@@ -82,9 +82,9 @@ class TheBrake(Cases):
 
     def test_what_is_waiting_on_the_owner_is_listed_or_said_to_be_nothing(self):
         self.expect("nothing waiting says nothing", True,
-                    "**Nothing** the board reports as waiting on you" in render(digest()))
+                    "**Nothing** GitHub reports as waiting on you" in render(digest()))
         one = render(digest(waiting=[(407, "Programme BAU", "tick R3")]))
-        self.expect("one thing is singular", True, "**1** thing the board reports" in one)
+        self.expect("one thing is singular", True, "**1** thing GitHub reports" in one)
         self.expect("and says what is asked", True, "#407 Programme BAU: tick R3" in one)
 
     def test_the_share_is_an_observation_not_a_verdict(self):

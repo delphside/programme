@@ -623,13 +623,13 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     out.append("")
     if d.waiting:
         things = "thing" if len(d.waiting) == 1 else "things"
-        out.append(f"**{len(d.waiting)}** {things} the board reports as waiting on you:")
+        out.append(f"**{len(d.waiting)}** {things} GitHub reports as waiting on you:")
         out.append("")
         for number, title, action in d.waiting:
             ref = f"#{number}" if isinstance(number, int) else number
             out.append(f"- {ref} {title}: {action}")
     else:
-        out.append("**Nothing** the board reports as waiting on you.")
+        out.append("**Nothing** GitHub reports as waiting on you.")
     if d.waiting_unread:
         out.append("")
         out.append("*Not read, so not counted:* open pull requests in "
