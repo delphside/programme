@@ -82,12 +82,8 @@ section is read.
 | --- | --- | --- | --- | --- |
 
 *Then one subsection per delivery: its artefacts as a table, a row per route,
-each named with **new**, **modified** or **reuse** and why, such as `deploy.sh
-(modified: reads the record)`; then its steps. `Route` is a property of the
-artefact (`docs/1.2` §2.15) and a delivery has one route, so a table with two
-routes marked yes, other than documents riding the branch, is a delivery that
-needs splitting. Say `no` and a dash rather than dropping a row: an absent row
-and an empty one read the same, and only one of them means "nothing here".*
+then its steps. How to fill it in is `docs/1.2`, "Deliveries: one subsection
+per delivery, a table per subsection".*
 
 ### Delivery 1 — <what it delivers>
 
@@ -97,23 +93,6 @@ and an empty one read the same, and only one of them means "nothing here".*
 | **Application Tooling** | yes/no | | yes | yes |
 | **Docs and Programme Tooling** | yes/no | | | |
 | **Other** | yes/no | | | |
-
-*A **Production Release** row set to yes forces a branch and a pull request for
-the whole delivery — `main` is what gets deployed, so a release commit there
-cannot be guaranteed to work and blocks every other release until it is.*
-
-*Application Tooling always takes a branch; Docs and Programme Tooling and
-Other never do. A document change takes none unless it is large enough to be
-given Application Tooling: a document branch lives too long, `main` moves, and
-the review does not happen.*
-
-*The branch and PR columns answer **yes or no first**, then say which — `yes —
-rides the same branch`, `yes — rides #341`. A cell that only explains has not
-answered the question the column asks.*
-
-*One branch serves the delivery, not one per row. Where a Production Release row
-is yes, the documents it changes are **also yes**, riding that same branch and
-pull request.*
 
 *Steps: the runbook, in order, after the table.*
 
@@ -160,12 +139,12 @@ delivery** — it has to reach main — but only a delivery made at one point in
 time takes a **milestone**, and packages sharing one go live together. The
 milestone never has an issue of its own. The parent owns the requirements,
 the design and the documents, carries no milestone once it has work packages
-(in case A it is the package), and lists its deliveries:
+(where it has none, it is the package), and lists its deliveries:
 each row names the work packages it carries, or says straight to `main`.
 
 **Whether a delivery needs a sub-project** is `docs/1.2` *The model, and the
-four cases that follow from it*: read it there. **Case A, one package in one
-delivery, is the common shape**, and takes no sub-project: the parent and the
+four cases that follow from it*. **Case A, one package, is the common
+shape**, and takes no sub-project: the parent and the
 child would say the same thing.
 
 ## Naming
@@ -193,8 +172,7 @@ seventeen of its commits named the parent and `board-status.py` reported it *not
 started* after it had merged. The post-merge hook finds the package from the pull
 request and moves its Project State anyway; the commits it cannot fix.
 
-**A delivery's steps live in one place** — in its sub-project, or under the
-parent's list for one straight to `main`. Never both.
+**A delivery's steps live in one place**: `docs/1.2` §2.14.
 
 **The design starts with the as-is.** How the thing works today, then how it
 will work. Owner, 2026-09-03: *"sometimes, especially with the scripts, I don't

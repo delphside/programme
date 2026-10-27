@@ -12,7 +12,7 @@ sidebar, not here.*
 
 ### Impacted artefacts
 
-| artefact | new or modified | route |
+| artefact | new, modified or reuse, and why | route |
 | --- | --- | --- |
 | | new · modified · reuse | Production Release · Application Tooling · Docs and Programme Tooling · Other |
 
