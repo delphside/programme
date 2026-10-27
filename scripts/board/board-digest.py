@@ -30,9 +30,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from board import records  # noqa: E402
+from board import profile, records  # noqa: E402
 from board.digest import build, draft, notes_for_write, render, report_code, window_start  # noqa: E402
-from board.sources import Unavailable, fetch, merged_pull_requests  # noqa: E402
+from board.sources import Unavailable, fetch, merged_pull_requests, open_pull_requests  # noqa: E402
 
 
 def main(argv=None) -> int:
@@ -68,9 +68,21 @@ def main(argv=None) -> int:
     except Unavailable:
         merged = None
 
+    # Pull requests waiting on the owner in the programme's and every other
+    # repository the programme file names. This application's are in the snapshot.
+    own = "/".join(profile.repository())
+    other_prs, unread = {}, []
+    for repository in profile.watched_repositories():
+        if repository == own:
+            continue
+        try:
+            other_prs[repository] = open_pull_requests(repository)
+        except Unavailable:
+            unread.append(repository)
+
     registers = records.activity_register().read_text()
     digest = build(open_snapshot, closed, since=args.since, registers=registers,
-                   merged_prs=merged)
+                   merged_prs=merged, other_prs=other_prs, unread=unread)
     text = render(digest, args.decided)
 
     if args.write:
