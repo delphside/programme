@@ -47,7 +47,7 @@ docs/1.6 records the app it works through.
 - **A settled decision is never maintained; the document carrying it is** —
   the general rule under *Documentation*, applied to decisions.
 - **Options live in the body, numbered, each saying what it constrains**, so one
-  issue can be read and settled rather than assembled from a thread.
+  issue can be read and settled rather than assembled from a thread (owner).
 - Make a tooling change when something first needs it, not when it occurs to
   you. The requirement is still raised; the doing waits for the need.
 - **A change the weekly review proposes is a fix or an improvement** — owner,
@@ -69,12 +69,12 @@ docs/1.6 records the app it works through.
   description, workstream, priority, type of change. Then scope (options,
   dependencies, effort), then project planning. Outcomes: solo project,
   grouped project, straight to main, on hold, cancelled.
-- **Related change goes in one project, so it is designed once** and design
-  is not coordinated across projects (owner, 2026-09-21). A different route is
-  not a reason to split a project — it
-  is a reason to split a delivery, which is what a work package already is. Two
-  projects are right where deciding one does not constrain the other, and then
-  a link under *Dependencies and related work* is enough.
+- **Related change goes in one project, so it is designed once** (owner,
+  2026-09-21), and as little design as possible is coordinated across projects.
+  A different route is not a reason to split a project — it is a reason to split
+  a delivery, which is what a work package already is. Two projects are right
+  where deciding one does not constrain the other, and then a link under
+  *Dependencies and related work* is enough.
 - **The exception is a shared mechanism**, which is owned by one workstream and
   designed to by the others — owner, 2026-09-21. It gets a delivery project of
   its own, treating every use case as a customer feeding requirements for the
@@ -196,7 +196,7 @@ docs/1.6 records the app it works through.
   **production's current version** with a letter appended, or for host
   maintenance a date. Production's, not the development version, because the
   development version is intent and can change, and a letter pinned to it can
-  name a release that never exists.
+  name a release that is never made.
 - `Route` belongs to the **artefact**, and **a delivery has one route**. Work
   touching artefacts with different routes is split into a delivery per route,
   each taking the shape its own route needs. A project might deliver its script
@@ -241,10 +241,9 @@ docs/1.6 records the app it works through.
 - **Who drove the change decides the ceremony, not how big the diff is.** A
   routine dependency bump raised by tooling takes none: a Dependabot pull
   request has no project, no milestone and no delivery-log row, and its commit
-  message is the record (owner). A host or dependency
-  change **we** decide on and carry out is the other case — the kernel and
-  package work of 2026-09-19 — and it takes the project, a milestone (a date
-  for host maintenance) and a row.
+  message is the record (owner). A host or dependency change **we** decide on
+  and carry out is the other case — the kernel and package work of 2026-09-19 —
+  and it takes the project, a milestone (a date for host maintenance) and a row.
 - **A change to one of our own assets that reaches the image takes a new
   semver**, not a letter: each application's artefact register (`3.n.2`) lists
   them, and changing one is a Production Release. The letter form is for a
@@ -273,11 +272,11 @@ docs/1.6 records the app it works through.
   checks, because a check is answered per delivery. A parent with sub-projects
   (a parent with none is the work package) needs no milestone and no Route: it
   has no delivery role, and both answer how a change reaches its users. A
-  milestone may still be set — a target release, say —
-  and is then ignored: making the release leaves the parent out of the record,
-  so no deploy settles it. A Route may not: `board-check.py` reports one on a
-  parent, because in delphside/tile-lite-elite#297 parents were given routes to
-  silence a report that had asked for the wrong thing.
+  milestone may still be set — a target release, say — and is then ignored:
+  making the release leaves the parent out of the record, so no deploy settles
+  it. A Route may not: `board-check.py` reports one on a parent, because in
+  delphside/tile-lite-elite#297 parents were given routes to silence a report
+  that had asked for the wrong thing.
 - The parent runs Scope, the queue, and Design and Test Approach, then stops —
   oversight is a design role. It may reach Post-deployment for a requirement no
   single delivery satisfies, and Project Closedown to close. A work package may
@@ -303,15 +302,14 @@ docs/1.6 records the app it works through.
 
 ## Tests, checks and decisions
 
-- **Reading jobs with a defined file set, and a work package's change, go to
-  an agent; triage, decisions and anything touching production stay with
-  Claude.** Each agent runs on the model its file sets, and a review runs in
-  rounds until one finds no material issue — owner, 2026-10-14. docs/1.1 has
-  which model, how a round runs and what makes a good
-  agent task. A document change is reviewed by `document-reviewer-reader` and
-  `document-reviewer-truth`, against docs/1.5's house style, and a pull request
-  carrying code by `change-reviewer`, whoever wrote the code; a pull request a
-  bot opened owes no review rounds.
+- **Reading jobs with a defined file set, and a work package's change, go to an
+  agent; triage, decisions and anything touching production stay with Claude.**
+  Each agent runs on the model its file sets, and a review runs in rounds until
+  one finds no material issue — owner, 2026-10-14. docs/1.1 has which model, how
+  a round runs and what makes a good agent task. A document change is reviewed
+  by `document-reviewer-reader` and `document-reviewer-truth`, against
+  docs/1.5's house style, and a pull request carrying code by `change-reviewer`,
+  whoever wrote the code; a pull request a bot opened owes no review rounds.
 - Test conditions derive from stated rules, not from the code. Each
   application's rules are stated in its own documents, and the programme
   tooling's in the programme's numbered documents.
@@ -339,10 +337,10 @@ docs/1.6 records the app it works through.
 ## Documentation
 
 - **Look up the industry's word before inventing one, and look inside the
-  standard you have already adopted** (owner, 2026-09-21 and 2026-09-22): ITIL
-  first, for service management. Take the term and the shape of the
-  practice, leave the ceremony that needs more people than this has, and say
-  which practice an answer came from. docs/1.2 has the mapping tables.
+  standard you have already adopted** (owner, 2026-09-21 and 2026-09-22): ITIL,
+  where it has the practice. Take the term and the shape of the practice, leave
+  the ceremony that needs more people than this has, and say which practice an
+  answer came from. docs/1.2 has the mapping tables.
 - **The first rule did not stop it, so here is the test.** On 2026-09-22, in the
   commit adopting C4, I invented a view called *Runtime* that C4 already has as
   *Dynamic*, and labelled a Deployment diagram as a Container one. Before naming
@@ -361,12 +359,12 @@ docs/1.6 records the app it works through.
   line of reason. History, argument and quotations go in the issue or the
   commit. docs/1.5 has the detail.
 - **The documents live; the issues expire** (owner, 2026-09-21). A `docs/N.N`
-  file answers what is true now and is edited whenever that
-  changes. An issue answers what was argued and when, and once it closes that is
-  all it answers. So when something changes, change the document — do not edit a
-  closed issue to agree with it, and do not cite one as the authority for a
-  rule. A line added to a closed issue at the moment it is superseded is a
-  record; editing one to keep it true is the thing to avoid.
+  file answers what is true now and is edited whenever that changes. An issue
+  answers what was argued and when, and once it closes that is all it answers.
+  So when something changes, change the document — do not edit a closed issue to
+  agree with it, and do not cite one as the authority for a rule. A line added
+  to a closed issue at the moment it is superseded is a record; editing one to
+  keep it true is the thing to avoid.
 - At a process step, consult the owning document. A process question with a
   choice still open is a **`Decision` issue** — the GitHub issue type, carrying
   `Decision State` and an `Agreed Decision` heading that `board-check.py`
@@ -390,11 +388,10 @@ docs/1.6 records the app it works through.
   superseded by the next one — the series is what carries the meaning.
 - **Templates live together in `docs/templates/`, and the numbered document that
   owns the rule links to them** (owner, 2026-09-22). The document owns the rule
-  and carries the
-  reasoning; the template carries the form and no argument. A new template owes
-  that link, or nobody finds it at the moment they need it. The forms GitHub
-  offers when an issue or pull request is opened stay in `.github/`, because
-  GitHub reads them only there.
+  and carries the reasoning; the template carries the form and no argument. A
+  new template owes that link, or nobody finds it at the moment they need it.
+  The forms GitHub offers when an issue or pull request is opened stay in
+  `.github/`, because GitHub reads them only there.
 
 ## Where the detail is
 

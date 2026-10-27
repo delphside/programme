@@ -102,9 +102,8 @@ per delivery, a table per subsection".*
 | --- | --- | --- |
 ```
 
-**The source requirements are listed as well as parented** (owner,
-2026-09-08), separately from the requirements table, which moves on during
-scoping.
+**The source requirements are listed as well as parented** (owner, 2026-09-08),
+separately from the requirements table, which may move on during scoping.
 
 | | is | changes when |
 | --- | --- | --- |
@@ -118,8 +117,7 @@ statement of the work and does.
 
 **A decision is not a source requirement.** It routes work — it raises or adds
 requirements and is then closed — so it is named in the `from` column of the
-rows it produced, never in the source list, where `board-check.py` reports it
-as a source with no parent link: nothing folds a decision.
+rows it produced, never in the source list: nothing folds a decision.
 
 **A project raised directly says so** rather than leaving the line out — `none —
 raised directly as a project, so R1 and R2 are its own`. An absent line cannot be
@@ -127,8 +125,8 @@ told from an unanswered one, which is the same reason a test approach that does
 not apply says *"None."*
 
 **The two must agree with the sub-issues.** A requirement parented here but not
-listed, or listed but parented elsewhere, sits under one project while another
-claims it.
+listed, or listed but parented elsewhere, is a defect: the requirement sits
+under a project whose body does not claim it.
 
 **A work package is carried by a sub-project or by the parent; a milestone is
 what groups them** (`docs/1.2` §1.1 defines them). A sub-project is a `Project`
@@ -165,12 +163,12 @@ The parent's number is repeated in every child so a title sort groups the family
 
 **A branch is named for the work package, not the parent** — `415-admin-cli-…`,
 not `400-…`. Commits say `Refs` the branch's number, and the board credits a
-work package only with commits naming it. **Splitting a project that already has a
-branch means renaming the branch to the package it now carries**, before the next
-commit, or every commit names the parent and `board-status.py` reports the
-package *not started* after it has merged. The post-merge hook finds the package
-from the pull request and moves its Project State anyway; the commits it cannot
-fix.
+work package only with commits naming it. **Splitting a project that already has
+a branch means renaming the branch to the package it now carries**, before the
+next commit, or every later commit names the parent and `board-status.py`
+reports the package *not started* after it has merged. The post-merge hook finds
+the package from the pull request and moves its Project State anyway; the
+commits it cannot fix.
 
 **A delivery's steps live in one place**: `docs/1.2` §2.14.
 
@@ -223,8 +221,8 @@ id=$(gh api graphql -f query="{repository(owner:\"${REPO%/*}\",name:\"${REPO#*/}
 
 An `updateIssue` mutation after creation works, but it is a separate action
 that can be forgotten, interrupted or fail quietly. `board-check.py` treats an
-untyped issue as a requirement and reports it as untyped, and a filter on type
-drops it silently.
+untyped issue as a requirement and reports it as untyped, but an ad-hoc filter
+on type (a `jq select`, say) drops it silently.
 
 To change the type of an issue that already exists — converting a requirement to
 a project — the mutation is still the way:
@@ -255,10 +253,10 @@ A new project takes `Workstream`, `Type of change`, `Project State`
 takes `Route` when it is known; a parent never does.
 
 **Set the stage or the phase in the same call as the rest.** An issue with
-neither is invisible in the same way an untyped one is: the Requirement rules key
-on `Requirement State` and the Project rules on `Project State`, so an issue with no stage is asked
-for nothing. A new requirement takes `Requirement State` `Triage`; a new project takes
-`Project State` `Scope`.
+neither is invisible in the same way an untyped one is: the Requirement rules
+key on `Requirement State` and the Project rules on `Project State`, so an issue
+with no stage is asked for nothing. A new requirement takes `Requirement State`
+`Triage`; a new project takes `Project State` `Scope`.
 
 | field or option | id |
 | --- | --- |
@@ -329,7 +327,8 @@ gh api graphql -f query='mutation($i:ID!){deleteIssueFieldValue(input:{issueId:$
 ```
 
 **The mutation nests the field under `issueField`**; `fieldId` at the top
-level is rejected. The shape that works:
+level is rejected with *"Argument 'issueField' on InputObject
+'UpdateIssueFieldValueInput' is required"*. The shape that works:
 
 ```bash
 gh api graphql -f query='mutation($i:ID!){updateIssueFieldValue(input:{issueId:$i,issueField:{fieldId:"IFSS_kgDOAsBg2A",singleSelectOptionId:"IFSSO_kgDOBNDpVw"}}){clientMutationId}}' -f i="$id"
@@ -383,17 +382,17 @@ behind puts the requirement under a project whose body no longer claims it.
 gh api graphql -f query='mutation($p:ID!,$c:ID!){addSubIssue(input:{issueId:$p,subIssueId:$c,replaceParent:true}){issue{number}}}' -f p="$pid" -f c="$cid"
 ```
 
-**A project whose requirements have all moved out can be closed.** It owns
-nothing, so it has nothing left to do. Say in the comment which projects took
-what, and pick whatever close reason fits — *duplicate* where it was genuinely
-the same work seen twice, *not planned* otherwise (owner, 2026-09-08).
+**A project whose requirements have all moved out can be closed** (owner,
+2026-09-08). It owns nothing, so it has nothing left to do. Say in the comment
+which projects took what, and pick whatever close reason fits — *duplicate*
+where it was genuinely the same work seen twice, *not planned* otherwise.
 
 **What must not happen to it:**
 
 | | why |
 | --- | --- |
-| `addSubIssue` on the project itself | **a `Project` sub-issue means a work package, and nothing else** — owner, 2026-09-08. It claims work still to come under that parent, with its own delivery and, where that has one, milestone, and the title check reports it as a malformed package. A `Requirement` sub-issue is a fold and is fine; a `Project` one is a structural claim |
-| the `folded` label, and closing as **completed** | `folded` marks a requirement, and nothing was completed: the requirements that moved are still to do |
+| `addSubIssue` on the project itself | **a `Project` sub-issue means a work package, and nothing else** — owner, 2026-09-08. It claims work still to come under that parent, with its own delivery and, where that has one, milestone, and `board-check.py` then asks the absorbing project for a parent's obligations and the absorbed one for a work package's. A `Requirement` sub-issue is a fold and is fine; a `Project` one is a structural claim |
+| the `folded` label, and closing as **completed** | `folded` marks a requirement, and nothing was completed |
 
 ## Afterwards
 
