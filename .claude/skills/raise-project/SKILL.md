@@ -1,6 +1,6 @@
 ---
 name: raise-project
-description: Raise a project issue with the eight headings, set its fields and fold the requirements it takes. Use when a project is being raised, or a requirement is being converted into one.
+description: Raise a project issue with the seven headings, set its fields and fold the requirements it takes. Use when a project is being raised, or a requirement is being converted into one.
 ---
 
 # Raising a project
@@ -17,23 +17,22 @@ folds and closes requirements, which is not trivially reversible.
 **Straight to project is allowed** when the change certainly needs doing and how
 it is grouped or split into projects is decided: no requirement needs raising
 first. Converting an existing requirement is equally fine — edit its body into
-the eight headings and change its type.
+the seven headings and change its type.
 
-## The eight headings
+## The seven headings
 
 **A parent and a work package owe different halves of these.** A project with
-no work packages is a standalone project, which carries all eight and a
+no work packages is a standalone project, which carries all seven and a
 `Route`.
 
 | heading | parent | work package |
 | --- | --- | --- |
 | Requirements | **owns** | links |
 | Design | **owns** | links, adding only what is its own |
-| Impacted artefacts | points at its packages', and repeats each package's table under its Deliveries list | **owns** |
 | Non-functional design | **owns** | answers, or points at the parent's |
 | Test approach | points at its packages' | **owns** |
 | Dependencies and related work | **owns** | links |
-| Deliveries | **owns** — the list, each row a sub-project or straight to `main` | its own steps |
+| Deliveries | **owns** the list, each row a sub-project or straight to `main`; points at each package for its subsection | **owns** its delivery's subsection: the artefacts by route, then the steps |
 | Post-deployment checks | only for a requirement no delivery satisfies | **owns** — a check is answered per delivery |
 
 **`board-check.py` asks each for what it owes**, telling them apart by the
@@ -53,11 +52,39 @@ both:
 
 ## Design
 
-## Impacted artefacts
+## Non-functional design
 
-*One table per delivery, a row per route. `Route` is a property of the
-artefact (`docs/1.2` §2.15) and a delivery has one route, so a table with two
-routes marked yes is a delivery that needs splitting. Say `no` and a dash rather
+Capacity, failure, limits and timeouts, secrets and access: each answered, or
+*none, because…*. A limit says where its number came from.
+
+## Test approach
+
+### Functional user tests — Preview
+
+- [ ] **owner** —
+
+### Technical tests — Rehearsal
+
+- [ ] **Claude** —
+
+## Dependencies and related work
+
+**waits on #nnn** — why. **is needed by #nnn** — why.
+
+Each `waits on` and `is needed by` here is also set as a GitHub dependency link
+(`addBlockedBy`), one link serving both ends — the context header shows the
+links, and `board-check.py` reports a line with none behind it. Only this
+section is read.
+
+## Deliveries
+
+| # | what it delivers | route | milestone | work package or steps |
+| --- | --- | --- | --- | --- |
+
+*Then one subsection per delivery: its artefacts as a table, a row per route,
+then its steps. `Route` is a property of the artefact (`docs/1.2` §2.15) and a
+delivery has one route, so a table with two routes marked yes is a delivery
+that needs splitting. Say `no` and a dash rather
 than dropping a row: an absent row and an empty one read the same, and only one
 of them means "nothing here".*
 
@@ -87,34 +114,7 @@ answered the question the column asks.*
 is yes, the other rows are **also yes**, riding that same branch and pull
 request — everything the delivery touches goes on it, documentation included.*
 
-## Non-functional design
-
-Capacity, failure, limits and timeouts, secrets and access: each answered, or
-*none, because…*. A limit says where its number came from.
-
-## Test approach
-
-### Functional user tests — Preview
-
-- [ ] **owner** —
-
-### Technical tests — Rehearsal
-
-- [ ] **Claude** —
-
-## Dependencies and related work
-
-**waits on #nnn** — why. **is needed by #nnn** — why.
-
-Each `waits on` and `is needed by` here is also set as a GitHub dependency link
-(`addBlockedBy`), one link serving both ends — the context header shows the
-links, and `board-check.py` reports a line with none behind it. Only this
-section is read.
-
-## Deliveries
-
-| # | what it delivers | milestone | steps |
-| --- | --- | --- | --- |
+*Steps: the runbook, in order, after the table.*
 
 ## Post-deployment checks against requirements
 

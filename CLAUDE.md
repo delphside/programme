@@ -90,10 +90,11 @@ docs/1.6 records the app it works through.
   owner, 2026-09-21. Scoped and designed independently, scheduled jointly: its
   milestone is the one its first callers carry.
 - A project owns its requirements: sources are folded and closed. Its issue
-  carries eight headings: requirements, design, impacted artefacts,
-  **non-functional design**, test approach, dependencies and related work,
-  deliveries, post-deployment checks against requirements. Under each heading is
-  the content or a link to the design document that holds it, never both.
+  carries seven headings: requirements, design, **non-functional design**, test
+  approach, dependencies and related work, deliveries (each delivery's
+  artefacts by route, then its steps), post-deployment checks against
+  requirements. Under each heading is the content or a link to the design
+  document that holds it, never both.
 - **Non-functional design is four questions and *none, because…* answers any of
   them**: capacity, failure, limits and timeouts, secrets and access. Added
   2026-09-22. delphside/tile-lite-elite#402 and delphside/tile-lite-elite#291 are both projects because nothing asked those

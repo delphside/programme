@@ -99,6 +99,17 @@ def headings_answered(*headings: str) -> Callable[[Issue], bool]:
     return check
 
 
+def artefacts_answered(issue: Issue) -> bool:
+    """A delivery's artefacts, under `Deliveries` or the heading it replaced.
+
+    Owner, 2026-10-26: `Impacted artefacts` merged into `Deliveries`, each
+    delivery's route table in its own subsection. A body written before keeps
+    the old heading until it is next edited, so either answers.
+    """
+    return any(headings_answered(h)(issue)
+               for h in ("Deliveries", "Impacted artefacts"))
+
+
 def _has_substance(body: str) -> bool:
     # a table skeleton, a placeholder, or nothing at all is not an answer
     stripped = re.sub(r"[|\-\s]", "", body).lower()
@@ -271,11 +282,11 @@ OBLIGATIONS: tuple[Obligation, ...] = (
     ),
     Obligation(
         "parent-design-testable", (ParentProject,), ("Design and Test Approach",),
-        "`## Test approach`, `## Impacted artefacts` and `## Deliveries`, "
+        "`## Test approach` and `## Deliveries`, "
         "each holding the content or saying where it is",
         "a parent and its packages both owe these, and either may point at "
         "the other — but neither may stay silent",
-        headings_answered("Test approach", "Impacted artefacts", "Deliveries"),
+        headings_answered("Test approach", "Deliveries"),
     ),
     # **Added 2026-09-22**, with the eighth heading. Asked from `Design and Test
     # Approach` onward and not at `Scope`, because the answer depends on the
@@ -321,10 +332,10 @@ OBLIGATIONS: tuple[Obligation, ...] = (
     ),
     Obligation(
         "wp-design-testable", DELIVERING, ("Design and Test Approach",),
-        "a test approach and impacted artefacts, held here or pointed at",
+        "a test approach and its delivery's artefacts, held here or pointed at",
         "a delivery is testable before it is built; the parent may hold the "
         "detail, but this says where",
-        headings_answered("Test approach", "Impacted artefacts"),
+        lambda i: headings_answered("Test approach")(i) and artefacts_answered(i),
     ),
     Obligation(
         "wp-user-tested", DELIVERING, ("User testing",),

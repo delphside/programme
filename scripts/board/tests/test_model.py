@@ -196,6 +196,24 @@ class TheBoardModel(Cases):
         self.expect("an answer in other words is still an answer", Answer.MET,
               ids.get("wp-post-deployment"))
 
+    def test_a_delivery_is_testable_with_deliveries_or_the_old_artefacts_heading(self):
+        """a work package's artefacts live under Deliveries, or the old heading"""
+        # Owner, 2026-10-26: Impacted artefacts merged into Deliveries. Bodies
+        # written before keep the old heading until they are next edited.
+        f = {"Project State": "Design and Test Approach", "Route": "Other"}
+        tests = "## Test approach\n\n### Technical tests — Rehearsal\n\n- [ ] **Claude** — x\n\n"
+        new = classify(issue(554, parent=545, fields=f, body=tests +
+                             "## Deliveries\n\n### Delivery 2 of 4\n\n| route | in |\n"))
+        ids = {f.obligation.id: f.answer for f in assess(new)}
+        self.expect("Deliveries alone answers it", Answer.MET, ids.get("wp-design-testable"))
+        old = classify(issue(554, parent=545, fields=f, body=tests +
+                             "## Impacted artefacts\n\n| route | in |\n"))
+        ids = {f.obligation.id: f.answer for f in assess(old)}
+        self.expect("the old heading still answers it", Answer.MET, ids.get("wp-design-testable"))
+        neither = classify(issue(554, parent=545, fields=f, body=tests))
+        ids = {f.obligation.id: f.answer for f in assess(neither)}
+        self.expect("neither is missing", Answer.MISSING, ids.get("wp-design-testable"))
+
     def test_a_decision_ships_nothing_so_it_owes_no_milestone(self):
         """a decision ships nothing, so it owes no milestone"""
         d = classify(issue(382, kind="Decision", fields={"Decision State": "Decided"},
