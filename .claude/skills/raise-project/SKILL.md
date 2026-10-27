@@ -132,14 +132,15 @@ not apply says *"None."*
 listed, or listed but parented elsewhere, is the defect that put delphside/tile-lite-elite#130 and delphside/tile-lite-elite#151
 under delphside/tile-lite-elite#294 while delphside/tile-lite-elite#290 claimed them.
 
-**A work package is a sub-project; a milestone is what groups them.** A
-work package is a `Project` whose parent is this one, carrying its own milestone,
-artefacts, test approach and post-deployment checks. **Every change has a
+**A work package is carried by a sub-project or by the parent; a milestone is
+what groups them** (`docs/1.2` §1.1 defines both). A sub-project is a `Project`
+whose parent is this one, carrying its own milestone, artefacts, test approach
+and post-deployment checks. **Every change has a
 delivery** — it has to reach main — but only a delivery made at one point in
 time takes a **milestone**, and packages sharing one go live together. The
 milestone never has an issue of its own. The parent owns the requirements,
-the design and the documents, carries no milestone once it has work packages
-(with no sub-project, it is the package), and lists its deliveries:
+the design and the documents, carries no milestone once it has sub-projects
+(with none, it is the package), and lists its deliveries:
 each row names the work packages it carries, or says straight to `main`.
 
 **Whether a delivery needs a sub-project** is `docs/1.2` *The model, and the
@@ -155,12 +156,11 @@ and takes no sub-project: the parent and the child would say the same thing.
 | a work package sharing its delivery | `#N WP A Del 1 of 2, pt 1 of 2: <what it delivers>` |
 | a work package whose deliveries are not yet decided | `#N WP A: <what it delivers>` |
 
-`WP A` is which package, lettered so it never reads as a delivery number.
-Packages that are one change split by route, developed and tested together, may
-take one letter numbered, `WP A1` and `WP A2`, so a listing shows they belong
-together. `Del 1 of 2` is which delivery carries it. `pt 1 of 2` is its share of that
-delivery and **is omitted when the delivery carries one package** — `pt 1 of 1`
-says nothing. It is what makes a shared delivery visible from a listing.
+`WP A` is which package, lettered so it never reads as a delivery number; one
+change split by route may share a letter, as `docs/1.2` *Naming* says.
+`Del 1 of 2` is which delivery carries it. `pt 1 of 2` is its share of that delivery
+and **is omitted when the delivery carries one package** — `pt 1 of 1` says
+nothing. It is what makes a shared delivery visible from a listing.
 
 The parent's number is repeated in every child so a title sort groups the family.
 

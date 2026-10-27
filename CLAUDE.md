@@ -271,11 +271,11 @@ docs/1.6 records the app it works through.
   needs one only after a milestoned delivery; docs/1.2 has the table.
 - A work package is titled `#N WP A Del 1 of 2: what it delivers`, a parent
   `#N MAIN PROJECT: what it is`. `pt P of Q` is added only where a delivery
-  carries more than one package, and `WP A1`, `WP A2` may number the packages
-  of one change split by route, owner 2026-10-27. The counts go stale and are
-  kept anyway: a title saying `Del 1 of 2` is wrong loudly where `Del 1` is
-  silently incomplete. They are derivable from the milestones; nothing checks
-  them yet.
+  carries more than one package, and the packages of one change split by route,
+  developed and tested together, may share a letter: `WP A1`, `WP A2`. The
+  counts go stale and are kept anyway: a title saying `Del 1 of 2` is wrong
+  loudly where `Del 1` is silently incomplete. They are derivable from the
+  milestones; nothing checks them yet.
 - The parent owns the requirements, the design and the documents; a work
   package links to them and carries its own artefacts, test approach and
   post-deployment checks, because a check is answered per delivery. The parent
