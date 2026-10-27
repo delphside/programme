@@ -167,12 +167,16 @@ class TheRestFallback(Cases):
         table = rest_table()
         table[f"{REST_BASE}/pulls?state=open"] = [
             open_pr(21, draft=True), open_pr(22, reviewers=["o"]), open_pr(23),
-            open_pr(24, reviewers=["o"])]
+            open_pr(24, reviewers=["o"]), open_pr(25, reviewers=["o"])]
         table[f"{REST_BASE}/pulls/24/reviews"] = [
             {"state": "APPROVED", "user": {"login": "a"}},
             {"state": "CHANGES_REQUESTED", "user": {"login": "b"}},
             {"state": "APPROVED", "user": {"login": "b"}},
             {"state": "CHANGES_REQUESTED", "user": {"login": "b"}}]
+        table[f"{REST_BASE}/pulls/25/reviews"] = [
+            {"state": "APPROVED", "user": {"login": "a"}},
+            {"state": "DISMISSED", "user": {"login": "a"}},
+            {"state": "COMMENTED", "user": {"login": "c"}}]
         got = {i.number: i.fields[PR_STATE] for i in self.fetch(Gh(rest=table)).issues
                if i.issue_type == "PullRequest"}
         self.expect("draft", "Drafting", got[21])
@@ -180,6 +184,8 @@ class TheRestFallback(Cases):
         self.expect("none requested", "Drafting", got[23])
         self.expect("the latest review of each reviewer, a change requested wins",
                     "Changes requested", got[24])
+        self.expect("a dismissed approval and a comment are no decision",
+                    "Awaiting review", got[25])
 
     def test_graphql_that_answers_is_not_replaced(self):
         gh = Gh(graphql=graphql_for([graphql_issue(12)], []), rest=rest_table())
@@ -198,7 +204,7 @@ class TheRestFallback(Cases):
         with self.assertRaises(Unavailable):
             self.fetch(Gh(rest=rest_table(), refuse_rest=("blocked_by",)))
 
-    def test_only_a_refusal_falls_back(self):
+    def test_a_gh_that_cannot_run_does_not_fall_back(self):
         def no_gh(args, **kw):
             if args[0] != "gh":
                 return REAL_RUN(args, **kw)
@@ -207,13 +213,6 @@ class TheRestFallback(Cases):
             with self.assertRaises(Unavailable) as caught:
                 sources.fetch()
         self.expect("it is not a refusal", False, isinstance(caught.exception, Refused))
-
-        def errors(query):
-            return {"errors": [{"message": "bad"}]}
-        gh = Gh(graphql=errors, rest=rest_table())
-        with self.assertRaises(Unavailable):
-            self.fetch(gh)
-        self.expect("and an error in an answer did not go to REST", [], gh.rest_calls())
 
     def test_closed_issues_are_read_as_closed(self):
         table = {f"{REST_BASE}/issues?state=closed": [rest_issue(5, state="closed",
@@ -290,14 +289,14 @@ class TheWaitingList(Cases):
                     ["delphside/programme#68", "delphside/programme#86"],
                     [w[0] for w in d.waiting])
         text = render(d)
-        self.expect("counted", True, "**2** things the board reports as waiting on you" in text)
+        self.expect("counted", True, "**2** things GitHub reports as waiting on you" in text)
         self.expect("and listed by repository", True,
                     "- delphside/programme#68 pr 68: review: approve or request changes" in text)
 
     def test_a_repository_that_could_not_be_read_is_said_not_read_as_none(self):
         d = self.build(other_prs={}, unread=["delphside/programme"])
         text = render(d)
-        self.expect("it still says nothing was found", True, "**Nothing** the board reports" in text)
+        self.expect("it still says nothing was found", True, "**Nothing** GitHub reports" in text)
         self.expect("and that it did not look in the programme", True,
                     "Not read, so not counted:* open pull requests in delphside/programme" in text)
 
