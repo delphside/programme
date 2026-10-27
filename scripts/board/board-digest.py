@@ -70,7 +70,7 @@ def main(argv=None) -> int:
 
     registers = records.activity_register().read_text()
     digest = build(open_snapshot, closed, since=args.since, registers=registers,
-                   memory_repo=Path.home() / "claude-memory", merged_prs=merged)
+                   merged_prs=merged)
     text = render(digest, args.decided)
 
     if args.write:
