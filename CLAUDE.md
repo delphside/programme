@@ -183,10 +183,11 @@ docs/1.6 records the app it works through.
   setting off (docs/1.6); the deploy settles its milestone, and anything else
   is closed by hand (owner, 2026-10-26). Programme BAU work needs no issue: its commits say
   `Activity: <id>` from docs/1.4's register, and `Initiative: <id>` where there
-  is one. BAU is its own triage, so a change above its budget
-  or to an asset it does not own becomes a project, never a requirement
-  (docs/1.4). Every subject starts with the application's stamp and a space; each
-  application's CLAUDE.md says what its stamp is.
+  is one. BAU is its own triage, so a change that would benefit from a
+  project's controls, which docs/1.4's table decides by type of change, or one
+  to an asset BAU does not own, becomes a project, never a requirement. Every
+  subject starts with the application's stamp and a space; each application's
+  CLAUDE.md says what its stamp is.
 - Push immediately after committing. Until pushed, a change does not exist.
   Run an unpushed script to test it, never to use it.
 
