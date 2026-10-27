@@ -373,6 +373,18 @@ def organisation(root: Path | None = None) -> str:
     return programme_file(root).string("organisation.login")
 
 
+def watched_repositories(root: Path | None = None) -> tuple[str, ...]:
+    """Every repository the programme file names, `owner/name`, the programme's
+    own first: `programme.repository`, then `organisation.repositories`
+    qualified with the organisation. The one list there is of the repositories
+    that hold applications' work."""
+    file = programme_file(root)
+    org = file.string("organisation.login")
+    named = [file.string("programme.repository"),
+             *(f"{org}/{r}" for r in file.strings("organisation.repositories"))]
+    return tuple(dict.fromkeys(named))
+
+
 def project_id(root: Path | None = None) -> str:
     return programme_file(root).string("board.project_id")
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Sequence
 
@@ -112,6 +112,13 @@ class Unavailable(Exception):
     see the data must refuse, not report that it found no problem."""
 
 
+class Refused(Unavailable):
+    """`gh` ran and GitHub said no. A cloud session's token is refused GraphQL
+    and the search API while REST answers, so a caller with a REST route for the
+    same facts may take it on this and on nothing else: a read that could not be
+    made at all stays `Unavailable`."""
+
+
 @dataclass(frozen=True)
 class Snapshot:
     """One fetch. Every fact a consumer uses comes from one of these.
@@ -161,10 +168,10 @@ def _gh_graphql(query: str, partial: bool = False, **variables) -> dict:
             try:
                 payload = json.loads(out.stdout)
             except json.JSONDecodeError:
-                raise Unavailable(f"GitHub refused: {out.stderr.strip()[:300]}") from None
+                raise Refused(f"GitHub refused: {out.stderr.strip()[:300]}") from None
             if payload.get("data"):
                 return payload
-        raise Unavailable(f"GitHub refused: {out.stderr.strip()[:300]}")
+        raise Refused(f"GitHub refused: {out.stderr.strip()[:300]}")
     try:
         return json.loads(out.stdout)
     except json.JSONDecodeError as exc:
@@ -495,16 +502,22 @@ class MergedPullRequest:
     bot: bool = False
 
 
+def _merged_repositories() -> list[str]:
+    return list(dict.fromkeys(["/".join(_repository()),
+                               profile.programme_file().string("programme.repository")]))
+
+
 def merged_pull_requests(since: str) -> tuple[MergedPullRequest, ...]:
     """Pull requests merged on or after `since` (YYYY-MM-DD) in this
     application's repository and the programme's.
 
     Raises `Unavailable` rather than returning nothing, so a search that did not
-    answer never reads as a week with no reviews.
+    answer never reads as a week with no reviews. Where the search API is
+    refused, as it is to a cloud session, the same list is read from each
+    repository's closed pull requests over REST.
     """
-    repos = ["/".join(_repository()),
-             profile.programme_file().string("programme.repository")]
-    query = " ".join(f"repo:{r}" for r in dict.fromkeys(repos)) + f" is:pr is:merged merged:>={since}"
+    repos = _merged_repositories()
+    query = " ".join(f"repo:{r}" for r in repos) + f" is:pr is:merged merged:>={since}"
     try:
         run = subprocess.run(
             ["gh", "api", "-X", "GET", "search/issues", "-f", f"q={query}",
@@ -514,11 +527,35 @@ def merged_pull_requests(since: str) -> tuple[MergedPullRequest, ...]:
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise Unavailable(f"could not search for merged pull requests: {exc}") from exc
     if run.returncode != 0:
-        raise Unavailable(f"could not search for merged pull requests: {run.stderr.strip()[:200]}")
+        return _rest_merged_pull_requests(repos, since, run.stderr.strip()[:200])
     out = []
     for line in run.stdout.splitlines():
         url, number, title, body, bot = json.loads(line)
         out.append(MergedPullRequest("/".join(url.split("/")[-2:]), number, title, body, bot))
+    return tuple(sorted(out, key=lambda p: (p.repository, p.number)))
+
+
+def _rest_merged_pull_requests(repos: Sequence[str], since: str,
+                               refusal: str) -> tuple[MergedPullRequest, ...]:
+    """The merged list over `repos/{r}/pulls?state=closed`, newest update first.
+
+    A pull request cannot be merged after it was last updated, so the listing
+    stops at the first one last updated before `since`.
+    """
+    rest = _Rest()
+    out = []
+    try:
+        for full in repos:
+            for p in rest.items(f"repos/{full}/pulls?state=closed&sort=updated&direction=desc"):
+                if (p.get("updated_at") or "")[:10] < since:
+                    break
+                if p.get("merged_at") and p["merged_at"][:10] >= since:
+                    out.append(MergedPullRequest(
+                        full, p["number"], p.get("title") or "", p.get("body") or "",
+                        (p.get("user") or {}).get("type") == "Bot"))
+    except Unavailable as exc:
+        raise Unavailable(f"could not search for merged pull requests ({refusal}), "
+                          f"nor list them over REST: {exc}") from None
     return tuple(sorted(out, key=lambda p: (p.repository, p.number)))
 
 
@@ -872,30 +909,157 @@ def token_days_left() -> int | None:
     return None
 
 
-def fetch(states: str = "OPEN", with_bodies: bool = True,
-          with_pull_requests: bool = True,
-          pr_states: str = "OPEN") -> Snapshot:
-    """One snapshot of the board.
-
-    Bodies are 2.7s of the 4.6s and 92% of the payload, so a consumer that
-    reads no body headings should ask for none.
-    """
-    # **Pull requests are not issues.** GraphQL's `issues` connection excludes
-    # them, so a snapshot built from it alone contains no `PullRequest` at all
-    # -- `classify` never reaches that branch, both PR obligations apply to
-    # nothing, and R1 cannot see a review waiting on the owner. Every one of
-    # those reads as "nothing to report", which is the defect family this model
-    # exists to remove: a consumer asking a source for something it never
-    # carried, and taking the silence for good news.
-    query = _QUERY % {"body": "body" if with_bodies else ""}
-    started = time.time()
+def _graphql_pull_requests(owner: str, repo: str, pr_states: str) -> tuple[list[RawIssue], int]:
     issues: list[RawIssue] = []
     cursor = None
     pages = 0
     while True:
-        payload = _gh_graphql(
-            query, owner=_repository()[0], repo=_repository()[1], cursor=cursor, states=states
-        )
+        payload = _gh_graphql(_PR_QUERY % {"pr_states": pr_states},
+                              owner=owner, repo=repo, cursor=cursor)
+        if "errors" in payload:
+            raise Unavailable(str(payload["errors"])[:300])
+        block = payload["data"]["repository"]["pullRequests"]
+        issues += [_pr_to_raw(n) for n in block["nodes"] if n]
+        pages += 1
+        if not block["pageInfo"]["hasNextPage"]:
+            return issues, pages
+        cursor = block["pageInfo"]["endCursor"]
+
+
+class _Rest:
+    """Reads over REST, which a cloud session's token is allowed where it is
+    refused GraphQL and search. Counts the pages it fetched."""
+
+    PER_PAGE = 100
+
+    def __init__(self) -> None:
+        self.pages = 0
+
+    def items(self, path: str):
+        """The items of a list endpoint, a page at a time, so a caller that has
+        read enough can stop before the next page is asked for."""
+        page = 1
+        sep = "&" if "?" in path else "?"
+        while True:
+            try:
+                run = subprocess.run(
+                    ["gh", "api", f"{path}{sep}per_page={self.PER_PAGE}&page={page}"],
+                    capture_output=True, text=True, timeout=120)
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise Unavailable(f"GitHub did not answer: {exc}") from exc
+            if run.returncode != 0:
+                raise Unavailable(f"GitHub refused {path}: {run.stderr.strip()[:300]}")
+            try:
+                data = json.loads(run.stdout)
+            except json.JSONDecodeError as exc:
+                raise Unavailable(f"GitHub returned no JSON for {path}: {exc}") from exc
+            if not isinstance(data, list):
+                raise Unavailable(f"{path} did not return a list")
+            self.pages += 1
+            yield from data
+            if len(data) < self.PER_PAGE:
+                return
+            page += 1
+
+    def list(self, path: str) -> list:
+        return list(self.items(path))
+
+
+def _rest_to_raw(rest: _Rest, owner: str, repo: str, n: dict) -> RawIssue:
+    """`_to_raw`'s facts from a REST issue. The sub-issues and both dependency
+    directions are separate endpoints, asked only where the issue's own summary
+    says there is something to list."""
+    base = f"repos/{owner}/{repo}/issues/{n['number']}"
+    subs: tuple[RawSubIssue, ...] = ()
+    if (n.get("sub_issues_summary") or {}).get("total"):
+        subs = tuple(RawSubIssue(s["number"], (s.get("type") or {}).get("name"))
+                     for s in rest.list(f"{base}/sub_issues"))
+    summary = n.get("issue_dependencies_summary") or {}
+    blocked_by = blocks = frozenset()
+    if summary.get("total_blocked_by"):
+        blocked_by = frozenset(i["number"] for i in rest.list(f"{base}/dependencies/blocked_by"))
+    if summary.get("total_blocking"):
+        blocks = frozenset(i["number"] for i in rest.list(f"{base}/dependencies/blocking"))
+    parent = None
+    if n.get("parent_issue_url"):
+        parent = int(n["parent_issue_url"].rstrip("/").split("/")[-1])
+    # GraphQL's `value` of a single-select is the option's name.
+    fields = {v["issue_field_name"]: (v.get("single_select_option") or {}).get("name", v.get("value"))
+              for v in n.get("issue_field_values") or [] if v.get("issue_field_name")}
+    return RawIssue(
+        number=n["number"], title=n.get("title") or "", state=(n.get("state") or "").upper(),
+        body=n.get("body") or "", issue_type=(n.get("type") or {}).get("name"),
+        fields=fields, sub_issues=subs, parent=parent,
+        milestone=(n.get("milestone") or {}).get("title"),
+        labels=frozenset(label["name"] for label in n.get("labels") or []),
+        blocked_by=blocked_by, blocks=blocks,
+        created_at=n.get("created_at"), updated_at=n.get("updated_at"),
+        closed_at=n.get("closed_at"))
+
+
+def _rest_review_decision(rest: _Rest, owner: str, repo: str, number: int) -> str | None:
+    """GraphQL's `reviewDecision`, from each reviewer's latest decisive review:
+    a change requested wins, then approval; a dismissed one stands for no
+    decision, and a comment is not a decision."""
+    latest: dict[str, str] = {}
+    for r in rest.list(f"repos/{owner}/{repo}/pulls/{number}/reviews"):
+        if r.get("state") in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED"):
+            latest[(r.get("user") or {}).get("login") or ""] = r["state"]
+    states = set(latest.values())
+    if "CHANGES_REQUESTED" in states:
+        return "CHANGES_REQUESTED"
+    if "APPROVED" in states:
+        return "APPROVED"
+    return None
+
+
+def _rest_pull_requests(rest: _Rest, owner: str, repo: str, pr_states: str) -> list[RawIssue]:
+    wanted = {w.strip() for w in pr_states.strip("[]").split(",")}
+    listing = "open" if wanted == {"OPEN"} else "all"
+    out = []
+    for p in rest.items(f"repos/{owner}/{repo}/pulls?state={listing}"):
+        state = "MERGED" if p.get("merged_at") else (p.get("state") or "").upper()
+        if state not in wanted:
+            continue
+        decision = None
+        if state == "OPEN":
+            decision = _rest_review_decision(rest, owner, repo, p["number"])
+        reviewers = len(p.get("requested_reviewers") or []) + len(p.get("requested_teams") or [])
+        out.append(RawIssue(
+            number=p["number"], title=p.get("title") or "", state=state,
+            body=p.get("body") or "", issue_type="PullRequest",
+            fields={PR_STATE: pr_state(bool(p.get("draft")), decision, reviewers, state)},
+            sub_issues=(), parent=None, milestone=(p.get("milestone") or {}).get("title"),
+            labels=frozenset(label["name"] for label in p.get("labels") or []),
+            created_at=p.get("created_at"), updated_at=p.get("updated_at"),
+            closed_at=p.get("closed_at") or p.get("merged_at"),
+            head_ref=(p.get("head") or {}).get("ref")))
+    return out
+
+
+def open_pull_requests(repo: str, pr_states: str = "OPEN") -> tuple[RawIssue, ...]:
+    """The pull requests of `repo` (`owner/name`), each with its `PR State`.
+
+    Raises `Unavailable` rather than returning nothing: a repository that could
+    not be read must not read as one with nothing waiting. Over REST where
+    GraphQL is refused.
+    """
+    owner, _, name = repo.partition("/")
+    try:
+        return tuple(_graphql_pull_requests(owner, name, pr_states)[0])
+    except Refused:
+        return tuple(_rest_pull_requests(_Rest(), owner, name, pr_states))
+
+
+def _graphql_fetch(states: str, with_bodies: bool, with_pull_requests: bool,
+                   pr_states: str) -> tuple[list[RawIssue], int]:
+    owner, repo = _repository()
+    query = _QUERY % {"body": "body" if with_bodies else ""}
+    issues: list[RawIssue] = []
+    cursor = None
+    pages = 0
+    while True:
+        payload = _gh_graphql(query, owner=owner, repo=repo, cursor=cursor, states=states)
         if "errors" in payload:
             raise Unavailable(str(payload["errors"])[:300])
         block = payload["data"]["repository"]["issues"]
@@ -904,21 +1068,55 @@ def fetch(states: str = "OPEN", with_bodies: bool = True,
         if not block["pageInfo"]["hasNextPage"]:
             break
         cursor = block["pageInfo"]["endCursor"]
-
     if with_pull_requests and states == "OPEN":
-        cursor = None
-        while True:
-            payload = _gh_graphql(_PR_QUERY % {"pr_states": pr_states},
-                                  owner=_repository()[0], repo=_repository()[1], cursor=cursor)
-            if "errors" in payload:
-                raise Unavailable(str(payload["errors"])[:300])
-            block = payload["data"]["repository"]["pullRequests"]
-            issues += [_pr_to_raw(n) for n in block["nodes"] if n]
-            pages += 1
-            if not block["pageInfo"]["hasNextPage"]:
-                break
-            cursor = block["pageInfo"]["endCursor"]
+        found, more = _graphql_pull_requests(owner, repo, pr_states)
+        issues += found
+        pages += more
+    return issues, pages
 
+
+def _rest_fetch(states: str, with_bodies: bool, with_pull_requests: bool,
+                pr_states: str) -> tuple[list[RawIssue], int]:
+    """The same snapshot over REST. **The board's own project fields are not
+    here**: they are GraphQL-only. The issue fields (`Type of change`,
+    `Decision State`, `Project State`, ...) are what the model reads and REST
+    carries them, so nothing the snapshot holds is missing."""
+    owner, repo = _repository()
+    rest = _Rest()
+    issues = [_rest_to_raw(rest, owner, repo, n)
+              for n in rest.items(f"repos/{owner}/{repo}/issues?state={'open' if states == 'OPEN' else 'closed'}")
+              if "pull_request" not in n]
+    if not with_bodies:
+        issues = [replace(i, body="") for i in issues]
+    if with_pull_requests and states == "OPEN":
+        issues += _rest_pull_requests(rest, owner, repo, pr_states)
+    return issues, rest.pages
+
+
+def fetch(states: str = "OPEN", with_bodies: bool = True,
+          with_pull_requests: bool = True,
+          pr_states: str = "OPEN") -> Snapshot:
+    """One snapshot of the board.
+
+    Bodies are 2.7s of the 4.6s and 92% of the payload, so a consumer that
+    reads no body headings should ask for none.
+
+    Where GitHub refuses GraphQL, as it does to a cloud session's token, the
+    same snapshot is read over REST. Only a refusal does that: any other
+    failure raises `Unavailable`, and so does a refusal REST shares.
+    """
+    # **Pull requests are not issues.** GraphQL's `issues` connection excludes
+    # them, so a snapshot built from it alone contains no `PullRequest` at all
+    # -- `classify` never reaches that branch, both PR obligations apply to
+    # nothing, and R1 cannot see a review waiting on the owner. Every one of
+    # those reads as "nothing to report", which is the defect family this model
+    # exists to remove: a consumer asking a source for something it never
+    # carried, and taking the silence for good news.
+    started = time.time()
+    try:
+        issues, pages = _graphql_fetch(states, with_bodies, with_pull_requests, pr_states)
+    except Refused:
+        issues, pages = _rest_fetch(states, with_bodies, with_pull_requests, pr_states)
     return Snapshot(
         issues=tuple(issues),
         started_at=started,

@@ -39,6 +39,7 @@ import collections
 import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from typing import Sequence
 
 from . import profile, repo
 from .model import classify
@@ -129,7 +130,11 @@ class Digest:
     @property
     def overhead_before(self) -> int:
         return sum(self.window.raised_before[t] for t in OVERHEAD)
-    waiting: list[tuple[int, str, str]] = field(default_factory=list)
+    # (reference, title, what is asked). The reference is an issue number in this
+    # application's repository and `owner/name#N` in any other.
+    waiting: list[tuple[int | str, str, str]] = field(default_factory=list)
+    # Repositories whose pull requests could not be read: said, never read as none.
+    waiting_unread: list[str] = field(default_factory=list)
 
     @property
     def share(self) -> int:
@@ -474,7 +479,8 @@ class RoundCount:
 
 def build(open_snapshot: Snapshot, closed_snapshot: Snapshot | None,
           since: str, until: str = "HEAD", registers: str = "",
-          merged_prs=None) -> Digest:
+          merged_prs=None, other_prs: dict[str, Sequence] | None = None,
+          unread: Sequence[str] = ()) -> Digest:
     d = Digest(since=since, until=until)
     start = window_start(since)
 
@@ -506,6 +512,16 @@ def build(open_snapshot: Snapshot, closed_snapshot: Snapshot | None,
         w = waiting_on_owner(issue)
         if w:
             d.waiting.append((issue.number, issue.title, w.asked))
+
+    # The other repositories' open pull requests: the programme's own are the
+    # owner's to review too, and a list that left them out said nothing waited
+    # while two did.
+    for repository, found in (other_prs or {}).items():
+        for raw in found:
+            w = waiting_on_owner(classify(raw))
+            if w:
+                d.waiting.append((f"{repository}#{raw.number}", raw.title, w.asked))
+    d.waiting_unread = list(unread)
 
     closed_raw = list(closed_snapshot.issues) if closed_snapshot else []
     d.window = in_window([i.raw for i in issues], closed_raw, start)
@@ -610,9 +626,14 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
         out.append(f"**{len(d.waiting)}** {things} the board reports as waiting on you:")
         out.append("")
         for number, title, action in d.waiting:
-            out.append(f"- #{number} {title}: {action}")
+            ref = f"#{number}" if isinstance(number, int) else number
+            out.append(f"- {ref} {title}: {action}")
     else:
         out.append("**Nothing** the board reports as waiting on you.")
+    if d.waiting_unread:
+        out.append("")
+        out.append("*Not read, so not counted:* open pull requests in "
+                   + ", ".join(d.waiting_unread) + ".")
     out.append("")
     # An observation, not the target (the programme's docs/1.7). Always name the starting
     # point, so a one-point move cannot read like a ten-point one.
