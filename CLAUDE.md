@@ -29,23 +29,17 @@ docs/1.6 records the app it works through.
   digest where it is a lesson for continual improvement (docs/1.2 *Where a
   possible change goes*). Raise it quickly. Discussion happens in the comments;
   the conclusions go in the body, which is edited to stay current.
-- **Raise quickly, but into an existing requirement where one covers the area.**
-  Look first; a new row in a table beats a new number. Seventy-five issues were
-  raised in the fourteen days to 2026-09-17 and ten of them were facets of one
-  thing — the board tooling — which is what delphside/tile-lite-elite#383 then exists to unify. A new
-  issue is right when the subject is genuinely separate, or when the existing
-  one has been scoped and widening it would reopen that. Owner, 2026-09-17:
-  *"It is more efficient to have one requirement covering an area we are
-  revising."*
+- **Raise quickly, but into an existing requirement where one covers the area**
+  (owner, 2026-09-17). Look first; a new row in a table beats a new number. A
+  new issue is right when the subject is genuinely separate, or when the
+  existing one has been scoped and widening it would reopen that.
 - **A decision belongs on what it decides.** Its own issue only where it spans
   several, or where the argument is long enough to bury the requirement. Either
   way it is a `Decision` issue, and the board indexes them by type.
-- **A decision is only worth an issue while there is a choice to discuss.**
-  Owner, 2026-09-21: *"Decisions are only useful when there is a choice to be
-  discussed. A settled decision lives in the permanent documents and claude
-  files."* So an answer that is already settled goes straight to its owning
-  document and to this page, with the argument in the commit message — no
-  issue, no `D` number, nothing to close later. The test is whether anybody
+- **A decision is only worth an issue while there is a choice to discuss**
+  (owner, 2026-09-21). An answer that is already settled goes straight to its
+  owning document and to this page, with the argument in the commit message —
+  no issue, no `D` number, nothing to close later. The test is whether anybody
   still has to be convinced.
 - **Whether to do something is a Requirement; how to do it is a Decision.**
   Owner, 2026-09-27. A requirement can be rejected or folded into a project,
@@ -53,9 +47,7 @@ docs/1.6 records the app it works through.
 - **A settled decision is never maintained; the document carrying it is** —
   the general rule under *Documentation*, applied to decisions.
 - **Options live in the body, numbered, each saying what it constrains**, so one
-  issue can be read and settled rather than assembled from a thread. Owner:
-  *"being able to focus on one with options clearly presented in the body would
-  help a lot."*
+  issue can be read and settled rather than assembled from a thread.
 - Make a tooling change when something first needs it, not when it occurs to
   you. The requirement is still raised; the doing waits for the need.
 - **A change the weekly review proposes is a fix or an improvement** — owner,
@@ -77,10 +69,9 @@ docs/1.6 records the app it works through.
   description, workstream, priority, type of change. Then scope (options,
   dependencies, effort), then project planning. Outcomes: solo project,
   grouped project, straight to main, on hold, cancelled.
-- **Related change goes in one project, so it is designed once.** Owner,
-  2026-09-21: *"I am keen we keep related changes in the same project so they
-  can be designed together. I want to minimise having to coordinate design
-  across projects."* A different route is not a reason to split a project — it
+- **Related change goes in one project, so it is designed once** and design
+  is not coordinated across projects (owner, 2026-09-21). A different route is
+  not a reason to split a project — it
   is a reason to split a delivery, which is what a work package already is. Two
   projects are right where deciding one does not constrain the other, and then
   a link under *Dependencies and related work* is enough.
@@ -102,14 +93,12 @@ docs/1.6 records the app it works through.
   requirements. Under each heading is the content or a link to the design
   document that holds it, never both.
 - **Non-functional design is four questions and *none, because…* answers any of
-  them**: capacity, failure, limits and timeouts, secrets and access. Added
-  2026-09-22. delphside/tile-lite-elite#402 and delphside/tile-lite-elite#291 are both projects because nothing asked those
-  questions per change, and a project is the expensive way to answer what was
-  cheap at the time. A limit's answer says **where its number came from**.
+  them**: capacity, failure, limits and timeouts, secrets and access. Asked
+  per change they are cheap; a project is the expensive way to answer them
+  later. A limit's answer says **where its number came from**.
 - **A dependency is declared from both ends.** `waits on` has an inverse,
   `is needed by`, so a relation lives in both bodies rather than in whichever was
-  written second. delphside/tile-lite-elite#400's eight customers were found by going looking, not by
-  each having said so. The edge is also a GitHub dependency link, which the
+  written second. The edge is also a GitHub dependency link, which the
   generated context header shows and `board-check.py` checks.
 - A project moves through the Project State field. The wording is the field's own
   stage descriptions:
@@ -205,20 +194,16 @@ docs/1.6 records the app it works through.
 - **A milestone marks a delivery made at one point in time**, and places it in
   the sequence: the release semver where it includes a release, otherwise
   **production's current version** with a letter appended, or for host
-  maintenance a date. Production's, not
-  the development version, because the development version is intent and can
-  change — 0.7.3 became 0.8.0 on 2026-09-09, and a letter pinned to it would
-  have named a release that never existed.
+  maintenance a date. Production's, not the development version, because the
+  development version is intent and can change, and a letter pinned to it can
+  name a release that never exists.
 - `Route` belongs to the **artefact**, and **a delivery has one route**. Work
   touching artefacts with different routes is split into a delivery per route,
   each taking the shape its own route needs. A project might deliver its script
   changes first, then a configuration change applied in the console, then the
   application — three deliveries, three routes, one project.
 - **Each of those deliveries is a work package, so each is tracked**, and the
-  parent carries no `Route`. That is what replaces the old ranking: rather than
-  the parent summarising its deliveries with the heaviest route they touch, the
-  route lives where the delivery does. A project with a Release and an Other has
-  a work package for each, and the parent has no route to set.
+  route lives where the delivery does: the parent carries no `Route`.
 - **Documentation riding on a release is a pre-approved add-on.** A release that
   also touches documents stays one delivery with one semver milestone: the
   documents need no letter milestone, no second pull request and no row of their
@@ -256,8 +241,7 @@ docs/1.6 records the app it works through.
 - **Who drove the change decides the ceremony, not how big the diff is.** A
   routine dependency bump raised by tooling takes none: a Dependabot pull
   request has no project, no milestone and no delivery-log row, and its commit
-  message is the record. Owner: *"I don't want to introduce ceremony for bau
-  updates, especially when they are driven by tooling."* A host or dependency
+  message is the record (owner). A host or dependency
   change **we** decide on and carry out is the other case — the kernel and
   package work of 2026-09-19 — and it takes the project, a milestone (a date
   for host maintenance) and a row.
@@ -288,9 +272,8 @@ docs/1.6 records the app it works through.
   links to them and carries its own artefacts, test approach and post-deployment
   checks, because a check is answered per delivery. A parent with sub-projects
   (a parent with none is the work package) needs no milestone and no Route: it
-  has no delivery role, and both answer how a change reaches its users. One
-  could be derived from the packages, but it would be information rather than a
-  fact about the parent. A milestone may still be set — a target release, say —
+  has no delivery role, and both answer how a change reaches its users. A
+  milestone may still be set — a target release, say —
   and is then ignored: making the release leaves the parent out of the record,
   so no deploy settles it. A Route may not: `board-check.py` reports one on a
   parent, because in delphside/tile-lite-elite#297 parents were given routes to
@@ -314,8 +297,7 @@ docs/1.6 records the app it works through.
   what a deploy does.
 - **Production access is the owner's to run**, reads included: an admin
   listing, a database query, a log dump. Ask him for it, he runs it, Claude
-  works from what comes back. Owner, 2026-09-21: *"It makes sense if I do the
-  production access unless there is a specific reason."* The exception is the
+  works from what comes back (owner, 2026-09-21). The exception is the
   scripted checks an application's tooling already makes, which are bounded
   and reviewed; its CLAUDE.md names them.
 
@@ -324,8 +306,8 @@ docs/1.6 records the app it works through.
 - **Reading jobs with a defined file set, and a work package's change, go to
   an agent; triage, decisions and anything touching production stay with
   Claude.** Each agent runs on the model its file sets, and a review runs in
-  rounds until one finds no material issue — owner, 2026-10-14, from delphside/tile-lite-elite#441's
-  trials. docs/1.1 has which model, how a round runs and what makes a good
+  rounds until one finds no material issue — owner, 2026-10-14. docs/1.1 has
+  which model, how a round runs and what makes a good
   agent task. A document change is reviewed by `document-reviewer-reader` and
   `document-reviewer-truth`, against docs/1.5's house style, and a pull request
   carrying code by `change-reviewer`, whoever wrote the code; a pull request a
@@ -357,10 +339,8 @@ docs/1.6 records the app it works through.
 ## Documentation
 
 - **Look up the industry's word before inventing one, and look inside the
-  standard you have already adopted.** Owner, 2026-09-21: *"Refer to ITIL, none
-  of this is new to us. We should be reusing the industry standard terminology
-  and process."* And 2026-09-22: *"we are too quick to invent our own thing
-  rather than adopt industry standards."* Take the term and the shape of the
+  standard you have already adopted** (owner, 2026-09-21 and 2026-09-22): ITIL
+  first, for service management. Take the term and the shape of the
   practice, leave the ceremony that needs more people than this has, and say
   which practice an answer came from. docs/1.2 has the mapping tables.
 - **The first rule did not stop it, so here is the test.** On 2026-09-22, in the
@@ -380,9 +360,8 @@ docs/1.6 records the app it works through.
   owns the scheme). A document says what is true now with at most a
   line of reason. History, argument and quotations go in the issue or the
   commit. docs/1.5 has the detail.
-- **The documents live; the issues expire.** Owner, 2026-09-21: *"The project
-  documents are living documents, the issues are only relevant while they are
-  open."* A `docs/N.N` file answers what is true now and is edited whenever that
+- **The documents live; the issues expire** (owner, 2026-09-21). A `docs/N.N`
+  file answers what is true now and is edited whenever that
   changes. An issue answers what was argued and when, and once it closes that is
   all it answers. So when something changes, change the document — do not edit a
   closed issue to agree with it, and do not cite one as the authority for a
@@ -410,9 +389,8 @@ docs/1.6 records the app it works through.
   fixed, and the content is not kept open (owner, 2026-10-27). It is not
   superseded by the next one — the series is what carries the meaning.
 - **Templates live together in `docs/templates/`, and the numbered document that
-  owns the rule links to them.** Owner, 2026-09-22: *"Templates fit into
-  numbered programme docs but it seems convenient to keep them together and
-  reference from the numbered docs."* The document owns the rule and carries the
+  owns the rule links to them** (owner, 2026-09-22). The document owns the rule
+  and carries the
   reasoning; the template carries the form and no argument. A new template owes
   that link, or nobody finds it at the moment they need it. The forms GitHub
   offers when an issue or pull request is opened stay in `.github/`, because
