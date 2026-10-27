@@ -139,13 +139,12 @@ delivery** — it has to reach main — but only a delivery made at one point in
 time takes a **milestone**, and packages sharing one go live together. The
 milestone never has an issue of its own. The parent owns the requirements,
 the design and the documents, carries no milestone once it has work packages
-(where it has none, it is the package), and lists its deliveries:
+(with no sub-project, it is the package), and lists its deliveries:
 each row names the work packages it carries, or says straight to `main`.
 
 **Whether a delivery needs a sub-project** is `docs/1.2` *The model, and the
-four cases that follow from it*. **Case A, one package, is the common
-shape**, and takes no sub-project: the parent and the
-child would say the same thing.
+four cases that follow from it*. **Case A, one package, is the common shape**,
+and takes no sub-project: the parent and the child would say the same thing.
 
 ## Naming
 
@@ -157,7 +156,9 @@ child would say the same thing.
 | a work package whose deliveries are not yet decided | `#N WP A: <what it delivers>` |
 
 `WP A` is which package, lettered so it never reads as a delivery number.
-`Del 1 of 2` is which delivery carries it. `pt 1 of 2` is its share of that
+Packages that are one change split by route, developed and tested together, may
+take one letter numbered, `WP A1` and `WP A2`, so a listing shows they belong
+together. `Del 1 of 2` is which delivery carries it. `pt 1 of 2` is its share of that
 delivery and **is omitted when the delivery carries one package** — `pt 1 of 1`
 says nothing. It is what makes a shared delivery visible from a listing.
 

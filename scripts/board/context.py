@@ -36,8 +36,9 @@ END = "<!-- /context -->"
 _BLOCK = re.compile(re.escape(START.split(";")[0]) + r".*?" + re.escape(END) + r"\n*",
                     re.S)
 
-# `#400 MAIN PROJECT: TLE Scheduler`, `#400 WP A Del 1 of 1, pt 1 of 2: Scheduler core`
-_PREFIX = re.compile(r"^#(\d+)\s+(MAIN PROJECT|WP\s+([A-Z]+)[^:]*):\s*")
+# `#400 MAIN PROJECT: TLE Scheduler`, `#400 WP A Del 1 of 1, pt 1 of 2: Scheduler core`,
+# `#545 WP A2 Del 3 of 3: the image` (one change split by route)
+_PREFIX = re.compile(r"^#(\d+)\s+(MAIN PROJECT|WP\s+([A-Z]+\d*)[^:]*):\s*")
 
 
 def short_title(title: str, outside: bool = False) -> str:

@@ -219,7 +219,7 @@ def _wrap(text: str, width_px: float, char_px: float, lines: int) -> list[str]:
     return out
 
 
-_TAG = re.compile(r"^#\d+\s+(WP [A-Z](?: Del \d+ of \d+)?):\s*(.*)$")
+_TAG = re.compile(r"^#\d+\s+(WP [A-Z]\d*(?: Del \d+ of \d+(?:, pt \d+ of \d+)?)?):\s*(.*)$")
 
 
 def _split_title(issue: Issue) -> tuple[str, str]:

@@ -144,3 +144,15 @@ class TheRoadmap(Cases):
 if __name__ == "__main__":
     unittest.main()
 
+
+class ANumberedPackage(unittest.TestCase):
+
+    def test_its_number_stays_on_the_identifier_line(self):
+        """WP A2: one change split by route keeps its number on the bar"""
+        from types import SimpleNamespace
+        from board.roadmap import _split_title
+        bar = SimpleNamespace(number=556, title="#545 WP A2 Del 3 of 3: the image")
+        self.assertEqual(("#556 \u00b7 WP A2 Del 3 of 3", "the image"), _split_title(bar))
+        shared = SimpleNamespace(number=401, title="#400 WP B Del 1 of 1, pt 2 of 2: runner")
+        self.assertEqual(("#401 \u00b7 WP B Del 1 of 1, pt 2 of 2", "runner"), _split_title(shared))
+

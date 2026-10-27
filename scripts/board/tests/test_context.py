@@ -65,6 +65,8 @@ class TheContextHeader(Cases):
                short_title("#71 WP C: Additional Game Lifecycle", outside=True))
         self.expect("an unprefixed title is left alone", "Idle game removal",
                short_title("Idle game removal"))
+        self.expect("a numbered package keeps its number", "WP A2: the image",
+               short_title("#545 WP A2 Del 3 of 3: the image"))
 
     def test_r10_one_header_per_family(self):
         """R10: one header per family"""

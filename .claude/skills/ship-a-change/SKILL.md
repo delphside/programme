@@ -21,8 +21,8 @@ The route decides which steps apply.
 | **Other** | a console, a cloud resource, host maintenance, preview or rehearsal. Whatever applying it takes, plus a row in the delivery log (`3.n.1`; the infrastructure application's for host maintenance) |
 
 **A delivery has one route.** Work spanning several splits into a delivery each,
-and each delivery is one or more work packages. Documentation is the exception: it rides on
-the release it accompanies, one milestone, no second row.
+and each delivery is one or more work packages. Documentation is the exception:
+it rides on the delivery it accompanies, one milestone, no second row.
 
 **A Requirement never carries a milestone.** If the thing shipping is a
 requirement, it needs a work package to own the delivery, or the record says a
