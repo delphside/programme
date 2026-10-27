@@ -324,7 +324,8 @@ docs/1.6 records the app it works through.
   carrying code by `change-reviewer`, whoever wrote the code; a pull request a
   bot opened owes no review rounds.
 - Test conditions derive from stated rules, not from the code. Each
-  application's rules are stated in its own documents.
+  application's rules are stated in its own documents, and the programme
+  tooling's in the programme's numbered documents.
 - A gate refuses and work stops; a check reports and a person decides. A new
   check is shown to fail before it ships.
 - **Every checkbox names whose move it is**: `- [ ] **owner** — run the six

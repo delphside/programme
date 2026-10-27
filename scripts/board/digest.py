@@ -347,6 +347,8 @@ class RoundCount:
     both: int = 0
     from_fix: int = 0
     crossed: int = 0
+    # Found in a resumed check of its own round, on a fix.
+    on_resume: int = 0
     missed: int = 0
     owner: int = 0
     tokens: float = 0
@@ -418,6 +420,7 @@ class RoundCount:
                     fixed = set((fix.group(1) or "").lower().split()) & REVIEWERS
                     if fixed and "owner" not in fixed:
                         self.crossed += not (who & fixed)
+                self.on_resume += "(on resume)" in line
                 self.missed += "(missed in R" in line
             elif (m := _OWNER.match(line)) and m.group(1).strip().lower() not in ("none", "not reviewed"):
                 self.owner += 1
@@ -429,7 +432,7 @@ class RoundCount:
     def summary(self) -> str:
         found = ", ".join(f"{who} {n}" for who, n in sorted(self.by_reviewer.items())) or "none"
         return (f"material findings: {found}; found by both {PAIR[0]} and {PAIR[1]}: {self.both}; "
-                f"from a fix: {self.from_fix}, of them crossed (only other reviewers made the finding fixed): {self.crossed}; missed by an earlier round: {self.missed}; "
+                f"from a fix: {self.from_fix}, of them crossed (only other reviewers made the finding fixed): {self.crossed}; found on resume: {self.on_resume}; missed by an earlier round: {self.missed}; "
                 f"found by the owner afterwards: {self.owner}")
 
     def missed_share(self) -> str:

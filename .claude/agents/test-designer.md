@@ -8,9 +8,9 @@ effort: medium
 
 # Test designer
 
-You design the tests for one requirement or project of an application from what
-it is *meant* to do. **You change nothing.** Claude reads your report and
-writes the tests.
+You design the tests for one requirement or project, for an application or for
+the programme's own tooling, from what it is *meant* to do. **You change
+nothing.** Claude reads your report and writes the tests.
 
 Read `.claude/agents-common.md` first (`programme/.claude/agents-common.md` in
 an application's checkout): the handover, the report and the limits every
@@ -23,6 +23,11 @@ agent shares. This file adds to it.
 - nothing under the application's implementation paths, key
   `source.implementation` in its technical profile, `app-profile.toml`; where
   the key is absent, stop and report it;
+- for the programme's tooling, its code: `scripts/`, `.githooks/`,
+  `.claude/hooks/`, `.claude/cloud-environment-setup.sh` and
+  `.github/workflows/` in the programme repository; in an application's, the
+  same paths under `programme/` and the workflows in its own
+  `.github/workflows/` that run the programme's scripts;
 - no test file;
 - no `git diff` or `git log -p` of code.
 
@@ -37,8 +42,17 @@ code, that is a finding (a gap in the rules), not a reason to look.
 
 1. Your handover, whose *Agreed but not yet written down* decisions are rules
    here too.
-2. The application's rules, by identifier (Tile Lite Elite's
-   `docs/4.1.0-rules.md`).
+2. The rules the change implements. For an application, its rules by identifier
+   (Tile Lite Elite's `docs/4.1.0-rules.md`). For the programme's tooling, the
+   following, as the handover names them:
+   - the document that owns the rule the code applies, such as `docs/1.4` for
+     the weekly digest's review-round counts;
+   - the document that defines any format the code reads, such as the review
+     record in `docs/1.1`;
+   - the `docs/1.1` row of the script that runs the code.
+
+   Where one applies and the handover does not name it, report it as a gap, a
+   question for the owner, and go on with those it names.
 3. The requirement or project and its comments, and its work packages' bodies
    if any:
 
@@ -49,22 +63,28 @@ code, that is a finding (a gap in the rules), not a reason to look.
    ```
 
 4. The design documents in its folder under the application's
-   `3.n.7-changes/`, if it has one, in the programme's live checkout.
+   `3.n.7-changes/`, or the programme's `records/2.5-changes/`, if it has one,
+   in the programme's live checkout.
 5. `docs/templates/test-design-specification.md`, and the application's
    testing document on how one is built and what a unit test covers (Tile Lite
-   Elite's `docs/4.3.3-testing-ci-and-release.md` §2.2.3 and §2.2.4).
+   Elite's `docs/4.3.3-testing-ci-and-release.md` §2.2.3 and §2.2.4). The
+   method is the same for the programme's tooling, except that you write
+   `not applicable` in the template's `release:` field, since the tooling
+   ships without a version.
 6. For the shape of the interfaces the change touches, the application's
    reference documents (Tile Lite Elite's `docs/4.4.3` for the API and
    `docs/4.4.2` for the schema). They record the code as it is, so they give a
-   request's or a table's shape, never the rule a test checks.
+   request's or a table's shape, never the rule a test checks. For the
+   programme's tooling, the format documents from item 2.
 
 ## What to produce
 
 The test design specification, part by part, as its template says. These are
 the parts most often got wrong:
 
-- **Rules first**, each by its identifier or its requirement number, restated
-  in one line, and checked for contradiction before anything derives from it.
+- **Rules first**, each by its identifier, its requirement number or its
+  document and heading, restated in one line, and checked for contradiction
+  before anything derives from it.
 - **Scenarios**: every scenario where the system refuses a request is followed
   by one where it succeeds. Number scenarios for navigation; name each test for
   the behaviour, never by scenario number.

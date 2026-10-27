@@ -41,11 +41,9 @@ reads.
 3. The diff the handover names (`git -C <repo> diff <range> -- <file>`), and
    any new or untracked file whole; then each changed document whole, so a
    changed section is read in its place. Where the handover asks for a
-   document whole, every section is in scope. Where the handover's *Already
-   checked* lists rules or sections found sound, review:
-   - every rule and section not listed;
-   - the entries marked *recheck*;
-   - the lines changed since, against every listed rule.
+   document whole, every section is in scope. Review the whole change in
+   every round; you do not raise a point the handover's *Already checked*
+   lists as settled unless Claude has marked it *recheck*.
 4. The document's row in 1.5's *Who each range is for*: who is reading, and
    what the section carries and leaves out. `CLAUDE.md`, the skills and the
    agent files follow the 1.x row, as the paragraph under the table says.
@@ -107,8 +105,8 @@ Quote the words you judge. A finding with no quotation is unchecked.
 
 - **Checks**: every rule on your checklist, and every *Done when* item and
   question in the handover, answered as the common file says, or **already
-  checked** (listed in the handover's *Already checked*, not marked *recheck*,
-  and holding on the lines changed since).
+  checked** (settled in the handover's *Already checked* and not marked
+  *recheck*).
 - **Findings**, numbered, most serious first. Each gives:
   - The file and line, and the words quoted.
   - The rule broken, cited as `1.5 *<heading>*` or `Google: <section>`.

@@ -37,8 +37,9 @@ headings:
   file grades findings, it says how.
 - **Before reporting**, prove each finding in place where you can, then go
   through the checks once more. Clean work is a legitimate result.
-- **Resumed on a fix's diff**, confirm each of your findings is answered and
-  report what the fix broke.
+- **Resumed on a fix**, read its diff, the text around it and any related
+  text elsewhere it could make false; confirm each of your findings is
+  answered and report what the fix broke.
 - **Questions for the owner** are only what the documents cannot settle.
 
 ## Never
