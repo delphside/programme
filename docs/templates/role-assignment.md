@@ -14,7 +14,8 @@ holders in 2.2. Delete these comments.
 | technical lead | *one per project or work package, for its life* |
 | demand manager | *who* |
 | release manager, environments manager | *who* |
-| test manager, librarian | *who* |
+| test manager | *who: never the thread that built the change* |
+| librarian | *who* |
 | security | *policy: who; this application's controls: who* |
 
 | owner thread | design authority for | kind | runs |
