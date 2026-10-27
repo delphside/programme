@@ -114,6 +114,9 @@ docs/1.6 records the app it works through.
   | Post-deployment | Check it is working and giving the benefit expected. |
   | Project Closedown | Lessons learnt completed. |
 
+  A test approach is approved by the test manager before the project leaves
+  Design and Test Approach (docs/1.9 *The test policy*).
+
   The post-deployment check has one row per requirement.
 - **A problem found in testing is fixed on the branch, and the branch is
   retested.** One found after the merge either reopens the package (a new
@@ -282,8 +285,9 @@ docs/1.6 records the app it works through.
   single delivery satisfies, and Project Closedown to close. A work package may
   delegate lessons learnt to the parent, and says so.
 - **A release is made once, at the end of regression; deploying it is
-  choosing a version.** Making the release, once the owner judges rehearsal
-  passed, checks the milestone, writes the release record, tags the version and
+  choosing a version.** Making the release, once the test manager has checked
+  the regression results and the owner judges rehearsal passed, checks the
+  milestone, writes the release record, tags the version and
   bumps `main` to the next patch; the deploy checks only the record, the schema
   and a smoke test. docs/1.2 *Making a release, then deploying it* has the
   steps.
@@ -401,7 +405,7 @@ docs/1.6 records the app it works through.
 | programme and application, and the workstreams and what each owns | docs/1.3 |
 | roles, who decides, and each role's reading list | docs/1.7 |
 | the service desk: how a Ticket arrives, is answered and closed | docs/1.8 |
-| the test strategy, and the standards every test is held to | docs/1.9 |
+| the test policy and strategy, and the standards every test is held to | docs/1.9 |
 | the recurring activities, what the weekly digest reports and the improvement registers | docs/1.4 |
 | every tool, and how it is run | docs/1.1 |
 | every field a change is classified by, and each artefact's route | docs/1.2 §2.15 |
