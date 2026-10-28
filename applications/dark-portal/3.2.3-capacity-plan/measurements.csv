@@ -1,0 +1,5 @@
+period,metric,value,ceiling,unit
+2026-10,analysis-memory-nonprod,6.3,8,GB
+2026-10,a1-ocpu,4,4,OCPU
+2026-10,a1-memory,24,24,GB
+2026-10,block-storage,188,200,GB
