@@ -133,7 +133,7 @@ where there is one and always into the run log:
 
 | flag | sets aside |
 | --- | --- |
-| `--emergency REASON` (release) | the commit being on `main`; requires instead that it is cut from the last release tag (§6) |
+| `--emergency REASON` (release) | the commit being on `main`; requires instead that it descends from the release production runs (§6) |
 | `--skip-rehearsal REASON` (release) | rehearsal having passed this commit; raises the retrospective issue (§8) |
 | `--unrecorded REASON` (deploy, production) | the need for a record: REF is a full SHA, whose image set the release copier copies to releases as `SHA-IMAGE` (a no-op where the same digests are there already) with no record; no version is spent, and settle has nothing to move |
 | `--off-level REASON` (deploy, rehearsal) | a rehearsal cycle starting from production's level |
@@ -142,7 +142,8 @@ where there is one and always into the run log:
 `--check` runs every gate and stops before anything changes (what `verify.sh`
 uses). `deploy --wait[=MINUTES]` waits for the lock and for a hook that answers *not
 yet*, checking each minute, for at most 60 minutes by default: Dark Portal's
-longest wait outside its window is 50.
+longest wait outside its window is 50. At the limit it refuses, exit 1, naming
+what it waited for.
 
 Every command writes a run log on the machine it runs on, naming each gate it
 ran. A command that ends without every gate in its list having run refuses, as
@@ -256,13 +257,13 @@ row says what it is for before what it compares.
 | build | the store is never overwritten | an image whose `SHA-IMAGE` is present is not rebuilt; a failed registry query refuses; releases is immutable | gate | nothing |
 | every deploy | the host runs exactly the bytes named | each image pulled by digest; its revision label is the SHA; the running containers' `RepoDigests` match (for a `--local` preview build, the local image id and its revision label) | gate | nothing |
 | every deploy | two deploys, or a deploy and the application's own heavy run, never overlap | the environment's lock is free, and held to the end | gate | `--wait` waits |
-| every deploy | an interrupted deploy is not built upon | the state folder shows the last deploy finished | gate | nothing: `deliver rollback` or a fresh deploy of the previous REF |
+| every deploy | an interrupted deploy is not built upon | the state folder shows the last deploy finished, or `failed, no previous deploy` | gate | nothing: `deliver rollback` or a fresh deploy of the previous REF |
 | every deploy | the application's deploy-time conditions | the `pre-deploy` hook | gate | `--set-aside`, where overridable |
 | every deploy | a failed deploy leaves the previous deploy running | `migrate` fails or `smoke` refuses: `restore-state`, then the previous deploy's digests and joined files | gate | nothing |
-| rehearsal deploy | rehearsal starts from production's level | the first deploy of a cycle (the deploys to a rehearsal-role environment since the last release was made) is production's current record, read from the production host's state over ssh and pulled from candidates by the same digests. Production running a build with no record refuses | gate | `--off-level` |
+| rehearsal deploy | rehearsal starts from production's level | the first deploy of a cycle (the deploys to a rehearsal-role environment since the last release was made) is production's current record, read from the production host's state over ssh and pulled from candidates by the same digests. Production running a build with no record refuses: a production deployed before the tool, as at the first cycle (§10) | gate | `--off-level` |
 | release | the release is what rehearsal passed | the rehearsal-role environment runs this commit's digests, its last deploy finished and its `smoke` passed, and the owner confirms the version | gate | `--skip-rehearsal`, which raises the retrospective issue |
 | release | a normal release ships what `main` holds | the commit is on `origin/main` | gate | `--emergency` |
-| release | an emergency ships nothing unreleased | with `--emergency`, the commit descends from the tag of the release production runs (its record, or for a release made before the tool its tag) and none of its commits after that tag is on `main` | gate | nothing |
+| release | an emergency ships nothing unreleased | with `--emergency`, the commit descends from the tag of the release production runs (its record, read from production's host state as for rehearsal's level; where production has no `deliver` state, the version its `/health` reports, whose tag is the release's) and none of its commits after that tag is on `main` | gate | nothing |
 | release | CI has passed the commit | every check in `required_checks` is green on the commit | gate | nothing |
 | release | the version is spent once, and moves forward | no tag or record exists for the version, and it is higher than the newest release tag of any prefix | gate | nothing |
 | release | the milestone is a shipping list | parents aside, every open issue in milestone VERSION is evidenced by a commit in the release (`Refs #N` since the previous release tag; a parent's `Refs` counts for its work package where the parent has exactly one in the milestone), and every work package the commits name is in the milestone. With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 6 | gate | `--set-aside milestone REASON` |
@@ -306,12 +307,15 @@ before the tool and are read as history only.
   "rehearsal": {"environment": "rehearsal", "deployed": "2026-11-02T18:40:00Z", "smoke": "passed"},
   "emergency": null,
   "rehearsal_skipped": null,
+  "set_aside": [{"gate": "milestone", "reason": "..."}],
   "tool": {"programme": "the programme commit the application pins"},
   "carries": {"work_packages": [555, 556], "issues": [560]}
 }
 ```
 
-`carries` is the milestone's open items once the gate has passed: its work
+`set_aside` lists each gate `--set-aside` named, with its reason, and is empty
+where none was. `carries` is the milestone's open items once the gate has passed,
+or has been set aside, less any issue an emergency left out: its work
 packages, and its open issues that are not projects, parents aside. The
 commits' `Refs` are the gate's evidence, never the list itself, so an issue
 that is only referenced, such as an application's notes issue, is never
@@ -360,7 +364,9 @@ keeping a developer's and CI's local builds working, with `pull_policy: never`: 
 pulled by digest before the switch, so compose never pulls by tag or builds.
 The build environment uses the same compose file with its `build:` blocks.
 
-A deploy's steps: take the lock; check the state; pull every image by digest
+A deploy's steps: take the lock; check the state (a deploy that did not reach
+`finished` and was not restored refuses, naming the step reached; `failed, no
+previous deploy` does not, because the next deploy is the way forward); pull every image by digest
 (within `pull_timeout`); take the payload out of `payload_image`; `pre-deploy`;
 write the new deploy folder; `save-state`; `migrate`; install the host files where the environment has `host_files` true, which by
 default only rehearsal and production roles do, so environments sharing a host
@@ -372,8 +378,8 @@ is safe only because no build environment builds a fork); switch `current`; `com
 prune host images other than current and previous, sparing those the profile lists in `[deliver].keep_images` (Tile Lite Elite keeps the `deploy.sh` images, `tile-lite-elite-server` and `-web` at `:latest` and `:previous`, until 0.10.3, for its fallback). A host file the previous deploy installed and this one does not carry is removed; a rollback restores the previous deploy's set the same way. A failure after
 `save-state` runs `restore-state`, switches back to `previous`, reinstalls its
 host files, and exits 1. On a host's first `deliver` deploy there is no
-`previous`: the failure runs `restore-state`, marks the state
-`failed, no previous deploy`, and exits 1 naming the application's fallback.
+`previous`: the failure runs `restore-state`, stops the new containers, removes
+`current`, marks the state `failed, no previous deploy`, and exits 1 naming the application's fallback.
 
 **Rollback** is the same switch to `previous`, with `restore-state`, run on
 demand. With no previous deploy it refuses and names the application's
