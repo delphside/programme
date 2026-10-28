@@ -240,8 +240,8 @@ want of an answer.
 | `migrate` | step | environment host | `server --migrate-only` | catalog migrations |
 | `smoke` | gate | environment host | `/health` reports `VERSION+SHA` within 60 s | the release's own checks |
 | `restore-state` | step | environment host | restore the snapshot | restore the catalog copy; bronze is append-only and untouched |
-| `post-deploy` | check | control node | list open `Release Check` issues | the next collection lands, waited for up to an hour |
-| `env-create`, `env-destroy` | step | environment host | the preview slot's volume | the user, `/srv/dp/NAME`, its timer |
+| `post-deploy` | check | control node | list open `Release Check` issues | the next collection, about :36, lands |
+| `env-create`, `env-destroy` | step | environment host | the preview slot's volume | the user and `/srv/dp/NAME` |
 
 A check's non-zero exit is reported, changes nothing else, and leaves the exit code as it was.
 
