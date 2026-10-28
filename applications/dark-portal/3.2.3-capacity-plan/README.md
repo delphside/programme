@@ -13,8 +13,8 @@ reviews it.
 
 | Rows | Source | Read by |
 | --- | --- | --- |
-| the collector's and the analysis's memory | the sizing test of delphside/dark-portal#12, then the host | the owner, over SSH |
-| stored data | the size of the stored data on the host | the owner, over SSH |
+| the hourly job's and the analysis's memory, CPU, time and spill | the sizing test of delphside/dark-portal#12, then the host | the owner, over SSH |
+| stored data | the size of the stored data on the host, and of the bucket | the owner, over SSH, and the Oracle Cloud console |
 | Blizzard API quota | the collector's own request counts | the owner, over SSH |
 | host memory, CPU and disk | [*How the host rows are measured*](#how-the-host-rows-are-measured) | the owner, over SSH |
 | Oracle Always Free, account-wide | the Oracle Cloud console | the owner |
@@ -28,9 +28,14 @@ they are held here until Infrastructure has a capacity plan of its own.
 
 | Resource | Consumed | Ceiling | Headroom |
 | --- | --- | --- | --- |
-| **the collector's memory** | | not yet set; DP: Application Architecture sets it | |
-| **the analysis's memory** (DuckDB) | | not yet set; DP: Market Analysis sets it | |
-| **stored data** | | not yet set; DP: Application Architecture sets retention | |
+| **the hourly job's memory** | | `memory_limit` 1 GB, from delphside/dark-portal#12 | |
+| **the hourly job's CPU** | | 1 OCPU through the hour | |
+| **the hourly job's time** | | 60 min to the next collection | |
+| **ad-hoc analysis memory** (DuckDB, production) | | `memory_limit` 4 GB, from delphside/dark-portal#12 | |
+| **ad-hoc analysis memory** (DuckDB, non-production) | | `memory_limit` 8 GB, from delphside/dark-portal#12 | |
+| **analysis spill** (production) | | 5 GB of the host's disk kept free for spill, proposed on delphside/dark-portal#12 | |
+| **stored data on the host** | | a few days of bronze (delphside/dark-portal#5); none set for silver and gold | |
+| **stored data in the bucket** | | one year of bronze once delphside/dark-portal#5's lifecycle rule exists; 20 GB Always Free | |
 | **Blizzard API quota** | | 36,000 requests an hour, 100 a second (Blizzard's published client limit) | |
 
 Held until Infrastructure plans them:
@@ -44,6 +49,7 @@ Held until Infrastructure plans them:
 | **Oracle Always Free, account-wide** | | | |
 | — Ampere A1 cores and memory | | 4 OCPU, 24 GB across all A1 instances (Oracle's Always Free terms) | |
 | — block storage | | 200 GB across all volumes (Oracle's Always Free terms) | |
+| — Object Storage | | 20 GB across all tiers (Oracle's Always Free terms) | |
 
 ## How the host rows are measured
 
