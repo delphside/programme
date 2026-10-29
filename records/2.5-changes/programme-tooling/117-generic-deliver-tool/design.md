@@ -433,6 +433,9 @@ release made with `deliver` (owner, 2026-10-28), and the first with a record.
   in with their own identity (owner, 2026-10-28); the release copier uses its
   own credential; a role's credential cannot do another role's writes; nothing
   secret is written to a profile, record, tag or log.
+  Reading production's host state, or its `/health`, for rehearsal's level
+  and the emergency gate is a scripted check, bounded and read-only, which each
+  application's CLAUDE.md names beside its other checks (owner, 2026-10-29).
 
 ## 12. Language and layout
 
