@@ -14,7 +14,7 @@ This specification derives the tests for `deliver` from its stated rules, withou
 
 **(H)** marks a rule taken from the agreed handover rather than from a document.
 
-**†** marks a rule, scenario or test that depends on the owner's pending decision on the source of production's level (X2), which is also the emergency gate's source for the release production runs. The design says production's host state is read over ssh, and this specification is written for that reading. The recommendation is to name the read as a scripted check of the tool, like `verify.sh`, `check-hosts.sh` and the `/health` reads. The alternative is the last settled record. If the owner chooses the alternative, the † items change and nothing else does.
+**†** marks a rule, scenario or test that reads production: its host state over ssh, or its `/health` where it has no `deliver` state. It is the source of production's level (R15) and of the release production runs (R17). The owner decided on 2026-10-29 that this read is a scripted check, named in each application's CLAUDE.md beside `verify.sh`, `check-hosts.sh` and the `/health` reads (X2).
 
 Each test has one of two kinds:
 
@@ -533,7 +533,7 @@ Still open, each a question for the owner:
 
 | gap | what it would take to close it | why it is acceptable for now |
 | --- | --- | --- |
-| X2 † The design says production's level is read from the production host's state over ssh. The owner has yet to decide it. The recommendation is host state over ssh, named as a scripted check of the tool. The alternative is the last settled record. | The owner's decision. | S17, S20, S39, S48, S49 and S50 (R15 and R17) are written for the host-state reading and marked †. They change if the alternative is chosen. |
+| X2 † Production's level, and the release production runs, are read from production's host state over ssh, or its `/health` where it has no `deliver` state. | Closed: the owner decided on 2026-10-29 that the read is a scripted check, named in each application's CLAUDE.md. | S17, S20, S39, S48, S49 and S50 (R15 and R17) stand as written. |
 | X9b A command "ending with a gate unrun refuses" cannot be provoked from outside, and §4 gives no per-command gate list beyond §6. | A test hook or a documented gate list. | The run log is asserted against §6 (O23). The self-check is reviewed, not tested. |
 | X14 The `oci-api-key` adapter (Dark Portal's copier) is exercised by no Tile Lite Elite test. | Dark Portal's adoption, delphside/dark-portal#15, carries the test: the key missing, then present, with the refusal shown before the success. | Dark Portal is out of scope here. |
 | X15 The production-role gates are shown on a real host only by the owner's `--check` runs and 0.10.2's first production deploy (part 8), not before the merge. The real-host statement is: `deliver deploy production <raw SHA> --check` and `deliver deploy production <unrecorded version> --check` both refuse, naming the gate, and change nothing. It matches the post-deployment box of delphside/tile-lite-elite#555. | #555's test-approach box is changed to point at the CI tests and the post-deployment check. | Accepted at the test manager's sign-off on #117, 2026-10-28: production reads and deploys are the owner's, and the rehearsal identity cannot read releases. |
