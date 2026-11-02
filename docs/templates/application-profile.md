@@ -5,10 +5,12 @@ know about it, read by scripts/board/profile.py. The rule is docs/1.3, "The
 generic assets, and an application's instances".
 
 1. Copy this to `applications/<app>/3.n.6-profile.md`.
-2. Replace all italic text with the application's own, and leave out an
-   optional section that has nothing in it.
-3. Keep the headings and the order of the columns: the tooling finds a table
-   by its heading, reads its columns by position, and finds the target
+2. Replace the italic text, and each `n`, `CODE` and `owner/repository`, with
+   the application's own, and leave out an optional section that has nothing
+   in it.
+3. Keep the headings, the order of the columns and the words in each table's
+   first column: the tooling finds a table by its heading, reads its columns
+   by position, finds a field by its first column and finds the target
    architecture by its first link.
 4. Delete these comments.
 
