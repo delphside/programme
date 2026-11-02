@@ -194,6 +194,9 @@ class TheLiveCheckout(Cases):
         self.expect("and its change documents",
                     self.live / "applications" / APPLICATION / "3.6.7-changes",
                     records.change_documents())
+        self.expect("the improvement registers are a record, in it",
+                    self.live / "records" / "2.7-improvement-registers.md",
+                    records.improvement_registers())
         self.expect("the register is generic, from the pinned submodule, not the live checkout",
                     profile.app_root() / "programme" / "docs" / "1.4-programme-activities.md",
                     records.activity_register())

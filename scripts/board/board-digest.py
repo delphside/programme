@@ -80,7 +80,7 @@ def main(argv=None) -> int:
         except Unavailable:
             unread.append(repository)
 
-    registers = records.activity_register().read_text()
+    registers = records.improvement_registers().read_text()
     digest = build(open_snapshot, closed, since=args.since, registers=registers,
                    merged_prs=merged, other_prs=other_prs, unread=unread)
     text = render(digest, args.decided)

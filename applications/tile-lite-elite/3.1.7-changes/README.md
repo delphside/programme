@@ -11,7 +11,7 @@ the end state to its overview and design documents (4.1 and 4.2), its how-tos
 and runbooks to 4.3, the as-built facts to its reference (4.4), and any decision
 worth citing later to
 [4.1.0 Rules](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md),
-with an id.
+with an ID.
 
 ## Where they are
 

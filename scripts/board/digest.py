@@ -247,7 +247,8 @@ def issue_lessons(closed_raw, start: str) -> list[tuple[int, str, str]]:
 
 def register_rows(markdown: str, heading: str) -> list[dict]:
     """The rows of the first table under `heading`, as dicts keyed by its header
-    cells. The programme's docs/1.4's registers are read this way, like its activity table."""
+    cells in lower case, so a header's capital does not matter. The programme's
+    improvement registers (records/2.7) are read this way."""
     rows, header = [], None
     for line in section(markdown, heading).splitlines():
         if not line.startswith("|"):
@@ -256,7 +257,7 @@ def register_rows(markdown: str, heading: str) -> list[dict]:
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if header is None:
-            header = cells
+            header = [c.lower() for c in cells]
         elif not set(line.replace("|", "").strip()) <= set("-: "):
             rows.append(dict(zip(header, cells)))
     return rows
@@ -744,14 +745,14 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     out.append("")
     out.append("*To be written at the weekly review, as the programme's docs/1.4 says.*")
     out.append("")
-    # The registers are the programme's docs/1.4's; the digest reports them, new ones marked.
+    # The registers are the programme's records/2.7; the digest reports them, new ones marked.
     for title, rows, what in (("Recurring problems", d.problems, "problem"),
                               ("Improvement initiatives", d.initiatives, "initiative")):
         out.append(f"## {title}")
         out.append("")
         live = [r for r in rows if not r.get("state", "").startswith("done")]
         if not live:
-            out.append(f"No open {what} in the programme's docs/1.4's register.")
+            out.append(f"No open {what} in the programme's records/2.7 register.")
         for r in live:
             new = " **new this week**" if r.get("raised", "") >= start else ""
             detail = r.get("initiative") if what == "problem" else r.get("state")

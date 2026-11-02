@@ -38,7 +38,7 @@ The scope as the project issue fixed it, against what is live. Not a summary of
 the work — a comparison, item by item, with anything dropped or deferred named
 as such.
 
-| in scope | delivered | note |
+| In scope | Delivered | Note |
 | --- | --- | --- |
 | | | |
 
@@ -61,7 +61,7 @@ when someone looked"* to *"we forgot to check"*.
 Every finding is an action or a deliberate non-action. An observation with
 neither is a note nobody will read again.
 
-| finding | pre-approved change, requirement or project | or why no change |
+| Finding | Pre-approved change, requirement or project | Or why no change |
 | --- | --- | --- |
 | | | |
 

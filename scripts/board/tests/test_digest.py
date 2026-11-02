@@ -195,12 +195,18 @@ class TheReview(Cases):
                               "2026-09-21")
         self.expect("only the one closed this week that recorded one", [(1, "issue 1", "run it once before merging")], found)
 
-    def test_the_registers_are_read_from_docs_3_8(self):
+    def test_the_registers_are_read_from_records_2_7(self):
         problems = register_rows(REGISTERS, "The problem register")
         self.expect("every row", ["`P-1`", "`P-2`"], [r["id"] for r in problems])
         self.expect("keyed by the header", "none yet", problems[1]["initiative"])
         self.expect("and the other table separately", 2,
                     len(register_rows(REGISTERS, "The continual improvement register")))
+
+    def test_a_capitalised_header_keys_the_same(self):
+        capitalised = REGISTERS.replace("| id | problem | occurrences | initiative | raised |",
+                                        "| ID | Problem | Occurrences | Initiative | Raised |")
+        problems = register_rows(capitalised, "The problem register")
+        self.expect("keyed in lower case", "none yet", problems[1]["initiative"])
 
     def test_open_ones_are_reported_and_new_ones_marked(self):
         d = digest(problems=register_rows(REGISTERS, "The problem register"),

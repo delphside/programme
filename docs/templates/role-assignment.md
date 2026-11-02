@@ -7,7 +7,7 @@ holders in 2.2. Delete these comments.
 
 ## Who holds each role here
 
-| role | held by |
+| Role | Held by |
 | --- | --- |
 | owner | *a person* |
 | design authority | *the owner threads below, each for its workstreams* |
@@ -18,7 +18,7 @@ holders in 2.2. Delete these comments.
 | librarian | *who* |
 | security | *policy: who; this application's controls: who* |
 
-| owner thread | design authority for | kind | runs |
+| Owner thread | Design authority for | Kind | Runs |
 | --- | --- | --- | --- |
 | *name* | *workstreams from the workstream register* | *permanent, or on call* | *cloud, or local* |
 

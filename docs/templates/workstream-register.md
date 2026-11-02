@@ -8,7 +8,7 @@ something a workstream". Fill it in as the application's workstreams,
 
 ## This application's workstreams
 
-| Workstream | instance of | owns |
+| Workstream | Instance of | Owns |
 | --- | --- | --- |
 | *name* | *a generic workstream from 1.3, or "a domain workstream"* | *what it owns, then its main artefacts* |
 
@@ -19,7 +19,7 @@ capability.*
 
 #### The artefacts *workstream* owns
 
-| artefact | |
+| Artefact | |
 | --- | --- |
 | *a path, or a name from the artefact register* | *what it is for* |
 

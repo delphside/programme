@@ -27,7 +27,7 @@ at the root of [its repository](https://github.com/*owner*/*repository*).
 
 ## Identity
 
-| field | value |
+| Field | Value |
 | --- | --- |
 | name | *the application's name* |
 | code | `CODE` |
@@ -38,7 +38,7 @@ at the root of [its repository](https://github.com/*owner*/*repository*).
 
 ## Versioning
 
-| field | value |
+| Field | Value |
 | --- | --- |
 | scheme | `semver` or `date` |
 | commit stamp | *the commit-subject stamp (Tile Lite Elite's: `app <X.Y.Z> api <M.N>: <subject>`), or none* |
@@ -51,7 +51,7 @@ override the URL here. A URL that is not fixed is written without backticks,
 saying why; the technical profile gives its default, or the script to source
 and the variable it sets.*
 
-| environment | purpose | URL |
+| Environment | Purpose | URL |
 | --- | --- | --- |
 | *name* | *what it is for* | `https://…`, or *not fixed* and why |
 
@@ -60,7 +60,7 @@ and the variable it sets.*
 The routes its deliveries take, from
 [1.2 §2.15](../../docs/1.2-change-lifecycle.md#route).
 
-| route | when a change on it reaches its users |
+| Route | When a change on it reaches its users |
 | --- | --- |
 | *a route* | *when it is live* |
 
@@ -71,7 +71,7 @@ the issue that will write it.*
 
 ## Records
 
-| record | path |
+| Record | Path |
 | --- | --- |
 | 3.n.1 delivery log | `3.n.1-delivery-log.md` |
 | 3.n.2 artefact register | `3.n.2-artefacts.md` |
@@ -88,6 +88,6 @@ top of `3.n.7-changes/`, outside the issue and release folders, because GitHub
 does not follow a rename and issue comments point at them. One row each, the
 file name in the first column. Rows are removed, never added.
 
-| document | why |
+| Document | Why |
 | --- | --- |
 | `a-document.md` | *what points at it* |

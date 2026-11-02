@@ -22,7 +22,7 @@ The answer to the route table in
 [1.2 §2.15](../../docs/1.2-change-lifecycle.md#route): which of this
 application's artefacts take each route.
 
-| route | this application's artefacts |
+| Route | This application's artefacts |
 | --- | --- |
 | Production Release | *this application's answer to the row in §2.15* |
 | Application Tooling | *this application's answer to the row in §2.15* |
@@ -35,7 +35,7 @@ application's artefacts take each route.
 
 *When and how this list was last verified.*
 
-| artefact | route | what it is | why it is not in the repository |
+| Artefact | Route | What it is | Why it is not in the repository |
 | --- | --- | --- | --- |
 | *canonical name ([1.2 §2.13](../../docs/1.2-change-lifecycle.md#213-the-impacted-artefacts-and-why-they-are-listed-early))* | *Production Release; Other; or Other, host maintenance* | *what it does* | *a secret, a console setting, a copy made by a deploy* |
 

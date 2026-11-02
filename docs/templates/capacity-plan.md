@@ -22,7 +22,7 @@ Every resource with a ceiling, and every resource without one: an absent
 ceiling is a finding. The rows are the application's own, from its README
 beside its plans.
 
-| | consumed | ceiling | headroom |
+| | Consumed | Ceiling | Headroom |
 | --- | --- | --- | --- |
 | **a resource** | | | |
 | — a part of it | | | |
@@ -41,7 +41,7 @@ not built yet, say which issue owns it.
 
 ## What would have to change before a ceiling is reached
 
-| ceiling | reached by | what would have to change |
+| Ceiling | Reached by | What would have to change |
 | --- | --- | --- |
 | | | |
 
@@ -130,14 +130,14 @@ Recompute these every month, in this order:
 
 Where a recomputed threshold disagrees with the limits configured, say so.
 
-| step | this month |
+| Step | This month |
 | --- | --- |
 | utilisation threshold (normal / degraded) | |
 | workload threshold (transactions/s) | |
 | peak, at the service level | |
 | spike allowance | |
 
-| limit | derived | configured | agree? |
+| Limit | Derived | Configured | Agree? |
 | --- | --- | --- | --- |
 | | | | |
 
