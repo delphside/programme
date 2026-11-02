@@ -77,9 +77,11 @@ Paste the history table here.
 ### What the forecast says, and how much to believe it
 
 Paste the summary table here. **Read the `forecast` column first**: its word
-comes from the relative root mean square error (RRMSE) of the fit, which tells
-a trend from noise, or is *not enough data*. Plan against no row marked
-*inaccurate*: measure it more, or ask why the metric is volatile.
+is *not enough data*, or comes from the fit's relative root mean square error
+(RRMSE), which tells a trend from noise. Plan against no row marked
+*inaccurate*: measure it more, or ask why the metric is volatile. Where a row
+is *possibly inaccurate* or *not enough data*, say so beside any reading of
+it.
 
 ### Each metric, against its ceiling
 
