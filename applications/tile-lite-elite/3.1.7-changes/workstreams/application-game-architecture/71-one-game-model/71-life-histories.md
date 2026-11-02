@@ -8,9 +8,9 @@ entity/event matrix and entity life history, tried here before the rule is
 written into docs/1.2.
 
 The entities and events come from [`71-design.md`](71-design.md),
-[`71-data-model.md`](71-data-model.md) §1, §3, §5 and §8, and the journeys
-and lifecycles in [`71-functional.md`](71-functional.md). This file adds no design
-of its own except where the design gave no answer: each of those is a numbered
+[`71-data-model.md`](71-data-model.md) §1, §3, §5 and §8, and the journeys and
+lifecycles in [`71-functional.md`](71-functional.md). This file adds no
+design of its own except where the design gave no answer: each of those is a numbered
 gap under [*Gaps the matrix found*](#gaps-the-matrix-found), with its proposed
 answer, and the design documents change once it is agreed.
 
@@ -113,10 +113,10 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | E1 | C, as each game is first used (#408) | C, as each bot subscription joins | C, per listed bot, **G3** | C, per listed bot: `Seats`, then each game's view | — | C, per listed bot; **G4** | C, per seat in the first `Seats` | — |
 | E2 | D | D | D | D | D | D | D | D, the search lost; E1 replays the turn |
-| E3 | C | — (no subscriber yet) | U, each seated account's, **G3** | — | — | — | C, per bot seat, as in E4 | — |
-| E4 | U | U, if it exists | U, the seat's account, **G3** | U, joins the game if it is new to the account | U, sends a frame | U, routes the list | C, for a bot's seat | — |
-| E5 | U | U | **G3** | U | U | — | — | — |
-| E6 | U | U | **G3** | U | U | — | — | — |
+| E3 | C | — (no subscriber yet) | U, each subscribed account whose seats it adds, addressees included, **G3** | — | — | — | C, per bot seat, as in E4 | — |
+| E4 | U | U, if it exists | U, the seat's player's or addressee's, if subscribed, **G3** | U, joins the game if it is new to the account | U, sends a frame | U, routes the list | C, for a bot's seat | — |
+| E5 | U | U | U, the addressee's, **G3** | U | U | — | — | — |
+| E6 | U | U | U, the claimant's for an open seat; — on accepting, **G3** | U | U | — | — | — |
 | E7 | U | U | — (the seat stays until E10) | U | U | — | — | — |
 | E8 | U | U | — (the seat stays until E10) | U | U | — | — (idles until E10) | — |
 | E9 | U | U | U, **G3** | U | U | — | D and C, **G1** | — |
@@ -247,7 +247,7 @@ that move, but the bot's real seat waits for the next `Seats`. Options:
    drop and remake. Recommended.
 2. **Keep numbers**, and `take_turn` acts only when the seat in the view
    belongs to the link's account. No new field; the object is still dropped
-   and remade at the start, and the bot's seat still waits for its turn
+   and remade at the start, and the bot's seat still misses its turn
    until the new `Seats` arrives.
 
 **G2.** Finishing keeps a seat in the list, so its object and its engine player
@@ -280,8 +280,8 @@ seats when the first subscribes, rather than for every account.
 `game_events (game_id, version, …)`, but `Hide` and `ReminderSent` save without
 moving the version, so their rows would repeat a key. (Data model §1's counter
 table also has a hidden seat moving the version, against the design; that row is
-corrected with this gap.) Proposed: the log gains its own sequence, `(game_id,
-seq)`, with `version` as a column.
+corrected with this gap.) Proposed: the log gains its own sequence,
+`(game_id, seq)`, with `version` as a column.
 
 **G6.** A bot hears it is on turn only from a publish. A refused move is either
 overtaken, and that move's publish follows, or illegal, and the design already
