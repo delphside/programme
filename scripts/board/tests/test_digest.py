@@ -217,6 +217,12 @@ class TheReview(Cases):
         self.expect("an open initiative is shown", True, "`CI-2` ongoing work: in progress" in text)
         self.expect("a finished one is not", False, "finished work" in text)
 
+    def test_a_capitalised_done_state_is_not_reported(self):
+        rows = register_rows(REGISTERS, "The continual improvement register")
+        for r in rows:
+            r["state"] = r.get("state", "").replace("done", "Done")
+        self.expect("Done counts as done", False, "finished work" in render(digest(initiatives=rows)))
+
     def test_there_is_no_memory_section(self):
         # The programme's docs/1.4, owner 2026-10-27: a lesson goes in the draft's notes.
         self.expect("Claude's memory is not read", False, "added to its memory" in render(digest()))

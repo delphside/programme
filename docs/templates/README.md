@@ -16,7 +16,7 @@ A template says **what must be included**; the worked examples beside it show
   and the steps, and is deleted once the template is filled in.
 - **Italic text is a placeholder**, replaced with the application's or the
   change's own.
-- **A letter or a capitalised word standing for a value is a placeholder
+- **A letter or a word in code font standing for a value is a placeholder
   too**: `n` in `3.n.x`, `(3+n)`, `CODE` and `owner/repository`. The
   template's comment names each one it uses.
 - **Everything else is kept as written**: the headings, the column order and
