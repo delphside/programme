@@ -1,0 +1,98 @@
+This is the first run of the `document-review` activity (1.4). Activity: document-review. It re-checks the never-reviewed documents of week 1 and fixes each fault it finds with the smallest statement that is true.
+
+## What is requested
+
+All 22 documents had both document reviewers, in rounds, until a round made no material finding:
+
+- **The programme's rules:** `CLAUDE.md`.
+- **Agents:** change-maker, change-reviewer, design-reviewer, document-reviewer-reader, document-reviewer-truth, reference-reviewer and test-designer.
+- **Skills:** change-a-document, raise-project, ship-a-change, triage and unit-test-checklist.
+- **READMEs:** the root README, and the README for Dark Portal, for infrastructure and for Tile Lite Elite. `records/2.1` was touched because the same facts had gone stale there.
+- **Dark Portal records:** 3.2.2, the 3.2.3 README, 3.2.4 and 3.2.6.
+- **Tile Lite Elite records:** 3.1.2 and the 3.1.3 README.
+- **Also in this PR:** the `records/2.3` log row and a note in the W44 digest.
+
+The main kinds of fault:
+
+- Tile Lite Elite paths and documents were written as if they applied to every application.
+- Text copied between the agents had drifted apart.
+- `gh` commands were split across lines.
+- Dark Portal's records had gone stale after a week of building.
+- Tile Lite Elite's artefact register had an incomplete Production Release row and a contradictory one.
+- The raise-project skill still had seven headings, while `board-check.py` asks for eight. It also named `verify.sh` as the reader of the test headings.
+
+`CLAUDE.md` changes only in small ways:
+
+- a deprecated route name;
+- a 1.2 heading;
+- the sentence about GitHub's forms;
+- one line of history.
+
+Its rule contradictions are left to you.
+
+## Deliberately left out
+
+- **Rule changes.** Each question below is yours to decide, and none is fixed.
+- **Cutting the dated quotations and history in `CLAUDE.md` and raise-project.** Both reviewers suggest it; see question 13.
+- **Templates.** Documents are fixed; templates are not.
+- **Tile Lite Elite and Dark Portal repository files.** See question 12.
+
+## Questions for the owner
+
+1. **1.2 contradicts itself on host files and packages.** §2.15 says a file on the host is a Production Release. §2.2.1 and `CLAUDE.md` say host packages are Other. TLE 3.1.2 marks the journald drop-ins and iptables as Other, and ship-a-change follows `CLAUDE.md`.
+2. **`pre-approved`, milestones and deliveries contradict each other.**
+   - `CLAUDE.md` says "every change has a delivery", and that `pre-approved` is the approval milestone.
+   - It also says a change straight to `main` has "no milestone".
+   - 1.2 says `pre-approved` "makes no delivery".
+   - The triage skill now avoids taking a side, and raise-project still says a Deliveries row "says `pre-approved`".
+3. **1.2 §2.14** puts the delivery-log row "in the change that delivers", but the release does not write it.
+4. **Copied text in the agents.** Should they include one shared file, so it cannot drift?
+5. **1.5 gaps:**
+   - It has no row for READMEs.
+   - It has no rule for wrapping YAML front matter, for bold run-in labels, or for owner quotations in `CLAUDE.md`.
+   - Templates use lower-case headers, against sentence case.
+6. **The unit-test checklist's only home is TLE 4.3.3,** and Dark Portal has no testing document.
+7. **DP 3.2.2:** what route does a host take when another application owns it?
+8. **DP 3.2.4:**
+   - The Client Distribution reason is inferred from dp#3. Please confirm it.
+   - Who owns the transform from snapshots to events and views?
+9. **The profile template** forces machine-read copies, and requires a link to 5.1.1, which does not exist yet.
+10. **TLE 3.1.2:**
+    - `e2e/**` is routed as Application Tooling, although test code is "not an artefact".
+    - `rust-toolchain.toml` is listed as an image input, but the Dockerfile does not copy it.
+    - Nothing checks the `/opt` sources that take the Production Release route. Should that be a requirement?
+    - The ruleset row copies 4.3.3.
+11. **`CLAUDE.md` against the documents:**
+    - *Making a release* (bumping `main` at release time) is written as true for every application, but Tile Lite Elite bumps after the production deploy until #545.
+    - BAU "above its budget" against 1.4's "by type of change, not by budget".
+    - "Any other change needs a project" against the digest-note, Dependabot and decision routes.
+    - Report editing: "only a reference is updated" against 1.2's "never: a new one is written".
+    - The notes issue "named in its CLAUDE.md": Dark Portal's names none.
+12. **Other repositories:**
+    - TLE `docs/4.3.3:106` still says "`Closes #N` only where the change never leaves the repository", which is now untrue.
+    - Dark Portal's `CLAUDE.md` restates the `Refs #N` rule instead of linking it.
+    - raise-project's `folded` label does not exist in dark-portal.
+13. **Quotations and history in `CLAUDE.md` and raise-project.** Both reviewers class them under 1.5's 1.x row (no history) and would cut about a fifth of `CLAUDE.md`. Should they be cut?
+14. **Application Tooling and Docs:**
+    - Does it take a branch? raise-project's template says yes. Its own note, and 1.2, say only where the old version is needed.
+    - TLE #291's due line still reads 2026-10-21.
+15. **Not checked:**
+    - the Dark Portal board view and 1.6's views for each application;
+    - the GraphQL ids in raise-project, because GraphQL is refused from the cloud;
+    - Google's style guide, which could not be reached, so its rules were applied from memory.
+
+## Review rounds
+
+Round 1 cost about 4M tokens and found about 120 material points, some of them raised by both reviewers. Later rounds resumed the same reviewer on the diff of each fix.
+
+| Documents | Rounds until none material |
+| --- | --- |
+| 18 documents, including `CLAUDE.md` and raise-project | 2 |
+| change-maker, document-reviewer-truth, ship-a-change, TLE 3.1.2 | 3 |
+| change-reviewer | 4 |
+
+The minor findings left in the final rounds are fixed. `scripts/docs/check-docs.sh --programme` prints OK. The repository has no pull request template.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+https://claude.ai/code/session_018ZJc3xYVZABiG4ANeJrZuL
