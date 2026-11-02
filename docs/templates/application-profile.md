@@ -58,7 +58,7 @@ and the variable it sets.*
 The routes its deliveries take, from
 [1.2 §2.15](../../docs/1.2-change-lifecycle.md#route).
 
-| route | how a change on it reaches its users |
+| route | when a change on it reaches its users |
 | --- | --- |
 | *a route* | *when it is live* |
 
