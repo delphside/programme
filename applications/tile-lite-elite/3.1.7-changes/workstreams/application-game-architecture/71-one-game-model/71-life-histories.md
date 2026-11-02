@@ -8,8 +8,8 @@ entity/event matrix and entity life history, tried here before the rule is
 written into docs/1.2.
 
 The entities and events come from [`71-design.md`](71-design.md),
-[`71-data-model.md`](71-data-model.md) §1, §3, §5 and §8, and the journeys and
-lifecycles in [`71-functional.md`](71-functional.md). This file adds no design
+[`71-data-model.md`](71-data-model.md) §1, §3, §5 and §8, and the journeys
+and lifecycles in [`71-functional.md`](71-functional.md). This file adds no design
 of its own except where the design gave no answer: each of those is a numbered
 gap under [*Gaps the matrix found*](#gaps-the-matrix-found), with its proposed
 answer, and the design documents change once it is agreed.
@@ -66,7 +66,7 @@ the life of any entity here and is left out.
 | E24 | a WebSocket opens on a game | data model §8 |
 | E25 | a WebSocket closes | data model §8 |
 | E26 | a receiver falls behind | data model §8 |
-| E27 | a bot's search ends: a move, a failure or the time limit | data model §8 |
+| E27 | a bot's search ends: a move, a failure or the search time limit | data model §8 |
 | E28 | an account is deleted | U6.2 |
 
 ## The matrix
@@ -94,8 +94,8 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 | E14 | U, version only | — | — | C | — |
 | E15 | U | U `Playing → Departed` | — | C | — |
 | E16 | U `Finished` | — (frozen) | — | C | U, settled; a bot playing only against itself nets zero |
-| E17 | U: an abort, or a force-end before the start, `Aborted`; a force-end after it `Finished`, unrated | — (frozen) | U, pending ones cancelled | C | — |
-| E18 | U `last_activity_at` | — | — | C | — |
+| E17 | U: an abort, or a force-end before the start, `Aborted`; a force-end after it `Finished`, no rating change | — (frozen) | U, pending ones cancelled | C | — |
+| E18 | U, version and `last_activity_at` | — | — | C | — |
 | E19 | U, saved, version unchanged | U `hidden_by_player` | — | **G5** | — |
 | E20 | U, saved, version unchanged | U `reminder_sent_turn` | — | **G5** | — |
 | E21 | D | D | D | D | U, `game_id` set null; the history stays |
@@ -111,7 +111,7 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 
 | | Game entry | Game watch | Seat-list watch | Subscription | WebSocket task | Bot task | Bot object | Search permit |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| E1 | C, as each game is first used (#408) | C, as each bot subscription joins | C, per listed bot | C, per listed bot: `Seats`, then each game's view | — | C, per listed bot; **G4** | C, per seat in the first `Seats` | — |
+| E1 | C, as each game is first used (#408) | C, as each bot subscription joins | C, per listed bot, **G3** | C, per listed bot: `Seats`, then each game's view | — | C, per listed bot; **G4** | C, per seat in the first `Seats` | — |
 | E2 | D | D | D | D | D | D | D | D, the search lost; E1 replays the turn |
 | E3 | C | — (no subscriber yet) | U, each seated account's, **G3** | — | — | — | C, per bot seat, as in E4 | — |
 | E4 | U | U, if it exists | U, the seat's account, **G3** | U, joins the game if it is new to the account | U, sends a frame | U, routes the list | C, for a bot's seat | — |
@@ -140,8 +140,12 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 | E27 | — | — | — | — | — | — | U, submits or stays on turn | C before the search, D when the engine returns |
 | E28 | — | — | D | — | — | **G4** | — | — |
 
+The Seat-list watch column shows G3's proposed answer, which differs from §8
+in when a watch exists.
+
 Every change that moves the version also sets and clears the Game entry's
-`unsaved` flag under its lock; that is the Game entry's U in E3 to E18.
+`unsaved` flag under its lock; that is the Game entry's U in E3 to E18. E19
+and E20 save under the same lock without moving the version.
 
 ## State tables
 
@@ -160,14 +164,14 @@ stateDiagram-v2
     [*] --> Waiting: made from Seats (E1, E4, renumbering)
     Waiting --> Searching: a view with this seat on turn, game Active
     Searching --> Submitted: the engine returns a move
-    Searching --> Waiting: failure or time limit, seat left on turn
+    Searching --> Waiting: failure or search time limit, seat left on turn
     Submitted --> Waiting: applied, refused, or not saved (G6)
     Waiting --> [*]: GameRemoved, or Seats loses it
     Searching --> [*]: GameRemoved, or Seats loses it
     Submitted --> [*]: GameRemoved, or Seats loses it
 ```
 
-| state | on turn, Active | not on turn | engine returns a move | failure or time limit | applied or refused | not saved (503) | game over | `Seats` loses it, or `GameRemoved` |
+| state | on turn, Active | not on turn | engine returns a move | failure or search time limit | applied or refused | not saved (503) | game over | `Seats` loses it, or `GameRemoved` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Waiting | → Searching | — | impossible | impossible | impossible | impossible | **G2** | → ended |
 | Searching | — (the search goes on) | — (the search goes on) | → Submitted | → Waiting | impossible | impossible | **G2** | → ended, the search abandoned |
@@ -188,7 +192,7 @@ stateDiagram-v2
     [*] --> Starting: updates_for called
     Starting --> Live: first yields done
     Live --> Live: a change, a skipped state, a game joined or left
-    Starting --> [*]: the subscriber goes
+    Starting --> [*]: the subscriber goes, or one game's GameRemoved
     Live --> [*]: the subscriber goes, or one game's GameRemoved
 ```
 
@@ -243,8 +247,8 @@ that move, but the bot's real seat waits for the next `Seats`. Options:
    drop and remake. Recommended.
 2. **Keep numbers**, and `take_turn` acts only when the seat in the view
    belongs to the link's account. No new field; the object is still dropped
-   and remade at the start, and a stale object can still be the one that
-   misses its turn until `Seats` arrives.
+   and remade at the start, and the bot's seat still waits for its turn
+   until the new `Seats` arrives.
 
 **G2.** Finishing keeps a seat in the list, so its object and its engine player
 live until the game is deleted, up to seven days later (RET-1). Proposed: the
@@ -254,8 +258,9 @@ and makes none for such a game's seats in `Seats`.
 **G3.** §8 gives every account a seat-list watch, written by `publish` and by
 deleting a game, and drops a seat when it is removed or its game deleted. It
 does not say whether an `Invited` seat is in its addressee's list, nor which
-accounts a change writes. Proposed: a seat is in an account's list once that
-account is the seat's player, in any state; `publish` writes the list of each
+accounts a change writes. Proposed: a seat is in an account's list while that
+account is its player, or for an `Invited` seat its addressee, in any state, so
+E5 adds the seat to the addressee's list; `publish` writes the list of each
 account whose set of `SeatRef`s the change altered. This also changes §8 on one
 point: a watch exists while it has a subscriber and is built from the stored
 seats when the first subscribes, rather than for every account.
@@ -280,9 +285,9 @@ is corrected with this gap.) Proposed: the log gains its own sequence,
 
 **G6.** A bot hears it is on turn only from a publish. A refused move is either
 overtaken, and that move's publish follows, or illegal, and the design already
-leaves the seat on turn for the time limit. A failed save answers 503 with
-`Retry-After` and publishes nothing (D69), so the seat waits for the time limit
-although nothing was wrong with the move. Proposed: on a 503 the object
+leaves the seat on turn for the move time limit (TIME-3). A failed save answers
+503 with `Retry-After` and publishes nothing (D69), so the seat waits for the
+move time limit although nothing was wrong with the move. Proposed: on a 503 the object
 retries once after `Retry-After`, then waits.
 
 **G7.** U4.2 makes the game unrated and moves the version, which the design
