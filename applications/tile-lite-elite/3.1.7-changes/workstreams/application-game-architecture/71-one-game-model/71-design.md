@@ -1173,6 +1173,8 @@ the `game-wire` crate and the test client.
 
 **Waits on**: nothing still open. It builds the test client and stops short
 of the harness, which is #10's (D63). Its tests: [`71-test-wp-a.md`](71-test-wp-a.md).
+What each event does to each entity it touches is in
+[`71-life-histories.md`](71-life-histories.md) (#542).
 
 ### WP B, #269 Core Client UI
 
