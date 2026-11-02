@@ -78,9 +78,8 @@ Paste the history table here.
 
 Paste the summary table here. **Read the `forecast` column first**: its word
 comes from the relative root mean square error (RRMSE) of the fit, which tells
-a trend from noise. Plan against no row marked *inaccurate*, *possibly
-inaccurate* or *not enough data*: measure it more, or ask why the metric is
-volatile.
+a trend from noise, or is *not enough data*. Plan against no row marked
+*inaccurate*: measure it more, or ask why the metric is volatile.
 
 ### Each metric, against its ceiling
 
@@ -111,7 +110,7 @@ names are placeholders:
 its thresholds are derived, say which issue will derive them (Tile Lite Elite's
 is delphside/tile-lite-elite#405).*
 
-Recomputed every month, in this order:
+Recompute these every month, in this order:
 
 1. the hardware ceiling
 2. the owner's utilisation threshold
