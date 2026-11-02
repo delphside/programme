@@ -10,10 +10,11 @@ programme record that changes on main. Delete these comments.
 
 This file holds two things:
 
-- the application's artefacts by route;
-- the register of everything under change control that leaves no trace in
-  git. This file is its only record, so each entry carries enough to recreate
-  it.
+- the application's artefacts by route
+- the register of everything under change control that leaves no trace in git
+
+This file is the only record of the second, so each entry carries enough to
+recreate it.
 
 ## Artefacts by route
 
