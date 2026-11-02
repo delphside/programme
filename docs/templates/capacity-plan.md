@@ -78,7 +78,7 @@ Paste the history table here.
 
 Paste the summary table here. **Read the `forecast` column first.** Its word
 comes from the fit's relative root mean square error (RRMSE), which tells a
-trend from noise, or says there is none:
+trend from noise, or says there is no fit:
 
 - *reliable*: RRMSE at most 5%;
 - *possibly inaccurate*: at most 15%;
