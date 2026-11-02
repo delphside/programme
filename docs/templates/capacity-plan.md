@@ -63,8 +63,8 @@ period, most recent last.
 At most 12 periods: trim the pasted table to its last 12 columns, whatever the
 cadence.
 
-Add the period's rows to the `measurements.csv` beside the plans, then run, from the application's
-checkout:
+Add the period's rows to the `measurements.csv` beside the plans, then run, from
+the application's checkout:
 
 ```bash
 programme/scripts/reports/capacity-chart.py --table      # the history table
@@ -78,16 +78,17 @@ Paste the history table here.
 
 Paste the summary table here. **Read the `forecast` column first.** Its word
 comes from the fit's relative root mean square error (RRMSE), which tells a
-trend from noise:
+trend from noise, or says there is none:
 
 - *reliable*: RRMSE at most 5%;
 - *possibly inaccurate*: at most 15%;
 - *inaccurate*: above 15%;
-- *not enough data*: no fit yet.
+- *not enough data*: fewer than three measurements, or a mean of zero, so no
+  RRMSE.
 
-Plan against no row marked *inaccurate*: measure it more, or ask why the metric is volatile. Where a row
-is *possibly inaccurate* or *not enough data*, say so beside any reading of
-it.
+Plan against no row marked *inaccurate*: measure it more, or ask why the metric
+is volatile. Where a row is *possibly inaccurate* or *not enough data*, say so
+beside any reading of it.
 
 ### Each metric, against its ceiling
 
