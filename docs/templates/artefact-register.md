@@ -6,41 +6,46 @@ git. The rule is docs/1.2 §2.13 (naming, and what counts as an artefact) and
 programme record that changes on main. Delete these comments.
 -->
 
-# *Application* artefacts
+# 3.n.2 *Application* artefacts
 
-The application's artefacts by route, and the register of everything under
-change control that leaves no trace in git. For the second part this file is
-the only record, so each entry carries enough to recreate it.
+This file holds two things:
+
+- the application's artefacts by route;
+- the register of everything under change control that leaves no trace in
+  git. This file is its only record, so each entry carries enough to recreate
+  it.
 
 ## Artefacts by route
 
-The answer to the route table in docs/1.2 §2.15: which of this application's
-artefacts take each route.
+The answer to the route table in
+[1.2 §2.15](../../docs/1.2-change-lifecycle.md#route): which of this
+application's artefacts take each route.
 
 | route | this application's artefacts |
 | --- | --- |
-| Production Release | *what ships, and what the application installs on its production host* |
-| Application Tooling | *the scripts that build, test, deploy, operate or measure it, its CI and tests* |
-| Docs and Programme Tooling | *every document changed on its own, and anything else in the repository* |
-| Other | *cloud resources, GitHub objects, preview and rehearsal deploys* |
+| Production Release | *this application's answer to the row in §2.15* |
+| Application Tooling | *this application's answer to the row in §2.15* |
+| Docs and Programme Tooling | *this application's answer to the row in §2.15* |
+| Other | *this application's answer to the row in §2.15, host maintenance included* |
 
 ## *Where they live: a host, a cloud provider, a hosted service*
+
+*One section for each place.*
 
 *When and how this list was last verified.*
 
 | artefact | route | what it is | why it is not in the repository |
 | --- | --- | --- | --- |
-| *canonical name (1.2 §2.13)* | *Production Release, or Other* | *what it does* | *a secret, a console setting, a copy made by a deploy* |
+| *canonical name ([1.2 §2.13](../../docs/1.2-change-lifecycle.md#213-the-impacted-artefacts-and-why-they-are-listed-early))* | *Production Release, Other, or Other, host maintenance* | *what it does* | *a secret, a console setting, a copy made by a deploy* |
 
 ## Exit statuses in this application's scripts
 
-The scheme is docs/1.2 §2.13; list here only what a script adds to it.
-
-| script | 0 | non-zero |
-| --- | --- | --- |
-| *script* | *what success means* | *what each failure means* |
+*Only the codes a script adds to the scheme in
+[1.2 §2.13](../../docs/1.2-change-lifecycle.md#what-a-scripts-exit-status-means),
+each linking to the script whose header documents it. Leave the section out
+when there is none.*
 
 ## Not yet recorded
 
 *Artefacts known to exist and not yet described, each with the issue that will
-record it.*
+record it. Leave the section out when there is none.*

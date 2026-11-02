@@ -1,21 +1,14 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
-Copy to the application's capacity plans, `3.n.3-capacity-plan/<CODE>_CP_<yyyy>_<mm>.md`
-(`<CODE>` is the application's code in records/2.1), and fill it in. The
-application's own answers (who measures it, where the numbers come from, its
-resources and the commands that read them) are in a README beside its plans.
+Copy to the application's capacity plans,
+`3.n.3-capacity-plan/<OWNER>_CP_<yyyy>_<mm>.md` (`<OWNER>` is the application's
+code in records/2.1), and fill it in. Where the plan goes, its name and when it
+may change are docs/1.2, "Which document goes where". The application's own
+answers (who measures it, where the numbers come from, its resources and the
+commands that read them) are in a README beside its plans.
 
-**A report, not a document.** It records what was true on the day it was
-measured, and afterwards is only corrected, never reworked. Last month's is not
-superseded by this month's: the series is what says whether a number is moving,
-which is the one question a single measurement cannot answer. docs/1.2,
-"Which document goes where".
-
-**Named `<CODE>_CP_<yyyy>_<mm>.md`**, because a report gets mailed, pasted and
-dropped on desktops, and the name has to mean something once it is off the
-path.
-
-Delete these comments as you go.
+Replace the italic and plain guidance under each heading with the plan's own
+text, and delete these comments as you go.
 -->
 
 # Capacity plan, *Month Year*
@@ -25,9 +18,9 @@ elsewhere or estimated, and say which.
 
 ## What is consumed, against what ceiling
 
-Every resource with a ceiling, and every resource without one — an absent
-ceiling is a finding, not an omission. The rows are the application's own, from
-its README beside its plans.
+Every resource with a ceiling, and every resource without one: an absent
+ceiling is a finding. The rows are the application's own, from its README
+beside its plans.
 
 | | consumed | ceiling | headroom |
 | --- | --- | --- | --- |
@@ -35,8 +28,7 @@ its README beside its plans.
 | — a part of it | | | |
 
 One sentence on whether anything is close to a ceiling. If nothing is, say so
-plainly: the value of the plan is knowing which number moves first, not
-reporting relief.
+plainly.
 
 ## Which number moves first
 
@@ -44,8 +36,8 @@ The resource whose growth is least bounded, and what bounds it. Name the
 mechanism, not the trend — a row that grows because nothing deletes it is a
 different problem from one that grows with use.
 
-Where a sweep or a rule is supposed to bound something and does not yet exist,
-say which issue owns it.
+Where a bound that is meant to exist, such as a job that deletes old rows, is
+not built yet, say which issue owns it.
 
 ## What would have to change before a ceiling is reached
 
@@ -53,96 +45,82 @@ say which issue owns it.
 | --- | --- | --- |
 | | | |
 
-**Not a plan to do the work** — a statement of what the work would be, so a
-decision to defer it is made knowingly.
+This states what the work would be, so a decision to defer it is made
+knowingly.
 
 ## What is not known, and is the next thing worth measuring
 
-The gaps. A resting measurement of an idle service says nothing about load, so
-say so every time it is true rather than letting the table imply otherwise.
+The gaps. A resting measurement of an idle service says nothing about load:
+say so every time it is true.
 
-Anything with no ceiling set belongs here until somebody sets one.
+Anything with no ceiling set belongs here until one is set.
 
 ## History, and where it is heading
 
-**Carry enough history to see a trend and extrapolate from it** — one column per
-period, most recent last, so the direction is visible without opening another
-file.
+**Carry enough history to see a trend and extrapolate from it**: one column per
+period, most recent last.
 
-**How far back depends on how often it is measured.** Twelve months is the outer
-limit: enough to show a season, short enough that the table stays readable. If
-the cadence ever tightens — weekly, say — keep the same number of *rows* rather
-than the same number of months, because the table's job is to be read at a
-glance.
+- Twelve periods at most: trim the pasted table to its last twelve columns.
+- If the cadence tightens, keep twelve columns, not twelve months.
 
-Add the period's row to `measurements.csv`, then:
+Add the period's rows to `measurements.csv`, then run, from the application's
+checkout:
 
 ```bash
-scripts/reports/capacity-chart.py --table      # the history table below
-scripts/reports/capacity-chart.py --summary    # the forecast table below
-scripts/reports/capacity-chart.py --write      # the charts
+programme/scripts/reports/capacity-chart.py --table      # the history table
+programme/scripts/reports/capacity-chart.py --summary    # the forecast table
+programme/scripts/reports/capacity-chart.py --write      # the charts
 ```
 
 Paste the history table here.
 
 ### What the forecast says, and how much to believe it
 
-Paste the summary table here. **The reliability column is the one to read
-first**: a straight line through noise looks exactly like a straight line
-through a trend, and RRMSE is what tells them apart. A row marked *inaccurate*
-should not be planned against — it should prompt either more measurements or a
-question about why the metric is that volatile.
+Paste the summary table here. **Read the `forecast` column first**: its word
+comes from the relative root mean square error (RRMSE) of the fit, which tells
+a trend from noise. Plan against no row marked *inaccurate*, *possibly
+inaccurate* or *not enough data*: measure it more, or ask why the metric is
+volatile.
 
 ### Each metric, against its ceiling
 
-**A chart per metric: bars for what was measured, a regression line projected
-forward, and the ceiling marked.** Owner, 2026-09-22. Generated, never drawn —
-a chart maintained beside its data is stale the first time the data moves and
-stale in a way nobody can see.
+**A chart per metric, generated by `--write`**: bars for what was measured, a
+regression line projected forward, and the ceiling marked.
 
-The chart paths below are placeholders. Copy this table into the plan, beside its `charts/` folder:
+Copy this table into the plan, one cell per chart in its `charts/` folder. The
+names are placeholders:
 
 ```markdown
 | | |
 | --- | --- |
-| ![memory](charts/memory.svg) | ![disk](charts/disk.svg) |
-| ![journal](charts/journal.svg) | ![games](charts/games.svg) |
-| ![games waiting](charts/games-waiting.svg) | ![accounts](charts/accounts.svg) |
+| ![metric one](charts/metric-one.svg) | ![metric two](charts/metric-two.svg) |
 ```
-
-The ceiling is drawn even when nothing is near it: a threshold that appears only
-once it matters teaches the reader there is no threshold.
 
 **Then say what it means**, which the table cannot:
 
-- which rows are moving, and whether the movement is use or accumulation — a
-  number that grows because nothing deletes it is a different problem from one
-  that grows with players
-- for anything moving, **when it reaches its ceiling at this rate**, stated as a
-  date or as *not within the horizon*. `capacity-chart.py` prints this line per
-  metric; check it rather than reading it off the chart by eye
+- which rows are moving, and whether the movement is use or accumulation
+- for anything moving, **when it reaches its ceiling at this rate**, as a month
+  or as *not within the horizon*. `capacity-chart.py` prints it per metric, in
+  periods, or says the metric is already at its ceiling or has none
 - whether any extrapolation here is worth acting on yet, and if not, what would
   change that
 
-**A single measurement cannot answer any of this**, which is why the folder
-keeps every report and why each one carries the window rather than only its own
-column.
-
 ## Transaction thresholds and throttle limits
 
-*Empty until delphside/tile-lite-elite#405 lands. Scaffolded now so the first report that can fill it
-in has a shape to fill rather than a decision to make about where it goes.*
+*An application that serves no transactions answers* none, because…*. Until
+its thresholds are derived, say which issue will derive them (Tile Lite Elite's
+is delphside/tile-lite-elite#405).*
 
-The six-step chain delphside/tile-lite-elite#405 builds: the hardware ceiling, the owner's utilisation
-threshold, the workload threshold (the ceiling inverted into transactions per
-second), the peak at the chosen service level, the owner's spike allowance,
-and the throttle limits that follow.
+Recomputed every month, in this order:
 
-**Recomputed every month, not derived once.** Owner, 2026-09-22: *"When we
-have the numbers to do the analysis the report will include calculations of
-transaction thresholds and throttling limits."* If a month's costs move, the
-recomputed threshold disagrees with the limits actually configured, and that
-disagreement is read here rather than discovered by an incident.
+1. the hardware ceiling
+2. the owner's utilisation threshold
+3. the workload threshold (the ceiling inverted into transactions per second)
+4. the peak at the chosen service level
+5. the owner's spike allowance
+6. the throttle limits that follow
+
+Where a recomputed threshold disagrees with the limits configured, say so.
 
 | step | this month |
 | --- | --- |

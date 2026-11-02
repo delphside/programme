@@ -1,23 +1,24 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
-The delivery log: one row per project delivery, appended, oldest first. The
-rule is docs/1.2 §2.14, "The delivery log row is part of the delivery", and
-the identifiers are 1.2 §1.1 "What a milestone says". The
-instance is a programme record. Delete these comments.
+The instance is the application's delivery log, 3.n.1, a programme record.
+The rule is docs/1.2 §2.14, "The delivery log row is part of the delivery",
+and the identifiers are 1.2 §1.1 "What a milestone says". Replace the italic
+text and delete these comments.
 -->
 
-# Delivery log
+# 3.n.1 Delivery log
 
 *One paragraph: where the log starts, and what earlier record covers anything
-before it.*
+before it, if there is one.*
 
 ## The deliveries
 
 | id | released (UTC) | deployed (UTC) | kind | where | what | outcome |
 | --- | --- | --- | --- | --- | --- | --- |
-| *the release version, production's version plus a letter, or the date (`YYYY.MM.DD-n`) in the infrastructure application's log* | *for a release, when it was made; otherwise when it was applied* | *when it reached its users; blank while a release is not yet deployed* | *release, image, host, drill, service or repository* | *the environment or service it is for* | *the project and delivery, and what it changed* | *for a release, **released, not deployed** until production; then **done**, or what was descoped, and how it was proved* |
+| *the release version, production's version plus a letter, or the date (`YYYY.MM.DD-n`) in the infrastructure application's log* | *for a release, when it was made; otherwise when it was applied* | *when it reached its users; `—` until a release is deployed* | *what it changed: image (a release), host, drill, service or repository; several joined by ` · `* | *the environment or service it is for* | *each project and its delivery, and what it changed; for a release, a link to its release record and any deploy gate set aside, with its reason* | *for a release, **released, not deployed** until it is deployed; then **done**, **done, part descoped** (what) or **failed** (what), each with how it was proved* |
 
-## What each delivery left behind that git does not show
+## What each delivery found or left outside git
 
 *For a delivery whose change lives outside git: what it found or left, and
-where that is recorded.*
+where that is recorded (what it left is in the artefact register, 3.n.2).
+Leave the section out when there is none.*

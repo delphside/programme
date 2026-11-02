@@ -2,87 +2,55 @@
 
 Documents you copy and fill in, rather than write from a blank page.
 
+**The numbered document owns the rule and links to the template; the template
+names that document and carries no reasoning.** The templates are filed
+together because a template is looked for as a template, and the link from the
+owning document is what keeps each one findable from the rule.
+
 A template says **what must be included**; the worked examples beside it show
-**how to complete it**. Both matter — a template alone leaves you guessing at
-depth, and an example alone leaves you guessing at what was optional.
-
-**These belong to the numbered documents, and are filed together anyway.** Owner,
-2026-09-22: *"Templates fit into numbered programme docs but it seems convenient
-to keep them together and reference from the numbered docs."* A template is part
-of the programme description — it is the rule in the form you work from — so by
-*one fact, one home* it would sit inside whichever `docs/N.N` states that rule.
-
-**Convenience wins, and the reference is what pays for it.** A template is looked
-for as a template: you know you are about to write a post-deployment review and
-you want the form, not the chapter. Scattering four of them across four numbered
-documents makes each one findable only by someone who already knows which
-document owns it.
-
-**So the rule is: the numbered document owns the rule and links to the template;
-the template carries no reasoning and links back.** A template that argues with
-you while you fill it in is one people stop opening, and a numbered document that
-inlines a form is one nobody can copy.
+**how to complete it**.
 
 | template | the numbered document that owns its rule |
 | --- | --- |
 | [test-design-specification.md](test-design-specification.md) | [1.9](../1.9-testing-standards.md#how-a-test-design-specification-is-built), *How a test design specification is built* |
 | [post-deployment-review.md](post-deployment-review.md) | [1.2](../1.2-change-lifecycle.md), the `Post-deployment` phase and lessons learnt |
-| [capacity-plan.md](capacity-plan.md) | [1.2](../1.2-change-lifecycle.md), *Which document goes where* — reports |
-| [agent-handover.md](agent-handover.md) | [1.1](../1.1-programme-tooling.md), the agents' register (delphside/tile-lite-elite#441) |
-| [triage-comment.md](triage-comment.md) | [1.2](../1.2-change-lifecycle.md), *What triage asks* |
-| [workstream-register.md](workstream-register.md) | [1.3](../1.3-workstreams.md), *Generic workstreams* |
-| [artefact-register.md](artefact-register.md) | [1.2](../1.2-change-lifecycle.md) §2.13 and §2.15 |
-| [role-assignment.md](role-assignment.md) | [1.7](../1.7-roles-and-responsibilities.md), *The roles* |
+| [capacity-plan.md](capacity-plan.md) | [1.2](../1.2-change-lifecycle.md#which-document-goes-where), *Which document goes where*: reports |
+| [agent-handover.md](agent-handover.md) | [1.1](../1.1-programme-tooling.md#claudes-tooling), *Claude's tooling* |
+| [triage-comment.md](triage-comment.md) | [1.2](../1.2-change-lifecycle.md#what-triage-asks), *What triage asks* |
+| [workstream-register.md](workstream-register.md) | [1.3](../1.3-workstreams.md#the-generic-assets-and-an-applications-instances), *The generic assets, and an application's instances* |
+| [artefact-register.md](artefact-register.md) | [1.3](../1.3-workstreams.md#the-generic-assets-and-an-applications-instances), *The generic assets, and an application's instances*; the rule is [1.2 §2.13](../1.2-change-lifecycle.md#213-the-impacted-artefacts-and-why-they-are-listed-early) and [§2.15](../1.2-change-lifecycle.md#route) |
+| [role-assignment.md](role-assignment.md) | [1.7](../1.7-roles-and-responsibilities.md#who-holds-each-role), *Who holds each role* |
 | [delivery-log.md](delivery-log.md) | [1.2](../1.2-change-lifecycle.md) §2.14, *The delivery log row* |
 | [application-profile.md](application-profile.md) | [1.3](../1.3-workstreams.md), *The generic assets, and an application's instances* |
 
-**A new template owes that row.** Until a numbered document links to it, it is a
-form nobody will find at the moment they need it.
+**A new template is added to this table, and its numbered document links to
+it.**
 
 | template | copy it to | worked examples |
 | --- | --- | --- |
-| [test-design-specification.md](test-design-specification.md) | the project's folder in the application's change documents (`3.n.7-changes/`), else the issue's | [user deletion](../../applications/tile-lite-elite/3.1.7-changes/41-user-deletion-test-design.md) (delphside/tile-lite-elite#41, functional) · [rate limiting](../../applications/tile-lite-elite/3.1.7-changes/25-rate-limiting-test-design.md) (delphside/tile-lite-elite#25, non-functional) |
-| [post-deployment-review.md](post-deployment-review.md) | the project's folder, once its last release has been live and used | none yet — the first project to finish writes it |
-| [capacity-plan.md](capacity-plan.md) | the application's capacity plans (`3.n.3-capacity-plan/<CODE>_CP_<yyyy>_<mm>.md`), monthly | [TLE_CP_2026_09](../../applications/tile-lite-elite/3.1.3-capacity-plan/TLE_CP_2026_09.md) (delphside/tile-lite-elite#291 R1, the first) |
+| [test-design-specification.md](test-design-specification.md) | with its change, as [1.9](../1.9-testing-standards.md#how-a-test-design-specification-is-built) says | Tile Lite Elite's [user deletion](../../applications/tile-lite-elite/3.1.7-changes/41-user-deletion-test-design.md) (functional) · [rate limiting](../../applications/tile-lite-elite/3.1.7-changes/25-rate-limiting-test-design.md) (non-functional, judged by a script on rehearsal) |
+| [post-deployment-review.md](post-deployment-review.md) | the issue's body or the project's folder, as [1.2](../1.2-change-lifecycle.md#the-parents-lifecycle-is-shorter) says | [427](../../records/2.5-changes/process-definition/427-documentation-by-type/post-deployment-review.md) · [485](../../records/2.5-changes/programme-tooling/485-programme-repository/post-deployment-review.md) · Tile Lite Elite's [452](../../applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/452-claude-sessions-from-workspace-root/post-deployment-review.md) |
+| [capacity-plan.md](capacity-plan.md) | the application's capacity plans (`3.n.3-capacity-plan/`), monthly, named as [1.2](../1.2-change-lifecycle.md#which-document-goes-where) says | [TLE_CP_2026_09](../../applications/tile-lite-elite/3.1.3-capacity-plan/TLE_CP_2026_09.md), the first |
 | [workstream-register.md](workstream-register.md) · [artefact-register.md](artefact-register.md) · [role-assignment.md](role-assignment.md) · [delivery-log.md](delivery-log.md) · [application-profile.md](application-profile.md) | a new application's programme records, once each, when the programme takes it on | Tile Lite Elite's: [3.1.4](../../applications/tile-lite-elite/3.1.4-workstreams.md) · [3.1.2](../../applications/tile-lite-elite/3.1.2-artefacts.md) · [3.1.5](../../applications/tile-lite-elite/3.1.5-roles.md) · [3.1.1](../../applications/tile-lite-elite/3.1.1-delivery-log.md) · [3.1.6](../../applications/tile-lite-elite/3.1.6-profile.md) |
 
-## The other half, and why it is not here
+## The forms GitHub offers
 
-**Templates for what you raise live in `.github/`, because GitHub requires it.**
-An issue form is only offered to you if it sits in `.github/ISSUE_TEMPLATE/`, and
-a pull request body is only pre-filled from `.github/PULL_REQUEST_TEMPLATE.md`.
-Neither can be moved.
+**The forms GitHub offers when an issue or pull request is opened live in each
+repository's `.github/`**, which is where GitHub reads them. Tile Lite Elite's
+are the programme's working set:
 
 | template | offered when |
 | --- | --- |
 | [`Requirement`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/requirement.yml) · [`Project`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/project.yml) · [`Decision`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/decision.yml) | raising an issue of that type |
 | [`PULL_REQUEST_TEMPLATE.md`](https://github.com/delphside/tile-lite-elite/blob/main/.github/PULL_REQUEST_TEMPLATE.md) | opening a pull request |
 
-**So the split is by who fills it in, not by what it is.** GitHub fills those
-four in front of you; these ones you copy into the repository yourself. Listed
-here because somebody looking for *the templates* should find all of them from
-one place, whichever half they land on first.
+GitHub fills those in front of you. The templates in this folder are copied:
+into the repository, or, for the triage comment and the handover, into an
+issue comment or an agent's prompt.
 
 ## Notes
 
-**Why a template rather than the prose that describes it.** `docs/1.9`'s "How a
-test design specification is built" explains what a specification must get
-right. That is the right document to read once; it is the wrong thing to work
-from every time, because turning a description into a document is work repeated
-at every use, and the part you forget is invisible.
-
-**Keep the reasoning out of the template.** The template carries what to write
-and nothing else, with pointers to where the reasoning lives. A template that
-argues with you while you fill it in is one people stop opening.
-
-**A report's template is the same idea with a different lifetime.** A test design
-specification is written once for a project; a capacity plan is written every
-month for ever, and the thing a template protects against is different in each
-case. For the specification it is forgetting a part. For the report it is the
-shape drifting between months, which destroys the only property that makes a
-series worth keeping — that the rows are comparable.
-
-**Two examples, deliberately unalike.** The user-deletion specification is functional and
-user-testable; rate limiting has nothing for a person to look at, so its
-judgement moved into a script on the rehearsal host. A single example teaches its
-own shape as though it were the rule.
+**A report's template keeps a series comparable.** A test design specification
+is written once for a project, and its template guards against forgetting a
+part. A capacity plan is written every month, and its template keeps the rows
+comparable between months.

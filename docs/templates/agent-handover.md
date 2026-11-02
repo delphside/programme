@@ -1,10 +1,9 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
-The handover Claude gives a subagent at launch, as its prompt (delphside/tile-lite-elite#441). The
-agent's definition in .claude/agents/, with .claude/agents-common.md, holds
-what does not change between runs; this holds what is particular to one job.
-The outside-review brief is the same shape, kept in a file because it runs in
-rounds.
+The handover Claude gives a subagent at launch, as its prompt; the rule is
+docs/1.1, "Claude's tooling". The agent's definition in .claude/agents/, with
+.claude/agents-common.md, holds what does not change between runs; this holds
+what is particular to one job.
 
 Fill every heading. Write "None" where one does not apply, so an empty heading
 is never read as a forgotten one. Delete these comments.
@@ -20,32 +19,30 @@ documentation or tests.
 What finishes it, as checks the agent can run or read: the requirements it
 meets, the tests that pass, the documents that say so. Each says how it is
 proved, not only what: "same exit statuses" needs "and tested", or it is
-proved once by hand and nothing holds it (delphside/tile-lite-elite#441's first trial). For a review,
-the questions answered.
+proved once by hand and nothing holds it. For a review, the questions
+answered.
 
 ## Subject
 
-The issue, document or branch, and the commit or stamp it runs from.
+The issue, document or branch, the commit or stamp it runs from, and whether
+the review covers the whole of it or a diff range.
 
 ## Read as well
 
-Anything beyond the agent's standing reading list. "None" if its list is
-enough.
+Anything beyond the *Before anything* list in the agent's definition. "None"
+if that list is enough.
 
 ## Already checked
 
-For a review in rounds, the points earlier rounds settled: findings fixed or
-decided against, copied from their reports. This round still reviews the whole
-change, and does not raise a listed point again unless Claude has marked it
-*recheck*, as it does where a fix has touched it since. "None" in the first
-round.
+For a review in rounds, the points earlier rounds settled, copied from their
+reports, each marked *recheck* where a fix has touched it since (1.1, "Claude's
+tooling"). "None" in the first round.
 
 ## Agreed but not yet written down
 
 Decisions from Claude's conversation with the owner that the documents do not
 show yet. The agent cannot see the conversation, so anything missing here is
-invisible to it. If this heading is often long, decisions are reaching the
-documents late.
+invisible to it.
 
 ## Questions
 
