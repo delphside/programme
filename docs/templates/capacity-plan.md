@@ -60,10 +60,10 @@ Anything with no ceiling set belongs here until one is set.
 **Carry enough history to see a trend and extrapolate from it**: one column per
 period, most recent last.
 
-- Twelve periods at most: trim the pasted table to its last twelve columns.
-- If the cadence tightens, keep twelve columns, not twelve months.
+At most 12 periods: trim the pasted table to its last 12 columns, whatever the
+cadence.
 
-Add the period's rows to `measurements.csv`, then run, from the application's
+Add the period's rows to the `measurements.csv` beside the plans, then run, from the application's
 checkout:
 
 ```bash
@@ -76,10 +76,16 @@ Paste the history table here.
 
 ### What the forecast says, and how much to believe it
 
-Paste the summary table here. **Read the `forecast` column first**: its word
-is *not enough data*, or comes from the fit's relative root mean square error
-(RRMSE), which tells a trend from noise. Plan against no row marked
-*inaccurate*: measure it more, or ask why the metric is volatile. Where a row
+Paste the summary table here. **Read the `forecast` column first.** Its word
+comes from the fit's relative root mean square error (RRMSE), which tells a
+trend from noise:
+
+- *reliable*: RRMSE at most 5%;
+- *possibly inaccurate*: at most 15%;
+- *inaccurate*: above 15%;
+- *not enough data*: no fit yet.
+
+Plan against no row marked *inaccurate*: measure it more, or ask why the metric is volatile. Where a row
 is *possibly inaccurate* or *not enough data*, say so beside any reading of
 it.
 

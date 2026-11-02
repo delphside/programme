@@ -3,7 +3,7 @@
 The instance is the application's delivery log, 3.n.1, a programme record.
 The rule is docs/1.2 §2.14, "The delivery log row is part of the delivery",
 and the identifiers are 1.2 §1.1 "What a milestone says". Replace the italic
-text and delete these comments.
+text and each `n` with the application's own, and delete these comments.
 -->
 
 # 3.n.1 Delivery log

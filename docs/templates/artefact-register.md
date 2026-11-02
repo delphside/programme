@@ -37,7 +37,7 @@ application's artefacts take each route.
 
 | artefact | route | what it is | why it is not in the repository |
 | --- | --- | --- | --- |
-| *canonical name ([1.2 §2.13](../../docs/1.2-change-lifecycle.md#213-the-impacted-artefacts-and-why-they-are-listed-early))* | *Production Release, Other, or Other, host maintenance* | *what it does* | *a secret, a console setting, a copy made by a deploy* |
+| *canonical name ([1.2 §2.13](../../docs/1.2-change-lifecycle.md#213-the-impacted-artefacts-and-why-they-are-listed-early))* | *Production Release; Other; or Other, host maintenance* | *what it does* | *a secret, a console setting, a copy made by a deploy* |
 
 ## Exit statuses in this application's scripts
 

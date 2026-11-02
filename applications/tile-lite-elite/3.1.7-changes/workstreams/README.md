@@ -1,7 +1,7 @@
 # Change documents by workstream
 
-One folder per workstream, a short kebab-case name for its capability. A folder appears when
-the workstream's first change document does
+One folder per workstream, a short kebab-case name for its capability. A folder
+appears when the workstream's first change document does
 ([1.2 §2.4](../../../../docs/1.2-change-lifecycle.md#24-where-a-document-lives-about-the-work-or-a-product-of-it)),
 so a workstream with none has no folder yet. The workstreams are
 [3.1.4](../../3.1.4-workstreams.md).

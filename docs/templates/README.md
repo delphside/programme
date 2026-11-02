@@ -23,8 +23,8 @@ A template says **what must be included**; the worked examples beside it show
 | [delivery-log.md](delivery-log.md) | [1.2 §2.14](../1.2-change-lifecycle.md#the-delivery-log-row-is-part-of-the-delivery), *The delivery log row is part of the delivery* |
 | [application-profile.md](application-profile.md) | [1.3](../1.3-workstreams.md#the-generic-assets-and-an-applications-instances), *The generic assets, and an application's instances* |
 
-**A new template is added to this table, and its numbered document links to
-it.**
+**Whoever adds a template adds its row to both tables and links it from its
+numbered document.**
 
 | template | copy it to | worked examples |
 | --- | --- | --- |
@@ -36,8 +36,8 @@ it.**
 ## The forms GitHub offers
 
 **The forms GitHub offers when an issue or pull request is opened live in each
-repository's `.github/`**, which is where GitHub reads them. Tile Lite Elite's
-are the programme's working set:
+repository's `.github/`**, which is where GitHub reads them. Only Tile Lite
+Elite's repository has them yet, so an issue raised elsewhere gets no form:
 
 | template | offered when |
 | --- | --- |
@@ -45,12 +45,11 @@ are the programme's working set:
 | [`PULL_REQUEST_TEMPLATE.md`](https://github.com/delphside/tile-lite-elite/blob/main/.github/PULL_REQUEST_TEMPLATE.md) | opening a pull request |
 
 GitHub fills those in front of you. The templates in this folder are copied:
-into the repository, or, for the triage comment and the handover, into an
-issue comment or an agent's prompt.
+into the repository; for the post-deployment review, into an issue's body;
+for the triage comment and the handover, into an issue comment or an agent's
+prompt.
 
 ## Reports
 
-**A report's template keeps a series comparable.** A test design specification
-is written once for a project, and its template guards against forgetting a
-part. A capacity plan is written every month, and its template keeps the rows
-comparable between months.
+**A report keeps its template's shape every period, so the series stays
+comparable.** A capacity plan is written every month to the same rows.
