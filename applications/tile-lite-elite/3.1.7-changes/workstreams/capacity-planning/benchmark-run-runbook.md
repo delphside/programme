@@ -15,9 +15,9 @@ production may see a slower engine move while it runs.
 
 - The development machine has the SSH keys `deploy-rehearsal.sh` and
   `deploy.sh` use.
-- No pending reboot needs to come first: the row records the hypervisor's
-  steal time. If a VM has just been rebooted, wait five minutes so its
-  containers settle.
+- A pending reboot can wait: a kernel waiting to load leaves move timing
+  unchanged, and the row records the hypervisor's steal time. If a VM has just
+  been rebooted, wait five minutes so its containers settle.
 
 ```bash
 cd ~/tile-lite-elite/main
@@ -57,24 +57,24 @@ scp -q -i "$KEY" target/release/examples/engine_timing_bench "$PROD:/tmp/engine_
 ssh -n -i "$KEY" "$PROD" 'cd /tmp && ./engine_timing_bench 30 official' > "$OUT"
 ssh -n -i "$KEY" "$PROD" 'rm -f /tmp/engine_timing_bench'
 ROW=$(grep '^row: ' "$OUT" | sed "s/^row: //; s/,unknown,/,$COMMIT,/")
-[ -n "$ROW" ] && printf '%s\n' "$ROW" \
-  >> crates/server-game/examples/engine_timing_results.csv
-HOST=$(printf '%s' "$ROW" | cut -d, -f3 | tr -c 'A-Za-z0-9' '-')
-sed -n 's/^MOVES //p' "$OUT" \
-  > "crates/server-game/examples/moves/$(printf '%s' "$ROW" | cut -d, -f1)-$HOST.csv"
+if [ -n "$ROW" ]; then
+  printf '%s\n' "$ROW" >> crates/server-game/examples/engine_timing_results.csv
+  RUN=$(printf '%s' "$ROW" | cut -d, -f1)
+  HOST=$(printf '%s' "$ROW" | cut -d, -f3 | tr -d '\n' | tr -c 'A-Za-z0-9' '-')
+  sed -n 's/^MOVES //p' "$OUT" > "crates/server-game/examples/moves/$RUN-$HOST.csv"
+else
+  echo "no row: the run did not finish; read $OUT"
+fi
 ```
 
 The commit is labelled `-dirty` as `bench-rehearsal.sh` labels it, and the
-per-move rows are saved beside step 1's, as 4.3.10 *The raw measurements*
-says.
+per-move rows are saved beside step 1's.
 
 **Check:**
 
 - the last line of the CSV starts with today's timestamp;
 - it carries `$COMMIT`, not `unknown`;
 - it names the production host.
-
-If `ROW` is empty, the run did not finish: read `$OUT`.
 
 ```bash
 tail -1 crates/server-game/examples/engine_timing_results.csv
@@ -89,7 +89,8 @@ git diff --no-color crates/server-game/examples/engine_timing_results.csv
 ```
 
 Paste the three added rows into the thread the run was asked for in; Claude
-commits them by pull request and logs the activity. Then put the file back, so `main` stays clean:
+commits them by pull request and logs the activity. Then put the file back, so
+the `main` checkout stays clean:
 
 ```bash
 git checkout -- crates/server-game/examples/engine_timing_results.csv
