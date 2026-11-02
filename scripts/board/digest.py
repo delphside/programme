@@ -750,7 +750,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
                               ("Improvement initiatives", d.initiatives, "initiative")):
         out.append(f"## {title}")
         out.append("")
-        live = [r for r in rows if not r.get("state", "").startswith("done")]
+        live = [r for r in rows if not r.get("state", "").lower().startswith("done")]
         if not live:
             out.append(f"No open {what} in the programme's records/2.7 register.")
         for r in live:
