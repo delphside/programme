@@ -50,7 +50,7 @@ written otherwise.
 | #538: the move generator finds only moves whose first tile is on an anchor (with AT on the board and B, O in the rack it offers OAT, misses BOAT). It affects bots, suggestions and opening moves, so WP A's engine design takes it into account once triaged | owner, triage of #538 |
 | A compiling sketch of `game-wire`'s types (links, both message enums, `Bot<L>`, engine levels) is in the project files at `notes/71/game-wire-sketch/`; WP A's code branch starts from it | WP A Development |
 | Split the server-only variants (`TimeOut`, `ForceResign`, `AdminForceEnd`, `ReminderSent`) out of `GameMessage` into a server-side `GameCommand`; recommended, asked on a card in the #71 thread on 2026-10-21 | owner |
-| #542 entity life histories: WP A's matrix and runtime state tables are in [`71-life-histories.md`](71-life-histories.md). Its gaps G1 and G4 are the owner's, on cards; G2, G3, G5 and G6 are Claude's, and all six go into the data model and WP A's tests once answered | owner (G1, G4), then Claude |
+| #542 entity life histories: WP A's matrix and runtime state tables are in [`71-life-histories.md`](71-life-histories.md). Its gaps G1 and G4 are the owner's, on cards; G2, G3, G5, G6 and G7 are Claude's, and all seven go into the data model and WP A's tests once answered | owner (G1, G4), then Claude |
 
 ## A tooling defect met on the way
 
