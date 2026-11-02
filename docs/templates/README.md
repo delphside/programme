@@ -20,7 +20,7 @@ A template says **what must be included**; the worked examples beside it show
 | [workstream-register.md](workstream-register.md) | [1.3](../1.3-workstreams.md#the-generic-assets-and-an-applications-instances), *The generic assets, and an application's instances*; the rule is [*Generic workstreams*](../1.3-workstreams.md#generic-workstreams) and [*What makes something a workstream*](../1.3-workstreams.md#what-makes-something-a-workstream) |
 | [artefact-register.md](artefact-register.md) | [1.3](../1.3-workstreams.md#the-generic-assets-and-an-applications-instances), *The generic assets, and an application's instances*; the rule is [1.2 §2.13](../1.2-change-lifecycle.md#213-the-impacted-artefacts-and-why-they-are-listed-early) and [§2.15](../1.2-change-lifecycle.md#route) |
 | [role-assignment.md](role-assignment.md) | [1.7](../1.7-roles-and-responsibilities.md#who-holds-each-role), *Who holds each role*; the rule is [*The roles*](../1.7-roles-and-responsibilities.md#the-roles) |
-| [delivery-log.md](delivery-log.md) | [1.2 §2.14](../1.2-change-lifecycle.md#214-the-delivery-runbook), *The delivery log row is part of the delivery* |
+| [delivery-log.md](delivery-log.md) | [1.2 §2.14](../1.2-change-lifecycle.md#the-delivery-log-row-is-part-of-the-delivery), *The delivery log row is part of the delivery* |
 | [application-profile.md](application-profile.md) | [1.3](../1.3-workstreams.md#the-generic-assets-and-an-applications-instances), *The generic assets, and an application's instances* |
 
 **A new template is added to this table, and its numbered document links to

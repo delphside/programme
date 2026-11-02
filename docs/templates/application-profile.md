@@ -13,9 +13,9 @@ generic assets, and an application's instances".
 4. Delete these comments.
 
 Backticks mark a fixed URL in the Environments URL column; leave the Records
-first column bare. The technical facts (how a version is read, what ships, the commands) are
-in the technical profile, app-profile.toml at the root of the application's
-repository.
+first column bare. The technical facts (how a version is read, what ships, the
+commands) are in the technical profile, app-profile.toml at the root of the
+application's repository.
 -->
 
 # 3.n.6 *Application* profile
