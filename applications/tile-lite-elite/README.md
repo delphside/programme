@@ -1,11 +1,11 @@
 # Tile Lite Elite (application 1)
 
-A multiplayer word-tile game, in production.
+A multiplayer word-tile game, in production. Where its parts are:
 
-- Its code and its own documents, numbered `4.x`, are in the repository
-  [`delphside/tile-lite-elite`](https://github.com/delphside/tile-lite-elite).
-- Its issues are on the programme board, in the Tile Lite Elite view.
-- This folder holds the programme's records about it.
+- code and its own documents (`4.x`):
+  [`delphside/tile-lite-elite`](https://github.com/delphside/tile-lite-elite)
+- issues: the programme board, Tile Lite Elite view
+- the programme's records about it: this folder
 
 The numbering is in
 [1.5](../../docs/1.5-writing-documents.md#each-range-covers-one-scope), and the
