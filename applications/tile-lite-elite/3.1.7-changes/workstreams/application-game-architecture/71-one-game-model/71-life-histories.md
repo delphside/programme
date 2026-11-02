@@ -279,16 +279,16 @@ seats when the first subscribes, rather than for every account.
 **G5.** The design logs every applied message, chat and hide included, in
 `game_events (game_id, version, …)`, but `Hide` and `ReminderSent` save without
 moving the version, so their rows would repeat a key. (Data model §1's counter
-table also has a hidden seat moving the version, against the design; that row
-is corrected with this gap.) Proposed: the log gains its own sequence,
-`(game_id, seq)`, with `version` as a column.
+table also has a hidden seat moving the version, against the design; that row is
+corrected with this gap.) Proposed: the log gains its own sequence, `(game_id,
+seq)`, with `version` as a column.
 
 **G6.** A bot hears it is on turn only from a publish. A refused move is either
 overtaken, and that move's publish follows, or illegal, and the design already
 leaves the seat on turn for the move time limit (TIME-3). A failed save answers
 503 with `Retry-After` and publishes nothing (D69), so the seat waits for the
-move time limit although nothing was wrong with the move. Proposed: on a 503 the object
-retries once after `Retry-After`, then waits.
+move time limit although nothing was wrong with the move. Proposed: on a 503 the
+object retries once after `Retry-After`, then waits.
 
 **G7.** U4.2 makes the game unrated and moves the version, which the design
 says only a `GameMessage` may do, but no variant exists for it. Proposed:
