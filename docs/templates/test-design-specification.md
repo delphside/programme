@@ -36,7 +36,7 @@ supposed to do — Tile Lite Elite's docs/4.1.0-rules.md, the issue, the design 
 code, or the plan inherits the code's mistakes. Number them; everything below
 refers back. -->
 
-| | rule |
+| | Rule |
 | --- | --- |
 | R1 | |
 | R2 | |
@@ -58,7 +58,7 @@ which are and are not. -->
 request is refused with 400 and the body names the seat" — not "it works". If
 you cannot see it, a test cannot assert it. -->
 
-| | outcome |
+| | Outcome |
 | --- | --- |
 | O1 | |
 
@@ -72,7 +72,7 @@ cannot occur, so impossible is distinguishable from untested. -->
 <!-- Lifecycle walks, each covering several conditions. Number them for
 navigation while writing; the tests they produce are named for behaviour. -->
 
-| | scenario | conditions | outcomes |
+| | Scenario | Conditions | Outcomes |
 | --- | --- | --- | --- |
 | S1 | | | |
 
@@ -86,11 +86,11 @@ refused passes against a system that refuses everything. -->
 <!-- Every rule to a scenario, and every scenario to a rule. Both directions:
 one finds untested rules, the other finds scenarios testing nothing. -->
 
-| rule | scenarios |
+| Rule | Scenarios |
 | --- | --- |
 | R1 | |
 
-| scenario | rules |
+| Scenario | Rules |
 | --- | --- |
 | S1 | |
 
@@ -112,6 +112,6 @@ starts from. -->
 down is a decision with a name on it; a gap left out is indistinguishable from
 coverage. -->
 
-| gap | what it would take to close it | why it is acceptable for now |
+| Gap | What it would take to close it | Why it is acceptable for now |
 | --- | --- | --- |
 | | | |

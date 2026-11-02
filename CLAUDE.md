@@ -103,7 +103,7 @@ docs/1.6 records the app it works through.
 - A project moves through the Project State field. The wording is the field's own
   stage descriptions:
 
-  | phase | done when |
+  | Phase | Done when |
   | --- | --- |
   | Scope | What the project does. Technical option chosen where it affects dependencies. |
   | Q3, Q2, Q1 | The queue. Q1 is next off the blocks. |
@@ -399,14 +399,14 @@ docs/1.6 records the app it works through.
 
 ## Where the detail is
 
-| for | read |
+| For | Read |
 | --- | --- |
 | the lifecycle in full, and why | docs/1.2 |
 | programme and application, and the workstreams and what each owns | docs/1.3 |
 | roles, who decides, and each role's reading list | docs/1.7 |
 | the service desk: how a Ticket arrives, is answered and closed | docs/1.8 |
 | the test policy and strategy, and the standards every test is held to | docs/1.9 |
-| the recurring activities, what the weekly digest reports and the improvement registers | docs/1.4 |
+| the recurring activities, what the weekly digest reports, and the rules of the improvement registers | docs/1.4; the registers themselves are records/2.7 |
 | every tool, and how it is run | docs/1.1 |
 | every field a change is classified by, and each artefact's route | docs/1.2 §2.15 |
 | artefacts outside git | each application's artefact register (3.n.2), and docs/1.6 for GitHub's |

@@ -6,7 +6,7 @@ appears when the workstream's first change document does
 so a workstream with none has no folder yet. The workstreams are
 [3.1.4](../../3.1.4-workstreams.md).
 
-| folder | workstream |
+| Folder | Workstream |
 | --- | --- |
 | `application-game-architecture/` | TLE: Application Architecture |
 | `capacity-planning/` | Capacity & Performance |

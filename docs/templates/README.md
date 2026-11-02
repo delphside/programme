@@ -10,7 +10,19 @@ owning document is what keeps each one findable from the rule.
 A template says **what must be included**; the worked examples beside it show
 **how to complete it**.
 
-| template | the numbered document that links it, and its rule |
+## How a template is filled in
+
+- **A comment block (`<!-- … -->`) is guidance**: it names the owning document
+  and the steps, and is deleted once the template is filled in.
+- **Italic text is a placeholder**, replaced with the application's or the
+  change's own.
+- **A letter standing for a number or a code is a placeholder too**: `n` in
+  `3.n.x`, `(3+n)`, `CODE` and `owner/repository`. The template's comment names
+  each one it uses.
+- **Everything else is kept as written**: the headings, the column order and
+  any wording the tooling reads, which the comment names.
+
+| Template | The numbered document that links it, and its rule |
 | --- | --- |
 | [test-design-specification.md](test-design-specification.md) | [1.9](../1.9-testing-standards.md#how-a-test-design-specification-is-built), *How a test design specification is built* |
 | [post-deployment-review.md](post-deployment-review.md) | [1.2](../1.2-change-lifecycle.md#the-parents-lifecycle-is-shorter), *The parent's lifecycle is shorter*: lessons learnt |
@@ -26,7 +38,7 @@ A template says **what must be included**; the worked examples beside it show
 **Whoever adds a template adds its row to both tables and links it from its
 numbered document.**
 
-| template | copy it to | worked examples |
+| Template | Copy it to | Worked examples |
 | --- | --- | --- |
 | [test-design-specification.md](test-design-specification.md) | with its change, as [1.9](../1.9-testing-standards.md#how-a-test-design-specification-is-built) says | Tile Lite Elite's [user deletion](../../applications/tile-lite-elite/3.1.7-changes/41-user-deletion-test-design.md) (functional) · [rate limiting](../../applications/tile-lite-elite/3.1.7-changes/25-rate-limiting-test-design.md) (non-functional, judged by a script on rehearsal) |
 | [post-deployment-review.md](post-deployment-review.md) | the issue's body or the project's folder, as [1.2](../1.2-change-lifecycle.md#the-parents-lifecycle-is-shorter) says | [documentation by type](../../records/2.5-changes/process-definition/427-documentation-by-type/post-deployment-review.md) · [the programme repository](../../records/2.5-changes/programme-tooling/485-programme-repository/post-deployment-review.md) · Tile Lite Elite's [Claude sessions from the workspace root](../../applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/452-claude-sessions-from-workspace-root/post-deployment-review.md) |
@@ -40,7 +52,7 @@ repository's `.github/`**, which is where GitHub reads them. Only Tile Lite
 Elite's repository has them yet, so an issue or pull request opened elsewhere
 gets no form:
 
-| template | offered when |
+| Template | Offered when |
 | --- | --- |
 | [`Requirement`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/requirement.yml) · [`Project`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/project.yml) · [`Decision`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/decision.yml) | raising an issue of that type |
 | [`PULL_REQUEST_TEMPLATE.md`](https://github.com/delphside/tile-lite-elite/blob/main/.github/PULL_REQUEST_TEMPLATE.md) | opening a pull request |

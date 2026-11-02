@@ -101,6 +101,10 @@ def activity_log() -> Path:
     return live() / profile.programme_file().string("records.activity_log")
 
 
+def improvement_registers() -> Path:
+    return live() / profile.programme_file().string("records.improvement_registers")
+
+
 def weekly_digests() -> Path:
     return live() / profile.programme_file().string("records.weekly_digest")
 

@@ -43,6 +43,8 @@ submodule = "programme"
 # submodule; the log and the digests are records, read from the live checkout.
 activity_register = "docs/1.4-programme-activities.md"
 activity_log = "records/2.3-activity-log.csv"
+# The problem and continual improvement registers, a record the digest reports.
+improvement_registers = "records/2.7-improvement-registers.md"
 weekly_digest = "records/2.4-weekly-digest"
 # A weekly digest is programme-wide: <code>_<yyyy>_W<ww>.md.
 weekly_digest_code = "PRG_WD"

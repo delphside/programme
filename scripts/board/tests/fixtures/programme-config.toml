@@ -20,6 +20,7 @@ submodule = "programme"
 [records]
 activity_register = "docs/1.4-programme-activities.md"
 activity_log = "records/2.3-activity-log.csv"
+improvement_registers = "records/2.7-improvement-registers.md"
 weekly_digest = "records/2.4-weekly-digest"
 weekly_digest_code = "FAKE_WD"
 
