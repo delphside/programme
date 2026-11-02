@@ -35,9 +35,9 @@ numbered document.**
 
 ## The forms GitHub offers
 
-**The forms GitHub offers when an issue or pull request is opened live in each
+**The forms GitHub offers when an issue or pull request is opened live in a
 repository's `.github/`**, which is where GitHub reads them. Only Tile Lite
-Elite's repository has them yet, so an issue raised elsewhere gets no form:
+Elite's repository has them yet, so an issue or pull request opened elsewhere gets no form:
 
 | template | offered when |
 | --- | --- |
@@ -45,7 +45,8 @@ Elite's repository has them yet, so an issue raised elsewhere gets no form:
 | [`PULL_REQUEST_TEMPLATE.md`](https://github.com/delphside/tile-lite-elite/blob/main/.github/PULL_REQUEST_TEMPLATE.md) | opening a pull request |
 
 GitHub fills those in front of you. The templates in this folder are copied:
-into the repository; for the post-deployment review, into an issue's body;
+into the repository; for the post-deployment review, into an issue's body or
+the project's folder;
 for the triage comment and the handover, into an issue comment or an agent's
 prompt.
 

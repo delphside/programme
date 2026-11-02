@@ -8,10 +8,10 @@ generic assets, and an application's instances".
 2. Replace the italic text, and each `n`, `CODE` and `owner/repository`, with
    the application's own, and leave out an optional section that has nothing
    in it.
-3. Keep the headings, the order of the columns and the words in each table's
-   first column: the tooling finds a table by its heading, reads its columns
-   by position, finds a field by its first column and finds the target
-   architecture by its first link.
+3. Keep the headings, the order of the columns and the words in the first
+   column of the Identity and Versioning tables: the tooling finds a table by
+   its heading, reads its columns by position, finds a field there by its
+   first column and finds the target architecture by its first link.
 4. Delete these comments.
 
 Backticks mark a fixed URL in the Environments URL column; leave the Records
