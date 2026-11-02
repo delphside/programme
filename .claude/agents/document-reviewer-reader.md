@@ -91,7 +91,7 @@ those rules:
   phrase carries it without ambiguity.
 - **Unwrapped prose** (1.5 *Wrap prose at 80 characters*): a line over 80
   characters in a changed paragraph (in a whole-document review, any
-  paragraph), an unchanged paragraph rewrapped, or a long link, text and
+  paragraph), an unchanged paragraph rewrapped, or a link, text and
   target, split across lines.
 - **An application's specifics as the rule** (1.5 *Application specifics only
   as a labelled example*): in a programme document, one application's names,
