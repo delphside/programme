@@ -447,7 +447,7 @@ class DocumentReviews(Cases):
     def test_the_example_in_docs_1_1_counts_as_it_should(self):
         # The record's form is docs/1.1's example; the parser is tested against it.
         doc = (Path(__file__).resolve().parents[3] / "docs" / "1.1-programme-tooling.md").read_text()
-        example = re.search(r"```text\n(- R1 reader.*?)```", doc, re.S).group(1)
+        example = re.search(r"```text\n(?:- doc:[^\n]*\n)?(- R1 reader.*?)```", doc, re.S).group(1)
         c = RoundCount().add(example)
         self.expect("counts",
                     ({"reader": 3, "truth": 3}, 1, 2, 2, 1, 1, 0, 5, 370),
@@ -620,6 +620,7 @@ class UnreadableRecords(Cases):
     def test_unparsed_record_summary_does_not_say_no_material_findings(self):
         text = week(pr(1, "Round 1 found about 20 points, all fixed."))
         self.expect("not none", False, "material findings: none" in text)
+        self.expect("one full stop", False, ".." in text)
 
     def test_one_readable_line_makes_a_prose_record_parsed(self):
         prs = [pr(1, "Round 1 found about 20 points.\n\n- R1 none")]
@@ -741,6 +742,13 @@ class DocumentRows(Cases):
         for field, bad in [("lines 14", "lines +12/-3"), ("lines 14", "lines -3"), ("terms added 0", "terms added none")]:
             self.expect(bad, 1, row_with(DOC.replace(field, bad)).count("?"))
         self.expect("zero lines is read", 0, row_with(DOC.replace("lines 14", "lines 0")).count("?"))
+
+    def test_tokens_are_partial_only_when_a_figure_is_not_read(self):
+        body = f"{DOC}\n- R1 reader — x — y\n- R1 cost: reader 60k, 30k\n"
+        self.expect("a read figure naming no reviewer is not partial", True, row_with(body, "").endswith("| 90k |"))
+        body = f"{DOC}\n- R1 reader — x — y\n- R1 cost: reader 60k, truth 1,200k\n"
+        self.expect("an unread figure is", True, row_with(body, "").endswith("| 60k (partial) |"))
+        self.expect("no cost line", True, row_with(DOC, "- R1 none").endswith("| —  |".replace("  ", " ")))
 
     def test_last_review_never_is_read(self):
         self.expect("never", True, "| never |" in row_with(DOC.replace("2026-10-26", "never")))
@@ -906,6 +914,10 @@ class CountMarker(Cases):
         self.expect("said in the digest", True,
                     "count marker(s) not read" in RoundCount().add("- R1 reader — x — y (count 0)").cost())
 
+    def test_a_word_beginning_count_is_not_a_marker(self):
+        c = self.add("- R1 reader — x — y (counted twice)")
+        self.expect("one finding, nothing unread", (1, 0), (c.findings, c.unread_counts))
+
     def test_count_marker_on_a_none_or_cost_line_is_not_read(self):
         c = self.add("- R1 none (count 3)\n- R2 cost: reader 60k (count 3)")
         self.expect("no findings, two unread", (0, 2), (c.findings, c.unread_counts))
@@ -924,6 +936,8 @@ class OwnerLines(Cases):
         notes = "- Owner's finding on delphside/programme#124, after merge:\n  " + line
         text = render(digest(reviews=[]), notes=notes)
         self.expect("counted from a note in a later week", True, "found by the owner afterwards: 1" in text)
+        self.expect("the note is not said to be a change with no pull request", True,
+                    "From the notes below (changes with no pull request, and findings after a merge):" in text)
         self.expect("an owner line at the top level joins the note above", 1,
                     render(digest(reviews=[]), notes="- a note\n- owner — reviewed, none").count(CONCLUDE))
 

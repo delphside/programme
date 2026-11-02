@@ -341,7 +341,7 @@ _DOC = re.compile(r"^\s*-\s+doc:(.*)$")
 # `(count 5)`: the line is five material findings. Only this form is read; any
 # other `(count …)` is text, counted as not read.
 _COUNT = re.compile(r"\(count ([1-9]\d*)\)")
-_COUNT_ANY = re.compile(r"\(\s*count[^)]*\)", re.I)
+_COUNT_ANY = re.compile(r"\(\s*count(?![a-z])[^)]*\)", re.I)
 _COST = re.compile(r"^\s*-\s*R\d+\s+cost:\s*(.*)$")
 _ROUND = re.compile(r"^\s*-\s*R(\d+)")
 _SPENT = re.compile(r"([A-Za-z]+)\s+(\d+(?:\.\d+)?)k\b", re.I)
@@ -403,6 +403,8 @@ class RoundCount:
     # k, a figure that cannot be read, or one naming no reviewer, which adds to
     # the totals but to no reviewer.
     unread_costs: int = 0
+    # Figures shaped like k that were not read, or a cost line with none.
+    unread_figures: int = 0
     # Figures in k read, a 0k one included; with none, no rate can be given.
     figures_read: int = 0
     unread_counts: int = 0
@@ -429,6 +431,7 @@ class RoundCount:
                 named = _SPENT.findall(m.group(1))
                 shaped = len(_ANY_K.findall(m.group(1)))
                 self.unread_costs += max(0, shaped - len(named)) if shaped else 1
+                self.unread_figures += max(0, shaped - len(figures)) if shaped else 1
                 self.tokens += sum(float(t) for t in figures)
                 self.figures_read += len(figures)
                 for who, k in named:
@@ -649,7 +652,7 @@ def documents(text: str, where: str) -> tuple[list[Document], int, int]:
             row = Document(where, path, fields)
             if heading is not None or not headed:
                 row.rounds, row.findings, row.from_fix = max(rounds, default=None), c.findings, c.from_fix
-                row.cost_lines, row.partial = c.cost_lines, c.unread_costs > 0
+                row.cost_lines, row.partial = c.cost_lines, c.unread_figures > 0
                 row.tokens = c.tokens if c.figures_read else None
             rows.append(row)
     return rows, without, unread
@@ -895,8 +898,8 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
         out.append("")
         out.append(text)
         out.append("")
-        out.append((RoundCount().add(text).summary() if readable(text) else
-                    "No line of this record is one the digest reads, so it counts no findings.") + ".")
+        out.append(RoundCount().add(text).summary() + "." if readable(text) else
+                   "No line of this record is one the digest reads, so it counts no findings.")
         out.append("")
         total.add(text)
         found, missing, bad = documents(text, f"{repository}#{number}")
@@ -917,7 +920,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     for entry in entries:
         in_notes.add(entry)
     if in_notes:
-        out.append(f"From the notes below, for changes with no pull request: {in_notes.summary()}.")
+        out.append(f"From the notes below (changes with no pull request, and findings after a merge): {in_notes.summary()}.")
         out.append("")
         for entry in entries:
             total.add(entry)
