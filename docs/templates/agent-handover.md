@@ -29,7 +29,7 @@ the review covers the whole of it or a diff range.
 
 ## Read as well
 
-Anything beyond the *Before anything* list in the agent's definition.
+Anything beyond the reading list in the agent's definition.
 
 ## Already checked
 
