@@ -18,7 +18,7 @@ with an ID.
 - `workstreams/<folder>/`: one folder per workstream, and in it a folder per
   parent project, named `<issue>-<name>/`
   ([workstreams](workstreams/README.md)).
-- `<version>-user-testing.md`: a release's testing record.
+- `releases/<version>/user-testing.md`: a release's testing record.
 - The grandfathered documents at the top level, listed in
   [3.1.6](../3.1.6-profile.md#grandfathered-change-documents).
 
