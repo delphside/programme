@@ -5,8 +5,8 @@ docs/1.1, "Claude's tooling". The agent's definition in .claude/agents/, with
 .claude/agents-common.md, holds what does not change between runs; this holds
 what is particular to one job.
 
-Fill every heading. Write "None" where one does not apply, so an empty heading
-is never read as a forgotten one. Delete these comments.
+Fill every heading, writing "None" where one does not apply, so the agent
+reads every heading as answered. Delete these comments.
 -->
 
 ## Task
@@ -17,8 +17,8 @@ documentation or tests.
 ## Done when
 
 What finishes it, as checks the agent can run or read: the requirements it
-meets, the tests that pass, the documents that say so. Each says how it is
-proved, not only what: "same exit statuses" needs "and tested", or it is
+meets, the tests that pass, the documents that say so. Each names the check
+and how it is proved: "same exit statuses" needs "and tested", or it is
 proved once by hand and nothing holds it. For a review, the questions
 answered.
 
@@ -29,14 +29,13 @@ the review covers the whole of it or a diff range.
 
 ## Read as well
 
-Anything beyond the *Before anything* list in the agent's definition. "None"
-if that list is enough.
+Anything beyond the *Before anything* list in the agent's definition.
 
 ## Already checked
 
 For a review in rounds, the points earlier rounds settled, copied from their
 reports, each marked *recheck* where a fix has touched it since (1.1, "Claude's
-tooling"). "None" in the first round.
+tooling").
 
 ## Agreed but not yet written down
 
