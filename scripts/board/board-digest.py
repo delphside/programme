@@ -15,8 +15,8 @@ Three of the four parts are derived from git and the board. The fourth is a
 judgement about someone else's preferences, so `--decided` supplies it and an
 empty one says it was not written rather than that there was nothing.
 
-The register is read from the pinned `programme/` submodule and the digests are
-written to the live checkout (`PROGRAMME_DIR`), both through `records.py`.
+The registers (records/2.7) are read from, and the digests written to, the live
+checkout (`PROGRAMME_DIR`), both through `records.py`.
 
 Design: programme/records/2.5-changes/programme-tooling/383-one-board-model/
 """
@@ -48,8 +48,9 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     # Before the board is fetched: no point asking GitHub for a digest that has
-    # nowhere to go. Printing it needs only the register; writing needs the live checkout.
+    # nowhere to go. Both need the live checkout.
     reports = records.weekly_digests() if args.write else None
+    registers_file = records.improvement_registers()
 
     try:
         # Pull requests are excluded: the share is about issues on the board.
@@ -80,7 +81,7 @@ def main(argv=None) -> int:
         except Unavailable:
             unread.append(repository)
 
-    registers = records.improvement_registers().read_text()
+    registers = registers_file.read_text()
     digest = build(open_snapshot, closed, since=args.since, registers=registers,
                    merged_prs=merged, other_prs=other_prs, unread=unread)
     text = render(digest, args.decided)
