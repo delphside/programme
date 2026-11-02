@@ -37,7 +37,8 @@ numbered document.**
 
 **The forms GitHub offers when an issue or pull request is opened live in a
 repository's `.github/`**, which is where GitHub reads them. Only Tile Lite
-Elite's repository has them yet, so an issue or pull request opened elsewhere gets no form:
+Elite's repository has them yet, so an issue or pull request opened elsewhere
+gets no form:
 
 | template | offered when |
 | --- | --- |
@@ -46,9 +47,8 @@ Elite's repository has them yet, so an issue or pull request opened elsewhere ge
 
 GitHub fills those in front of you. The templates in this folder are copied:
 into the repository; for the post-deployment review, into an issue's body or
-the project's folder;
-for the triage comment and the handover, into an issue comment or an agent's
-prompt.
+the project's folder; for the triage comment and the handover, into an issue
+comment or an agent's prompt.
 
 ## Reports
 
