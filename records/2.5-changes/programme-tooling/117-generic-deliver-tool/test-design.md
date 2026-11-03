@@ -62,7 +62,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R33 | Each role has its own registry access, and no role's credential can do another role's writes. | §2; §11 |
 | R34 | Nothing secret is written to a profile, record, tag or log. | §11 |
 | R35 | Every pull completes within the environment's `pull_timeout`, or the deploy refuses before any change. | §9; §11 |
-| R36 | `prune` removes candidates pushed before the newest release was made, not released, and not in any environment's current or previous deploy. It never removes releases. | §4 |
+| R36 | `prune` removes candidates whose `created` label (the build's start) is before the newest release was made, not released, and not in any environment's current or previous deploy. It never removes releases. | §4 |
 | R37 | `env create\|destroy NAME` works from the profile's template: a user, a state folder, a `.env` with secrets at a hidden prompt, a Compose project, and the hooks. | §4 |
 | R38 | `host-install` installs or updates `deliver-host`, `jq`, the login adapter's tools and the single `sudo` rule. | §4; §9 |
 | R39 | The login adapters are `oci-instance-principal`, `oci-api-key` and `docker-config`. Hosts log in by instance principal. | §2; owner 2026-10-28 |
@@ -216,7 +216,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S40 | Release copy by the copier with skopeo; another role's credential writing releases. | R33 | O10; O17 | CI (htpasswd per role) |
 | S41 | `env create` with secrets at a hidden prompt, then `env destroy`. | R37 | the user, the state folder, `.env` and the project exist, then are gone; hooks called; O18 | CI (pty) |
 | S42 | `host-install` on a bare host container, then again. | R38 | `deliver-host`, `jq` and the sudo rule present; then updated | CI; REH |
-| S43 | Prune with a mix of candidates, including one pushed before the newest release was made but built from a commit dated after it. | R36 | O22; the push time decides | CI |
+| S43 | Prune with a mix of candidates, including one built from a commit dated after the newest release but whose `created` label is before it. | R36 | O22; the `created` label decides | CI |
 | S44 | A canary secret through every command. | R34 | O18 | CI |
 | S45 | The tool contains no application name; a second dummy app runs S1, S6 and S18. | R1, R2 | O19; a profile without `DELIVER_REGISTRY` in local config refuses | CI |
 | S46 | `status` and `list` on an environment after two deploys. | R40 | the digests, the matched record, the state, host-file equality; the records beside the current one | CI |
@@ -526,7 +526,7 @@ Everything else runs in CI.
 - X8 by S29: `--unrecorded` takes a full SHA, and a copy already present is a no-op.
 - X9 by S26: a different record refuses (exit 1), and all steps done exits 0. The gate count (X9b) stays untestable from outside.
 - X10 by S55 and S56.
-- X11 by S43, which now asserts the push time.
+- X11 by S43, which asserts the `created` label, the build's start time (design §13).
 - X12 by S58 and X13 by S59.
 - X17 (the next deploy after a failed first deploy proceeds) by S57, and X18 (`--wait` at its limit refuses, exit 1, naming what it waited for) by S54.
 - X16 no longer applies: #117's body now has a decisions list.
@@ -539,7 +539,14 @@ Still open, each a question for the owner:
 | X9b A command "ending with a gate unrun refuses" cannot be provoked from outside, and §4 gives no per-command gate list beyond §6. | A test hook or a documented gate list. | The run log is asserted against §6 (O23). The self-check is reviewed, not tested. |
 | X14 The `oci-api-key` adapter (Dark Portal's copier) is exercised by no Tile Lite Elite test. | Dark Portal's adoption, delphside/dark-portal#15, carries the test: the key missing, then present, with the refusal shown before the success. | Dark Portal is out of scope here. |
 | X15 The production-role gates are shown on a real host only by the owner's `--check` runs and 0.10.2's first production deploy (part 8), not before the merge. The real-host statement is: `deliver deploy production <raw SHA> --check` and `deliver deploy production <unrecorded version> --check` both refuse, naming the gate, and change nothing. It matches the post-deployment box of delphside/tile-lite-elite#555. | #555's test-approach box is changed to point at the CI tests and the post-deployment check. | Accepted at the test manager's sign-off on #117, 2026-10-28: production reads and deploys are the owner's, and the rehearsal identity cannot read releases. |
-| X19 The CI world is stubs, not `registry:2` and Docker-in-Docker: `skopeo`, `docker`, `ssh`, `gh`, `sudo` and `systemctl` are PATH stubs over folders, and the "machines" are folders. | A rehearsal run of the real tool against a real registry and host. | The rehearsal run (part 8) covers what a stub cannot show. |
+
+Accepted gaps, closed by the rehearsal run rather than by CI (part 8). The
+stubs stand in for the real tools; what a stub cannot show, the rehearsal run
+on the real stack does.
+
+| gap | what would close it | why it is acceptable |
+| --- | --- | --- |
+| X19 The CI world is stubs, not `registry:2` and Docker-in-Docker: `skopeo`, `docker`, `ssh`, `gh`, `curl`, `sudo`, `systemctl`, `useradd` and `userdel` are PATH stubs over folders, and the "machines" are folders. | A rehearsal run of the real tool against a real registry and host. | The rehearsal run (part 8) covers what a stub cannot show. |
 | X20 S5 (multi-arch: a real `buildx` build and the index digest kept by the copy) is stubbed only through `STUB_ARCH`, which salts the digest. | The same rehearsal run: a multi-arch build, copy and pull on the real stack. | The copy is `skopeo copy --all --preserve-digests`, whose behaviour the stub cannot vouch for. |
 | X21 S36 (a slow pull) is a delayed-pull stub, not a throttling proxy. | The rehearsal run's measured pull on a real host (`pull_timeout`). | The timeout path is exercised; the number is measured on the host. |
 | X22 S40 (each role's registry credential writes only its own repositories) uses the stub's `STUB_WRITE_ONLY`, not a registry's access control; the stub also records which machine each registry write ran on (`where.log`), so a copy made on the wrong machine fails the test. | The rehearsal run, with the real credentials of the build environment, the copier and the hosts. | The tool's part (which machine, which login) is asserted; the registry's enforcement is not the tool's. |

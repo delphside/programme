@@ -124,7 +124,7 @@ sequenceDiagram
 | `deliver rollback ENV` | control node | `deliver-host rollback`: the environment's previous deploy (§9) |
 | `deliver status ENV` | control node | the digests ENV runs, matched by `RepoDigests`, the record they match, the deploy state, and whether the host files equal the payload's (a check) |
 | `deliver list ENV` | control node or host | records beside what ENV runs |
-| `deliver prune` | control node | removes candidates pushed before the newest release was made, not released and not run by any environment's current or previous deploy; releases are never removed. Hosts keep their current and previous images |
+| `deliver prune` | control node | removes candidates built before the newest release was made (by the image's `created` label), not released and not run by any environment's current or previous deploy; releases are never removed. Hosts keep their current and previous images |
 | `deliver env create\|destroy NAME` | the environment's host | an ephemeral environment from the profile's template: user, state folder, `.env` (secrets at a hidden prompt), Compose project, `env-create` and `env-destroy` hooks |
 | `deliver host-install ENV` | control node | installs or updates `deliver-host` and its dependencies (`jq`, the login adapter's tools) on ENV's host |
 
@@ -256,7 +256,7 @@ row says what it is for before what it compares.
 | build | the store is never overwritten | an image whose `SHA-IMAGE` is present is not rebuilt; a failed registry query refuses; releases is immutable | gate | nothing |
 | every deploy | the host runs exactly the bytes named | each image pulled by digest; its revision label is the SHA; the running containers' `RepoDigests` match (for a `--local` preview build, the local image id and its revision label) | gate | nothing |
 | every deploy | two deploys, or a deploy and the application's own heavy run, never overlap | the environment's lock is free, and held to the end | gate | `--wait` waits |
-| every deploy | an interrupted deploy is not built upon | the state folder shows the last deploy finished, or `failed, no previous deploy` | gate | nothing: `deliver rollback` or a fresh deploy of the previous REF |
+| every deploy | an interrupted deploy is not built upon | the state folder shows the last deploy finished, or `failed, no previous deploy` | gate | nothing: `deliver rollback` |
 | every deploy | the application's deploy-time conditions | the `pre-deploy` hook | gate | `--set-aside`, where overridable |
 | every deploy | a failed deploy leaves the previous deploy running | `migrate` fails or `smoke` refuses: `restore-state`, then the previous deploy's digests and joined files | gate | nothing |
 | rehearsal deploy | rehearsal starts from production's level | the first deploy of a cycle (the deploys to a rehearsal-role environment since the last release was made) is production's current record, read from the production host's state over ssh and pulled from candidates by the same digests. Production running a build with no record refuses: a production deployed before the tool, as at the first cycle (§10) | gate | `--off-level` |
@@ -454,22 +454,124 @@ daemon) and `jq` for the record. In the programme repository:
 
 ## 13. Departures in the build
 
-What the build does that §§1 to 12 did not say, or differently. Each is declared here so the review can accept or reverse it.
+What the build does that sections 1 to 12 did not say, or says differently.
+Each is declared here so the review can accept or reverse it.
 
-- **`deliver release --commit REF`** names the commit to release; it is needed when rehearsal has not deployed (`--skip-rehearsal`) and when a test names one. Without it the commit is the one the rehearsal environment runs.
-- **The payload is assembled by `deliver build`** into `<worktree>/.deliver-payload/` and exported as `DELIVER_PAYLOAD_DIR`; the application's Dockerfile `COPY`s it to `/deliver`. Its steps and libraries come from the `programme` submodule at the commit the built commit pins, read with `git archive` (the running tool's own where the application has no `programme` entry), and that pinned commit is recorded as `tool.programme`.
-- **Tags in releases** are `VERSION-IMAGE`; an `--unrecorded` copy is `SHA-IMAGE`. The record image is `VERSION-record`.
-- **An optional `bump` hook** runs in the worktree that bumps `main`, with `DELIVER_VERSION` set, for a lockfile refresh the version file's pattern cannot do.
-- **New profile keys:** `[deliver].fallback` (the sentence a failed first deploy prints), `[deliver.ephemeral]` (`user_prefix`, `home`, `secrets`), and per environment `lock`, `project`, `url`, `host_files`, `join` and `pull_timeout`.
-- **The host's `.env`** is `<state>/APP/ENV/.env`. `deliver-host` reads `DELIVER_REGISTRY` from it and, for the login adapters, `DELIVER_OCI_TOKEN_CMD`, `DELIVER_REGISTRY_USER`, `OCI_CLI_AUTH`, `OCI_CLI_KEY_FILE` and `OCI_CLI_CONFIG_FILE`, as text and never sourced. That is how `oci-instance-principal` works over a non-interactive `ssh`, which carries no environment. The release copier reads the same names from `~/.config/deliver/APP.env` on its own machine.
-- **The release copier** runs `deliver-host copy APP` on the machine `[deliver.release].copy_on` names (the control node, or an `ssh` alias), with `copy_login`. It makes the copies and pushes the record image; the control node only reads.
-- **There is no "fresh deploy of the previous REF" way out of an interrupted state.** The state gate points to `deliver rollback ENV`, and a failed restore leaves the state interrupted for it.
-- **Rollback removes `previous` afterwards**, so a second rollback refuses; old `deploys/<n>` folders other than the current and previous are pruned after a deploy.
-- **Prune by the created label:** `deliver prune` reads an image's `org.opencontainers.image.created` label, which is the time the build started, not the push time; skopeo exposes only the image config's own creation time, not the registry's push time. It is safe because a candidate is removed only when it is older than the newest release and neither released nor run by any environment's current or previous deploy; the worst a build that began before a release and pushed after it can cost is a rebuild.
-- **No `keep_images` key:** `prune_host_images` considers only images under the registry address, so local fallback images are never pruned and need no list.
-- **The allowlist is merged, never replaced:** rerunning `deliver host-install` keeps an entry the new profile lacks while root's `installed` record or any environment's current or previous deploy still uses it, so a rollback across a moved or dropped host file, and the stop and disable of a dropped unit, still work; an entry nothing uses is dropped. Entries are keyed by destination, source and mode, so a source or mode change on the same destination keeps the old line for a rollback, and `root-ops install` takes the line matching what it is given. A file root-ops installed whose entry nothing uses and the new profile no longer lists (an environment switched to `host_files = false` never runs the removal itself) is removed by that `host-install`, its unit stopped and disabled.
-- **Rehearsal's "since the last release"** compares a deploy's time with the newest release tag's with `>=`, in seconds.
-- **Production's version** for the emergency gate comes from its host-state record, else from `/health` through `versions.deployed` (`path` and `field`) and the environment's `url`.
-- **The gates read the commit's profile** (required checks and hooks, what may be set aside, images, payload image), as the hooks are read. Which machine an environment is, and its role, stay the control node's own working-tree profile.
-- **The sudo rule's checks guard against mistakes, not against a hostile deploy user.** The deploy user is root-equivalent through Docker, as today's deploy user is. `deliver host-install` (run by the owner, with sudo) writes `/etc/deliver/APP/` (directory 0755, files 0644, root-owned) from the profile as it is at install time: `host_files.allow` (per host file: destination, source within the payload, mode, whether a unit is enabled) and `ephemeral.prefix`. `root-ops` reads only that, and records what it installs in its own `installed` file there; nothing under `/var/lib/deliver` is trusted. `install` takes a regular file, not a link, that resolves under the application's own deploy folders and is the one file that destination lists, and uses the allowlist's mode, never the caller's, refusing setuid, setgid, sticky and world-writable modes. `rm` removes only a file in `installed`. `systemctl` allows `daemon-reload`, and `enable`, `disable`, `restart` and `stop` of one unit named by an enabled destination's basename, with no other argument. `useradd` and `userdel` act only on a name with the recorded prefix. A payload whose `host_files` add a destination not on the allowlist refuses, saying to rerun `deliver host-install`.
-- **`deliver host-install` takes an environment or the release copier** (the `copy_on` alias), so a copier that hosts no environment gets `deliver-host` and its libraries, including `registry.sh`; it gets no allowlist and no sudo rule.
+Terms used below. The **state gate** is the check in section 6 that the host's
+state file shows the last deploy finished, restored, or failed with no previous
+deploy. **root-ops** is the `deliver-host root-ops` subcommand, the one command
+the sudo rule lets the deploy user run as root. **Since the last release**,
+for rehearsal's level gate, means a deploy whose `deployed` time in the host's
+`meta.json` is at or after (`>=`, in seconds) the newest release tag's `made`
+time.
+
+### Commands and payload
+
+- `deliver release --commit REF` names the commit to release. It is needed
+  when rehearsal has not deployed (`--skip-rehearsal`). Without it the commit
+  is the one the rehearsal environment runs.
+- `deliver build` assembles the payload into `<worktree>/.deliver-payload/`
+  and exports `DELIVER_PAYLOAD_DIR`; the application's Dockerfile `COPY`s it to
+  `/deliver`. The steps and libraries come from the `programme` submodule at
+  the commit the built commit pins, read with `git archive` (the running
+  tool's own where the application has no `programme` entry). That commit is
+  recorded as `tool.programme`.
+- Tags in releases are `VERSION-IMAGE`, and the record image is
+  `VERSION-record`. An `--unrecorded` copy is `SHA-IMAGE`.
+- An optional `bump` hook runs in the worktree that bumps `main`, with
+  `DELIVER_VERSION` set, for a lockfile refresh the version file's pattern
+  cannot do.
+- The release copier runs `deliver-host copy APP` on the machine
+  `[deliver.release].copy_on` names (the control node or an `ssh` alias), with
+  `copy_login`. It makes the copies and pushes the record image; the control
+  node only reads.
+- `deliver host-install` takes an environment or the release copier. A copier
+  that hosts no environment gets `deliver-host` and its libraries, including
+  `registry.sh`, and no allowlist or sudo rule. Deploy and `host-install`
+  refuse two environments of one application on one machine that both install
+  host files, since each would remove the other's.
+
+### Profile
+
+- New keys: `[deliver].fallback` (the sentence a failed first deploy prints),
+  `[deliver.ephemeral]` (`user_prefix`, `home`, `secrets`), and per
+  environment `project`, `url`, `host_files` and `join`. `lock` and
+  `pull_timeout` are in section 3's example.
+- The host's `.env` is `<state>/APP/ENV/.env`. `deliver-host` reads
+  `DELIVER_REGISTRY` from it and, for the login adapters,
+  `DELIVER_OCI_TOKEN_CMD`, `DELIVER_REGISTRY_USER`, `OCI_CLI_AUTH`,
+  `OCI_CLI_KEY_FILE` and `OCI_CLI_CONFIG_FILE`, as text, never sourced. That is
+  how `oci-instance-principal` works over a non-interactive `ssh`, which
+  carries no environment. The release copier reads the same names from
+  `~/.config/deliver/APP.env` on its own machine.
+- The gates read the commit's profile (required checks and hooks, what may be
+  set aside, images, payload image), as the hooks are read. Which machine an
+  environment is, and its role, stay the control node's working-tree profile.
+- There is no `keep_images` key. Pruning on a host considers only images under
+  the registry address, so local fallback images (Tile Lite Elite's
+  `deploy.sh` images, kept until 0.10.3) are never touched.
+
+### Failure and cleanup
+
+- An interrupted deploy is not built upon. The state gate refuses and points
+  to `deliver rollback ENV`, which is the way out. A failed restore leaves the
+  state interrupted for it.
+- Rollback removes `previous` afterwards, so a second rollback refuses. After
+  a deploy, `deploys/<n>` folders other than the current and previous are
+  pruned.
+- Production's version, for the emergency gate, comes from the record in its
+  host state. Only when the host has no `current` at all is it read from
+  `/health` through `versions.deployed` (`path` and `field`) and the
+  environment's `url`. A `current` with no record (a build from before the
+  tool) makes the gate refuse, saying it cannot tell which release production
+  runs.
+- `deliver prune` reads an image's `org.opencontainers.image.created` label.
+  That is the time the build started, not the push time, and skopeo exposes
+  only the image's own creation time, not the registry's push time. A
+  candidate is removed only when it is older than the newest release and is
+  neither released nor run by an environment's current or previous deploy. The
+  worst case, a build that began before a release and pushed after it, costs a
+  rebuild.
+
+### Root-ops and the allowlist
+
+The deploy user is root-equivalent through Docker, as today's deploy user is.
+The checks below guard against mistakes, not against a hostile deploy user.
+
+- `deliver host-install`, run by the owner with sudo, writes root-owned files
+  in `/etc/deliver/APP/` (directory 0755, files 0644):
+
+  | file | holds |
+  | --- | --- |
+  | `host_files.allow` | per host file: destination, source within the payload, mode, whether a unit is enabled |
+  | `ephemeral.prefix` | the `user_prefix` of the application's ephemeral users |
+  | `installed` | written by root-ops: what it has installed |
+
+- root-ops reads only those files. It does not trust the state folder, which
+  the deploy user writes.
+- What each root-ops operation allows:
+
+  | operation | allowed |
+  | --- | --- |
+  | `install` | a regular file, not a link, resolving under the application's own deploy folders, that is the one source its destination lists, with the allowlist's mode and the caller naming the same mode; setuid, setgid, sticky and world-writable modes are refused |
+  | `rm` | a file in `installed` |
+  | `systemctl` | `daemon-reload`, or `enable`, `disable`, `restart` or `stop` of one unit named by an enabled destination's basename, with no other argument |
+  | `useradd`, `userdel` | a name with the prefix recorded for the calling application |
+
+- A payload whose `host_files` add a destination not on the allowlist
+  refuses, saying to rerun `deliver host-install`.
+- The allowlist is merged, never replaced. Rerunning `host-install` writes the
+  profile's lines and keeps an old line the profile lacks while the current or
+  previous deploy of an environment that installs host files still lists it,
+  so a rollback across a moved or dropped host file, and the stop of a dropped
+  unit, find their entries. Lines are keyed by destination, source and mode,
+  so a source or mode change on one destination keeps the old line for a
+  rollback.
+- An old line nothing uses is dropped. If root-ops installed its file and the
+  profile no longer lists the destination, `host-install` removes the file and
+  stops and disables its unit. An environment switched to `host_files = false`
+  never runs that removal itself.
+- The merge runs as root and reads the current and previous deploys'
+  `profile.json` and `meta.json` in the state folder, so those two files are
+  trusted for one decision: which existing lines to keep. They can never add a
+  line, so a forged file only keeps a line longer.

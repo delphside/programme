@@ -543,3 +543,16 @@ echo backup"
   [ ! -s "$root/etc/deliver/acme/installed" ]
   grep -qx /opt/acme/backup.sh "$root/etc/deliver/other/installed"
 }
+
+# round 8 ---------------------------------------------------------------------
+@test "R8 an ephemeral user is accepted only under the calling application's own prefix" {
+  local root="$W/hosts/local"
+  mkdir -p "$root/etc/deliver/other"; printf 'zz-\n' > "$root/etc/deliver/other/ephemeral.prefix"
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops userdel zz-x acme
+  assert_failure 1
+  assert_output --partial "ephemeral user_prefix of acme"
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops userdel zz-x other
+  assert_success
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops userdel acme-x
+  assert_failure 1
+}
