@@ -558,7 +558,7 @@ def readable(text: str) -> bool:
 DOC_TYPES = ("rule", "procedure", "reference", "design", "record", "template", "agent", "skill",
              "readme", "runbook", "code")
 DOC_CHANGES = ("correction", "applied", "new-rule", "new-term", "new-procedure", "code")
-DOC_KEYS = ("type", "change", "words", "lines", "last review", "terms added")
+DOC_KEYS = ("type", "change", "words", "lines", "places", "last review", "terms added")
 
 
 def _is_date(value: str) -> bool:
@@ -574,6 +574,7 @@ _DOC_OK = {
     "change": lambda v: v in DOC_CHANGES,
     "words": lambda v: bool(re.fullmatch(r"[1-9]\d*", v)),
     "lines": lambda v: bool(re.fullmatch(r"\d+", v)),
+    "places": lambda v: bool(re.fullmatch(r"\d+", v)),
     "terms added": lambda v: bool(re.fullmatch(r"\d+", v)),
     "last review": lambda v: v == "never" or (bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", v)) and _is_date(v)),
 }
@@ -948,9 +949,9 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     if rows:
         out.append("**Reviewed documents, by their inputs and what their review found:**")
         out.append("")
-        out.append("| pull request | document | type | change | words | lines | last review | terms added "
+        out.append("| pull request | document | type | change | words | lines | places | last review | terms added "
                    "| rounds | material findings | from a fix | tokens |")
-        out.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+        out.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
         out += ["| " + " | ".join(row.cells()) + " |" for row in rows]
         out.append("")
     if unread:
