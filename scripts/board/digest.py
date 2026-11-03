@@ -296,6 +296,17 @@ def without_footers(text: str) -> str:
     return "\n".join(out).strip()
 
 
+def below(text: str) -> str:
+    """The record with its own `####` headings one level down, outside a code
+    fence, so in the digest they sit under its pull request's heading."""
+    out, fenced = [], False
+    for line in text.splitlines():
+        if line.strip().startswith("```"):
+            fenced = not fenced
+        out.append("#" + line if not fenced and line.startswith("#### ") else line)
+    return "\n".join(out)
+
+
 def _record(pr) -> str:
     return without_footers(section(pr.body, "Review rounds"))
 
@@ -899,7 +910,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     for repository, number, title, text in d.reviews or []:
         out.append(f"#### {repository}#{number} {title}")
         out.append("")
-        out.append(text)
+        out.append(below(text))
         out.append("")
         out.append(RoundCount().add(text).summary() + "." if readable(text) else
                    "No line of this record is one the digest reads, so it counts no findings.")
