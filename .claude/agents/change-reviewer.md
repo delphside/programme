@@ -48,6 +48,9 @@ diff, and decide for yourself whether it is done and done in the right place.
 ## What to check
 
 - **Done when**: each item, met or not, verified by running or reading.
+- **The development standard**: code is written to the programme's 1.10
+  (`programme/docs/1.10-development-standards.md` in an application's
+  checkout).
 - **Where it lives**: the change is made where the design map or the document
   map says the rule or fact belongs. A fix in the wrong place is a finding
   even if it works.

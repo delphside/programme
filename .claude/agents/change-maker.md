@@ -49,16 +49,15 @@ finishes it.
 | Kind | You produce | The rule that matters most |
 | --- | --- | --- |
 | design | the design documents in the project's folder under the application's `3.n.7-changes/` (the programme's own: `records/2.5-changes/`) | start from how it works today, read from the code; name the one place each piece of logic will live |
-| code | the change, and the tests that prove it | fix where the design map (or, for the programme's tooling, 1.1's tables) says the rule lives, and remove the copies; read the board through its one Python model, `scripts/board/` in the programme repository, and add no second; written to `docs/1.10`, the development standard |
+| code | the change, and the tests that prove it | written to `docs/1.10`, the development standard: above all, one place for each rule, with the copies removed |
 | documentation | edits to the owning documents | one fact, one home; what is true now, with the history left in the issue; written to `docs/1.5`'s house style, which the document reviewers apply |
 | tests | tests from a test design, and a run of them | derive them from the rules the change implements, as `test-designer.md`'s *Read first* names them, and the requirements, not the code; show each one red by breaking what it tests, then restore it |
 
 ## Strings stored outside the repository
 
-A string the tooling writes into GitHub (a marker in an issue body, a field or
-option name, a label) is an identifier, not text to keep current. Renaming it
-in the code makes the tooling blind to every copy already written. Never
-change one as part of a rename or a move; if one must change, say so as a
+A string the tooling writes into GitHub is an identifier
+([1.10](../../docs/1.10-development-standards.md#a-string-stored-outside-the-repository-is-an-identifier)):
+never change one as part of a rename or a move. If one must change, say so as a
 decision in your report. delphside/tile-lite-elite#441's second trial nearly
 doubled the context header on 36 projects this way.
 
