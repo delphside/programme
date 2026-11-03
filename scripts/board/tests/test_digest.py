@@ -774,6 +774,12 @@ class DocumentRows(Cases):
         path = "benchmark-run runbook (3.1.7-changes/x/benchmark-run-runbook.md)"
         self.expect("whole", True, f"| {path} |" in row_with(DOC.replace("docs/a.md", path)))
         self.expect("no row", False, TABLE in week(pr(1, DOC.replace("docs/a.md", "") + "\n- R1 none")))
+        rows, without, unread = documents(DOC.replace("docs/a.md", "") + "\n- R1 none", "o/p#1")
+        self.expect("the path-less line is one field not read", (0, 1), (len(rows), unread))
+
+    def test_a_documents_rounds_are_its_highest_round_not_how_many(self):
+        rows, _, _ = documents(DOC + "\n- R1 none\n- R3 none", "o/p#1")
+        self.expect("three", 3, rows[0].rounds)
 
     def test_lines_under_a_heading_belong_to_its_document(self):
         body = f"""Prose first.
@@ -869,11 +875,11 @@ class DocumentRows(Cases):
 
     def test_the_format_example_in_docs_1_1_parses_as_documented(self):
         doc = (Path(__file__).resolve().parents[3] / "docs" / "1.1-programme-tooling.md").read_text()
-        example = re.search(r"```text\n((?:- R3[^\n]*\n)*\n?#### docs/.*?)```", doc, re.S).group(1)
+        example = re.search(r"```text\n((?:- R\d[^\n]*\n)*\n?#### docs/.*?)```", doc, re.S).group(1)
         rows, without, unread = documents(example, "x")
         self.expect("two documents, both with every input", (2, 0, 0), (len(rows), without, unread))
         c = RoundCount().add(example)
-        self.expect("the counts the document says", (4, 0, 0, 650.0, 0),
+        self.expect("the counts the document says", (4, 0, 0, 790.0, 0),
                     (c.findings, c.both, c.from_fix, c.tokens, c.owner))
 
 
@@ -936,6 +942,8 @@ class OwnerLines(Cases):
         for line in ["owner — none", "owner — reviewed, none", "owner — not reviewed", "owner — reviewed — none"]:
             self.expect(line, 0, RoundCount().add(f"- R1 reader — x — y\n- {line}").owner)
         self.expect("a finding is", 1, RoundCount().add("- owner — 1.5 *x* — y").owner)
+        self.expect("text that holds \"none\" is still a finding", 1,
+                    RoundCount().add("- owner — 1.5 r — none of the links work").owner)
 
     def test_owner_finding_after_merge_counts_as_owner_found(self):
         line = "- owner — 1.5 *x* — y (after merge, 2026-11-01)"
