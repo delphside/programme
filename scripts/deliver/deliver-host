@@ -191,27 +191,41 @@ cmd_rollback() {
 # environment lists it. So a rollback or a restore across a moved or dropped host file,
 # and the stop of a dropped unit, still find their entries; an entry nothing uses is dropped.
 cmd_allowlist() {
-  local app="$1" new old out dest line pj
+  local app="$1" new old out line dest src mode enable pj meta used dropped=() d
   new="$(cat)"
   old="$ALLOW_ROOT/$app/host_files.allow"
   mkdir -p "$ALLOW_ROOT/$app"
   out="$(mktemp "$ALLOW_ROOT/$app/.allow.XXXXXX")"
   printf '%s\n' "$new" | sed '/^$/d' > "$out"
   if [[ -f "$old" ]]; then
-    while IFS= read -r line; do
-      [[ -n "$line" ]] || continue
-      dest="${line%%$'\t'*}"
-      awk -F'\t' -v d="$dest" '$1 == d {f = 1} END {exit !f}' "$out" && continue
-      if grep -qxF -- "$dest" "$ALLOW_ROOT/$app/installed" 2>/dev/null; then printf '%s\n' "$line" >> "$out"; continue; fi
+    while IFS=$'\t' read -r dest src mode enable; do
+      [[ -n "$dest" ]] || continue
+      line="$dest"$'\t'"$src"$'\t'"$mode"$'\t'"$enable"
+      grep -qxF -- "$line" "$out" && continue
+      used=0
       for pj in "$STATE_ROOT/$app"/*/current/payload/profile.json "$STATE_ROOT/$app"/*/previous/payload/profile.json; do
         [[ -f "$pj" ]] || continue
-        if jq -e --arg d "$dest" 'any((.deliver.host_files // [])[]; .dest == $d)' "$pj" >/dev/null 2>&1; then
-          printf '%s\n' "$line" >> "$out"; break
+        meta="$(dirname "$(dirname "$pj")")/meta.json"
+        [[ "$(jq -r '.host_files' "$meta" 2>/dev/null)" == true ]] || continue
+        if jq -e --arg d "$dest" --arg s "$src" --arg m "$mode" \
+          'any((.deliver.host_files // [])[]; .dest == $d and .src == $s and (((.mode // "0644") | ltrimstr("0")) == ($m | ltrimstr("0"))))' "$pj" >/dev/null 2>&1; then
+          used=1; break
         fi
       done
+      if [[ $used -eq 1 ]]; then printf '%s\n' "$line" >> "$out"; else dropped+=("$line"); fi
     done < "$old"
   fi
   chmod 0644 "$out"; mv -f "$out" "$old"
+  # an entry nothing uses, whose file root-ops installed and no deploy lists any more (an
+  # environment switched to host_files = false never runs the removal itself): remove the file
+  for line in "${dropped[@]}"; do
+    IFS=$'\t' read -r dest src mode enable <<< "$line"
+    awk -F'\t' -v d="$dest" '$1 == d {f = 1} END {exit !f}' "$old" && continue
+    grep -qxF -- "$dest" "$ALLOW_ROOT/$app/installed" 2>/dev/null || continue
+    if [[ "$enable" == true ]]; then systemctl stop "$(basename "$dest")" || true; systemctl disable "$(basename "$dest")" || true; fi
+    rm -f -- "${ROOT}${dest:?}"; forget_installed "$dest"
+    d="$dest"; say "removed $d, which no deploy lists any more"
+  done
 }
 
 # copy APP < request: runs on the release copier (design sections 2 and 4), with
@@ -314,13 +328,15 @@ ALLOW_ROOT="$ROOT/etc/deliver"
 allow_app_of() {   # a path under the state folder -> the application it belongs to
   local rel="${1#"$STATE_ROOT"/}"; printf '%s' "${rel%%/*}"
 }
-host_file_entry() {   # APP DEST: sets A_SRC A_MODE A_ENABLE from the allowlist (dest, src, mode, enable per line)
+same_mode() { [[ "$1" =~ ^[0-7]+$ && "$2" =~ ^[0-7]+$ ]] && (( 8#$1 == 8#$2 )); }
+host_file_entry() {   # APP DEST SRC MODE: the allowlist line for exactly that destination, source and mode
   local f="$ALLOW_ROOT/$1/host_files.allow" d
   A_SRC=""; A_MODE=""; A_ENABLE=""
   [[ -f "$f" ]] || return 1
   while IFS=$'\t' read -r d A_SRC A_MODE A_ENABLE; do
-    [[ "$d" == "$2" && -n "$A_SRC" ]] && return 0
+    [[ "$d" == "$2" && "$A_SRC" == "$3" ]] && same_mode "$A_MODE" "$4" && return 0
   done < "$f"
+  A_SRC=""; A_MODE=""; A_ENABLE=""
   return 1
 }
 unit_allowed() {   # UNIT: the basename of an allowlisted, enabled destination of some application
@@ -369,11 +385,13 @@ cmd_root_ops() {
   local op="${1:-}"; shift || true
   case "$op" in
     install)
-      local src="$1" dest="$2" app rel real
+      local src="$1" dest="$2" want_mode="${3:-}" app rel real
       path_ok "$dest" || die "root-ops: bad destination $dest"
       [[ "$src" == "$STATE_ROOT"/* && "$src" != *..* ]] || die "root-ops: the source must be under $STATE_ROOT"
       app="$(allow_app_of "$src")"
-      host_file_entry "$app" "$dest" || die "root-ops: $dest is not on the host's allowlist for $app: rerun deliver host-install after changing the profile's host_files"
+      [[ ! -L "$src" && -f "$src" ]] || die "root-ops: the source is not a regular file"
+      rel="${src#*/payload/host_files/}"
+      host_file_entry "$app" "$dest" "$rel" "$want_mode" || die "root-ops: $dest with source $rel and mode ${want_mode:-?} is not on the host's allowlist for $app: rerun deliver host-install after changing the profile's host_files"
       # a regular file, not a link, resolved under this application's own deploy folders and
       # the one file this destination is listed for
       [[ ! -L "$src" && -f "$src" ]] || die "root-ops: the source is not a regular file"

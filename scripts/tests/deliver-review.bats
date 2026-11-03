@@ -347,19 +347,22 @@ setup() {
   assert_output --partial "not a regular file"
   run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/acme-backup.timer" /opt/acme/backup.sh 0755
   assert_failure 1
-  assert_output --partial "accepts only ops/backup.sh"
-  # the caller's mode is ignored
+  assert_output --partial "not on the host's allowlist"
+  # the caller can only name the mode the allowlist has for that destination and source
   run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 4777
+  assert_failure 1
+  assert_output --partial "not on the host's allowlist"
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 0755
   assert_success
   assert_equal "$(stat -c %a "$root/opt/acme/backup.sh")" 755
   # an allowlisted mode with setuid, or writable by others, is refused
   local allow="$root/etc/deliver/acme/host_files.allow"
   sed -i 's|^\(/opt/acme/backup.sh\t[^\t]*\t\)0755|\14755|' "$allow"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 0755
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 4755
   assert_failure 1
   assert_output --partial "is not allowed"
   sed -i 's|\t4755\t|\t0666\t|' "$allow"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 0755
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 0666
   assert_failure 1
 }
 
@@ -466,4 +469,50 @@ EOF
   commit_change b; build_ok "$SHA"; run d deploy rehearsal "$SHA"; assert_success
   commit_change c; build_ok "$SHA"; run d deploy rehearsal "$SHA"; assert_success
   [ -f "$W/hosts/rehearsal/.docker/local/acme-server_latest.json" ]
+}
+
+# round 5 ---------------------------------------------------------------------
+@test "R5 a host file that keeps its destination and changes its source rolls back" {
+  commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  git -C "$W/work" mv ops/backup.sh ops/backup2.sh
+  sed -i 's|src = "ops/backup.sh"|src = "ops/backup2.sh"|' "$W/work/app-profile.toml"
+  printf '#!/bin/sh\necho backup two\n' > "$W/work/ops/backup2.sh"
+  commit_change b; build_ok "$SHA"
+  run d host-install rehearsal; assert_success
+  run d deploy rehearsal "$SHA"; assert_success
+  grep -q "two" "$W/hosts/rehearsal/opt/acme/backup.sh"
+  run d rollback rehearsal
+  assert_success
+  assert_equal "$(host_state rehearsal rehearsal)" restored
+  run cat "$W/hosts/rehearsal/opt/acme/backup.sh"
+  assert_output "#!/bin/sh
+echo backup"
+}
+
+@test "R5 a mode change on the same destination rolls back to the old mode" {
+  commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  assert_equal "$(stat -c %a "$W/hosts/rehearsal/opt/acme/backup.sh")" 755
+  sed -i '/dest = "\/opt\/acme\/backup.sh"/{n;s/mode = "0755"/mode = "0700"/}' "$W/work/app-profile.toml"
+  commit_change b; build_ok "$SHA"
+  run d host-install rehearsal; assert_success
+  run d deploy rehearsal "$SHA"; assert_success
+  assert_equal "$(stat -c %a "$W/hosts/rehearsal/opt/acme/backup.sh")" 700
+  run d rollback rehearsal
+  assert_success
+  assert_equal "$(stat -c %a "$W/hosts/rehearsal/opt/acme/backup.sh")" 755
+}
+
+@test "R5 an installed file no deploy lists any more is removed, and its entry dropped, by the next host-install" {
+  commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  sed -i 's/^role = "rehearsal"/role = "rehearsal"\nhost_files = false/' "$W/work/app-profile.toml"
+  # and the application no longer lists host files at all
+  awk '/^\[\[deliver.host_files\]\]/{skip=1; next} /^\[/{skip=0} !skip{print}' "$W/work/app-profile.toml" > "$W/p.new" && mv "$W/p.new" "$W/work/app-profile.toml"
+  local i; for i in b c; do commit_change $i; build_ok "$SHA"; run d deploy rehearsal "$SHA"; assert_success; done
+  [ -f "$W/hosts/rehearsal/opt/acme/backup.sh" ]          # never removed: the environment runs no host-file step
+  run d host-install rehearsal; assert_success
+  [ ! -e "$W/hosts/rehearsal/opt/acme/backup.sh" ]
+  [ ! -s "$W/hosts/rehearsal/etc/deliver/acme/host_files.allow" ] || ! grep -q "/opt/acme/backup.sh" "$W/hosts/rehearsal/etc/deliver/acme/host_files.allow"
+  ! grep -q "/opt/acme/backup.sh" "$W/hosts/rehearsal/etc/deliver/acme/installed"
+  run cat "$W/hosts/rehearsal/.systemctl.log"
+  assert_output --partial "systemctl disable acme-backup.timer"
 }

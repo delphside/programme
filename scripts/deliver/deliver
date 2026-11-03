@@ -40,7 +40,7 @@ need_jq
 REPO=""; PJ=""; APP=""
 pq()  { jq -r "($1) // empty" <<< "$PJ"; }
 pqa() { jq -r "(($1) // [])[]" <<< "$PJ"; }
-env_q() { jq -r --arg e "$1" --arg k "$2" '.environments[$e][$k] // empty' <<< "$PJ"; }
+env_q() { jq -r --arg e "$1" --arg k "$2" '.environments[$e][$k] | if . == null then empty else . end' <<< "$PJ"; }   # false is a value, not an absence
 env_qa() { jq -r --arg e "$1" --arg k "$2" '(.environments[$e][$k] // [])[]' <<< "$PJ"; }
 g() { git -C "$REPO" "$@"; }
 
