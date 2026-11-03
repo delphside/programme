@@ -516,3 +516,30 @@ echo backup"
   run cat "$W/hosts/rehearsal/.systemctl.log"
   assert_output --partial "systemctl disable acme-backup.timer"
 }
+
+# round 7 ---------------------------------------------------------------------
+@test "R7 two environments on one machine that both install host files are refused, naming them" {
+  printf '\n[environments.second]\nrole = "test"\nhost_files = true\nssh = "rehearsal"\nlogin = "docker-config"\n' >> "$W/work/app-profile.toml"
+  commit_change a; build_ok "$SHA"
+  run d deploy rehearsal "$SHA" --off-level first
+  assert_failure 1
+  assert_output --partial "rehearsal second share a machine"
+  run d host-install second
+  assert_failure 1
+  assert_output --partial "each would remove the other's"
+  sed -i 's/^host_files = true/host_files = false/' "$W/work/app-profile.toml"
+  run d deploy rehearsal "$SHA" --off-level first
+  assert_success
+}
+
+@test "R7 root-ops rm clears the destination from the installing application's record only" {
+  local root="$W/hosts/rehearsal"
+  mkdir -p "$root/etc/deliver/acme" "$root/etc/deliver/other" "$root/opt/acme"
+  printf '/opt/acme/backup.sh\n' > "$root/etc/deliver/acme/installed"
+  printf '/opt/acme/backup.sh\n' > "$root/etc/deliver/other/installed"
+  : > "$root/opt/acme/backup.sh"
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops rm /opt/acme/backup.sh
+  assert_success
+  [ ! -s "$root/etc/deliver/acme/installed" ]
+  grep -qx /opt/acme/backup.sh "$root/etc/deliver/other/installed"
+}

@@ -185,6 +185,27 @@ run_deliver_host() {
   fi
 }
 
+# host_files_conflict ENV: refuse when another environment of this application on the same
+# machine also installs host files: each deploy removes the files the other installed.
+host_files_conflict() {
+  local env="$1" other mine theirs names=()
+  mine="$(env_machine "$env")"
+  while read -r other; do
+    [[ -n "$other" ]] || continue
+    [[ "$(env_machine "$other")" == "$mine" && "$(env_installs_host_files "$other")" == 1 ]] && names+=("$other")
+  done < <(jq -r '.environments | keys[]' <<< "$PJ")
+  if [[ ${#names[@]} -gt 1 && " ${names[*]} " == *" $env "* ]]; then
+    die "environments ${names[*]} share a machine and all install host files, so each would remove the other's: set host_files = false on all but one"
+  fi
+}
+env_machine() { local h; h="$(env_q "$1" host)"; [[ "$h" == control-node ]] && printf 'control-node' || printf 'ssh:%s' "$(env_q "$1" ssh)"; }
+env_installs_host_files() {
+  case "$(env_q "$1" host_files)" in
+    true) echo 1 ;; false) echo 0 ;;
+    *) case "$(env_q "$1" role)" in rehearsal|production) echo 1 ;; *) echo 0 ;; esac ;;
+  esac
+}
+
 # run_on_host ENV ARGS...: deliver-host on ENV's machine.
 run_on_host() {
   local env="$1"; shift
@@ -502,6 +523,7 @@ cmd_deploy() {
   env_exists "$env" || die "the profile has no environment $env"
   local role; role="$(env_role "$env")"
   case "$role" in preview|test|rehearsal|production) ;; *) die "environment $env has an unknown role $role" ;; esac
+  host_files_conflict "$env"
   run_log_event deploy "env=$env" "role=$role" "ref=$ref"
   local sa; for sa in "${SET_ASIDE[@]}"; do run_log_event override "flag=set-aside:${sa%%$'\t'*}" "reason=${sa#*$'\t'}"; done
   [[ -z "$OPT_UNRECORDED" ]] || run_log_event override "flag=unrecorded" "reason=$OPT_UNRECORDED"
@@ -1129,6 +1151,7 @@ cmd_host_install() {
   gates_expect
   local copy_on; copy_on="$(pq .deliver.release.copy_on)"
   if env_exists "$env"; then
+    host_files_conflict "$env"
     ssh="$(env_q "$env" ssh)"; login="$(env_q "$env" login)"
     [[ "$(env_q "$env" host)" == control-node ]] && target=local || target=ssh
   elif [[ -n "$copy_on" && "$env" == "$copy_on" ]]; then

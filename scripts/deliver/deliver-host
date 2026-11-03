@@ -223,7 +223,7 @@ cmd_allowlist() {
     awk -F'\t' -v d="$dest" '$1 == d {f = 1} END {exit !f}' "$old" && continue
     grep -qxF -- "$dest" "$ALLOW_ROOT/$app/installed" 2>/dev/null || continue
     if [[ "$enable" == true ]]; then systemctl stop "$(basename "$dest")" || true; systemctl disable "$(basename "$dest")" || true; fi
-    rm -f -- "${ROOT}${dest:?}"; forget_installed "$dest"
+    rm -f -- "${ROOT}${dest:?}"; forget_installed "$app" "$dest"
     d="$dest"; say "removed $d, which no deploy lists any more"
   done
 }
@@ -353,10 +353,10 @@ mode_ok() {   # MODE: octal, no setuid, setgid or sticky bit, not writable by ot
   [[ "$1" =~ ^0?[0-7]{3}$ ]] || return 1
   (( (8#$1 & 8#7000) == 0 && (8#$1 & 8#0002) == 0 ))
 }
-installed_dest() {   # DEST: root-ops installed it, for some application
+installed_dest() {   # DEST: root-ops installed it; sets A_APP to the application whose record names it
   local f
   for f in "$ALLOW_ROOT"/*/installed; do
-    [[ -f "$f" ]] && grep -qxF -- "$1" "$f" && return 0
+    [[ -f "$f" ]] && grep -qxF -- "$1" "$f" && { A_APP="$(basename "$(dirname "$f")")"; return 0; }
   done
   return 1
 }
@@ -365,12 +365,10 @@ record_installed() {   # APP DEST
   mkdir -p "$ALLOW_ROOT/$1"
   grep -qxF -- "$2" "$f" 2>/dev/null || printf '%s\n' "$2" >> "$f"
 }
-forget_installed() {   # DEST
-  local f t
-  for f in "$ALLOW_ROOT"/*/installed; do
-    [[ -f "$f" ]] || continue
-    t="$(mktemp "$f.XXXXXX")"; grep -vxF -- "$1" "$f" > "$t" || true; mv -f "$t" "$f"
-  done
+forget_installed() {   # APP DEST: from that application's record only
+  local f="$ALLOW_ROOT/$1/installed" t
+  [[ -f "$f" ]] || return 0
+  t="$(mktemp "$f.XXXXXX")"; grep -vxF -- "$2" "$f" > "$t" || true; mv -f "$t" "$f"
 }
 ephemeral_user_ok() {   # NAME: it starts with a prefix host-install recorded (non-empty)
   local f prefix
@@ -404,7 +402,7 @@ cmd_root_ops() {
     rm)
       path_ok "$1" || die "root-ops: bad path $1"
       installed_dest "$1" || die "root-ops: $1 is not a file root-ops installed"
-      rm -f -- "${ROOT}${1:?}"; forget_installed "$1" ;;
+      rm -f -- "${ROOT}${1:?}"; forget_installed "$A_APP" "$1" ;;
     systemctl)
       case "${1:-}:$#" in
         daemon-reload:1) systemctl daemon-reload ;;
