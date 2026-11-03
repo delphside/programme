@@ -692,10 +692,10 @@ class Footers(Cases):
         self.expect("all kept", text, review_rounds([pr(1, text)])[0][3])
 
     def test_a_records_document_headings_sit_below_its_pull_requests(self):
-        body = "#### docs/a.md\n- R1 none\n- R1 cost: truth 50k\n\n#### docs/b.md\n- R1 none\n```\n#### kept\n```"
+        body = "#### docs/a.md\n- R1 none\n- R1 cost: truth 50k\n\n####\tdocs/b.md\n- R1 none\n```\n#### kept\n```"
         text = render(digest(reviews=[("o/p", 1, "docs", body)]))
         self.expect("one level down", (True, True, False),
-                    ("##### docs/a.md" in text, "\n#### kept" in text, "\n#### docs/b.md" in text))
+                    ("##### docs/a.md" in text, "\n#### kept" in text, "\n####\tdocs/b.md" in text))
         self.expect("the pull request's heading stays", True, "#### o/p#1 docs" in text)
 
     def test_a_footer_form_inside_a_code_fence_is_kept(self):
