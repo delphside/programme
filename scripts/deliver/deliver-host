@@ -272,27 +272,44 @@ running_digests_status() {
 path_ok() { [[ "$1" == /* && "$1" != *..* ]]; }
 
 # root-ops: the one thing the sudo rule lets this command do as root, and it does
-# less than the rule's wildcard allows. An install goes only to a destination the
-# payload it comes from lists in its profile's host_files for that source; rm only
-# of a file an earlier install recorded; useradd and userdel only for a name with
-# the ephemeral user_prefix an `env` command recorded from the profile.
-host_file_allowed() {   # SRC DEST: is DEST the destination the payload's profile gives SRC
-  local src="$1" dest="$2" pdir rel pj
-  pdir="${src%%/payload/host_files/*}/payload"
-  [[ "$src" == */payload/host_files/* && -f "$pdir/profile.json" ]] || return 1
-  rel="${src#*/payload/host_files/}"; pj="$pdir/profile.json"
-  jq -e --arg s "$rel" --arg d "$dest" 'any((.deliver.host_files // [])[]; .src == $s and .dest == $d)' "$pj" >/dev/null 2>&1
+# less than the rule's wildcard allows. What it may do is decided by files only
+# root writes, under ${ROOT}/etc/deliver/APP/ (root:root, written by
+# `deliver host-install` from the profile at install time, and by root-ops itself):
+#   host_files.allow  the destinations a host file may be installed at
+#   ephemeral.prefix  the user_prefix of the ephemeral environments' users
+#   installed         what root-ops has installed, so only that can be removed
+# Nothing under the state folder, which the deploy user writes, is trusted: not a
+# payload's profile, not the lists a deploy keeps there.
+ALLOW_ROOT="$ROOT/etc/deliver"
+allow_app_of() {   # a path under the state folder -> the application it belongs to
+  local rel="${1#"$STATE_ROOT"/}"; printf '%s' "${rel%%/*}"
 }
-installed_dest() {   # DEST: did an earlier install on this host record it
+host_file_allowed() {   # APP DEST: host-install allowed that destination
+  local f="$ALLOW_ROOT/$1/host_files.allow"
+  [[ -f "$f" ]] && grep -qxF -- "$2" "$f"
+}
+installed_dest() {   # DEST: root-ops installed it, for some application
   local f
-  for f in "$STATE_ROOT"/*/*/host_files.installed; do
-    [[ -f "$f" ]] && awk -F'\t' -v d="$1" '$1 == d {f = 1} END {exit !f}' "$f" && return 0
+  for f in "$ALLOW_ROOT"/*/installed; do
+    [[ -f "$f" ]] && grep -qxF -- "$1" "$f" && return 0
   done
   return 1
 }
-ephemeral_user_ok() {   # NAME: it starts with a recorded, non-empty ephemeral user_prefix
+record_installed() {   # APP DEST
+  local f="$ALLOW_ROOT/$1/installed"
+  mkdir -p "$ALLOW_ROOT/$1"
+  grep -qxF -- "$2" "$f" 2>/dev/null || printf '%s\n' "$2" >> "$f"
+}
+forget_installed() {   # DEST
+  local f t
+  for f in "$ALLOW_ROOT"/*/installed; do
+    [[ -f "$f" ]] || continue
+    t="$(mktemp "$f.XXXXXX")"; grep -vxF -- "$1" "$f" > "$t" || true; mv -f "$t" "$f"
+  done
+}
+ephemeral_user_ok() {   # NAME: it starts with a prefix host-install recorded (non-empty)
   local f prefix
-  for f in "$STATE_ROOT"/*/ephemeral.prefix; do
+  for f in "$ALLOW_ROOT"/*/ephemeral.prefix; do
     [[ -f "$f" ]] || continue
     prefix="$(head -1 "$f")"
     [[ -n "$prefix" && "$1" == "$prefix"?* ]] && return 0
@@ -306,12 +323,14 @@ cmd_root_ops() {
       local src="$1" dest="$2" mode="$3"
       path_ok "$dest" || die "root-ops: bad destination $dest"
       [[ "$src" == "$STATE_ROOT"/* && "$src" != *..* ]] || die "root-ops: the source must be under $STATE_ROOT"
-      host_file_allowed "$src" "$dest" || die "root-ops: $dest is not a destination the profile lists for that file"
-      install -D -m "$mode" "$src" "$ROOT$dest" ;;
+      local app; app="$(allow_app_of "$src")"
+      host_file_allowed "$app" "$dest" || die "root-ops: $dest is not on the host's allowlist for $app: rerun deliver host-install after changing the profile's host_files"
+      install -D -m "$mode" "$src" "$ROOT$dest" || return 1
+      record_installed "$app" "$dest" ;;
     rm)
       path_ok "$1" || die "root-ops: bad path $1"
-      installed_dest "$1" || die "root-ops: $1 is not a file a deploy installed"
-      rm -f -- "${ROOT}${1:?}" ;;
+      installed_dest "$1" || die "root-ops: $1 is not a file root-ops installed"
+      rm -f -- "${ROOT}${1:?}"; forget_installed "$1" ;;
     systemctl)
       case "${1:-}" in daemon-reload|enable|disable|restart|stop|start) systemctl "$@" ;; *) die "root-ops: systemctl $1 is not allowed" ;; esac ;;
     useradd)
@@ -346,7 +365,6 @@ cmd_env() {
   prefix="$(jq -r '.deliver.ephemeral.user_prefix // empty' <<< "$pj")"
   home="$(jq -r '.deliver.ephemeral.home // empty' <<< "$pj")"
   [[ -n "$app" && -n "$prefix" && -n "$home" ]] || die "the profile needs application and [deliver.ephemeral] user_prefix and home"
-  mkdir -p "$STATE_ROOT/$app"; printf '%s\n' "$prefix" > "$STATE_ROOT/$app/ephemeral.prefix"
   user="$prefix$name"; project="$app-$name"; envdir="$(env_dir "$app" "$name")"
   DELIVER_LOG_DIR="$STATE_ROOT/$app/log"; run_log_start "$app" "env-$op" "$name" 2>/dev/null || true
   local payload; payload="$(ephemeral_payload "$app")"

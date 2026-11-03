@@ -77,8 +77,9 @@ gh_issue_comments()    { gh api "repos/$GH_REPO/issues/$1/comments?per_page=100"
 gh_issue_comment()     { gh api -X POST "repos/$GH_REPO/issues/$1/comments" -f body="$2" >/dev/null; }
 gh_issue_close()       { gh api -X PATCH "repos/$GH_REPO/issues/$1" -f state=closed -f state_reason=completed >/dev/null; }
 gh_issue_titled() {   # TITLE: 0 one exists (open or closed), 1 none, 2 GitHub could not be read
-  local out; out="$(gh api "repos/$GH_REPO/issues?state=all&per_page=100")" || return 2
-  jq -e --arg t "$1" 'any(.[]; .title == $t)' >/dev/null <<< "$out"
+  local out; out="$(gh api --paginate "repos/$GH_REPO/issues?state=all&per_page=100")" || return 2
+  # every page (gh prints one array per page); pull requests are listed with issues and are not ours
+  jq -es --arg t "$1" 'any(.[][]; .title == $t and (.pull_request == null))' >/dev/null <<< "$out"
 }
 gh_issue_create()      { gh api -X POST "repos/$GH_REPO/issues" -f title="$1" -f body="$2" >/dev/null; }
 gh_release_exists()    { gh api "repos/$GH_REPO/releases/tags/$1" >/dev/null 2>&1; }

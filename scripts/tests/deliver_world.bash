@@ -46,6 +46,9 @@ world_new() {
   cd "$W/work" || return 1
   git add -A && git commit -q -m "app 0.10.2 api 1.0: first" && git push -q origin main
   SHA="$(git rev-parse HEAD)"
+  # the machines are installed as an owner would: this writes the root-owned allowlist
+  local e
+  for e in preview rehearsal production; do "$DELIVER" host-install "$e" >/dev/null 2>&1 || { echo "host-install $e failed" >&2; return 1; }; done
 }
 
 # host_env HOST ENVNAME: the machine's .env, holding its registry (and a canary secret).

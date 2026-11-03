@@ -79,9 +79,8 @@ derive_gate_config() {
 use_commit_profile() {
   local sha="$1" rel text tmp cj
   case "$PROFILE_FILE" in "$REPO"/*) rel="${PROFILE_FILE#"$REPO"/}" ;; *) return 0 ;; esac
-  if ! g cat-file -e "$sha^{commit}" 2>/dev/null; then
-    run_log_event profile "source=working-tree" "reason=commit-not-in-this-repository"; return 0
-  fi
+  g cat-file -e "$sha^{commit}" 2>/dev/null \
+    || die "commit ${sha:0:12} is not in this repository, so its profile cannot be read: git fetch it first"
   text="$(g show "$sha:$rel" 2>/dev/null)" || die "commit ${sha:0:12} has no $rel"
   tmp="$(mktemp)"; printf '%s\n' "$text" > "$tmp"
   cj="$(toml_to_json "$tmp")" || { rm -f "$tmp"; die "cannot read $rel at ${sha:0:12}"; }
@@ -1123,28 +1122,46 @@ cmd_prune() {
 }
 
 cmd_host_install() {
-  [[ $# -eq 1 ]] || die "usage: deliver host-install ENV"
-  local env="$1"
+  [[ $# -eq 1 ]] || die "usage: deliver host-install ENV|COPIER"
+  local env="$1" target="" ssh login tools="" script f dest mode copier=0
   # shellcheck disable=SC2100  # a name containing a hyphen, not arithmetic
   DELIVER_SUBCOMMAND=host-install; load_profile
-  env_exists "$env" || die "the profile has no environment $env"
   gates_expect
-  local ssh login tools script f dest mode
-  ssh="$(env_q "$env" ssh)"; login="$(env_q "$env" login)"
+  local copy_on; copy_on="$(pq .deliver.release.copy_on)"
+  if env_exists "$env"; then
+    ssh="$(env_q "$env" ssh)"; login="$(env_q "$env" login)"
+    [[ "$(env_q "$env" host)" == control-node ]] && target=local || target=ssh
+  elif [[ -n "$copy_on" && "$env" == "$copy_on" ]]; then
+    # the release copier, which may host no environment: the command and its libraries
+    copier=1; ssh="$copy_on"; login="$(pq .deliver.release.copy_login)"
+    [[ "$copy_on" == control-node ]] && target=local || target=ssh
+  else
+    die "the profile has no environment $env and $env is not the release copier (copy_on)"
+  fi
   [[ -n "$login" ]] && tools="$(login_tools "$login")"
   script="set -e"$'\n'
   script+='R="${DELIVER_HOST_ROOT:-}"'$'\n'
-  for f in deliver-host lib/common.sh lib/toml.sh lib/toml.awk; do
+  for f in deliver-host lib/common.sh lib/toml.sh lib/toml.awk lib/registry.sh; do
     case "$f" in deliver-host) dest='/usr/local/bin/deliver-host'; mode=0755 ;; *) dest="/usr/local/lib/deliver/$(basename "$f")"; mode=0644 ;; esac
     script+="printf '%s' '$(base64 -w0 < "$HERE/$f")' | base64 -d | sudo install -D -m $mode /dev/stdin \"\$R$dest\""$'\n'
   done
   script+='command -v jq >/dev/null 2>&1 || sudo apt-get install -y jq >/dev/null'$'\n'
   script+='command -v flock >/dev/null 2>&1 || { echo "flock (util-linux) is missing" >&2; exit 1; }'$'\n'
   local t; for t in $tools; do script+="command -v $t >/dev/null 2>&1 || { echo \"$t is missing (needed by the $login login)\" >&2; exit 1; }"$'\n'; done
-  script+='U="$(id -un)"'$'\n'
-  script+='printf "%s ALL=(root) NOPASSWD: /usr/local/bin/deliver-host root-ops *\n" "$U" | sudo install -D -m 0440 /dev/stdin "$R/etc/sudoers.d/deliver-host"'$'\n'
+  if [[ $copier -eq 0 ]]; then
+    # what root-ops may do is decided by files only root writes (design section 13):
+    # the host-file destinations and the ephemeral user prefix, from the profile as
+    # it is now, so a changed host_files list owes a rerun of this command
+    local allow_dir="/etc/deliver/$APP" dests prefix
+    dests="$(pqa '.deliver.host_files | map(.dest)')"; prefix="$(pq .deliver.ephemeral.user_prefix)"
+    script+="sudo install -d -m 0755 \"\$R/etc/deliver\" \"\$R$allow_dir\""$'\n'
+    script+="printf '%s\\n' $(printf '%q ' $dests) | sudo install -m 0644 /dev/stdin \"\$R$allow_dir/host_files.allow\""$'\n'
+    script+="printf '%s\\n' $(printf '%q' "$prefix") | sudo install -m 0644 /dev/stdin \"\$R$allow_dir/ephemeral.prefix\""$'\n'
+    script+='U="$(id -un)"'$'\n'
+    script+='printf "%s ALL=(root) NOPASSWD: /usr/local/bin/deliver-host root-ops *\n" "$U" | sudo install -D -m 0440 /dev/stdin "$R/etc/sudoers.d/deliver-host"'$'\n'
+  fi
   script+='echo "deliver-host installed"'$'\n'
-  if [[ "$(env_q "$env" host)" == control-node ]]; then bash -c "$script"; else ssh "$ssh" "bash -s" <<< "$script"; fi
+  if [[ "$target" == local ]]; then bash -c "$script"; else ssh "$ssh" "bash -s" <<< "$script"; fi
 }
 
 cmd_env() { exec "${DELIVER_HOST_BIN:-$HERE/deliver-host}" env "$@"; }
