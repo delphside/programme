@@ -452,3 +452,22 @@ daemon) and `jq` for the record. In the programme repository:
 | `scripts/board/` | reading `tag_prefix` as released and `history_prefixes` as history |
 | docs/1.1 | the tool's row |
 | docs/1.2 | *Making a release, then deploying it* names the tool; §1.0's "made from `main`'s tip" becomes "a commit on `main`", since `main` may move on after rehearsal (tile-lite-elite#545 R5) |
+
+## 13. Departures in the build
+
+What the build does that §§1 to 12 did not say, or differently. Each is declared here so the review can accept or reverse it.
+
+- **`deliver release --commit REF`** names the commit to release; it is needed when rehearsal has not deployed (`--skip-rehearsal`) and when a test names one. Without it the commit is the one the rehearsal environment runs.
+- **The payload is assembled by `deliver build`** into `<worktree>/.deliver-payload/` and exported as `DELIVER_PAYLOAD_DIR`; the application's Dockerfile `COPY`s it to `/deliver`. Its steps and libraries come from the `programme` submodule at the commit the built commit pins, read with `git archive` (the running tool's own where the application has no `programme` entry), and that pinned commit is recorded as `tool.programme`.
+- **Tags in releases** are `VERSION-IMAGE`; an `--unrecorded` copy is `SHA-IMAGE`. The record image is `VERSION-record`.
+- **An optional `bump` hook** runs in the worktree that bumps `main`, with `DELIVER_VERSION` set, for a lockfile refresh the version file's pattern cannot do.
+- **New profile keys:** `[deliver].fallback` (the sentence a failed first deploy prints), `[deliver.ephemeral]` (`user_prefix`, `home`, `secrets`), and per environment `lock`, `project`, `url`, `host_files`, `join` and `pull_timeout`.
+- **The host's `.env`** is `<state>/APP/ENV/.env`. `deliver-host` reads `DELIVER_REGISTRY` from it and, for the login adapters, `DELIVER_OCI_TOKEN_CMD`, `DELIVER_REGISTRY_USER`, `OCI_CLI_AUTH`, `OCI_CLI_KEY_FILE` and `OCI_CLI_CONFIG_FILE`, as text and never sourced. That is how `oci-instance-principal` works over a non-interactive `ssh`, which carries no environment. The release copier reads the same names from `~/.config/deliver/APP.env` on its own machine.
+- **The release copier** runs `deliver-host copy APP` on the machine `[deliver.release].copy_on` names (the control node, or an `ssh` alias), with `copy_login`. It makes the copies and pushes the record image; the control node only reads.
+- **There is no "fresh deploy of the previous REF" way out of an interrupted state.** The state gate points to `deliver rollback ENV`, and a failed restore leaves the state interrupted for it.
+- **Rollback removes `previous` afterwards**, so a second rollback refuses; old `deploys/<n>` folders other than the current and previous are pruned after a deploy.
+- **Prune by the created label:** `deliver prune` reads an image's pushed time from the `org.opencontainers.image.created` label set at build.
+- **Rehearsal's "since the last release"** compares a deploy's time with the newest release tag's with `>=`, in seconds.
+- **Production's version** for the emergency gate comes from its host-state record, else from `/health` through `versions.deployed` (`path` and `field`) and the environment's `url`.
+- **The gates read the commit's profile** (required checks and hooks, what may be set aside, images, payload image), as the hooks are read. Which machine an environment is, and its role, stay the control node's own working-tree profile.
+- **The sudo rule is narrower than its wildcard:** `root-ops install` writes only a destination the payload's profile lists for that file, `rm` only a file a deploy installed, and `useradd` and `userdel` only a name with the ephemeral `user_prefix` an `env` command recorded.
