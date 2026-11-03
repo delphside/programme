@@ -11,7 +11,7 @@ EXIT_REFUSED=1
 EXIT_PARTIAL=3
 
 DELIVER_CMD="${DELIVER_CMD:-deliver}"
-RUN_LOG=""
+RUN_LOG="${RUN_LOG:-}"
 GATES_EXPECTED=()
 GATES_RAN=()
 SET_ASIDE=()        # "gate<TAB>reason"

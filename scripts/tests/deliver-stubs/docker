@@ -25,6 +25,7 @@ img_file_for() {   # REF -> the stored image JSON file
 case "${1:-}" in
   login) exit 0 ;;
   pull)
+    # shellcheck disable=SC2124
     ref="${@: -1}"
     [[ "${STUB_PULL_SECONDS:-0}" == 0 ]] || sleep "$STUB_PULL_SECONDS"
     repo="${ref%@*}"; d="${ref#*@}"
@@ -65,6 +66,7 @@ case "${1:-}" in
     proj="$(printf '%s ' "$@" | sed -n 's/.*label=com.docker.compose.project=\([^ ]*\).*/\1/p')"
     for f in "$S/compose/$proj".*; do [[ -f "$f" ]] && basename "$f"; done ;;
   inspect)
+      # shellcheck disable=SC2124
     f="$S/compose/${@: -1}"; [[ -f "$f" ]] || exit 1
     ref="$(head -1 "$f")"; fj="$(img_file_for "$ref")" || { echo "sha256:unknown"; exit 0; }
     jq -r .Id "$fj" ;;
@@ -125,6 +127,9 @@ case "${1:-}" in
         continue
       fi
       repo="${tags%:*}"; tag="${tags##*:}"
+      if [[ -n "${STUB_WRITE_ONLY:-}" ]] && ! [[ "/${repo#*/}" =~ $STUB_WRITE_ONLY ]]; then
+        echo "denied: requested access to the resource is denied" >&2; exit 1
+      fi
       mkdir -p "$R/$repo/tags" "$R/$repo/meta" "$R/$repo/payload"
       echo "$d" > "$R/$repo/tags/$tag"
       jq -nc --arg d "$d" --argjson l "$labels" '{Digest:$d, Labels:$l}' > "$R/$repo/meta/${d#sha256:}.json"

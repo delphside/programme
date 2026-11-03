@@ -831,8 +831,8 @@ milestone_gate() {
     . as $all | map(select(.subs == 0)) | map(. as $i | select(
       (($ev | index($i.number)) == null) and
       (((($i.parent != null) and (($ev | index($i.parent)) != null) and (($all | map(select(.parent == $i.parent)) | length) == 1))) | not)))
-    | {left_out: (if $emergency then map(select(($em | index(.number)) != null) | .number) else [] end),
-       refused: (map(select(($emergency | not) or (($em | index(.number)) == null)) | .number))}' <<< "$items")"
+    | {left_out: (if $emergency then map(.number as $n | select(($em | index($n)) != null) | .number) else [] end),
+       refused: (map(.number as $n | select(($emergency | not) or (($em | index($n)) == null)) | .number))}' <<< "$items")"
   local refused; refused="$(jq -r '.refused | map("#\(.)") | join(" ")' <<< "$unevidenced")"
   [[ -z "$refused" ]] || gate_fail milestone "open in milestone $version but no commit in the release says Refs: $refused"
 
@@ -1063,6 +1063,7 @@ cmd_prune() {
 cmd_host_install() {
   [[ $# -eq 1 ]] || die "usage: deliver host-install ENV"
   local env="$1"
+  # shellcheck disable=SC2100  # a name containing a hyphen, not arithmetic
   DELIVER_SUBCOMMAND=host-install; load_profile
   env_exists "$env" || die "the profile has no environment $env"
   gates_expect
