@@ -526,7 +526,8 @@ Everything else runs in CI.
 - X8 by S29: `--unrecorded` takes a full SHA, and a copy already present is a no-op.
 - X9 by S26: a different record refuses (exit 1), and all steps done exits 0. The gate count (X9b) stays untestable from outside.
 - X10 by S55 and S56.
-- X11 by S43, which asserts the `created` label, the build's start time (design §13).
+- X11 by S43, which asserts the `created` label, the build's start time
+  (design §13).
 - X12 by S58 and X13 by S59.
 - X17 (the next deploy after a failed first deploy proceeds) by S57, and X18 (`--wait` at its limit refuses, exit 1, naming what it waited for) by S54.
 - X16 no longer applies: #117's body now has a decisions list.

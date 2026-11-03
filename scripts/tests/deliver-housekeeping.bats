@@ -166,14 +166,14 @@ oci-instance-principal"
   commit_change old-deployed; build_ok "$SHA"; local b="$SHA"
   commit_change released; build_ok "$SHA"; local r="$SHA"
   commit_change newer; build_ok "$SHA"; local n="$SHA"
-  commit_change dated-after-but-pushed-before; build_ok "$SHA"; local late="$SHA"
+  commit_change dated-after-but-built-before; build_ok "$SHA"; local late="$SHA"
   run d deploy rehearsal "$b" --off-level first; assert_success
   # a release made at 2026-06-01, of r
   local rec; rec="$(jq -nc --arg c "$r" --arg s "$(cand "$r-server")" --arg w "$(cand "$r-web")" \
     '{record:1,application:"acme",version:"0.9.0",commit:$c,images:{server:$s,web:$w},made:"2026-06-01T00:00:00Z"}')"
   printf '%s\n' "$rec" > "$W/rec.json"
   git -C "$W/work" tag -a -F "$W/rec.json" v0.9.0 "$r" && git -C "$W/work" push -q origin refs/tags/v0.9.0
-  # push times: a, b, r and late before the release; n after it
+  # build times (the created label): a, b, r and late before the release; n after it
   local c="$W/registry/reg.test/ns/acme/candidates" img sha d
   for sha in "$a" "$b" "$r" "$late" "$n"; do
     for img in server web; do
