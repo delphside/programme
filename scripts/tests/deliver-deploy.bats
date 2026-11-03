@@ -332,6 +332,7 @@ dest = "/opt/acme/extra.sh"
 mode = "0700"
 EOF
   commit_change third; build_ok "$SHA"
+  run d host-install rehearsal; assert_success      # the owner's step: the allowlist learns the new destination
   run d deploy rehearsal "$SHA"; assert_success
   assert_equal "$(stat -c %a "$W/hosts/rehearsal/opt/acme/extra.sh")" 700
 }
