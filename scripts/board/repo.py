@@ -55,6 +55,39 @@ def _tag_prefix() -> str:
     return profile.technical().string("release.tag_prefix")
 
 
+def _history_prefixes() -> list[str]:
+    """Earlier tag prefixes (`release.history_prefixes`), read for history only.
+
+    Optional: an application that never changed its prefix has none. A tag with
+    one of these is a release made before the prefix changed. It counts as
+    shipped and as the last release, and it is never what the board takes as the
+    current prefix (`_tag_prefix`), which alone names the releases made now.
+    """
+    tech = profile.technical()
+    if "history_prefixes" not in tech.data.get("release", {}):
+        return []
+    return tech.strings("release.history_prefixes")
+
+
+def release_tags() -> list[str]:
+    """Tags of releases made under the current prefix, newest first."""
+    return [t for t in _git("tag", "--list", f"{_tag_prefix()}*",
+                            "--sort=-creatordate").split() if t]
+
+
+def history_tags() -> list[str]:
+    """Tags under an earlier prefix, newest first."""
+    out: list[str] = []
+    for prefix in _history_prefixes():
+        out += [t for t in _git("tag", "--list", f"{prefix}*",
+                                "--sort=-creatordate").split() if t]
+    return out
+
+
+def _all_release_refs() -> list[str]:
+    return [f"refs/tags/{p}*" for p in [_tag_prefix(), *_history_prefixes()]]
+
+
 def _bump_files() -> list[str]:
     return profile.technical().strings("versions.bump.files")
 
@@ -100,9 +133,10 @@ class Commits:
         That makes the milestone, not the commit, the delivery evidence for
         anything taking the release route.
         """
-        prefix = _tag_prefix()
-        tags = {t.removeprefix(prefix) for t in
-                _git("tag", "--list", f"{prefix}*").split() if t}
+        tags = {t.removeprefix(_tag_prefix()) for t in release_tags()}
+        for prefix in _history_prefixes():
+            tags |= {t.removeprefix(prefix) for t in
+                     _git("tag", "--list", f"{prefix}*").split() if t}
         return frozenset(tags)
 
     def state_of(self, number: int, live_at_merge: bool,
@@ -157,7 +191,7 @@ def last_release_at() -> float | None:
     overtaken, whatever its phase says.
     """
     out = _git("for-each-ref", "--sort=-creatordate",
-               "--format=%(creatordate:unix)", f"refs/tags/{_tag_prefix()}*")
+               "--format=%(creatordate:unix)", *_all_release_refs())
     first = out.split("\n")[0].strip() if out else ""
     try:
         return float(first)
@@ -297,8 +331,9 @@ def mentions_on(ref: str = "origin/main") -> Scope:
 def commits(main: str = "origin/main") -> Commits:
     got = Commits()
 
-    tags = [t for t in _git("tag", "--list", f"{_tag_prefix()}*",
-                            "--sort=-creatordate").split() if t]
+    # The newest release under the current prefix, else the newest under an
+    # earlier one: the first cycle after a prefix change has only history.
+    tags = release_tags() or history_tags()
     got.last_tag = tags[0] if tags else None
 
     got.off_main = _scope(["--all", f"^{main}"], notes_count=False)

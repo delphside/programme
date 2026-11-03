@@ -20,6 +20,7 @@ from pathlib import Path
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 TECHNICAL = FIXTURES / "app-profile.toml"
 OTHER_TECHNICAL = FIXTURES / "programme-other.toml"
+HISTORY_TECHNICAL = FIXTURES / "programme-history.toml"
 CONFIG = FIXTURES / "programme-config.toml"
 LIVE = FIXTURES / "live"
 APPLICATION = "widget"
