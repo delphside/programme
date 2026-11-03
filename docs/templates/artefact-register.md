@@ -42,7 +42,7 @@ application's artefacts take each route.
 ## Exit statuses in this application's scripts
 
 *Only the codes a script adds to the scheme in
-[1.2 §2.13](../../docs/1.2-change-lifecycle.md#what-a-scripts-exit-status-means),
+[1.10](../../docs/1.10-development-standards.md#what-a-scripts-exit-status-means),
 each linking to the script whose header documents it. Leave the section out
 when there is none.*
 

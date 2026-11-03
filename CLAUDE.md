@@ -357,7 +357,8 @@ docs/1.6 records the app it works through.
 - **Every setting is listed in the application's (3+n).4.1.** Deployment
   settings (addresses, keys, hosts) are environment variables; product
   settings (defaults, rate limits, retention, time limits) are one code module
-  per area. Owner, 2026-10-17; docs/1.5 has the rule.
+  per area. Owner, 2026-10-17; docs/1.5 has the listing and docs/1.10 the
+  holding.
 - **Each numbered document covers one scope**, set by its number (docs/1.5
   owns the scheme). A document says what is true now with at most a
   line of reason. History, argument and quotations go in the issue or the
@@ -406,6 +407,7 @@ docs/1.6 records the app it works through.
 | roles, who decides, and each role's reading list | docs/1.7 |
 | the service desk: how a Ticket arrives, is answered and closed | docs/1.8 |
 | the test policy and strategy, and the standards every test is held to | docs/1.9 |
+| how code is built: where it goes, settings, exit statuses, comments, each language's standard | docs/1.10 |
 | the recurring activities, what the weekly digest reports, and the rules of the improvement registers | docs/1.4; the registers themselves are records/2.7 |
 | every tool, and how it is run | docs/1.1 |
 | every field a change is classified by, and each artefact's route | docs/1.2 §2.15 |
