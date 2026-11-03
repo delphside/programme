@@ -758,6 +758,9 @@ class DocumentRows(Cases):
         self.expect("a read figure naming no reviewer is not partial", True, row_with(body, "").endswith("| 90k |"))
         body = f"{DOC}\n- R1 reader — x — y\n- R1 cost: reader 60k, truth 1,200k\n"
         self.expect("an unread figure is", True, row_with(body, "").endswith("| 60k (partial) |"))
+        for cost in ["reader about sixty thousand", "reader 1,200k"]:
+            body = f"{DOC}\n- R1 reader — x — y\n- R1 cost: {cost}\n"
+            self.expect(f"no figure read: {cost}", True, row_with(body, "").endswith("| ? |"))
         self.expect("no cost line", True, row_with(DOC, "- R1 none").endswith("| —  |".replace("  ", " ")))
 
     def test_a_runs_count_on_a_cost_line_leaves_its_tokens_whole(self):
@@ -782,6 +785,8 @@ class DocumentRows(Cases):
         text = week(pr(1, DOC + "; reviewers 2; words 5\n- R1 none"))
         self.expect("the first word count kept", True, "| 1200 |" in rows_of(text)[0])
         self.expect("two counted", True, "2 `doc:` field(s) not read" in text)
+        text = week(pr(1, DOC.replace("type rule", "typerule") + "\n- R1 none"))
+        self.expect("a key run into its value is not read", True, "| ? |" in rows_of(text)[0])
 
     def test_doc_path_with_spaces_is_kept_whole_and_an_empty_path_is_no_row(self):
         path = "benchmark-run runbook (3.1.7-changes/x/benchmark-run-runbook.md)"
