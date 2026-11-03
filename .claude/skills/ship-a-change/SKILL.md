@@ -16,7 +16,7 @@ The route decides which steps apply.
 | Route | What shipping means |
 | --- | --- |
 | **Production Release** | anything in the image, and what the application installs on its production host. Semver, branch, pull request, the full lap |
-| **Application Tooling** | scripts that build, test, deploy, operate or measure the application, its CI and tests, and an application document change large enough to want a branch. Branch and pull request, a letter and a row; live at merge, with no deploy |
+| **Application Tooling** | scripts that build, test, deploy, operate or measure the application, its CI and tests, and an application document change large enough to want a branch. Branch and pull request, a dated milestone and a row; live at merge, with no deploy |
 | **Docs and Programme Tooling** | every document changed on its own, and anything else in the repository. Straight to `main` (by pull request from a cloud session); no deploy |
 | **Other** | a console, a cloud resource, host maintenance, preview or rehearsal. Whatever applying it takes, plus a row in the delivery log (`3.n.1`; the infrastructure application's for host maintenance) |
 
@@ -101,16 +101,16 @@ status. Redirect to a file if you need the output.
 | Item | How |
 | --- | --- |
 | the delivery-log row | Claude completes the row written when the release was made (step 6) with its deployed date and outcome |
-| a lettered or dated milestone | closed by hand by the local session: neither form is valid semver, so nothing matches it |
+| a dated milestone | closed by hand by the local session: it is not semver, so nothing matches it |
 | post-deployment checks | answered by Claude on the work package, each row, from what the owner's production reads return, with `passed`, `cannot be tested` or `failed` |
 
 ## The other routes
 
 | Route | Tried | Milestone | Delivery-log row | Live |
 | --- | --- | --- | --- | --- |
-| Application Tooling | its tests and CI, on its branch | a letter | yes | at merge |
+| Application Tooling | its tests and CI, on its branch | the date it merges (`YYYY.MM.DD-n`) | yes | at merge |
 | Docs and Programme Tooling | none | none | no; its record is the commit | at the push or merge |
-| Other | as applying it allows | a letter off **production's** current version; for host maintenance, a date (`YYYY.MM.DD-n`) | yes | when applied |
+| Other | as applying it allows | the date it is applied (`YYYY.MM.DD-n`); for host maintenance, in the infrastructure application | yes | when applied |
 
 A package upgrade and a reboot are two deliveries, because either can fail
 alone and the record must say which did.

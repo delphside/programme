@@ -104,8 +104,8 @@ The rules are
 | a parent project | none: it has no delivery role |
 | a requirement or project done straight on `main` | none: no single point in time |
 | a work package shipping in a release | the semver |
-| a work package delivering without an image, other than host maintenance | production's current version plus a letter |
-| a host-maintenance work package | the infrastructure application's date, `YYYY.MM.DD-n` |
+| a work package delivering without an image, other than host maintenance | the date it is planned to land, `YYYY.MM.DD-n` |
+| a host-maintenance work package | the same, in the infrastructure application |
 | work packages delivered together | the same milestone |
 | a decision | none: it routes work |
 
@@ -116,7 +116,7 @@ time: a milestone and a row in the delivery log (`3.n.1`). Which deliveries
 need a sub-project issue is 1.2's table in
 [*The model, and the four cases that follow from it*](../../../docs/1.2-change-lifecycle.md#the-model-and-the-four-cases-that-follow-from-it).
 
-**Milestones are only semvers, letters and dates**; the retired ones are listed
+**Milestones are only semvers and dates**; the retired ones are listed
 in [1.2 §2.15](../../../docs/1.2-change-lifecycle.md#215-classifying-a-change).
 
 ## Common mistakes

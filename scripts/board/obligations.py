@@ -348,7 +348,7 @@ OBLIGATIONS: tuple[Obligation, ...] = (
     # point in time -- many edits over many commits -- so it takes no milestone
     # (owner, 2026-10-26; docs/1.2 §1.1). It used to carry `pre-approved`,
     # which met this check. Application Tooling always takes a branch, so owes
-    # a letter like any other delivery.
+    # a dated milestone like any other delivery.
     Obligation(
         "wp-milestone", DELIVERING, ("Deployment", "Post-deployment"),
         "a milestone, unless it is Docs and Programme Tooling",
@@ -405,7 +405,7 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         "decision-no-milestone", (Decision,), ANY_STEP,
         "no milestone",
         "a decision is not a change vehicle: it routes work and ships nothing, "
-        "so it takes no semver and no letter milestone — CLAUDE.md",
+        "so it takes no semver and no dated milestone — CLAUDE.md",
         lambda i: i.raw.milestone is None,
     ),
     Obligation(
