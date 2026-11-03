@@ -293,7 +293,7 @@ echo backup"
   assert_output --partial "failed at compose up"
   assert_equal "$(host_current rehearsal rehearsal)" 1
   assert_equal "$(running_digests_of rehearsal acme-rehearsal)" "$(digests_of "$SHA1")"
-  STUB_SYSTEMCTL_FAIL=1 run d deploy rehearsal "$SHA"
+  STUB_SYSTEMCTL_FAIL=once run d deploy rehearsal "$SHA"
   assert_failure 1
   assert_output --partial "failed at host-files"
   assert_equal "$(host_current rehearsal rehearsal)" 1

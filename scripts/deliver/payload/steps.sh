@@ -105,7 +105,7 @@ install_set() {
   if [[ -f "$listed" ]]; then
     while IFS=$'\t' read -r dest enable; do
       [[ -n "$dest" ]] || continue
-      grep -qF "$dest"$'\t' "$new" && continue
+      awk -F'\t' -v d="$dest" '$1 == d {f = 1} END {exit !f}' "$new" && continue
       if [[ "$enable" == true ]]; then root_ops systemctl disable --now "$(basename "$dest")" || true; fi
       root_ops rm "$dest" || return 1; changed=1
     done < "$listed"
@@ -124,30 +124,39 @@ install_set() {
 # ------------------------------------------------------------------ restore
 
 # restore_to GOOD FAILED_N PRIOR_PREVIOUS: put the last good deploy back. GOOD may
-# be the empty string (a first deploy: nothing to go back to).
+# be the empty string (a first deploy: nothing to go back to). Returns 1 when the
+# restore itself failed (restore-state, the host files or bringing the previous
+# containers up): the state is then left interrupted, so nothing deploys over it
+# until `deliver rollback` or a person has put it right, and the failed deploy's
+# folder is kept for that.
 restore_to() {
-  local good="$1" failed="$2" prevprev="$3"
+  local good="$1" failed="$2" prevprev="$3" bad=0
   HOOKS_DIR="$(deploy_dir "$failed")/payload/hooks"; [[ -d "$HOOKS_DIR" ]] || HOOKS_DIR="$PAYLOAD/hooks"
-  hook_step restore-state || warn "restore-state failed; the saved state may need restoring by hand"
+  hook_step restore-state || { warn "restore-state failed; the saved state may need restoring by hand"; bad=1; }
   if [[ -z "$good" ]]; then
     [[ -d "$(deploy_dir "$failed")" ]] && { compose_run "$failed" down >/dev/null 2>&1 || true; }
+    if [[ $bad -eq 1 ]]; then state_write "failed: the restore did not complete" "$failed"; return 1; fi
     set_link current ""; set_link previous ""
     state_write "failed, no previous deploy" "$failed"
     drop_dir "$(deploy_dir "$failed")"
     return 0
   fi
-  if [[ "$HOST_FILES" -eq 1 ]]; then install_set "$(deploy_dir "$good")" || warn "reinstalling the previous host files failed"; fi
-  compose_run "$good" up -d --no-build --remove-orphans >/dev/null 2>&1 || warn "bringing the previous deploy back failed"
+  if [[ "$HOST_FILES" -eq 1 ]]; then install_set "$(deploy_dir "$good")" || { warn "reinstalling the previous host files failed"; bad=1; }; fi
+  compose_run "$good" up -d --no-build --remove-orphans >/dev/null 2>&1 || { warn "bringing the previous deploy back failed"; bad=1; }
+  if [[ $bad -eq 1 ]]; then state_write "failed: the restore did not complete" "$failed"; return 1; fi
   set_link current "$good"; set_link previous "$prevprev"
   state_write "restored" "$good"
   [[ "$failed" != "$good" ]] && drop_dir "$(deploy_dir "$failed")"
   return 0
 }
 
-prune_host_images() {   # keep the current and previous sets, and keep_images
-  local keep="" n line repo digest id
-  for n in current previous; do
-    [[ -f "$ENVDIR/$n/deliver.env" ]] && keep+="$(sed -n 's/^[^=]*=.*@//p' "$ENVDIR/$n/deliver.env")"$'\n'
+# prune_host_images: keep the current and previous sets of every environment on this
+# host (and of every application), and keep_images; remove the rest.
+prune_host_images() {
+  local keep="" line repo digest id f state_root
+  state_root="$(dirname "$(dirname "$ENVDIR")")"
+  for f in "$state_root"/*/*/current/deliver.env "$state_root"/*/*/previous/deliver.env; do
+    [[ -f "$f" ]] && keep+="$(sed -n 's/^[^=]*=.*@//p' "$f")"$'\n'
   done
   while read -r line; do
     [[ -n "$line" ]] || continue
@@ -158,4 +167,19 @@ prune_host_images() {   # keep the current and previous sets, and keep_images
     docker rmi "${repo%:*}@$digest" >/dev/null 2>&1 || true
   done < <(docker image ls --digests --format '{{.Repository}}:{{.Tag}} {{.Digest}} {{.ID}}' 2>/dev/null)
   : "${id:-}"
+}
+
+# prune_deploys: the deploy folders other than the current and previous (and the
+# one a failed restore keeps for `deliver rollback`) are removed.
+prune_deploys() {
+  local d n cur prev keepn
+  cur="$(link_n current || true)"; prev="$(link_n previous || true)"
+  keepn="$(state_n)"
+  state_settled || return 0
+  for d in "$ENVDIR"/deploys/*; do
+    [[ -d "$d" ]] || continue
+    n="$(basename "$d")"
+    [[ "$n" == "$cur" || "$n" == "$prev" || "$n" == "$keepn" ]] && continue
+    drop_dir "$d"
+  done
 }

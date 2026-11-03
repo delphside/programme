@@ -60,7 +60,10 @@ jq -nc --argjson n "$N" --slurpfile r "$REQ" --argjson join "$JOIN" --argjson hf
 # from save-state on, a failure puts the previous deploy back
 fail_deploy() {   # STEP
   warn "the deploy failed at $1"
-  restore_to "$OLD" "$N" "$OLDPREV"
+  if ! restore_to "$OLD" "$N" "$OLDPREV"; then
+    warn "the restore failed: the state is left interrupted ($(state_read)); run deliver rollback ENV once it can succeed, or put it right by hand. Fallback: $FALLBACK"
+    exit 1
+  fi
   if [[ -z "$OLD" ]]; then
     warn "no previous deploy to go back to; the new containers are stopped. Fallback: $FALLBACK"
   else
@@ -94,4 +97,5 @@ fi
 jq -c --arg t "$(now_utc)" '.deployed = $t | .smoke = "passed"' "$DIR/meta.json" > "$DIR/meta.new" && mv "$DIR/meta.new" "$DIR/meta.json"
 state_write "finished" "$N"
 prune_host_images
+prune_deploys
 say "deployed $H_APP to $H_ENV: deploy #$N"

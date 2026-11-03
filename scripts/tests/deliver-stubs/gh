@@ -66,6 +66,8 @@ if [[ "$method" != GET ]]; then
     # shellcheck disable=SC2010
       n=$((100 + $(ls "$G/state" | grep -c '^ms-new-'))); jq -nc --argjson n "$n" --arg t "$(fkv title)" '{number:$n,title:$t,state:"open"}' > "$G/state/ms-new-$n"
       echo "{\"number\":$n}" ;;
+    "POST repos/"*"/issues")
+      jq -nc --arg t "$(fkv title)" --arg b "$(fkv body)" '{title:$t,body:$b}' >> "$G/state/issues-new"; echo '{}' ;;
     "PATCH repos/"*"/milestones/"*) : > "$G/state/ms-closed-${path##*/}" ;;
     "PATCH repos/"*"/issues/"*) [[ "$(fkv state)" == closed ]] && : > "$G/state/closed-${path##*/}"; echo '{}' ;;
     "POST repos/"*"/issues/"*"/comments")
@@ -83,6 +85,10 @@ case "$path" in
     new="$(cat "$G"/state/ms-new-* 2>/dev/null | jq -sc '.')"; [[ -n "$new" ]] || new='[]'
     closed="$(ls "$G/state" | sed -n 's/^ms-closed-//p' | jq -Rsc 'split("\n") | map(select(length>0) | tonumber)')"
     jq -c --argjson new "$new" --argjson closed "$closed" '(. + $new) | map(if (.number | IN($closed[])) then .state = "closed" else . end)' <<< "$base" ;;
+  repos/*/issues)
+    base='[]'; [[ -f "$f.json" ]] && base="$(cat "$f.json")"
+    extra="$(cat "$G/state/issues-new" 2>/dev/null | jq -sc '.')"; [[ -n "$extra" ]] || extra='[]'
+    jq -c --argjson e "$extra" '. + $e' <<< "$base" ;;
   repos/*/issues/*/comments)
     n="${path%/comments}"; n="${n##*/}"
     base='[]'; [[ -f "$f.json" ]] && base="$(cat "$f.json")"

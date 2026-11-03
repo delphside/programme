@@ -23,7 +23,9 @@ img_file_for() {   # REF -> the stored image JSON file
 }
 
 case "${1:-}" in
-  login) exit 0 ;;
+  login)
+    # the credential arrives on stdin and is never written down: only that it did
+    tok="$(cat)"; printf 'login ok bytes=%s\n' "${#tok}" >> "${STUB_LOG_DIR}/login.log"; exit 0 ;;
   pull)
     # shellcheck disable=SC2124
     ref="${@: -1}"
@@ -85,6 +87,7 @@ case "${1:-}" in
     printf 'compose %s project=%s files=%s\n' "$sub" "$proj" "${files[*]:-}" >> "$S/compose.log"
     case "$sub" in
       up)
+        if [[ -n "${STUB_COMPOSE_UP_FAIL_ALL:-}" ]]; then echo "compose up failed (simulated, every time)" >&2; exit 1; fi
         if [[ -n "${STUB_COMPOSE_UP_FAIL:-}" && ! -f "$S/up_failed" ]]; then
           : > "$S/up_failed"; echo "compose up failed (simulated)" >&2; exit 1
         fi

@@ -4,7 +4,19 @@
 # address with the tenancy's namespace; it comes from the machine's own local
 # configuration and is never in a profile (design §5).
 
-REG_ERR=""
+REG_ERR=""; REG_DIGEST=""
+
+# reg_summarise RAW: what a failure says, without the registry's address or the
+# tool's own words (skopeo's stderr names the host and the repository, and it
+# reaches the screen and the run log); the raw text is kept nowhere.
+reg_summarise() {
+  case "$1" in
+    *denied*|*unauthorized*|*"authentication required"*|*forbidden*|*"not authorized"*) printf 'the registry refused access: check the credential for this step' ;;
+    *"manifest unknown"*|*"name unknown"*|*"not found"*) printf 'not found in the registry' ;;
+    *"connection refused"*|*"no such host"*|*timeout*|*dial*|*TLS*|*"tls:"*|*"EOF"*) printf 'the registry could not be reached' ;;
+    *) printf 'the registry operation failed' ;;
+  esac
+}
 
 registry_require() {
   [[ -n "${DELIVER_REGISTRY:-}" ]] || die "DELIVER_REGISTRY is not set: put it in ${DELIVER_CONFIG_DIR:-~/.config/deliver}/${APP:-APP}.env (the profile never holds it)"
@@ -25,18 +37,23 @@ reg_inspect() {
   if out="$(skopeo inspect "$(reg_ref "$1" "$2")" 2>"$err")"; then
     rm -f "$err"; printf '%s\n' "$out"; return 0
   fi
-  REG_ERR="$(cat "$err")"; rm -f "$err"
-  case "$REG_ERR" in
+  local raw; raw="$(cat "$err")"; rm -f "$err"
+  REG_ERR="$(reg_summarise "$raw")"
+  case "$raw" in
     *"manifest unknown"*|*"name unknown"*|*"not found"*) return 1 ;;
   esac
   return 2
 }
 
-reg_digest() {     # REPO TAG -> digest on stdout; same return codes as reg_inspect
-  local json code=0
-  json="$(reg_inspect "$1" "$2")" || code=$?
-  [[ $code -eq 0 ]] || return "$code"
-  jq -r .Digest <<< "$json"
+reg_digest() {     # REPO TAG -> REG_DIGEST (and stdout); same return codes as reg_inspect.
+  # Call it as `reg_digest R T || code=$?; d="$REG_DIGEST"`, not inside $(...): REG_ERR must reach the caller.
+  local tmp code=0
+  tmp="$(mktemp)"; REG_DIGEST=""
+  reg_inspect "$1" "$2" > "$tmp" || code=$?
+  [[ $code -eq 0 ]] && REG_DIGEST="$(jq -r .Digest "$tmp")"
+  rm -f "$tmp"
+  [[ $code -ne 0 ]] || printf '%s\n' "$REG_DIGEST"
+  return "$code"
 }
 
 reg_list_tags() {  # REPO -> one tag per line
@@ -47,7 +64,9 @@ reg_list_tags() {  # REPO -> one tag per line
 
 # reg_copy SRC_REPO SRC_REF DST_REPO DST_TAG: by digest, every architecture.
 reg_copy() {
-  skopeo copy --all --preserve-digests "$(reg_ref "$1" "$2")" "$(reg_ref "$3" "$4")" 2>&1
+  local out
+  out="$(skopeo copy --all --preserve-digests "$(reg_ref "$1" "$2")" "$(reg_ref "$3" "$4")" 2>&1)" && return 0
+  REG_ERR="$(reg_summarise "$out")"; return 1
 }
 
 # ---------------------------------------------------------------- login adapters
@@ -116,7 +135,7 @@ record_push() {
   local out code=0
   out="$(skopeo copy "oci:$dir/layout" "$(reg_ref "$repo" "$tag")" 2>&1)" || code=$?
   rm -rf "$dir"
-  [[ $code -eq 0 ]] || { REG_ERR="$out"; return 1; }
+  [[ $code -eq 0 ]] || { REG_ERR="$(reg_summarise "$out")"; return 1; }
 }
 
 # record_pull REPO TAG: prints the record JSON held by the scratch image.
@@ -124,7 +143,7 @@ record_pull() {
   local dir out code=0
   dir="$(mktemp -d)"
   out="$(skopeo copy "$(reg_ref "$1" "$2")" "oci:$dir/layout" 2>&1)" || code=$?
-  if [[ $code -ne 0 ]]; then REG_ERR="$out"; rm -rf "$dir"; return 1; fi
+  if [[ $code -ne 0 ]]; then REG_ERR="$(reg_summarise "$out")"; rm -rf "$dir"; return 1; fi
   local manifest layer
   manifest="$(jq -r '.manifests[0].digest' "$dir/layout/index.json")"
   layer="$(jq -r '.layers[0].digest' "$dir/layout/blobs/sha256/${manifest#sha256:}")"
