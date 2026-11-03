@@ -842,7 +842,7 @@ cmd_release() {
   if [[ -f "$rfile" ]] && [[ "$(jq -r .commit "$rfile")" == "$SHA" ]]; then made="$(jq -r .made "$rfile")"; fi
   # the rehearsal block describes this commit's rehearsal only: a release made with
   # --skip-rehearsal --commit must not carry another commit's deploy and smoke result
-  rehearsal_json="$(jq -c --arg sha "$SHA" '{environment: "'"$renv"'"} + (if .current.sha == $sha then {deployed: (.current.deployed // null), smoke: (.current.smoke // null)} else {deployed: null, smoke: null} end)' <<< "$rst")"
+  rehearsal_json="$(jq -c --arg sha "$SHA" --arg env "$renv" '{environment: $env} + (if .current.sha == $sha then {deployed: (.current.deployed // null), smoke: (.current.smoke // null)} else {deployed: null, smoke: null} end)' <<< "$rst")"
   [[ -n "$OPT_SKIP" ]] && skipped_json="$(jq -nc --arg r "$OPT_SKIP" '$r')" || skipped_json=null
   [[ -n "$OPT_EMERGENCY" ]] && emergency_json="$(jq -nc --arg r "$OPT_EMERGENCY" '$r')" || emergency_json=null
   local used="[]"
@@ -1074,7 +1074,7 @@ settle_version() {
 settle_comment() {   # N TEXT: once
   local existing
   existing="$(gh_issue_comments "$1")" || return 1
-  if jq -e --arg c "$2" 'any(.[]; .body | startswith($c))' >/dev/null <<< "$existing"; then return 0; fi
+  if jq -e --arg c "$2" 'any(.[]; .body == $c or .body == ($c + " (deployed to production)"))' >/dev/null <<< "$existing"; then return 0; fi
   gh_issue_comment "$1" "$2 (deployed to production)"
 }
 
@@ -1158,7 +1158,8 @@ cmd_host_install() {
     lines="$(jq -r '(.deliver.host_files // [])[] | [.dest, .src, (.mode // "0644"), ((.enable // false) | tostring)] | @tsv' <<< "$PJ")"
     prefix="$(pq .deliver.ephemeral.user_prefix)"
     script+="sudo install -d -m 0755 \"\$R/etc/deliver\" \"\$R$allow_dir\""$'\n'
-    script+="printf '%s' '$(printf '%s' "$lines" | base64 -w0)' | base64 -d | { cat; echo; } | sed '/^\$/d' | sudo install -m 0644 /dev/stdin \"\$R$allow_dir/host_files.allow\""$'\n'
+    # merged with what is still in use, never replaced (see deliver-host allowlist)
+    script+="printf '%s' '$(printf '%s' "$lines" | base64 -w0)' | base64 -d | sudo env DELIVER_LIB=\"\$R/usr/local/lib/deliver\" \"\$R/usr/local/bin/deliver-host\" allowlist $APP"$'\n'
     script+="printf '%s\\n' '$(printf '%s' "$prefix" | base64 -w0)' | base64 -d | { cat; echo; } | sed '/^\$/d' | sudo install -m 0644 /dev/stdin \"\$R$allow_dir/ephemeral.prefix\""$'\n'
     script+='U="$(id -un)"'$'\n'
     script+='printf "%s ALL=(root) NOPASSWD: /usr/local/bin/deliver-host root-ops *\n" "$U" | sudo install -D -m 0440 /dev/stdin "$R/etc/sudoers.d/deliver-host"'$'\n'

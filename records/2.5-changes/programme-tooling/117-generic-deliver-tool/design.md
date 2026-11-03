@@ -175,7 +175,6 @@ candidates = "tile-lite-elite/candidates"  # dp: "dark-portal/candidates"
 releases   = "tile-lite-elite/releases"    # dp: "dark-portal/releases"
 images     = ["server", "web"]             # dp: ["dp"]; tag is SHA-IMAGE
 payload_image = "server"
-keep_images = ["tile-lite-elite-server:latest", "tile-lite-elite-server:previous", "tile-lite-elite-web:latest", "tile-lite-elite-web:previous"]  # until 0.10.3
 join = ["docker-compose.yml", "Caddyfile"]
 
 [deliver.build]
@@ -375,7 +374,7 @@ schedule keeps it inside its Compose project, not as a host unit (copy with thei
 units marked `enable`, as root through one `sudo` rule `deliver-host
 host-install` writes; a non-production host may run any branch's build, which
 is safe only because no build environment builds a fork); switch `current`; `compose up`; `smoke`; mark finished;
-prune host images other than current and previous, sparing those the profile lists in `[deliver].keep_images` (Tile Lite Elite keeps the `deploy.sh` images, `tile-lite-elite-server` and `-web` at `:latest` and `:previous`, until 0.10.3, for its fallback). A host file the previous deploy installed and this one does not carry is removed; a rollback restores the previous deploy's set the same way. A failure after
+prune host images other than current and previous. Only registry images are considered, so a local image such as Tile Lite Elite's `deploy.sh` fallback images (`tile-lite-elite-server` and `-web` at `:latest` and `:previous`, kept until 0.10.3) is never touched and needs no profile key. A host file the previous deploy installed and this one does not carry is removed; a rollback restores the previous deploy's set the same way. A failure after
 `save-state` runs `restore-state`, switches back to `previous`, reinstalls its
 host files, and exits 1. On a host's first `deliver` deploy there is no
 `previous`: the failure runs `restore-state`, stops the new containers, removes
@@ -466,7 +465,9 @@ What the build does that §§1 to 12 did not say, or differently. Each is declar
 - **The release copier** runs `deliver-host copy APP` on the machine `[deliver.release].copy_on` names (the control node, or an `ssh` alias), with `copy_login`. It makes the copies and pushes the record image; the control node only reads.
 - **There is no "fresh deploy of the previous REF" way out of an interrupted state.** The state gate points to `deliver rollback ENV`, and a failed restore leaves the state interrupted for it.
 - **Rollback removes `previous` afterwards**, so a second rollback refuses; old `deploys/<n>` folders other than the current and previous are pruned after a deploy.
-- **Prune by the created label:** `deliver prune` reads an image's pushed time from the `org.opencontainers.image.created` label set at build.
+- **Prune by the created label:** `deliver prune` reads an image's `org.opencontainers.image.created` label, which is the time the build started, not the push time; skopeo exposes only the image config's own creation time, not the registry's push time. It is safe because a candidate is removed only when it is older than the newest release and neither released nor run by any environment's current or previous deploy; the worst a build that began before a release and pushed after it can cost is a rebuild.
+- **No `keep_images` key:** `prune_host_images` considers only images under the registry address, so local fallback images are never pruned and need no list.
+- **The allowlist is merged, never replaced:** rerunning `deliver host-install` keeps an entry the new profile lacks while root's `installed` record or any environment's current or previous deploy still uses it, so a rollback across a moved or dropped host file, and the stop and disable of a dropped unit, still work; an entry nothing uses is dropped.
 - **Rehearsal's "since the last release"** compares a deploy's time with the newest release tag's with `>=`, in seconds.
 - **Production's version** for the emergency gate comes from its host-state record, else from `/health` through `versions.deployed` (`path` and `field`) and the environment's `url`.
 - **The gates read the commit's profile** (required checks and hooks, what may be set aside, images, payload image), as the hooks are read. Which machine an environment is, and its role, stay the control node's own working-tree profile.
