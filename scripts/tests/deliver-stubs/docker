@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# A stand-in for docker: pull by digest, image inspect, create/cp/rm for the
+# payload, compose up/down/ps, image ls/rmi, and buildx bake (which pushes into
+# the directory registry the skopeo stub reads). Per-machine state lives in
+# ${DELIVER_HOST_ROOT:-$STUB_LOCAL_ROOT}/.docker. Calls are logged.
+set -uo pipefail
+R="${STUB_REGISTRY:?}"
+S="${DELIVER_HOST_ROOT:-${STUB_LOCAL_ROOT:?}}/.docker"
+mkdir -p "$S/images" "$S/containers" "$S/compose"
+echo "docker $*" >> "$S/log"
+echo "docker $*" >> "${STUB_LOG_DIR:?}/docker.log"
+
+hex() { printf '%s' "$1" | sed 's/^.*@//; s/^sha256://'; }
+img_file_for() {   # REF -> the stored image JSON file
+  local ref="$1" h f
+  if [[ "$ref" == *@sha256:* || "$ref" == sha256:* ]]; then
+    h="$(hex "$ref")"; [[ -f "$S/images/$h.json" ]] && { echo "$S/images/$h.json"; return 0; }
+    for f in "$S/images"/*.json "$S/local"/*.json; do [[ -f "$f" ]] && [[ "$(jq -r .Id "$f")" == "sha256:$h" || "$(jq -r .Id "$f")" == "$ref" ]] && { echo "$f"; return 0; }; done
+    return 1
+  fi
+  f="$S/local/$(printf '%s' "$ref" | tr '/:' '__').json"; [[ -f "$f" ]] && { echo "$f"; return 0; }
+  return 1
+}
+
+case "${1:-}" in
+  login) exit 0 ;;
+  pull)
+    ref="${@: -1}"
+    [[ "${STUB_PULL_SECONDS:-0}" == 0 ]] || sleep "$STUB_PULL_SECONDS"
+    repo="${ref%@*}"; d="${ref#*@}"
+    if [[ -n "${STUB_READ_DENY:-}" && "$repo" =~ $STUB_READ_DENY ]]; then echo "denied" >&2; exit 1; fi
+    m="$R/$repo/meta/${d#sha256:}.json"; [[ -f "$m" ]] || { echo "manifest unknown" >&2; exit 1; }
+    jq -c --arg ref "$ref" --arg id "sha256:$(printf 'id-%s' "$d" | sha256sum | cut -d' ' -f1)" \
+      '{Id:$id, RepoDigests:[$ref], Config:{Labels:.Labels}}' "$m" > "$S/images/${d#sha256:}.json"
+    [[ -d "$R/$repo/payload/${d#sha256:}" ]] && cp -a "$R/$repo/payload/${d#sha256:}" "$S/images/${d#sha256:}.payload"
+    ;;
+  image)
+    case "$2" in
+      inspect)
+        ref="$3"; fmt=""; [[ "${4:-}" == --format ]] && fmt="$5"
+        f="$(img_file_for "$ref")" || { echo "No such image: $ref" >&2; exit 1; }
+        case "$fmt" in
+          *Config.Labels*) jq -c '.Config.Labels' "$f" ;;
+          *RepoDigests*) jq -c '.RepoDigests' "$f" ;;
+          *.Id*) jq -r '.Id' "$f" ;;
+          *) jq -c '[.]' "$f" ;;
+        esac ;;
+      ls)
+        for f in "$S/images"/*.json; do [[ -f "$f" ]] || continue
+          rd="$(jq -r '.RepoDigests[0] // empty' "$f")"; [[ -n "$rd" ]] || continue
+          printf '%s:<none> %s %s\n' "${rd%@*}" "sha256:$(hex "$rd")" "$(jq -r .Id "$f")"
+        done ;;
+    esac ;;
+  rmi)
+    f="$(img_file_for "$2")" && rm -f "$f" "${f%.json}.payload" ;;
+  create)
+    f="$(img_file_for "$2")" || { echo "No such image: $2" >&2; exit 1; }
+    cid="c$$-$RANDOM"; echo "${f%.json}" > "$S/containers/$cid.src"; echo "$cid" ;;
+  cp)
+    cid="${2%%:*}"; src="$(cat "$S/containers/$cid.src")"
+    [[ -d "$src.payload" ]] || { echo "no /deliver in the image" >&2; exit 1; }
+    cp -a "$src.payload/." "$3" ;;
+  rm) rm -f "$S/containers/$2.src" ;;
+  ps)
+    proj="$(printf '%s ' "$@" | sed -n 's/.*label=com.docker.compose.project=\([^ ]*\).*/\1/p')"
+    for f in "$S/compose/$proj".*; do [[ -f "$f" ]] && basename "$f"; done ;;
+  inspect)
+    f="$S/compose/${@: -1}"; [[ -f "$f" ]] || exit 1
+    ref="$(head -1 "$f")"; fj="$(img_file_for "$ref")" || { echo "sha256:unknown"; exit 0; }
+    jq -r .Id "$fj" ;;
+  compose)
+    shift; proj=""; envs=(); files=()
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        -p) proj="$2"; shift 2 ;;
+        --project-directory) shift 2 ;;
+        --env-file) envs+=("$2"); shift 2 ;;
+        -f) files+=("$2"); shift 2 ;;
+        *) break ;;
+      esac
+    done
+    sub="$1"
+    printf 'compose %s project=%s files=%s\n' "$sub" "$proj" "${files[*]:-}" >> "$S/compose.log"
+    case "$sub" in
+      up)
+        if [[ -n "${STUB_COMPOSE_UP_FAIL:-}" && ! -f "$S/up_failed" ]]; then
+          : > "$S/up_failed"; echo "compose up failed (simulated)" >&2; exit 1
+        fi
+        rm -f "$S/compose/$proj".*
+        last="${envs[${#envs[@]}-1]}"
+        while IFS='=' read -r k v; do
+          [[ "$k" == DELIVER_IMAGE_* ]] || continue
+          printf '%s\n' "$v" > "$S/compose/$proj.$k"
+        done < "$last" ;;
+      down) rm -f "$S/compose/$proj".* ;;
+    esac ;;
+  buildx)
+    # docker buildx bake T... (--push|--load) --set T.tags=REF --set T.labels.K=V
+    shift 2; targets=(); sets=(); mode=push
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --push) mode=push; shift ;;
+        --load) mode=load; shift ;;
+        --set) sets+=("$2"); shift 2 ;;
+        *) targets+=("$1"); shift ;;
+      esac
+    done
+    [[ -z "${STUB_BAKE_FAIL:-}" ]] || { echo "bake failed" >&2; exit 1; }
+    for t in "${targets[@]}"; do
+      tags=""; labels="{}"
+      for s in "${sets[@]}"; do
+        case "$s" in
+          "$t.tags="*) tags="${s#*=}" ;;
+          "$t.labels."*) k="${s#"$t.labels."}"; labels="$(jq -c --arg k "${k%%=*}" --arg v "${k#*=}" '. + {($k):$v}' <<< "$labels")" ;;
+        esac
+      done
+      content="$(cat src.txt 2>/dev/null)"
+      salt=""; [[ "${STUB_ARCH:-}" == multi ]] && salt="index-"
+      d="sha256:$(printf '%s%s|%s|%s' "$salt" "$content" "$t" "$(jq -r '.["org.opencontainers.image.revision"] // ""' <<< "$labels")" | sha256sum | cut -d' ' -f1)"
+      if [[ "$mode" == load ]]; then
+        mkdir -p "$S/local"
+        lf="$S/local/$(printf '%s' "$tags" | tr '/:' '__')"
+        jq -nc --arg id "$d" --argjson l "$labels" '{Id:$id, RepoDigests:[], Config:{Labels:$l}}' > "$lf.json"
+        [[ -d .deliver-payload ]] && { rm -rf "$lf.payload"; cp -a .deliver-payload "$lf.payload"; }
+        continue
+      fi
+      repo="${tags%:*}"; tag="${tags##*:}"
+      mkdir -p "$R/$repo/tags" "$R/$repo/meta" "$R/$repo/payload"
+      echo "$d" > "$R/$repo/tags/$tag"
+      jq -nc --arg d "$d" --argjson l "$labels" '{Digest:$d, Labels:$l}' > "$R/$repo/meta/${d#sha256:}.json"
+      [[ -d .deliver-payload ]] && { rm -rf "$R/$repo/payload/${d#sha256:}"; cp -a .deliver-payload "$R/$repo/payload/${d#sha256:}"; }
+      echo "$t $tags" >> "${STUB_LOG_DIR}/bake.log"
+    done ;;
+  *) echo "docker stub: unsupported: $*" >&2; exit 9 ;;
+esac
