@@ -578,9 +578,9 @@ class ExistingRecordsCountAsBefore(Cases):
             self.capture(DocumentReviews.ROUNDS))
 
 
-DOC = ("- doc: docs/a.md; type rule; words 1200; change correction; lines 14; "
+DOC = ("- doc: docs/a.md; type rule; words 1200; change correction; lines 14; places 3; "
        "last review 2026-10-26; terms added 0")
-TABLE = ("| pull request | document | type | change | words | lines | last review | terms added "
+TABLE = ("| pull request | document | type | change | words | lines | places | last review | terms added "
          "| rounds | material findings | from a fix | tokens |")
 WITH_DOC = f"""{DOC}
 - R1 reader — 1.5 *Roles by name* — a finding
@@ -710,14 +710,14 @@ class DocumentRows(Cases):
     def test_doc_line_makes_a_row_with_every_input(self):
         text = week(pr(1, WITH_DOC))
         self.expect("the header", True, TABLE in text)
-        self.expect("the row", ["| o/p#1 | docs/a.md | rule | correction | 1200 | 14 | 2026-10-26 | 0 "
+        self.expect("the row", ["| o/p#1 | docs/a.md | rule | correction | 1200 | 14 | 3 | 2026-10-26 | 0 "
                                 "| 3 | 3 | 1 | 220k |"], rows_of(text))
         self.expect("none unread", False, "`doc:` field(s) not read" in text)
 
     def test_doc_line_fields_read_in_any_order(self):
-        shuffled = ("- doc: docs/a.md; terms added 0; last review 2026-10-26; lines 14; change correction; "
+        shuffled = ("- doc: docs/a.md; terms added 0; last review 2026-10-26; places 3; lines 14; change correction; "
                     "words 1200; type rule")
-        spaced = ("- doc:   docs/a.md ;type rule;  words 1200 ; change correction;lines 14;"
+        spaced = ("- doc:   docs/a.md ;type rule;  words 1200 ; change correction;lines 14;places 3;"
                   "last review 2026-10-26; terms added 0;")
         self.expect("same row", row_with(DOC), row_with(shuffled))
         self.expect("spaces", row_with(DOC), row_with(spaced))
@@ -728,7 +728,7 @@ class DocumentRows(Cases):
             self.expect(line, False, TABLE in week(pr(1, f"{line}\n- R1 none")))
 
     def test_missing_doc_field_is_shown_unread_and_counted(self):
-        for key in ["; type rule", "; words 1200", "; change correction", "; lines 14",
+        for key in ["; type rule", "; words 1200", "; change correction", "; lines 14", "; places 3",
                     "; last review 2026-10-26", "; terms added 0"]:
             text = week(pr(1, f"{DOC.replace(key, '')}\n- R1 none"))
             self.expect(f"{key}: one ?", 1, rows_of(text)[0].count("?"))
@@ -774,6 +774,14 @@ class DocumentRows(Cases):
         rows, without, unread = documents(body, "x")
         self.expect("one row, nothing else", (1, 0, 0), (len(rows), without, unread))
 
+    def test_places_is_the_count_of_places_changed(self):
+        self.expect("read", True, "| 14 | 3 |" in row_with(DOC))
+        self.expect("0 for a file reviewed unchanged", True, "| 14 | 0 |" in row_with(DOC.replace("places 3", "places 0")))
+        for bad in ["three", "3.5", "-1"]:
+            self.expect(bad, True, "| 14 | ? |" in row_with(DOC.replace("places 3", f"places {bad}")))
+        text = week(pr(1, DOC.replace("places 3; ", "") + "\n- R1 none"))
+        self.expect("missing is one field not read", True, "1 `doc:` field(s) not read" in text)
+
     def test_last_review_never_is_read(self):
         self.expect("never", True, "| never |" in row_with(DOC.replace("2026-10-26", "never")))
 
@@ -806,22 +814,22 @@ class DocumentRows(Cases):
 {WITH_DOC}
 
 #### docs/b.md
-- doc: docs/b.md; type procedure; words 900; change applied; lines 3; last review never; terms added 1
+- doc: docs/b.md; type procedure; words 900; change applied; lines 3; places 2; last review never; terms added 1
 - R1 truth — 1.5 *True now* — x
 - R1 cost: truth 50k, 80%
 - R2 none
 - R2 cost: truth 20k, 85%
 - owner — none"""
         text = week(pr(1, body))
-        self.expect("a", ["| o/p#1 | docs/a.md | rule | correction | 1200 | 14 | 2026-10-26 | 0 | 3 | 3 | 1 | 220k |"],
+        self.expect("a", ["| o/p#1 | docs/a.md | rule | correction | 1200 | 14 | 3 | 2026-10-26 | 0 | 3 | 3 | 1 | 220k |"],
                     [r for r in rows_of(text) if "docs/a.md" in r])
-        self.expect("b", ["| o/p#1 | docs/b.md | procedure | applied | 900 | 3 | never | 1 | 2 | 1 | 0 | 70k |"],
+        self.expect("b", ["| o/p#1 | docs/b.md | procedure | applied | 900 | 3 | 2 | never | 1 | 2 | 1 | 0 | 70k |"],
                     [r for r in rows_of(text) if "docs/b.md" in r])
 
     def test_per_document_findings_and_tokens_sum_to_the_record(self):
         rounds = rounds_of("pr124-body.txt")
         every = re.sub(r"^(#### (.+))$", lambda m: f"{m.group(1)}\n- doc: {m.group(2)}; type rule; words 1000; "
-                       "change correction; lines 10; last review never; terms added 0", rounds, flags=re.M)
+                       "change correction; lines 10; places 2; last review never; terms added 0", rounds, flags=re.M)
         docs, without, unread = documents(every, "o/p#1")
         record = RoundCount().add(rounds)
         self.expect("25 headings, 25 rows", (25, 0, 0), (len(docs), without, unread))
@@ -870,12 +878,12 @@ class DocumentRows(Cases):
 
     def test_pr_124_documents_each_get_a_row(self):
         headed = re.sub(r"^#### (?!Round 2|Answers round)(.+)$", lambda m: f"#### {m.group(1)}\n- doc: {m.group(1)}; "
-                        "type rule; words 1000; change correction; lines 10; last review never; terms added 0",
+                        "type rule; words 1000; change correction; lines 10; places 2; last review never; terms added 0",
                         rounds_of("pr124-body.txt"), flags=re.M)
         text = week(MergedPullRequest("delphside/programme", 124, "Week 1", f"## Review rounds\n\n{headed}"))
         self.expect("23 rows", 23, sum(1 for line in text.splitlines() if line.startswith("| delphside/programme#124 |")))
-        self.expect("docs/1.1's row", True, "| delphside/programme#124 | docs/1.1 | rule | correction | 1000 | 10 | never | 0 | 1 | 7 | 0 | 307k |" in text)
-        self.expect("docs/1.2's row", True, "| delphside/programme#124 | docs/1.2 | rule | correction | 1000 | 10 | never | 0 | 1 | 10 | 0 | 314k |" in text)
+        self.expect("docs/1.1's row", True, "| delphside/programme#124 | docs/1.1 | rule | correction | 1000 | 10 | 2 | never | 0 | 1 | 7 | 0 | 307k |" in text)
+        self.expect("docs/1.2's row", True, "| delphside/programme#124 | docs/1.2 | rule | correction | 1000 | 10 | 2 | never | 0 | 1 | 10 | 0 | 314k |" in text)
         self.expect("round 2 and the answers round are headings with no doc line", True,
                     "Reviewed documents with no `doc:` line: 2" in text)
 
