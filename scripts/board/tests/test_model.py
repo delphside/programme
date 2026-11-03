@@ -161,19 +161,26 @@ class TheBoardModel(Cases):
         self.expect("so does a Production Release", Answer.MISSING,
               answer(604, "Production Release"))
 
-    def test_a_milestone_is_owed_from_development(self):
-        """a work package owes its milestone once it is being built, not only at deployment"""
-        # Owner, 2026-11-03: a date is set to the day planned, and a release's
-        # semver is known when the package is scheduled into it, so both are
-        # there by the time it is built.
-        def answer(number, state):
+    def test_a_release_owes_its_milestone_from_development_a_date_once_landed(self):
+        """a release owes its semver from Development; any other route its date once landed"""
+        # Owner, 2026-11-03: a release's semver is known when the package is
+        # scheduled into it; a date is the day the delivery landed, set then.
+        def answer(number, state, route):
             wp = classify(issue(number, parent=9, fields={"Project State": state,
-                                                          "Route": "Application Tooling"}))
+                                                          "Route": route}))
             return {f.obligation.id: f.answer for f in assess(wp)}.get("wp-milestone")
         self.expect("not yet asked in Design and Test Approach", None,
-              answer(611, "Design and Test Approach"))
-        self.expect("owed in Development", Answer.MISSING, answer(612, "Development"))
-        self.expect("and in User testing", Answer.MISSING, answer(613, "User testing"))
+              answer(611, "Design and Test Approach", "Production Release"))
+        self.expect("a release owes it in Development", Answer.MISSING,
+              answer(612, "Development", "Production Release"))
+        self.expect("and in User testing", Answer.MISSING,
+              answer(613, "User testing", "Production Release"))
+        self.expect("tooling owes none while it is being built", Answer.MET,
+              answer(614, "Development", "Application Tooling"))
+        self.expect("nor does a console change being applied", Answer.MET,
+              answer(615, "Deployment", "Other"))
+        self.expect("but tooling owes its date once it has landed", Answer.MISSING,
+              answer(616, "Post-deployment", "Application Tooling"))
 
     def test_a_post_deployment_check_is_answered_not_merely_present(self):
         """a post-deployment check is answered, not merely present"""

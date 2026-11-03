@@ -197,10 +197,9 @@ docs/1.6 records the app it works through.
   or project it serves — possibly more than one.
 - **A milestone marks a delivery made at one point in time**, and places it in
   the sequence: the release semver where it includes a release, otherwise
-  **the date it lands**, `YYYY.MM.DD-n`. The two are independent sequences
-  (owner, 2026-11-03): a release's semver is fixed when it is made, so a
-  tooling merge can go live after a release is made and before it is deployed,
-  and a number derived from production's version would misplace it.
+  **the day it lands**, `YYYY.MM.DD-n`, set then and never renamed. The two
+  are independent sequences (owner, 2026-11-03): a release's semver is fixed
+  when it is made, and a date says only when.
 - `Route` belongs to the **artefact**, and **a delivery has one route**. Work
   touching artefacts with different routes is split into a delivery per route,
   each taking the shape its own route needs. A project might deliver its script

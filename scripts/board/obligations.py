@@ -26,6 +26,7 @@ from .model import (
     Requirement,
     StandaloneProject,
     PROGRAMME_TOOLING,
+    RELEASE,
     WorkPackage,
     route_of,
 )
@@ -348,15 +349,19 @@ OBLIGATIONS: tuple[Obligation, ...] = (
     # point in time -- many edits over many commits -- so it takes no milestone
     # (owner, 2026-10-26; docs/1.2 §1.1). It used to carry `pre-approved`,
     # which met this check. Application Tooling always takes a branch, so owes
-    # a dated milestone like any other delivery. It is owed from Development
-    # (owner, 2026-11-03): a date is set to the day planned and a release's
-    # semver when the package is scheduled into it, so both exist by then.
+    # a dated milestone like any other delivery. A release's semver is known
+    # when the package is scheduled into it, so it is owed from Development; a
+    # date is the day the delivery landed and is set then (owner, 2026-11-03),
+    # so any other route owes it from Post-deployment.
     Obligation(
         "wp-milestone", DELIVERING,
         ("Development", "User testing", "Deployment", "Post-deployment"),
-        "a milestone, unless it is Docs and Programme Tooling",
+        "a milestone: a release's from Development, a date once it has landed",
         "a delivery made at one point in time is placed in the sequence",
-        lambda i: bool(i.milestone) or route_of(i.field("Route")) == PROGRAMME_TOOLING,
+        lambda i: (bool(i.milestone)
+                   or route_of(i.field("Route")) == PROGRAMME_TOOLING
+                   or (route_of(i.field("Route")) != RELEASE
+                       and i.field("Project State") != "Post-deployment")),
     ),
     Obligation(
         "wp-built", DELIVERING, ("Deployment",),

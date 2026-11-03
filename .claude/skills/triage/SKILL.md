@@ -104,8 +104,8 @@ The rules are
 | a parent project | none: it has no delivery role |
 | a requirement or project done straight on `main` | none: no single point in time |
 | a work package shipping in a release | the semver |
-| a work package delivering without an image, other than host maintenance | the date it is planned to land, `YYYY.MM.DD-n` |
-| a host-maintenance work package | the same, in the infrastructure application |
+| a work package delivering without an image, other than host maintenance | none until it lands; then the day it landed, `YYYY.MM.DD-n` |
+| a host-maintenance work package | a date, `YYYY.MM.DD-n`, in the infrastructure application's milestones, set when it lands |
 | work packages delivered together | the same milestone |
 | a decision | none: it routes work |
 
