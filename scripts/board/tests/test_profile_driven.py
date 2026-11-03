@@ -21,7 +21,7 @@ from pathlib import Path
 
 from board import digest, documents, profile, programme, repo, shipping, sources
 from board.tests.cases import Cases
-from board.tests.profiles import OTHER_TECHNICAL, inside, using
+from board.tests.profiles import HISTORY_TECHNICAL, OTHER_TECHNICAL, inside, using
 
 
 def repository(top: Path) -> Path:
@@ -119,6 +119,25 @@ class TheTags(Cases):
             self.expect("first", "rel-0.8.0", repo.commits().last_tag)
             with using(OTHER_TECHNICAL):
                 self.expect("other", "v-0.9.0", repo.commits().last_tag)
+
+    def test_history_prefixes_count_as_shipped_and_are_never_the_current_prefix(self):
+        with inside(self.top), using(HISTORY_TECHNICAL):
+            self.expect("shipped", frozenset({"0.8.0", "0.9.0"}), repo.Commits().shipped_milestones())
+            self.expect("released", ["v-0.9.0"], repo.release_tags())
+            self.expect("history", ["rel-0.8.0"], repo.history_tags())
+            self.expect("last tag is a released one", "v-0.9.0", repo.commits().last_tag)
+
+    def test_with_only_history_the_last_tag_is_the_newest_of_it(self):
+        subprocess.run(["git", "-C", str(self.top), "tag", "-d", "v-0.9.0"], check=True, capture_output=True)
+        with inside(self.top), using(HISTORY_TECHNICAL):
+            self.expect("history only", "rel-0.8.0", repo.commits().last_tag)
+
+    def test_a_history_prefix_announcement_is_recognised_as_the_deploy(self):
+        with using(HISTORY_TECHNICAL):
+            self.expect("announcements", ["Out as rel-"], sources.history_announcements())
+            jq = sources.comment_jq("issue_url")
+            self.expect("both announcements", True, 'startswith("Out as v-")' in jq and 'startswith("Out as rel-")' in jq)
+        self.expect("none without the key", [], sources.history_announcements())
 
     def test_the_version_lines_are_those_of_the_profiles_files(self):
         (self.top / "Cargo.toml").write_text('version = "0.1.0"\n')
