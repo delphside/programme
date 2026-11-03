@@ -303,7 +303,7 @@ def below(text: str) -> str:
     for line in text.splitlines():
         if line.strip().startswith("```"):
             fenced = not fenced
-        out.append("#" + line if not fenced and line.startswith("#### ") else line)
+        out.append("#" + line if not fenced and _HEADING4.match(line) else line)
     return "\n".join(out)
 
 
