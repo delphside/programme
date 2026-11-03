@@ -366,15 +366,33 @@ class Remark:
     created: str = ""
 
 
+def history_announcements() -> list[str]:
+    """The announcement with each `release.history_prefixes` in place of `tag_prefix`.
+
+    Settle writes the announcement and the version; releases announced before a
+    prefix change carry the old prefix in the same place. An announcement that
+    does not end in the tag prefix has nothing to substitute.
+    """
+    tech = profile.technical()
+    announcement, prefix = tech.string("release.announcement"), tech.string("release.tag_prefix")
+    if not announcement.endswith(prefix):
+        return []
+    if "history_prefixes" not in tech.data.get("release", {}):
+        return []
+    old = tech.strings("release.history_prefixes")
+    return [announcement[: -len(prefix)] + p for p in old]
+
+
 def comment_jq(url_key: str) -> str:
     """The jq that turns GitHub's comments into Remark rows: number, when, who,
     text, created. Who is decided here, in this order: deploy.sh's announcement, then
     Claude's account, then any bot, then the owner. A function so the rule can
     be tested with the real jq rather than only read."""
     announcement = json.dumps(profile.technical().string("release.announcement"))
+    earlier = "".join(f' or (.body | startswith({json.dumps(a)}))' for a in history_announcements())
     machine = json.dumps(profile.programme_file().string("accounts.machine_user"))
     return (f'.[] | [(.{url_key} | split("/") | last), .updated_at[0:16], '
-            f'(if (.body | startswith({announcement})) then "deploy" '
+            f'(if ((.body | startswith({announcement})){earlier}) then "deploy" '
             f'elif (.user.login == {machine}) then "claude" '
             "elif (.user.type == \"Bot\") then \"bot\" "
             'else "owner" end), (.body | gsub("[\n\r]"; " ") | .[0:150]), '
