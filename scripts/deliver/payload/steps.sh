@@ -106,7 +106,7 @@ install_set() {
     while IFS=$'\t' read -r dest enable; do
       [[ -n "$dest" ]] || continue
       awk -F'\t' -v d="$dest" '$1 == d {f = 1} END {exit !f}' "$new" && continue
-      if [[ "$enable" == true ]]; then root_ops systemctl disable --now "$(basename "$dest")" || true; fi
+      if [[ "$enable" == true ]]; then { root_ops systemctl stop "$(basename "$dest")"; root_ops systemctl disable "$(basename "$dest")"; } || true; fi
       root_ops rm "$dest" || return 1; changed=1
     done < "$listed"
   fi

@@ -336,3 +336,60 @@ setup() {
   assert_failure 1
   assert_output --partial "not the release copier"
 }
+
+# round 3: the guards against mistakes -----------------------------------------
+@test "R3 root-ops install: a link or another file is refused, and the mode is the allowlist's" {
+  commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  local root="$W/hosts/rehearsal" hf="$W/hosts/rehearsal/var/lib/deliver/acme/rehearsal/deploys/1/payload/host_files/ops"
+  ln -s /etc/passwd "$hf/link.sh"
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/link.sh" /opt/acme/backup.sh 0755
+  assert_failure 1
+  assert_output --partial "not a regular file"
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/acme-backup.timer" /opt/acme/backup.sh 0755
+  assert_failure 1
+  assert_output --partial "accepts only ops/backup.sh"
+  # the caller's mode is ignored
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 4777
+  assert_success
+  assert_equal "$(stat -c %a "$root/opt/acme/backup.sh")" 755
+  # an allowlisted mode with setuid, or writable by others, is refused
+  local allow="$root/etc/deliver/acme/host_files.allow"
+  sed -i 's|^\(/opt/acme/backup.sh\t[^\t]*\t\)0755|\14755|' "$allow"
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 0755
+  assert_failure 1
+  assert_output --partial "is not allowed"
+  sed -i 's|\t4755\t|\t0666\t|' "$allow"
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 0755
+  assert_failure 1
+}
+
+@test "R3 root-ops systemctl: daemon-reload, and one allowlisted unit with no extra arguments" {
+  commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  local root="$W/hosts/rehearsal"
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops systemctl daemon-reload
+  assert_success
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops systemctl restart acme-backup.timer
+  assert_success
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops systemctl enable evil.service
+  assert_failure 1
+  assert_output --partial "not a unit the allowlist derives"
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops systemctl restart acme-backup.timer --now
+  assert_failure 1
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops systemctl disable --now acme-backup.timer
+  assert_failure 1
+  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops systemctl restart ssh.service
+  assert_failure 1
+}
+
+@test "R3 host-install keeps a destination with a space in it as one field" {
+  cat >> "$W/work/app-profile.toml" <<'EOF'
+
+[[deliver.host_files]]
+src = "ops/backup.sh"
+dest = "/opt/acme/two words.sh"
+EOF
+  run d host-install rehearsal
+  assert_success
+  run awk -F'\t' '$1 == "/opt/acme/two words.sh" && $2 == "ops/backup.sh" && $3 == "0644" {print "ok"}' "$W/hosts/rehearsal/etc/deliver/acme/host_files.allow"
+  assert_output ok
+}
