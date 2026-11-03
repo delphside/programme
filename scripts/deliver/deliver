@@ -1,0 +1,1113 @@
+#!/usr/bin/env bash
+# deliver: build, release and deploy an application's image, from the control
+# node, the build environment or the release copier. The generic tool of
+# delphside/programme#117; its design is
+# records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md and
+# docs/1.1 has its row. It names no application and no machine: what differs
+# comes from the application's `app-profile.toml` and its hooks.
+#
+#   deliver build [REF] [--local]
+#   deliver deploy ENV REF [--wait[=MIN]] [--check] [--set-aside GATE REASON]
+#                          [--unrecorded REASON] [--off-level REASON]
+#   deliver release [--expect VERSION] [--commit REF] [--emergency REASON]
+#                   [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]
+#   deliver settle VERSION        deliver rollback ENV     deliver status ENV
+#   deliver list ENV              deliver prune [--dry-run]
+#   deliver env create|destroy NAME    deliver host-install ENV
+#
+# Exit codes: 0 done; 1 refused or failed (the previous deploy restored where
+# there is one); 3 live, but a later step failed and is named.
+
+set -uo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DELIVER_LIB="${DELIVER_LIB:-$HERE/lib}"
+export DELIVER_LIB
+# shellcheck source=lib/common.sh
+. "$DELIVER_LIB/common.sh"
+# shellcheck source=lib/toml.sh
+. "$DELIVER_LIB/toml.sh"
+# shellcheck source=lib/registry.sh
+. "$DELIVER_LIB/registry.sh"
+# shellcheck source=lib/github.sh
+. "$DELIVER_LIB/github.sh"
+
+DELIVER_CMD="deliver"
+need_jq
+
+# ------------------------------------------------------------------ profile
+
+REPO=""; PJ=""; APP=""
+pq()  { jq -r "($1) // empty" <<< "$PJ"; }
+pqa() { jq -r "(($1) // [])[]" <<< "$PJ"; }
+env_q() { jq -r --arg e "$1" --arg k "$2" '.environments[$e][$k] // empty' <<< "$PJ"; }
+env_qa() { jq -r --arg e "$1" --arg k "$2" '(.environments[$e][$k] // [])[]' <<< "$PJ"; }
+g() { git -C "$REPO" "$@"; }
+
+load_profile() {
+  REPO="${DELIVER_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+  [[ -n "$REPO" ]] || die "not in a git repository (set DELIVER_REPO)"
+  PROFILE_FILE="${DELIVER_PROFILE:-$REPO/app-profile.toml}"
+  [[ -f "$PROFILE_FILE" ]] || die "no profile at $PROFILE_FILE"
+  PJ="$(toml_to_json "$PROFILE_FILE")" || die "cannot read $PROFILE_FILE"
+  APP="$(pq .application)"
+  [[ -n "$APP" ]] || die "$PROFILE_FILE has no top-level \`application\`"
+  local conf="${DELIVER_CONFIG_DIR:-$HOME/.config/deliver}/$APP.env"
+  if [[ -f "$conf" ]]; then set -a; . "$conf"; set +a; fi
+  TAG_PREFIX="$(pq .release.tag_prefix)"; [[ -n "$TAG_PREFIX" ]] || die "$PROFILE_FILE has no release.tag_prefix"
+  mapfile -t HIST_PREFIXES < <(pqa .release.history_prefixes)
+  ANNOUNCEMENT="$(pq .release.announcement)"
+  mapfile -t REQUIRED_CHECKS_A < <(pqa .release.required_checks)
+  REQUIRED_HOOKS="$(pqa .release.required_hooks | tr '\n' ' ')"
+  OVERRIDABLE="$(pqa .release.overridable | tr '\n' ' ')"
+  CANDIDATES="$(pq .deliver.candidates)"; RELEASES="$(pq .deliver.releases)"
+  mapfile -t IMAGES < <(pqa .deliver.images)
+  PAYLOAD_IMAGE="$(pq .deliver.payload_image)"
+  [[ -n "$CANDIDATES" && -n "$RELEASES" && ${#IMAGES[@]} -gt 0 ]] || die "$PROFILE_FILE needs [deliver] candidates, releases and images"
+  run_log_start "$APP" "$DELIVER_SUBCOMMAND" "${DELIVER_ARGS[@]}"
+}
+
+# ------------------------------------------------------------------ git helpers
+
+all_prefixes() { printf '%s\n' "$TAG_PREFIX" "${HIST_PREFIXES[@]}"; }
+
+# release_tags: every release tag of any prefix, one per line.
+release_tags() {
+  local p
+  while read -r p; do [[ -n "$p" ]] && g tag --list "$p*"; done < <(all_prefixes)
+}
+
+tag_version() {    # TAG -> bare version
+  local t="$1" p
+  while read -r p; do [[ -n "$p" && "$t" == "$p"* ]] && { printf '%s' "${t#"$p"}"; return; }; done < <(all_prefixes)
+}
+
+# tag_for_version VERSION -> the tag naming it, under any prefix, or empty.
+tag_for_version() {
+  local p
+  while read -r p; do [[ -n "$p" ]] || continue; g rev-parse -q --verify "refs/tags/$p$1" >/dev/null 2>&1 && { printf '%s%s' "$p" "$1"; return; }; done < <(all_prefixes)
+}
+
+# record_of_tag TAG -> the record JSON on stdout. Returns 1 when the tag has no
+# JSON message (a release made before the tool: history only), 2 for a record
+# version this tool does not know.
+record_of_tag() {
+  local msg
+  msg="$(g tag --list "$1" --format='%(contents)' 2>/dev/null)"
+  jq -e 'type == "object" and has("record")' >/dev/null 2>&1 <<< "$msg" || return 1
+  [[ "$(jq -r .record <<< "$msg")" == 1 ]] || return 2
+  jq -c . <<< "$msg"
+}
+
+# version_at SHA -> the application version the profile's version file holds at the commit.
+version_at() {
+  local file pattern text
+  file="$(pq .versions.app.file)"; pattern="$(pq .versions.app.pattern)"
+  [[ -n "$file" && -n "$pattern" ]] || die "profile needs versions.app file and pattern"
+  text="$(g show "$1:$file" 2>/dev/null)" || return 1
+  jq -Rrs --arg p "$pattern" 'try (match($p).captures[0].string) catch empty' <<< "$text"
+}
+
+newest_version_tag() {   # -> highest bare version among release tags of any prefix
+  local t out=""
+  while read -r t; do
+    [[ -n "$t" ]] || continue
+    out+="$(tag_version "$t")"$'\n'
+  done < <(release_tags)
+  printf '%s' "$out" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1
+}
+
+# nearest_release_tag SHA -> the newest release tag (any prefix) reachable from SHA.
+nearest_release_tag() {
+  local t best="" c
+  while read -r t; do
+    [[ -n "$t" ]] || continue
+    g merge-base --is-ancestor "$t^{commit}" "$1" 2>/dev/null || continue
+    c="$(g log -1 --format=%ct "$t^{commit}")"
+    # newest version wins, then newest commit
+    : "$c"
+    if [[ -z "$best" ]] || semver_gt "$(tag_version "$t")" "$(tag_version "$best")" 2>/dev/null; then best="$t"; fi
+  done < <(release_tags)
+  printf '%s' "$best"
+}
+
+refs_in() {        # RANGE -> sorted unique issue numbers named `Refs #N` or `Closes #N`
+  g log --format=%B "$@" 2>/dev/null | grep -oE '\b(Refs|Closes) #[0-9]+\b' | grep -oE '[0-9]+$' | sort -un
+}
+
+# ------------------------------------------------------------------ hosts
+
+env_role()  { local r; r="$(env_q "$1" role)"; [[ -n "$r" ]] || die "environment $1 has no role in the profile"; printf '%s' "$r"; }
+env_exists() { [[ -n "$(jq -r --arg e "$1" '.environments[$e] // empty | tostring' <<< "$PJ")" ]]; }
+
+env_of_role() {    # ROLE -> first environment name with it
+  jq -r --arg r "$1" '.environments | to_entries[] | select(.value.role == $r) | .key' <<< "$PJ" | head -1
+}
+
+# run_on_host ENV ARGS...: deliver-host on ENV's machine, stdin passed through.
+run_on_host() {
+  local env="$1"; shift
+  local host ssh
+  host="$(env_q "$env" host)"; ssh="$(env_q "$env" ssh)"
+  if [[ "$host" == control-node ]]; then
+    "${DELIVER_HOST_BIN:-$HERE/deliver-host}" "$@"
+  elif [[ -n "$ssh" ]]; then
+    local cmd; cmd="$(printf '%q ' deliver-host "$@")"
+    ssh "$ssh" "$cmd"
+  else
+    die "environment $env has neither host = \"control-node\" nor ssh"
+  fi
+}
+
+# run_where PLACE CMD...: on the control node or on an ssh alias (for build and copy).
+run_where() {
+  local place="$1"; shift
+  if [[ "$place" == control-node || -z "$place" ]]; then "$@"; else ssh "$place" "$(printf '%q ' "$@")"; fi
+}
+
+host_status() {    # ENV -> status JSON (the host's `deliver-host status --json`)
+  run_log_event ssh-read "env=$1" "what=host state"
+  local out
+  out="$(run_on_host "$1" status "$APP" "$1" --json)" || die "cannot read the state of $1"
+  jq -e . >/dev/null 2>&1 <<< "$out" || die "state of $1 is not JSON"
+  printf '%s' "$out"
+}
+
+env_url() {        # ENV -> its base URL, literal `url` or from the first variable in `env`
+  local u v; u="$(env_q "$1" url)"
+  if [[ -z "$u" ]]; then v="$(env_qa "$1" env | head -1)"; [[ -n "$v" ]] && u="${!v:-}"; fi
+  printf '%s' "$u"
+}
+
+# production_version -> the version of the release production runs: its
+# record in host state, else what its /health reports (design §6).
+production_version() {
+  local env st v url path field
+  env="$(env_of_role production)"; [[ -n "$env" ]] || die "the profile has no production environment"
+  st="$(host_status "$env")"
+  v="$(jq -r '.current.record.version // empty' <<< "$st")"
+  if [[ -z "$v" && "$(jq -r '.current // empty' <<< "$st")" == "" ]]; then
+    url="$(env_url "$env")"; path="$(pq .versions.deployed.path)"; field="$(pq .versions.deployed.field)"
+    [[ -n "$url" && -n "$path" && -n "$field" ]] || die "production has no deliver state and no health URL to read its version from"
+    run_log_event health-read "env=$env"
+    v="$(curl -fsS "$url$path" | jq -r --arg f "$field" '.[$f] // empty')" || die "cannot read production's health"
+    v="${v%%+*}"
+  fi
+  [[ -n "$v" ]] || return 1
+  printf '%s' "$v"
+}
+
+# ------------------------------------------------------------------ resolving a REF
+
+SHA=""; VERSION=""; IMAGES_JSON="{}"; RECORD_JSON=""
+
+candidate_digests() {   # SHA -> IMAGES_JSON; refuses on none, some, or a failed query
+  local img d code missing=() out="{}"
+  for img in "${IMAGES[@]}"; do
+    d=""; code=0
+    d="$(reg_digest "$CANDIDATES" "$1-$img")" || code=$?
+    case $code in
+      0) out="$(jq -c --arg i "$img" --arg d "$d" '. + {($i): $d}' <<< "$out")" ;;
+      1) missing+=("$img") ;;
+      *) gate_fail "store-query" "the registry could not be queried: ${REG_ERR:-unknown error}" ;;
+    esac
+  done
+  [[ ${#missing[@]} -eq 0 ]] || gate_fail "build-exists" "no build in candidates for ${1:0:12} (missing ${missing[*]}): run deliver build"
+  IMAGES_JSON="$out"
+}
+
+resolve_sha() {         # SHORT-or-full hex -> SHA (full) refuses if ambiguous or absent
+  local ref="$1" tags t img sha found=()
+  if [[ "${#ref}" -eq 40 ]]; then SHA="$ref"; return; fi
+  tags="$(reg_list_tags "$CANDIDATES")" || gate_fail "store-query" "cannot list candidates"
+  while read -r t; do
+    for img in "${IMAGES[@]}"; do
+      [[ "$t" == *-"$img" ]] || continue
+      sha="${t%-"$img"}"
+      [[ "$sha" == "$ref"* && "$sha" =~ ^[0-9a-f]{40}$ ]] && found+=("$sha")
+    done
+  done <<< "$tags"
+  mapfile -t found < <(printf '%s\n' "${found[@]}" | sort -u | sed '/^$/d')
+  case ${#found[@]} in
+    0) gate_fail "build-exists" "no candidate matches $ref: run deliver build" ;;
+    1) SHA="${found[0]}" ;;
+    *) gate_fail "ref-unambiguous" "$ref matches ${#found[@]} candidates: $(printf '%s ' "${found[@]}" | sed 's/ $//')" ;;
+  esac
+}
+
+# resolve_ref ROLE REF: sets SHA VERSION IMAGES_JSON RECORD_JSON.
+resolve_ref() {
+  local role="$1" ref="$2" tag code=0
+  SHA=""; VERSION=""; IMAGES_JSON="{}"; RECORD_JSON=""
+  g fetch -q --tags origin 2>/dev/null || true
+  if [[ "$ref" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    VERSION="${ref#v}"
+    tag="$(tag_for_version "$VERSION")"
+    if [[ -n "$tag" ]]; then
+      RECORD_JSON="$(record_of_tag "$tag")" || code=$?
+      if [[ $code -eq 2 ]]; then gate_fail "record" "tag $tag carries a record version this tool does not know"; fi
+    fi
+    if [[ -n "$RECORD_JSON" ]]; then
+      SHA="$(jq -r .commit <<< "$RECORD_JSON")"; IMAGES_JSON="$(jq -c .images <<< "$RECORD_JSON")"
+      return
+    fi
+    if [[ "$role" == production ]]; then
+      gate_fail "production-record" "no record for version $VERSION: production deploys only rehearsed releases (deliver release makes the record); --unrecorded takes a full SHA"
+    fi
+    [[ -n "$tag" ]] || gate_fail "ref" "no tag or record for version $VERSION"
+    SHA="$(g rev-parse "$tag^{commit}")"      # a release made before the tool: by its commit's build
+    RECORD_JSON=""
+    candidate_digests "$SHA"
+    return
+  fi
+  if [[ "$ref" =~ ^[0-9a-f]{4,40}$ ]]; then
+    if [[ "$role" == production ]]; then
+      if [[ "${#ref}" -ne 40 || -z "$OPT_UNRECORDED" ]]; then
+        gate_fail "production-record" "production takes a version with a record; a raw SHA needs --unrecorded REASON and a full SHA"
+      fi
+    fi
+    resolve_sha "$ref"
+    candidate_digests "$SHA"
+    VERSION="$(version_at "$SHA" 2>/dev/null || true)"
+    return
+  fi
+  gate_fail "ref" "$ref is neither a SHA nor a version"
+}
+OPT_UNRECORDED=""
+
+# ------------------------------------------------------------------ payload
+
+# assemble_payload TREE DIR: the deploy steps, hooks and joined files the image
+# carries at /deliver/. Nothing secret.
+assemble_payload() {
+  local tree="$1" dir="$2" f
+  rm -rf "$dir"; mkdir -p "$dir/lib" "$dir/join" "$dir/host_files" "$dir/hooks"
+  cp -R "$HERE/payload/." "$dir/"
+  cp "$DELIVER_LIB/common.sh" "$DELIVER_LIB/toml.sh" "$DELIVER_LIB/toml.awk" "$dir/lib/"
+  [[ -d "$tree/deliver/hooks" ]] && cp -R "$tree/deliver/hooks/." "$dir/hooks/"
+  toml_to_json "$tree/app-profile.toml" > "$dir/profile.json" || die "cannot read the profile at the commit"
+  local joins
+  joins="$(jq -r '[(.deliver.join // [])[], (.environments[]? | (.join // [])[])] | unique[]' "$dir/profile.json")"
+  while read -r f; do [[ -n "$f" ]] || continue
+    [[ -e "$tree/$f" ]] || die "profile joins $f, which the commit does not have"
+    (cd "$tree" && cp --parents "$f" "$dir/join/")
+  done <<< "$joins"
+  while read -r f; do [[ -n "$f" ]] || continue
+    [[ -e "$tree/$f" ]] || die "profile lists host file $f, which the commit does not have"
+    (cd "$tree" && cp --parents "$f" "$dir/host_files/")
+  done < <(jq -r '(.deliver.host_files // [])[].src' "$dir/profile.json")
+}
+
+programme_commit() {
+  local c
+  c="$(g ls-tree HEAD programme 2>/dev/null | awk '$2=="commit"{print $3}')"
+  [[ -n "$c" ]] || c="$(git -C "$HERE" rev-parse HEAD 2>/dev/null || true)"
+  printf '%s' "$c"
+}
+
+# ------------------------------------------------------------------ build
+
+cmd_build() {
+  local ref="HEAD" local_only=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --local) local_only=1; shift ;;
+      -*) die "build: unknown flag $1" ;;
+      *) ref="$1"; shift ;;
+    esac
+  done
+  DELIVER_SUBCOMMAND=build; load_profile
+  gates_expect build-commit store-query store-immutable build-labels
+  registry_require
+  local sha version tree img d code
+  sha="$(g rev-parse --verify -q "$ref^{commit}")" || gate_fail "build-commit" "$ref is not a commit"
+  if [[ $local_only -eq 1 ]]; then
+    [[ -n "$(env_of_role preview)" ]] || die "--local is for the preview role, and the profile has none"
+    gate_ok build-commit "local, unpushed (preview only)"
+  else
+    g fetch -q origin 2>/dev/null || true
+    if [[ -z "$(g branch -r --contains "$sha" 2>/dev/null | sed 's/ //g')" ]]; then
+      gate_fail "build-commit" "${sha:0:12} is not a commit on the remote: push it first"
+    fi
+    gate_ok build-commit "on the remote"
+  fi
+  local place; place="$(pq .deliver.build.on)"
+  if [[ -n "$place" && "$place" != control-node && -z "${DELIVER_ON_BUILD_HOST:-}" ]]; then
+    local fwd=(deliver build "$sha"); [[ $local_only -eq 1 ]] && fwd+=(--local)
+    exec ssh "$place" "DELIVER_ON_BUILD_HOST=1 $(printf '%q ' "${fwd[@]}")"
+  fi
+  if [[ $local_only -eq 0 ]]; then
+    login_run "$(pq .deliver.build.login)" || die "build login failed: $REG_ERR"
+  fi
+
+  # what is already stored is never rebuilt (design §6); a failed query refuses
+  local tobuild=() have="{}"
+  if [[ $local_only -eq 0 ]]; then
+    for img in "${IMAGES[@]}"; do
+      code=0; d="$(reg_digest "$CANDIDATES" "$sha-$img")" || code=$?
+      case $code in
+        0) have="$(jq -c --arg i "$img" --arg d "$d" '. + {($i): $d}' <<< "$have")" ;;
+        1) tobuild+=("$img") ;;
+        *) gate_fail "store-query" "the registry could not be queried: $REG_ERR" ;;
+      esac
+    done
+  else
+    tobuild=("${IMAGES[@]}")
+  fi
+  gate_ok store-query "answered"
+  gate_ok store-immutable "$(jq length <<< "$have") present and kept, ${#tobuild[@]} to build"
+
+  if [[ ${#tobuild[@]} -gt 0 ]]; then
+    tree="$(mktemp -d)"
+    g worktree add -q --detach "$tree" "$sha" || die "cannot make a clean worktree of ${sha:0:12}"
+    # shellcheck disable=SC2064
+    trap "g worktree remove --force '$tree' >/dev/null 2>&1; rm -rf '$tree'; _run_log_exit \$?" EXIT
+    version="$(version_in_tree "$tree")"
+    assemble_payload "$tree" "$tree/.deliver-payload"
+    export DELIVER_SHA="$sha" DELIVER_VERSION="$version" DELIVER_BUILD_IMAGES="${tobuild[*]}"
+    DELIVER_LABEL_CREATED="$(now_utc)"
+    export DELIVER_LABEL_REVISION="$sha" DELIVER_LABEL_VERSION="$version" DELIVER_LABEL_CREATED
+    export DELIVER_PAYLOAD_DIR="$tree/.deliver-payload" DELIVER_BUILD_LOCAL="$local_only"
+    for img in "${tobuild[@]}"; do
+      if [[ $local_only -eq 1 ]]; then
+        export "$(image_var "$img" | sed 's/DELIVER_IMAGE/DELIVER_BUILD_TAG/')=deliver-local/$APP-$img:$sha"
+      else
+        export "$(image_var "$img" | sed 's/DELIVER_IMAGE/DELIVER_BUILD_TAG/')=$DELIVER_REGISTRY/$CANDIDATES:$sha-$img"
+      fi
+    done
+    run_log_event build-start "sha=$sha" "images=${tobuild[*]}"
+    if [[ -x "$tree/deliver/hooks/build" ]]; then
+      (cd "$tree" && ./deliver/hooks/build) || die "the build hook failed"
+    else
+      local args=(buildx bake) set_args=()
+      for img in "${tobuild[@]}"; do
+        local tagvar; tagvar="$(image_var "$img" | sed 's/DELIVER_IMAGE/DELIVER_BUILD_TAG/')"
+        set_args+=(--set "$img.tags=${!tagvar}" --set "$img.labels.org.opencontainers.image.revision=$sha"
+                   --set "$img.labels.org.opencontainers.image.version=$version"
+                   --set "$img.labels.org.opencontainers.image.created=$DELIVER_LABEL_CREATED")
+      done
+      [[ $local_only -eq 1 ]] && args+=(--load) || args+=(--push)
+      (cd "$tree" && docker "${args[@]}" "${tobuild[@]}" "${set_args[@]}") || die "docker buildx bake failed"
+    fi
+  fi
+
+  if [[ $local_only -eq 1 ]]; then
+    for img in "${tobuild[@]}"; do
+      local id; id="$(docker image inspect "deliver-local/$APP-$img:$sha" --format '{{.Id}}' 2>/dev/null)" || die "the build left no local image $img"
+      printf '%s %s\n' "$img" "$id"
+    done
+    gate_ok build-labels "local build, labels not read"
+    gates_finish; return 0
+  fi
+
+  # the labels are the claim a deploy later checks: read them back
+  local out="$have"
+  for img in "${tobuild[@]}"; do
+    local json; json="$(reg_inspect "$CANDIDATES" "$sha-$img")" || gate_fail "build-labels" "$img was not pushed"
+    [[ "$(jq -r '.Labels["org.opencontainers.image.revision"] // empty' <<< "$json")" == "$sha" ]] \
+      || gate_fail "build-labels" "$img does not carry the revision label $sha"
+    out="$(jq -c --arg i "$img" --arg d "$(jq -r .Digest <<< "$json")" '. + {($i): $d}' <<< "$out")"
+  done
+  gate_ok build-labels "revision label equals the commit"
+  for img in "${IMAGES[@]}"; do printf '%s %s\n' "$img" "$(jq -r --arg i "$img" '.[$i]' <<< "$out")"; done
+  gates_finish
+}
+
+version_in_tree() {   # TREE -> version from the profile's version file in a checked-out tree
+  local file pattern
+  file="$(pq .versions.app.file)"; pattern="$(pq .versions.app.pattern)"
+  jq -Rrs --arg p "$pattern" 'try (match($p).captures[0].string) catch empty' < "$1/$file"
+}
+
+# ------------------------------------------------------------------ deploy
+
+cmd_deploy() {
+  local env="" ref="" off_level=""
+  while [[ $# -gt 0 ]]; do
+    parse_common_flag "$@" && { shift "$PARSED"; continue; }
+    case "$1" in
+      --unrecorded) reason_ok "${2:-}" || die "--unrecorded needs a reason"; OPT_UNRECORDED="$2"; OVERRIDES+=("unrecorded"$'\t'"$2"); shift 2 ;;
+      --off-level)  reason_ok "${2:-}" || die "--off-level needs a reason"; off_level="$2"; OVERRIDES+=("off-level"$'\t'"$2"); shift 2 ;;
+      -*) die "deploy: unknown flag $1" ;;
+      *) if [[ -z "$env" ]]; then env="$1"; elif [[ -z "$ref" ]]; then ref="$1"; else die "deploy: too many arguments"; fi; shift ;;
+    esac
+  done
+  [[ -n "$env" && -n "$ref" ]] || die "usage: deliver deploy ENV REF"
+  DELIVER_SUBCOMMAND=deploy; load_profile
+  registry_require
+  env_exists "$env" || die "the profile has no environment $env"
+  local role; role="$(env_role "$env")"
+  case "$role" in preview|test|rehearsal|production) ;; *) die "environment $env has an unknown role $role" ;; esac
+  run_log_event deploy "env=$env" "role=$role" "ref=$ref"
+  local sa; for sa in "${SET_ASIDE[@]}"; do run_log_event override "flag=set-aside:${sa%%$'\t'*}" "reason=${sa#*$'\t'}"; done
+  [[ -z "$OPT_UNRECORDED" ]] || run_log_event override "flag=unrecorded" "reason=$OPT_UNRECORDED"
+  [[ -z "$OPT_UNRECORDED" || "$role" == production ]] || die "--unrecorded is for the production role"
+  [[ -z "$off_level" || "$role" == rehearsal ]] || die "--off-level is for the rehearsal role"
+
+  local expected=(ref)
+  [[ "$role" == production ]] && expected+=(production-record)
+  [[ "$role" == rehearsal ]] && expected+=(rehearsal-level)
+  expected+=(lock state digests hooks-present pre-deploy)
+  [[ $OPT_CHECK -eq 0 ]] && expected+=(smoke)
+  gates_expect "${expected[@]}"
+
+  # resolve the REF to digests, checked against the role
+  local local_build=0 local_images="{}"
+  if [[ "$role" == preview ]] && [[ "$(env_q "$env" host)" == control-node ]] && ! [[ "$ref" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    local lsha; lsha="$(g rev-parse --verify -q "$ref^{commit}" 2>/dev/null || true)"
+    if [[ -n "$lsha" ]] && docker image inspect "deliver-local/$APP-${IMAGES[0]}:$lsha" >/dev/null 2>&1; then
+      local_build=1; SHA="$lsha"; VERSION="$(version_at "$SHA" 2>/dev/null || true)"; RECORD_JSON=""
+      local img; for img in "${IMAGES[@]}"; do
+        local_images="$(jq -c --arg i "$img" --arg d "$(docker image inspect "deliver-local/$APP-$img:$SHA" --format '{{.Id}}')" '. + {($i): $d}' <<< "$local_images")"
+      done
+      IMAGES_JSON="$local_images"
+    fi
+  fi
+  if [[ $local_build -eq 0 ]]; then
+    resolve_ref "$role" "$ref"
+  fi
+  gate_ok ref "resolved ${SHA:0:12} ${VERSION:+(version $VERSION)}"
+
+  if [[ "$role" == production ]]; then
+    if [[ -n "$RECORD_JSON" ]]; then
+      local img d
+      for img in "${IMAGES[@]}"; do
+        d="$(jq -r --arg i "$img" '.images[$i] // empty' <<< "$RECORD_JSON")"
+        [[ -n "$d" ]] || gate_fail "production-record" "the record names no image $img"
+        reg_inspect "$RELEASES" "$d" >/dev/null || gate_fail "production-record" "the record's $img digest is not in releases"
+      done
+      gate_ok production-record "record for $VERSION"
+    else
+      # --unrecorded: the release copier puts SHA-IMAGE into releases; no version is spent
+      if [[ $OPT_CHECK -eq 0 ]]; then
+        copy_to_releases "$SHA" "$SHA" || gate_fail "production-record" "the copy to releases failed: $REG_ERR"
+      fi
+      gate_ok production-record "unrecorded: $OPT_UNRECORDED"
+    fi
+  fi
+
+  [[ "$role" == rehearsal ]] && rehearsal_level_gate "$env" "$off_level"
+
+  local source_repo="$CANDIDATES"; [[ "$role" == production ]] && source_repo="$RELEASES"
+  local request
+  request="$(jq -nc --arg app "$APP" --arg env "$env" --arg role "$role" --arg sha "$SHA" --arg version "$VERSION" \
+    --argjson images "$IMAGES_JSON" --arg repo "$source_repo" --arg login "$(env_q "$env" login)" \
+    --arg timeout "$(env_q "$env" pull_timeout)" --arg lock "$(env_q "$env" lock)" --arg payload "$PAYLOAD_IMAGE" \
+    --arg project "$(env_q "$env" project)" --arg wait "$OPT_WAIT" --argjson check "$OPT_CHECK" \
+    --argjson local "$local_build" --argjson record "${RECORD_JSON:-null}" \
+    --argjson set_aside "$(printf '%s\n' "${SET_ASIDE[@]}" | jq -Rn '[inputs | select(length>0) | split("\t") | {gate: .[0], reason: .[1]}]')" \
+    --argjson host_files "$(case "$(env_q "$env" host_files)" in true) echo true ;; false) echo false ;; *) echo null ;; esac)" \
+    --argjson join "$(env_qa "$env" join | jq -Rn '[inputs]')" \
+    '{app:$app,env:$env,role:$role,sha:$sha,version:$version,images:$images,repo:$repo,login:$login,
+      pull_timeout:($timeout|if .=="" then null else tonumber end),lock:$lock,payload_image:$payload,project:$project,
+      wait:($wait|if .=="" then null else tonumber end),check:($check==1),local:($local==1),record:$record,
+      set_aside:$set_aside,host_files:$host_files,env_join:$join}')"
+
+  # the hooks that run on the control node come from the commit, never the tree
+  local errfile code=0
+  errfile="$(mktemp)"
+  run_on_host "$env" deploy "$APP" "$env" <<< "$request" 2>"$errfile" || code=$?
+  replay_host_stderr "$errfile"; rm -f "$errfile"
+  if [[ $code -ne 0 ]]; then
+    run_log_event deploy-failed "code=$code"
+    exit 1
+  fi
+  if [[ $OPT_CHECK -eq 1 ]]; then gates_finish; say "check: every gate passed; nothing changed"; return 0; fi
+  gates_finish
+
+  local final=0
+  if [[ "$role" == production && -n "$RECORD_JSON" ]]; then
+    settle_version "$VERSION" || final=$EXIT_PARTIAL
+  fi
+  run_post_deploy "$env" "$role" || true
+  exit "$final"
+}
+
+# the host's gate lines (`@gate NAME result`) go into this run's log and out of the screen
+replay_host_stderr() {
+  local line name res
+  while IFS= read -r line; do
+    if [[ "$line" == "@gate "* ]]; then
+      read -r _ name res _ <<< "$line"
+      GATES_RAN+=("$name"); run_log_event gate "name=$name" "result=$res" "where=host"
+    else
+      printf '%s\n' "$line" >&2
+    fi
+  done < "$1"
+}
+
+run_post_deploy() {   # ENV ROLE: the check hook, from the commit; its failure is reported only
+  local tmp; tmp="$(mktemp -d)"
+  if g cat-file -e "$SHA^{commit}" 2>/dev/null && g archive "$SHA" deliver/hooks 2>/dev/null | tar -x -C "$tmp" 2>/dev/null; then
+    H_APP="$APP" H_ENV="$1" H_ROLE="$2" H_SHA="$SHA" H_VERSION="$VERSION" H_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/deliver/$APP" \
+      H_IMAGES="$(jq -r 'to_entries[] | "\(.key)=\(.value)"' <<< "$IMAGES_JSON")"
+    HOOKS_DIR="$tmp/deliver/hooks"
+    local code=0; hook_run post-deploy || code=$?
+    if [[ $code -ne 0 ]]; then warn "check post-deploy reported exit $code (the deploy stands)"; run_log_event check-failed "name=post-deploy" "code=$code"; fi
+  fi
+  rm -rf "$tmp"
+}
+
+# copy_to_releases SRC_TAG_SHA DST_TAG_PREFIX: each image by digest into releases as PREFIX-IMAGE.
+copy_to_releases() {
+  local src="$1" prefix="$2" img d have dest
+  for img in "${IMAGES[@]}"; do
+    d="$(jq -r --arg i "$img" '.[$i]' <<< "$IMAGES_JSON")"
+    dest="$prefix-$img"
+    have="$(reg_digest "$RELEASES" "$dest")" && { [[ "$have" == "$d" ]] && continue; REG_ERR="releases already holds $dest with another digest"; return 1; }
+    reg_copy "$CANDIDATES" "$d" "$RELEASES" "$dest" >/dev/null || return 1
+  done
+  : "$src"
+}
+
+rehearsal_level_gate() {
+  local env="$1" off="$2" st made_unix made first=1 prod_env pst rec
+  st="$(host_status "$env")"
+  made_unix="$(release_tags | while read -r t; do [[ -n "$t" ]] && g for-each-ref "refs/tags/$t" --format='%(creatordate:unix)'; done | sort -n | tail -1)"
+  made="1970-01-01T00:00:00Z"; [[ -n "$made_unix" ]] && made="$(date -u -d "@$made_unix" +%Y-%m-%dT%H:%M:%SZ)"
+  if jq -e --arg m "$made" '[.deploys[]? | select(.deployed >= $m)] | length > 0' >/dev/null <<< "$st"; then first=0; fi
+  if [[ $first -eq 0 ]]; then gate_ok rehearsal-level "a later deploy of the cycle"; return; fi
+  if [[ -n "$off" ]]; then gate_ok rehearsal-level "off level: $off"; run_log_event override "flag=off-level" "reason=$off"; return; fi
+  prod_env="$(env_of_role production)"; [[ -n "$prod_env" ]] || gate_fail rehearsal-level "the profile has no production environment to start from"
+  pst="$(host_status "$prod_env")"
+  [[ "$(jq -r '.current // empty' <<< "$pst")" != "" ]] || gate_fail rehearsal-level "production has no deliver state; a first cycle needs --off-level REASON"
+  rec="$(jq -c '.current.record // empty' <<< "$pst")"
+  [[ -n "$rec" ]] || gate_fail rehearsal-level "production runs a build with no record (deployed before the tool); needs --off-level REASON"
+  if jq -e --argjson want "$(jq -c .images <<< "$rec")" --argjson have "$IMAGES_JSON" '$want == $have' >/dev/null <<< "null"; then
+    gate_ok rehearsal-level "starts from production's record $(jq -r .version <<< "$rec")"
+  else
+    gate_fail rehearsal-level "a cycle starts from production's current record ($(jq -r .version <<< "$rec")); this deploy is not it. Use --off-level REASON"
+  fi
+}
+
+# ------------------------------------------------------------------ rollback, status, list
+
+cmd_rollback() {
+  [[ $# -eq 1 ]] || die "usage: deliver rollback ENV"
+  local env="$1"; DELIVER_SUBCOMMAND=rollback; load_profile
+  registry_require
+  env_exists "$env" || die "the profile has no environment $env"
+  local role; role="$(env_role "$env")"
+  gates_expect lock rollback-target
+  local request errfile code=0
+  request="$(jq -nc --arg app "$APP" --arg env "$env" --arg role "$role" --arg login "$(env_q "$env" login)" \
+    --arg repo "$([[ $role == production ]] && echo "$RELEASES" || echo "$CANDIDATES")" --arg lock "$(env_q "$env" lock)" \
+    --arg timeout "$(env_q "$env" pull_timeout)" --arg project "$(env_q "$env" project)" --arg wait "$OPT_WAIT" \
+    '{app:$app,env:$env,role:$role,login:$login,repo:$repo,lock:$lock,project:$project,pull_timeout:($timeout|if .=="" then null else tonumber end),wait:($wait|if .=="" then null else tonumber end)}')"
+  errfile="$(mktemp)"
+  run_on_host "$env" rollback "$APP" "$env" <<< "$request" 2>"$errfile" || code=$?
+  replay_host_stderr "$errfile"; rm -f "$errfile"
+  [[ $code -eq 0 ]] || exit 1
+  gates_finish
+}
+
+cmd_status() {
+  [[ $# -eq 1 ]] || die "usage: deliver status ENV"
+  local env="$1"; DELIVER_SUBCOMMAND=status; load_profile
+  env_exists "$env" || die "the profile has no environment $env"
+  gates_expect
+  g fetch -q --tags origin 2>/dev/null || true
+  local st; st="$(host_status "$env")"
+  say "environment: $env ($(env_role "$env"))"
+  say "state: $(jq -r '.state // "none (no deliver deploy yet)"' <<< "$st")"
+  if [[ "$(jq -r '.current // empty' <<< "$st")" == "" ]]; then say "current: none"; return 0; fi
+  say "current: deploy $(jq -r .current.n <<< "$st") commit $(jq -r .current.sha <<< "$st") version $(jq -r '.current.version // "-"' <<< "$st")"
+  jq -r '.current.images | to_entries[] | "image \(.key) \(.value)"' <<< "$st"
+  local running; running="$(jq -r '(.running // []) | join(" ")' <<< "$st")"
+  local want; want="$(jq -r '.current.images | [.[]] | sort | join(" ")' <<< "$st")"
+  if [[ "$(printf '%s\n' $running | sort | tr '\n' ' ' | sed 's/ $//')" == "$want" ]]; then say "running: the current digests"; else say "running: DIFFERS from the current digests ($running)"; fi
+  local rec t match=""
+  while read -r t; do
+    [[ -n "$t" ]] || continue
+    rec="$(record_of_tag "$t" 2>/dev/null)" || continue
+    if jq -e --argjson cur "$(jq -c .current.images <<< "$st")" '.images == $cur' >/dev/null <<< "$rec"; then match="$(jq -r .version <<< "$rec")"; fi
+  done < <(release_tags)
+  say "record: ${match:-none matches}"
+  jq -r '(.host_files // [])[] | "host file \(.dest): \(.status)"' <<< "$st"
+}
+
+cmd_list() {
+  [[ $# -eq 1 ]] || die "usage: deliver list ENV"
+  local env="$1"; DELIVER_SUBCOMMAND=list; load_profile
+  env_exists "$env" || die "the profile has no environment $env"
+  gates_expect
+  g fetch -q --tags origin 2>/dev/null || true
+  local st cur t rec mark; st="$(host_status "$env")"; cur="$(jq -c '.current.images // {}' <<< "$st")"
+  while read -r t; do
+    [[ -n "$t" ]] || continue
+    mark=""
+    if rec="$(record_of_tag "$t" 2>/dev/null)"; then
+      jq -e --argjson cur "$cur" '.images == $cur' >/dev/null <<< "$rec" && mark="  <- $env runs this"
+      printf '%s  %s  %s%s\n' "$(jq -r .version <<< "$rec")" "$(jq -r '.commit[0:12]' <<< "$rec")" "$(jq -r '.made' <<< "$rec")" "$mark"
+    else
+      printf '%s  (history: no record)\n' "$(tag_version "$t")"
+    fi
+  done < <(release_tags | sort -V)
+}
+
+# ------------------------------------------------------------------ release
+
+OPT_EXPECT=""; OPT_COMMIT=""; OPT_EMERGENCY=""; OPT_SKIP=""
+
+cmd_release() {
+  while [[ $# -gt 0 ]]; do
+    parse_common_flag "$@" && { shift "$PARSED"; continue; }
+    case "$1" in
+      --expect) OPT_EXPECT="${2:-}"; shift 2 ;;
+      --commit) OPT_COMMIT="${2:-}"; shift 2 ;;
+      --emergency) reason_ok "${2:-}" || die "--emergency needs a reason"; OPT_EMERGENCY="$2"; OVERRIDES+=("emergency"$'\t'"$2"); shift 2 ;;
+      --skip-rehearsal) reason_ok "${2:-}" || die "--skip-rehearsal needs a reason"; OPT_SKIP="$2"; OVERRIDES+=("skip-rehearsal"$'\t'"$2"); shift 2 ;;
+      *) die "release: unknown argument $1" ;;
+    esac
+  done
+  DELIVER_SUBCOMMAND=release; load_profile
+  registry_require
+  gh_repo_slug || die "cannot tell the GitHub repository (set DELIVER_GH_REPO=owner/name)"
+  [[ -n "$OPT_EMERGENCY" ]] && run_log_event override "flag=emergency" "reason=$OPT_EMERGENCY"
+  [[ -n "$OPT_SKIP" ]] && run_log_event override "flag=skip-rehearsal" "reason=$OPT_SKIP"
+  local sr; for sr in "${SET_ASIDE[@]}"; do run_log_event override "flag=set-aside:${sr%%$'\t'*}" "reason=${sr#*$'\t'}"; done
+  local expected=(rehearsal-passed on-main emergency-descent ci-passed version-spent-once milestone release-check)
+  gates_expect "${expected[@]}"
+
+  g fetch -q --tags origin 2>/dev/null || true
+  local renv rst
+  renv="$(env_of_role rehearsal)"; [[ -n "$renv" ]] || die "the profile has no rehearsal-role environment"
+  rst="$(host_status "$renv")"
+
+  # the commit: what rehearsal runs, unless named (needed when rehearsal is skipped)
+  SHA="${OPT_COMMIT:+$(g rev-parse --verify -q "$OPT_COMMIT^{commit}")}"
+  if [[ -z "$SHA" && -n "$OPT_COMMIT" ]]; then die "--commit $OPT_COMMIT is not a commit"; fi
+  if [[ -z "$SHA" ]]; then SHA="$(jq -r '.current.sha // empty' <<< "$rst")"; fi
+  if [[ -z "$SHA" ]]; then
+    gate_fail rehearsal-passed "$renv has never deployed: nothing to release (name a commit with --commit and --skip-rehearsal REASON)"
+  fi
+  g cat-file -e "$SHA^{commit}" 2>/dev/null || die "commit ${SHA:0:12} is not in this repository"
+  VERSION="$(version_at "$SHA")"; [[ -n "$VERSION" ]] || die "cannot read the version at ${SHA:0:12}"
+  candidate_digests "$SHA"
+
+  # rehearsal passed this commit
+  if [[ -n "$OPT_SKIP" ]]; then
+    gate_ok rehearsal-passed "skipped: $OPT_SKIP"
+  else
+    jq -e --arg sha "$SHA" --argjson images "$IMAGES_JSON" \
+      '.state == "finished" and .current.sha == $sha and .current.images == $images and .current.smoke == "passed"' >/dev/null <<< "$rst" \
+      || gate_fail rehearsal-passed "$renv does not show this commit deployed, finished, with its smoke test passed (state $(jq -r '.state // "none"' <<< "$rst"), runs $(jq -r '.current.sha[0:12] // "nothing"' <<< "$rst"))"
+    gate_ok rehearsal-passed "$renv ran ${SHA:0:12}"
+  fi
+
+  # the commit's place in history
+  local prev; prev="$(nearest_release_tag "$SHA")"
+  local range_arg=("$SHA"); [[ -n "$prev" ]] && range_arg=("$prev..$SHA")
+  local main_range=("origin/main"); [[ -n "$prev" ]] && main_range=("$prev..origin/main")
+  local resuming=0 tag="$TAG_PREFIX$VERSION"
+  if [[ -n "$(g tag --list "$tag")" ]]; then resuming=1; fi
+
+  if [[ -z "$OPT_EMERGENCY" ]]; then
+    if g merge-base --is-ancestor "$SHA" origin/main 2>/dev/null; then gate_ok on-main "on origin/main"
+    else gate_fail on-main "${SHA:0:12} is not on origin/main (a commit off main needs --emergency REASON)"; fi
+    gate_ok emergency-descent "not an emergency"
+  else
+    local pv ptag
+    pv="$(production_version)" || gate_fail emergency-descent "cannot tell which release production runs"
+    ptag="$(tag_for_version "$pv")"
+    [[ -n "$ptag" ]] || gate_fail emergency-descent "no tag for production's release $pv"
+    g merge-base --is-ancestor "$ptag^{commit}" "$SHA" || gate_fail emergency-descent "${SHA:0:12} does not descend from $ptag, the release production runs"
+    local both
+    both="$(comm -12 <(g rev-list "$ptag..$SHA" | sort) <(g rev-list "$ptag..origin/main" | sort))"
+    [[ -z "$both" ]] || gate_fail emergency-descent "$(wc -l <<< "$both") commit(s) after $ptag are on main: an emergency ships nothing unreleased"
+    gate_ok on-main "emergency: not required"
+    gate_ok emergency-descent "cut from $ptag"
+    prev="$ptag"; range_arg=("$ptag..$SHA"); main_range=("$ptag..origin/main")
+  fi
+
+  # CI
+  local checks check conclusion
+  checks="$(gh_check_runs "$SHA")" || gate_fail ci-passed "cannot read the checks on ${SHA:0:12}"
+  for check in "${REQUIRED_CHECKS_A[@]}"; do
+    conclusion="$(jq -r --arg c "$check" '[.check_runs[] | select(.name == $c)] | if length == 0 then "missing" else (.[0].conclusion // "pending") end' <<< "$checks")"
+    [[ "$conclusion" == success ]] || gate_fail ci-passed "check $check is $conclusion on ${SHA:0:12}"
+  done
+  gate_ok ci-passed "${REQUIRED_CHECKS_A[*]:-no checks required}"
+
+  # the version is spent once, and moves forward
+  local newest
+  if [[ $resuming -eq 0 ]]; then
+    [[ -z "$(g tag --list "$tag")" ]] || gate_fail version-spent-once "tag $tag exists"
+    local rcode=0; reg_inspect "$RELEASES" "$VERSION-record" >/dev/null || rcode=$?
+    if [[ $rcode -eq 0 ]]; then
+      # a record left by an earlier failed run is reused when it is this release's
+      local old; old="$(record_pull "$RELEASES" "$VERSION-record")" || gate_fail version-spent-once "cannot read the $VERSION-record in releases"
+      [[ "$(jq -r .commit <<< "$old")" == "$SHA" && "$(jq -c .images <<< "$old")" == "$IMAGES_JSON" ]] \
+        || gate_fail version-spent-once "releases holds a $VERSION-record for another commit or other digests"
+    elif [[ $rcode -ne 1 ]]; then gate_fail version-spent-once "the registry could not be queried"; fi
+    newest="$(newest_version_tag)"
+    if [[ -n "$newest" ]] && ! semver_gt "$VERSION" "$newest"; then
+      gate_fail version-spent-once "version $VERSION is not higher than the newest release tag $newest"
+    fi
+    gate_ok version-spent-once "$VERSION is new and higher${newest:+ than $newest}"
+  else
+    local trec
+    trec="$(record_of_tag "$tag")" || gate_fail version-spent-once "tag $tag exists without a record this tool can read"
+    [[ "$(jq -r .commit <<< "$trec")" == "$SHA" && "$(jq -c .images <<< "$trec")" == "$IMAGES_JSON" ]] \
+      || gate_fail version-spent-once "tag $tag holds a different record (commit $(jq -r '.commit[0:12]' <<< "$trec")): refusing to resume"
+    gate_ok version-spent-once "resuming $tag"
+  fi
+
+  # the milestone is a shipping list
+  CARRIES_WP="[]"; CARRIES_ISSUES="[]"; LEFT_OUT="[]"
+  if [[ $resuming -eq 1 ]]; then
+    CARRIES_WP="$(jq -c '.carries.work_packages' <<< "$trec")"; CARRIES_ISSUES="$(jq -c '.carries.issues' <<< "$trec")"
+    gate_ok milestone "resuming: carried as recorded"
+    gate_ok release-check "resuming"
+  else
+    milestone_gate "$VERSION" "${range_arg[*]}" "${main_range[*]}"
+    # the application's own rules
+    local tmp; tmp="$(mktemp -d)"
+    g archive "$SHA" deliver/hooks 2>/dev/null | tar -x -C "$tmp" 2>/dev/null || true
+    H_APP="$APP" H_ENV="release" H_ROLE="control-node" H_SHA="$SHA" H_VERSION="$VERSION" H_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/deliver/$APP"
+    H_IMAGES="$(jq -r 'to_entries[] | "\(.key)=\(.value)"' <<< "$IMAGES_JSON")"
+    HOOKS_DIR="$tmp/deliver/hooks"
+    hook_gate release-check
+    rm -rf "$tmp"
+  fi
+
+  gates_finish
+  local made rehearsal_json emergency_json skipped_json
+  made="$(now_utc)"
+  local rfile="${XDG_STATE_HOME:-$HOME/.local/state}/deliver/$APP/release-$VERSION.json"
+  if [[ -f "$rfile" ]] && [[ "$(jq -r .commit "$rfile")" == "$SHA" ]]; then made="$(jq -r .made "$rfile")"; fi
+  rehearsal_json="$(jq -c '{environment: "'"$renv"'", deployed: (.current.deployed // null), smoke: (.current.smoke // null)}' <<< "$rst")"
+  [[ -n "$OPT_SKIP" ]] && skipped_json="$(jq -nc --arg r "$OPT_SKIP" '$r')" || skipped_json=null
+  [[ -n "$OPT_EMERGENCY" ]] && emergency_json="$(jq -nc --arg r "$OPT_EMERGENCY" '$r')" || emergency_json=null
+  local used="[]"
+  [[ ${#SET_ASIDE_USED[@]} -gt 0 ]] && used="$(printf '%s\n' "${SET_ASIDE_USED[@]}" | jq -Rn '[inputs | split("\t") | {gate: .[0], reason: .[1]}]')"
+  RECORD="$(jq -nc --arg app "$APP" --arg v "$VERSION" --arg sha "$SHA" --argjson images "$IMAGES_JSON" --arg made "$made" \
+    --argjson rehearsal "$rehearsal_json" --argjson emergency "$emergency_json" --argjson skipped "$skipped_json" \
+    --argjson aside "$used" --arg prog "$(programme_commit)" --argjson wps "$CARRIES_WP" --argjson iss "$CARRIES_ISSUES" \
+    '{record:1,application:$app,version:$v,commit:$sha,images:$images,made:$made,rehearsal:$rehearsal,
+      emergency:$emergency,rehearsal_skipped:$skipped,set_aside:$aside,tool:{programme:$prog},
+      carries:{work_packages:$wps,issues:$iss}}')"
+
+  # the owner confirms
+  say "release $VERSION of $APP"
+  say "  commit:   $SHA"
+  jq -r 'to_entries[] | "  image:    \(.key) \(.value)"' <<< "$IMAGES_JSON"
+  say "  rehearsal: $(jq -r '"\(.environment) deployed \(.deployed // "never"), smoke \(.smoke // "none")"' <<< "$rehearsal_json")"
+  [[ -n "$OPT_EMERGENCY" ]] && say "  EMERGENCY: $OPT_EMERGENCY"
+  [[ -n "$OPT_SKIP" ]] && say "  REHEARSAL SKIPPED: $OPT_SKIP"
+  if [[ $OPT_CHECK -eq 1 ]]; then say "check: every release gate passed; nothing changed"; return 0; fi
+  if [[ -n "$OPT_EXPECT" ]]; then
+    [[ "$OPT_EXPECT" == "$VERSION" ]] || { warn "refused: --expect $OPT_EXPECT but the release is $VERSION"; exit 1; }
+  else
+    printf 'type the version to release it: ' >&2
+    local typed=""; IFS= read -r typed || true
+    [[ "$typed" == "$VERSION" ]] || { warn "refused: confirmation \"$typed\" is not $VERSION"; exit 1; }
+  fi
+  run_log_event confirmed "version=$VERSION"
+  mkdir -p "$(dirname "$rfile")"; printf '%s\n' "$RECORD" > "$rfile"
+
+  release_steps "$prev"
+}
+
+# milestone_gate VERSION RANGE... : the milestone is a shipping list (design §6).
+milestone_gate() {
+  local version="$1" erange="$2" emain_range="$3" items
+  if set_aside_requested milestone; then
+    if gate_set_aside milestone; then milestone_carries "$version"; return; fi
+    gate_fail milestone "the profile does not list milestone in [release].overridable"
+  fi
+  local ev emain
+  # shellcheck disable=SC2086
+  ev="$(refs_in $erange | jq -Rn '[inputs | tonumber]')"
+  # shellcheck disable=SC2086
+  emain="$(refs_in $emain_range | jq -Rn '[inputs | tonumber]')"
+  items="$(gh_milestone_items "$version")" || gate_fail milestone "cannot read milestone $version"
+  if [[ "$items" == null ]]; then
+    items="[]"
+  fi
+  # an open issue not evidenced by a commit in the release (parents aside)
+  local unevidenced
+  unevidenced="$(jq -c --argjson ev "$ev" --argjson em "$emain" --argjson emergency "$([[ -n "$OPT_EMERGENCY" ]] && echo true || echo false)" '
+    . as $all | map(select(.subs == 0)) | map(. as $i | select(
+      (($ev | index($i.number)) == null) and
+      (((($i.parent != null) and (($ev | index($i.parent)) != null) and (($all | map(select(.parent == $i.parent)) | length) == 1))) | not)))
+    | {left_out: (if $emergency then map(select(($em | index(.number)) != null) | .number) else [] end),
+       refused: (map(select(($emergency | not) or (($em | index(.number)) == null)) | .number))}' <<< "$items")"
+  local refused; refused="$(jq -r '.refused | map("#\(.)") | join(" ")' <<< "$unevidenced")"
+  [[ -z "$refused" ]] || gate_fail milestone "open in milestone $version but no commit in the release says Refs: $refused"
+
+  # every Production Release work package the commits name must be in the milestone
+  local n info absent_wps=""
+  for n in $(jq -r '.[]' <<< "$ev"); do
+    info="$(gh_issue_info "$n")" || gate_fail milestone "cannot read #$n"
+    [[ "$info" != null ]] || continue
+    if jq -e --arg v "$version" '.type == "Project" and .subs == 0 and .route == "Production Release" and .milestone != $v' >/dev/null <<< "$info"; then
+      absent_wps+="#$n "
+    fi
+  done
+  [[ -z "$absent_wps" ]] || gate_fail milestone "work package(s) ${absent_wps}name Route Production Release in the release's commits but are not in milestone $version"
+  LEFT_OUT="$(jq -c .left_out <<< "$unevidenced")"
+  CARRIES_WP="$(jq -c --argjson lo "$LEFT_OUT" '[.[] | select(.subs == 0 and .type == "Project" and ((.number | IN($lo[])) | not)) | .number] | sort' <<< "$items")"
+  CARRIES_ISSUES="$(jq -c --argjson lo "$LEFT_OUT" '[.[] | select(.subs == 0 and .type != "Project" and ((.number | IN($lo[])) | not)) | .number] | sort' <<< "$items")"
+  gate_ok milestone "carries work packages $CARRIES_WP and issues $CARRIES_ISSUES"
+}
+
+milestone_carries() {   # set aside: the milestone's open items are carried as they stand
+  local items; items="$(gh_milestone_items "$1")" || die "cannot read milestone $1"
+  [[ "$items" != null ]] || items="[]"
+  CARRIES_WP="$(jq -c '[.[] | select(.subs == 0 and .type == "Project") | .number] | sort' <<< "$items")"
+  CARRIES_ISSUES="$(jq -c '[.[] | select(.subs == 0 and .type != "Project") | .number] | sort' <<< "$items")"
+}
+
+# the steps, in the order of design §7: what cannot be undone comes last
+release_steps() {
+  local prev="$1" tag="$TAG_PREFIX$VERSION" img d have failed=() done_all=1 rfile rec_file
+  rec_file="$(mktemp)"; printf '%s\n' "$RECORD" > "$rec_file"
+  if [[ -z "$(g tag --list "$tag")" ]]; then
+    done_all=0
+    # 2. copy each image by digest to releases (a copy already there is a no-op)
+    for img in "${IMAGES[@]}"; do
+      d="$(jq -r --arg i "$img" '.[$i]' <<< "$IMAGES_JSON")"
+      have=""; local c=0; have="$(reg_digest "$RELEASES" "$VERSION-$img")" || c=$?
+      if [[ $c -eq 0 ]]; then
+        [[ "$have" == "$d" ]] || { warn "refused: releases holds $VERSION-$img with another digest"; exit 1; }
+        continue
+      fi
+      [[ $c -eq 1 ]] || { warn "refused: the registry could not be queried: $REG_ERR"; exit 1; }
+      local place; place="$(pq .deliver.release.copy_on)"
+      login_run "$(pq .deliver.release.copy_login)" || { warn "refused: copy login failed: $REG_ERR"; exit 1; }
+      reg_copy "$CANDIDATES" "$d" "$RELEASES" "$VERSION-$img" >/dev/null || { warn "refused: the copy to releases failed: $REG_ERR"; exit 1; }
+    done
+    run_log_event step "name=copy" "result=done"
+    # 3. the record as a scratch image
+    local rc=0; reg_inspect "$RELEASES" "$VERSION-record" >/dev/null || rc=$?
+    if [[ $rc -eq 1 ]]; then
+      record_push "$RELEASES" "$VERSION-record" "$rec_file" || { warn "refused: pushing the record failed: $REG_ERR"; exit 1; }
+    elif [[ $rc -ne 0 ]]; then warn "refused: the registry could not be queried"; exit 1; fi
+    run_log_event step "name=record" "result=done"
+    # 4. the annotated tag, whose message is the record: the version is spent here
+    g tag -a -F "$rec_file" "$tag" "$SHA" || { warn "refused: cannot make tag $tag"; exit 1; }
+    if ! g push -q origin "refs/tags/$tag" 2>/dev/null; then
+      g tag -d "$tag" >/dev/null 2>&1
+      warn "refused: cannot push tag $tag"; exit 1
+    fi
+    run_log_event step "name=tag" "result=done"
+  fi
+  rm -f "$rec_file"
+
+  # from here on the version is spent: a failure is reported, exit 3, and a rerun resumes
+  if [[ -n "$OPT_SKIP" ]]; then
+    local mark="deliver: rehearsal skipped for $VERSION"
+    gh_issue_create "Retrospective: $VERSION released with rehearsal skipped" \
+      "Release $VERSION ($SHA) was made with --skip-rehearsal. Reason: $OPT_SKIP. Skipped: rehearsal of this commit and the smoke test the release gate reads. $mark" \
+      || failed+=("retrospective issue")
+  fi
+  # 5. the GitHub Release, notes from the previous release tag of any prefix
+  if gh_release_exists "$tag"; then :; else
+    done_all=0
+    gh_release_create "$tag" "$prev" || failed+=("GitHub Release")
+  fi
+  # 6. bump main
+  if bump_main; then :; else failed+=("bump main"); fi
+  # 7. the next milestone, and the open issues an emergency leaves moving with it
+  local next; next="$(next_patch "$VERSION")"
+  if [[ -z "$(gh_milestone_number "$next")" ]]; then done_all=0; gh_milestone_create "$next" || failed+=("next milestone"); fi
+  if [[ -n "$OPT_EMERGENCY" && "$(jq -r 'length' <<< "$LEFT_OUT")" -gt 0 ]]; then
+    local n mn; mn="$(gh_milestone_number "$next")"
+    for n in $(jq -r '.[]' <<< "$LEFT_OUT"); do gh_issue_set_milestone "$n" "$mn" || failed+=("move #$n"); done
+  fi
+  if [[ ${#failed[@]} -gt 0 ]]; then
+    warn "$tag is made and pushed, but these steps failed: ${failed[*]}; rerun deliver release to resume"
+    exit "$EXIT_PARTIAL"
+  fi
+  if [[ $done_all -eq 1 && "${BUMPED:-0}" -eq 0 ]]; then say "every step of $VERSION is already done"; else say "released $VERSION"; fi
+  exit 0
+}
+
+next_patch() { printf '%s.%s' "${1%.*}" "$(( ${1##*.} + 1 ))"; }
+BUMPED=0
+
+# bump_main: main takes the next patch above the released one and above its own.
+bump_main() {
+  local tree own new file pattern stamp form api subject
+  g fetch -q origin main 2>/dev/null || return 1
+  tree="$(mktemp -d)"
+  g worktree add -q --detach "$tree" origin/main || return 1
+  own="$(REPO="$tree" version_in_tree "$tree")"
+  if [[ -n "$own" ]] && semver_gt "$own" "$VERSION"; then g worktree remove --force "$tree" >/dev/null 2>&1; return 0; fi
+  new="$(next_patch "$VERSION")"
+  if [[ "$own" == "$new" ]]; then g worktree remove --force "$tree" >/dev/null 2>&1; return 0; fi
+  local files f
+  mapfile -t files < <(jq -r '(.versions.bump.required // [])[]' <<< "$PJ")
+  file="$(pq .versions.app.file)"; pattern="$(pq .versions.app.pattern)"
+  [[ " ${files[*]} " == *" $file "* ]] || files+=("$file")
+  for f in "${files[@]}"; do
+    # replace the first line matching the pattern, only the version group
+    jq -Rrs --arg p "$pattern" --arg new "$new" '
+      (match($p) ) as $m | .[0:($m.captures[0].offset)] + $new + .[($m.captures[0].offset + ($m.captures[0].length)):]' \
+      < "$tree/$f" > "$tree/$f.new" 2>/dev/null && mv "$tree/$f.new" "$tree/$f" || { g worktree remove --force "$tree" >/dev/null 2>&1; return 1; }
+  done
+  if [[ -x "$tree/deliver/hooks/bump" ]]; then (cd "$tree" && DELIVER_VERSION="$new" ./deliver/hooks/bump) || { g worktree remove --force "$tree" >/dev/null 2>&1; return 1; }; fi
+  form="$(pq .versions.stamp_form)"; api=""
+  if [[ -n "$(pq .versions.api.file)" && -z "$(pq .versions.api.command)" && -n "$(pq .versions.api.pattern)" ]]; then
+    api="$(jq -Rrs --arg p "$(pq .versions.api.pattern)" 'try (match($p).captures[0].string) catch empty' < "$tree/$(pq .versions.api.file)")"
+  elif [[ -n "$(pq .versions.api.command)" ]]; then
+    api="$("$tree/$(pq .versions.api.command)" < "$tree/$(pq .versions.api.file)" 2>/dev/null || true)"
+  fi
+  subject="bump the version to $new after releasing $VERSION"
+  if [[ -n "$form" ]]; then
+    stamp="${form//<X.Y.Z>/$new}"; stamp="${stamp//<M.N>/${api:-0.0}}"; stamp="${stamp//<subject>/$subject}"
+  else stamp="$subject"; fi
+  (cd "$tree" && git add -A && git commit -q -m "$stamp") || { g worktree remove --force "$tree" >/dev/null 2>&1; return 1; }
+  git -C "$tree" push -q origin HEAD:main 2>/dev/null; local rc=$?
+  g worktree remove --force "$tree" >/dev/null 2>&1
+  [[ $rc -eq 0 ]] && BUMPED=1
+  return $rc
+}
+
+# ------------------------------------------------------------------ settle
+
+cmd_settle() {
+  [[ $# -eq 1 ]] || die "usage: deliver settle VERSION"
+  DELIVER_SUBCOMMAND=settle; load_profile
+  gh_repo_slug || die "cannot tell the GitHub repository (set DELIVER_GH_REPO=owner/name)"
+  gates_expect
+  g fetch -q --tags origin 2>/dev/null || true
+  settle_version "${1#v}" || exit "$EXIT_PARTIAL"
+}
+
+# settle_version VERSION: acts on exactly what the record carries (design §8). Each
+# action checks first. Returns 1 with the items left listed when something failed.
+settle_version() {
+  local version="$1" tag rec left=() n comment info state
+  gh_repo_slug || { warn "settle: cannot tell the GitHub repository"; return 1; }
+  tag="$(tag_for_version "$version")"
+  [[ -n "$tag" ]] || { warn "settle: no tag for $version"; return 1; }
+  rec="$(record_of_tag "$tag")" || { warn "settle: $tag has no record this tool reads: nothing to settle"; return 1; }
+  comment="${ANNOUNCEMENT}${version}"
+  [[ -n "$ANNOUNCEMENT" ]] || { warn "settle: the profile has no release.announcement"; return 1; }
+  for n in $(jq -r '.carries.work_packages[]' <<< "$rec"); do
+    state="$(gh_project_state "$n")" || { left+=("#$n"); continue; }
+    if [[ "$state" != "Post-deployment" ]]; then gh_set_project_state "$n" "Post-deployment" || { left+=("#$n state"); continue; }; fi
+    settle_comment "$n" "$comment" || left+=("#$n comment")
+  done
+  for n in $(jq -r '.carries.issues[]' <<< "$rec"); do
+    info="$(gh_issue_info "$n")" || { left+=("#$n"); continue; }
+    settle_comment "$n" "$comment" || { left+=("#$n comment"); continue; }
+    if [[ "$(jq -r '.state // empty' <<< "$info")" != CLOSED ]]; then gh_issue_close "$n" || left+=("#$n close"); fi
+  done
+  local mn
+  mn="$(gh_milestone_number "$version")" || left+=("milestone $version")
+  if [[ -n "$mn" ]]; then
+    if [[ "$(gh_milestones | jq -r --arg t "$version" '[.[] | select(.title == $t)][0].state')" != closed ]]; then
+      gh_milestone_close "$mn" || left+=("milestone $version")
+    fi
+  fi
+  if [[ ${#left[@]} -gt 0 ]]; then
+    warn "settle of $version failed; left to do: ${left[*]}; rerun deliver settle $version"
+    return 1
+  fi
+  say "settled $version"
+}
+
+settle_comment() {   # N TEXT: once
+  local existing
+  existing="$(gh_issue_comments "$1")" || return 1
+  if jq -e --arg c "$2" 'any(.[]; .body | startswith($c))' >/dev/null <<< "$existing"; then return 0; fi
+  gh_issue_comment "$1" "$2 (deployed to production)"
+}
+
+# ------------------------------------------------------------------ prune, host-install, env
+
+cmd_prune() {
+  local dry=0
+  [[ "${1:-}" == --dry-run ]] && dry=1
+  DELIVER_SUBCOMMAND=prune; load_profile; registry_require
+  gates_expect
+  g fetch -q --tags origin 2>/dev/null || true
+  local newest_made=0 t made
+  while read -r t; do
+    [[ -n "$t" ]] || continue
+    made="$(g for-each-ref "refs/tags/$t" --format='%(creatordate:unix)')"
+    if rec="$(record_of_tag "$t" 2>/dev/null)"; then made="$(date -u -d "$(jq -r .made <<< "$rec")" +%s 2>/dev/null || echo "$made")"; fi
+    (( made > newest_made )) && newest_made="$made"
+  done < <(release_tags)
+  [[ $newest_made -gt 0 ]] || die "no release has been made: nothing is old enough to prune"
+  # what is released, and what any environment runs now or ran before
+  local keep="" env st
+  while read -r t; do
+    [[ -n "$t" ]] || continue
+    if rec="$(record_of_tag "$t" 2>/dev/null)"; then keep+="$(jq -r '.images[]' <<< "$rec")"$'\n'; fi
+  done < <(release_tags)
+  for env in $(jq -r '.environments | keys[]' <<< "$PJ"); do
+    st="$(host_status "$env")" || die "cannot read $env: refusing to prune without knowing what runs"
+    keep+="$(jq -r '[.current.images, .previous.images] | map(select(. != null) | .[]) | .[]' <<< "$st")"$'\n'
+  done
+  local tag img json created removed=0
+  while read -r tag; do
+    [[ -n "$tag" ]] || continue
+    json="$(reg_inspect "$CANDIDATES" "$tag")" || continue
+    d="$(jq -r .Digest <<< "$json")"
+    grep -qxF "$d" <<< "$keep" && continue
+    created="$(jq -r '.Labels["org.opencontainers.image.created"] // empty' <<< "$json")"
+    [[ -n "$created" ]] || continue
+    created="$(date -u -d "$created" +%s 2>/dev/null)" || continue
+    (( created < newest_made )) || continue
+    if [[ $dry -eq 1 ]]; then say "would remove $tag"; else
+      skopeo delete "$(reg_ref "$CANDIDATES" "$tag")" >/dev/null 2>&1 && { say "removed $tag"; removed=$((removed + 1)); }
+    fi
+  done < <(reg_list_tags "$CANDIDATES")
+  run_log_event prune "removed=$removed"
+}
+
+cmd_host_install() {
+  [[ $# -eq 1 ]] || die "usage: deliver host-install ENV"
+  local env="$1"
+  DELIVER_SUBCOMMAND=host-install; load_profile
+  env_exists "$env" || die "the profile has no environment $env"
+  gates_expect
+  local ssh login tools script f dest mode
+  ssh="$(env_q "$env" ssh)"; login="$(env_q "$env" login)"
+  [[ -n "$login" ]] && tools="$(login_tools "$login")"
+  script="set -e"$'\n'
+  script+='R="${DELIVER_HOST_ROOT:-}"'$'\n'
+  for f in deliver-host lib/common.sh lib/toml.sh lib/toml.awk; do
+    case "$f" in deliver-host) dest='/usr/local/bin/deliver-host'; mode=0755 ;; *) dest="/usr/local/lib/deliver/$(basename "$f")"; mode=0644 ;; esac
+    script+="printf '%s' '$(base64 -w0 < "$HERE/$f")' | base64 -d | sudo install -D -m $mode /dev/stdin \"\$R$dest\""$'\n'
+  done
+  script+='command -v jq >/dev/null 2>&1 || sudo apt-get install -y jq >/dev/null'$'\n'
+  script+='command -v flock >/dev/null 2>&1 || { echo "flock (util-linux) is missing" >&2; exit 1; }'$'\n'
+  local t; for t in $tools; do script+="command -v $t >/dev/null 2>&1 || { echo \"$t is missing (needed by the $login login)\" >&2; exit 1; }"$'\n'; done
+  script+='U="$(id -un)"'$'\n'
+  script+='printf "%s ALL=(root) NOPASSWD: /usr/local/bin/deliver-host root-ops *\n" "$U" | sudo install -D -m 0440 /dev/stdin "$R/etc/sudoers.d/deliver-host"'$'\n'
+  script+='echo "deliver-host installed"'$'\n'
+  if [[ "$(env_q "$env" host)" == control-node ]]; then bash -c "$script"; else ssh "$ssh" "bash -s" <<< "$script"; fi
+}
+
+cmd_env() { exec "${DELIVER_HOST_BIN:-$HERE/deliver-host}" env "$@"; }
+
+# ------------------------------------------------------------------ main
+
+usage() { sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+
+DELIVER_SUBCOMMAND=""; DELIVER_ARGS=()
+main() {
+  [[ $# -ge 1 ]] || { usage; exit 1; }
+  local sub="$1"; shift
+  DELIVER_SUBCOMMAND="$sub"; DELIVER_ARGS=("$@")
+  case "$sub" in
+    build) cmd_build "$@" ;;
+    deploy) cmd_deploy "$@" ;;
+    release) cmd_release "$@" ;;
+    settle) cmd_settle "$@" ;;
+    rollback) cmd_rollback "$@" ;;
+    status) cmd_status "$@" ;;
+    list) cmd_list "$@" ;;
+    prune) cmd_prune "$@" ;;
+    host-install) cmd_host_install "$@" ;;
+    env) cmd_env "$@" ;;
+    -h|--help|help) usage ;;
+    *) die "unknown command $sub (deliver --help)" ;;
+  esac
+}
+main "$@"

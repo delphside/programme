@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# A stand-in for ssh: the "host" is a folder ($STUB_HOSTS/<alias>) that becomes
+# DELIVER_HOST_ROOT for the command, which runs locally in bash as the remote
+# login shell would run it. stdin passes through.
+set -uo pipefail
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o|-i|-p|-l|-J) shift 2 ;;
+    -*) shift ;;
+    *) break ;;
+  esac
+done
+host="$1"; shift
+echo "ssh $host: $*" >> "${STUB_LOG_DIR:?}/ssh.log"
+[[ "${STUB_SSH_FAIL:-}" != "$host" ]] || { echo "ssh: connect to host $host: refused" >&2; exit 255; }
+root="${STUB_HOSTS:?}/$host"; mkdir -p "$root"
+exec env DELIVER_HOST_ROOT="$root" bash -c "$*"
