@@ -161,6 +161,20 @@ class TheBoardModel(Cases):
         self.expect("so does a Production Release", Answer.MISSING,
               answer(604, "Production Release"))
 
+    def test_a_milestone_is_owed_from_development(self):
+        """a work package owes its milestone once it is being built, not only at deployment"""
+        # Owner, 2026-11-03: a date is set to the day planned, and a release's
+        # semver is known when the package is scheduled into it, so both are
+        # there by the time it is built.
+        def answer(number, state):
+            wp = classify(issue(number, parent=9, fields={"Project State": state,
+                                                          "Route": "Application Tooling"}))
+            return {f.obligation.id: f.answer for f in assess(wp)}.get("wp-milestone")
+        self.expect("not yet asked in Design and Test Approach", None,
+              answer(611, "Design and Test Approach"))
+        self.expect("owed in Development", Answer.MISSING, answer(612, "Development"))
+        self.expect("and in User testing", Answer.MISSING, answer(613, "User testing"))
+
     def test_a_post_deployment_check_is_answered_not_merely_present(self):
         """a post-deployment check is answered, not merely present"""
         # **#346 R4, restored.** The checks are a table with an answer column, and the
