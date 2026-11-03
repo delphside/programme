@@ -1,0 +1,10 @@
+- R1 reader — 1.5 *Roles by name* — "you" in a table cell (also truth)
+- R1 truth — 1.5 *What is true now, with at most a line of reason* — a count left wrong
+- R1 reader — 1.5 *What is true now, with at most a line of reason* — a count the fix made wrong (from a fix to R1 truth) (on resume)
+- R1 cost: reader 60k, 80%; truth 90k, 75%
+- R2 reader — 1.5 *Brevity is the use case* — a clause stated twice (from a fix to R1 truth)
+- R2 truth — 1.5 *One fact, one home* — a rule restated in a second document (missed in R1)
+- R2 cost: reader 50k, 85%; truth 70k, 80%
+- R3 none
+- R3 cost: reader 40k, 90%; truth 60k, 85%
+- owner — none

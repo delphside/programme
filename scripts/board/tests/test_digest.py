@@ -26,7 +26,7 @@ import unittest
 
 from pathlib import Path
 
-from board.digest import (CONCLUDE, RoundCount, note_records, review_rounds, unrecorded, unlessoned_projects, DRAFT, Digest, with_conclusions, Window, draft, in_window, issue_lessons,
+from board.digest import (CONCLUDE, RoundCount, documents, note_records, review_rounds, unparsed, unrecorded, unlessoned_projects, DRAFT, Digest, with_conclusions, Window, draft, in_window, issue_lessons,
                           notes_for_write, notes_of, register_rows, render, section, MEASURED_AT)
 from board.model import RawIssue
 from board.sources import MergedPullRequest
@@ -447,7 +447,10 @@ class DocumentReviews(Cases):
     def test_the_example_in_docs_1_1_counts_as_it_should(self):
         # The record's form is docs/1.1's example; the parser is tested against it.
         doc = (Path(__file__).resolve().parents[3] / "docs" / "1.1-programme-tooling.md").read_text()
-        example = re.search(r"```text\n(- R1 reader.*?)```", doc, re.S).group(1)
+        example = re.search(r"```text\n(?:- doc:[^\n]*\n)?(- R1 reader.*?)```", doc, re.S).group(1)
+        doc_line = re.search(r"```text\n(- doc:[^\n]*)\n", doc).group(1)
+        rows, without, unread = documents(doc_line + "\n" + example, "o/p#1")
+        self.expect("the example's doc: line is read whole", (1, 0, 0), (len(rows), without, unread))
         c = RoundCount().add(example)
         self.expect("counts",
                     ({"reader": 3, "truth": 3}, 1, 2, 2, 1, 1, 0, 5, 370),
@@ -500,6 +503,485 @@ class ProjectsClosedWithoutLessons(Cases):
                                      closed(3, "## Requirements\n\nx"),
                                      closed(4, "x", issue_type="Decision")], self.START)
         self.expect("only the project with neither", [3], [n for n, _ in found])
+
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "reviews"
+
+
+def fixture(name: str) -> str:
+    return (FIXTURES / name).read_text()
+
+
+def rounds_of(name: str) -> str:
+    """The *Review rounds* section of a pull request body kept verbatim."""
+    return section(fixture(name), "Review rounds")
+
+
+class ExistingRecordsCountAsBefore(Cases):
+    """A golden capture, taken from the code before CI-12 changed the parser and
+    kept only as a regression oracle (docs/1.9): the counts of records written
+    in the earlier form, which must not move. The pull requests are
+    delphside/programme#124 and #89 verbatim, 1.1's example as it was before
+    the change, and the ROUNDS of `DocumentReviews`."""
+
+    EXAMPLE = fixture("docs-1.1-example-before.txt")
+
+    def capture(self, text):
+        c = RoundCount().add(text)
+        return {"by_reviewer": dict(c.by_reviewer), "findings": c.findings, "both": c.both,
+                "from_fix": c.from_fix, "crossed": c.crossed, "on_resume": c.on_resume,
+                "missed": c.missed, "owner": c.owner, "tokens": c.tokens, "cost_lines": c.cost_lines,
+                "costed_findings": c.costed_findings, "uncosted": c.uncosted,
+                "unread_costs": c.unread_costs, "figures_read": c.figures_read, "unfigured": c.unfigured,
+                "spent": dict(c.spent), "found": dict(c.found),
+                "cost": c.cost(), "value": c.value()}
+
+    def test_pr_124_record_counts_as_before(self):
+        self.expect("124", {
+            "by_reviewer": {"reader": 35, "truth": 44}, "findings": 67, "both": 12, "from_fix": 0,
+            "crossed": 0, "on_resume": 0, "missed": 0, "owner": 0, "tokens": 5051.0, "cost_lines": 24,
+            "costed_findings": 67, "uncosted": 0, "unread_costs": 2, "figures_read": 48, "unfigured": 0,
+            "spent": {"R1": 4771.0, "R2": 280.0, "reader": 2114.0, "truth": 2657.0},
+            "found": {"R1": 67, "reader": 35, "truth": 44},
+            "cost": "5051k tokens, about 75k per material finding; 2 cost figure(s) not read or for no reviewer",
+            "value": "By reviewer, a shared finding counting for each: reader 2114k for 35 (60k each); "
+                     "truth 2657k for 44 (60k each). By round: R1 4771k for 67 (71k each); R2 280k for 0"},
+            self.capture(rounds_of("pr124-body.txt")))
+
+    def test_pr_89_record_counts_as_before_nothing(self):
+        self.expect("89", {
+            "by_reviewer": {}, "findings": 0, "both": 0, "from_fix": 0, "crossed": 0, "on_resume": 0,
+            "missed": 0, "owner": 0, "tokens": 0, "cost_lines": 0, "costed_findings": 0, "uncosted": 0,
+            "unread_costs": 0, "figures_read": 0, "unfigured": 0, "spent": {}, "found": {},
+            "cost": "no cost lines", "value": "No cost lines"},
+            self.capture(rounds_of("pr89-body.txt")))
+
+    def test_1_1s_old_example_counts_as_before(self):
+        self.expect("example", {
+            "by_reviewer": {"reader": 3, "truth": 3}, "findings": 5, "both": 1, "from_fix": 2, "crossed": 2,
+            "on_resume": 1, "missed": 1, "owner": 0, "tokens": 370.0, "cost_lines": 3, "costed_findings": 5,
+            "uncosted": 0, "unread_costs": 0, "figures_read": 6, "unfigured": 0,
+            "spent": {"R1": 150.0, "R2": 120.0, "R3": 100.0, "reader": 150.0, "truth": 220.0},
+            "found": {"R1": 3, "R2": 2, "reader": 3, "truth": 3},
+            "cost": "370k tokens, about 74k per material finding",
+            "value": "By reviewer, a shared finding counting for each: reader 150k for 3 (50k each); "
+                     "truth 220k for 3 (73k each). By round: R1 150k for 3 (50k each); "
+                     "R2 120k for 2 (60k each); R3 100k for 0"},
+            self.capture(self.EXAMPLE))
+
+    def test_the_rounds_of_the_suite_count_as_before(self):
+        self.expect("rounds", {
+            "by_reviewer": {"reader": 2, "truth": 4}, "findings": 5, "both": 1, "from_fix": 1, "crossed": 0,
+            "on_resume": 0, "missed": 1, "owner": 0, "tokens": 0, "cost_lines": 0, "costed_findings": 0,
+            "uncosted": 5, "unread_costs": 0, "figures_read": 0, "unfigured": 0, "spent": {}, "found": {},
+            "cost": "no cost lines; 5 finding(s) not costed", "value": "No cost lines. Not costed: 5 finding(s)"},
+            self.capture(DocumentReviews.ROUNDS))
+
+
+DOC = ("- doc: docs/a.md; type rule; words 1200; change correction; lines 14; places 3; "
+       "last review 2026-10-26; terms added 0")
+TABLE = ("| pull request | document | type | change | words | lines | places | last review | terms added "
+         "| rounds | material findings | from a fix | tokens |")
+WITH_DOC = f"""{DOC}
+- R1 reader — 1.5 *Roles by name* — a finding
+- R1 truth — 1.5 *True now* — another (from a fix to R1 reader)
+- R1 cost: reader 60k, 80%; truth 90k, 75%
+- R2 reader — 1.5 *Brevity* — one more
+- R2 cost: reader 40k, 85%; truth 30k, 85%
+- R3 none
+- owner — none"""
+
+
+def pr(n, body, title="a change", bot=False, repository="o/p"):
+    return MergedPullRequest(repository, n, title, "Before: x\n\n## Review rounds\n\n" + body, bot)
+
+
+def week(*prs, notes=""):
+    """The digest's text for these merged pull requests, as `build` hands them."""
+    return render(digest(reviews=review_rounds(prs), unrecorded=unrecorded(prs), unparsed=unparsed(prs)),
+                  notes=notes)
+
+
+def rows_of(text, where="o/p#1"):
+    return [line for line in text.splitlines() if line.startswith(f"| {where} |")]
+
+
+def row_with(doc_line, rest="- R1 none"):
+    """The one table row a pull request holding this `doc:` line gives."""
+    return rows_of(week(pr(1, f"{doc_line}\n{rest}")))[0]
+
+
+class UnreadableRecords(Cases):
+    """A *Review rounds* section with text and no line the digest can read was
+    counted as none: programme #89, about 4M tokens and 120 findings."""
+
+    def test_prose_only_record_is_listed_as_unparsed(self):
+        prs = [pr(1, "Round 1 found about 20 points, all fixed.\n\n| a | b |\n| --- | --- |\n| x | 2 |")]
+        self.expect("listed", [("o/p", 1, "a change")], unparsed(prs))
+        self.expect("named in the digest", True, "o/p#1" in week(*prs).split("Unparsed", 1)[-1])
+
+    def test_unparsed_record_summary_does_not_say_no_material_findings(self):
+        text = week(pr(1, "Round 1 found about 20 points, all fixed."))
+        self.expect("not none", False, "material findings: none" in text)
+        self.expect("one full stop", False, ".." in text)
+
+    def test_one_readable_line_makes_a_prose_record_parsed(self):
+        prs = [pr(1, "Round 1 found about 20 points.\n\n- R1 none")]
+        self.expect("parsed", [], unparsed(prs))
+        self.expect("and says none", True, "material findings: none" in week(*prs))
+
+    def test_none_owed_record_is_not_unparsed(self):
+        prs = [pr(1, "None owed"), pr(2, "None owed — a record"), pr(3, "- None owed: a report")]
+        self.expect("none unparsed", [], unparsed(prs))
+        self.expect("none unrecorded", [], unrecorded(prs))
+
+    def test_footer_only_section_is_listed_as_empty_not_unparsed(self):
+        prs = [pr(1, "---\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n"
+                     "https://claude.ai/code/session_018ZJc3xYVZABiG4ANeJrZuL\n"),
+               pr(2, "")]
+        self.expect("not unparsed", [], unparsed(prs))
+        self.expect("empty", [1, 2], [n for _, n, _ in unrecorded(prs)])
+
+    def test_bot_pull_request_with_prose_is_not_listed_unparsed(self):
+        prs = [pr(1, "Bumps x from 1 to 2.", bot=True)]
+        self.expect("not unparsed", [], unparsed(prs))
+        self.expect("not unrecorded", [], unrecorded(prs))
+
+    def test_no_material_finding_prose_lines_are_not_readable(self):
+        text = "- R1: no material finding\n- R1 reader: no material finding\n- R1: reports not kept"
+        self.expect("unparsed", [("o/p", 1, "a change")], unparsed([pr(1, text)]))
+        self.expect("and counts nothing", 0, RoundCount().add(text).findings)
+
+    def test_hyphenated_finding_line_is_not_a_finding(self):
+        self.expect("hyphens", 0, RoundCount().add("- R1 reader - rule - finding").findings)
+        self.expect("em-dashes", 1, RoundCount().add("- R1 reader — rule — finding").findings)
+
+    def test_pr_89_record_is_unparsed(self):
+        merged = MergedPullRequest("delphside/programme", 89, "document-review", fixture("pr89-body.txt"))
+        self.expect("listed", [("delphside/programme", 89, "document-review")], unparsed([merged]))
+        text = render(digest(reviews=review_rounds([merged]), unparsed=unparsed([merged])))
+        self.expect("by repository and number", True, "Unparsed" in text and "delphside/programme#89" in text)
+        self.expect("no summary of none", False, "material findings: none" in text)
+        self.expect("no footer copied", False, "Generated with" in text or "claude.ai/code/session" in text)
+
+    def test_one_cost_line_makes_pr_89_parsed(self):
+        body = fixture("pr89-body.txt").replace("## Review rounds\n", "## Review rounds\n\n- R1 cost: reader 4000k\n")
+        merged = MergedPullRequest("delphside/programme", 89, "document-review", body)
+        self.expect("not listed", [], unparsed([merged]))
+        self.expect("and the cost is given", True, "4000k tokens" in week(merged))
+
+
+class Footers(Cases):
+    FORMS = ["---", "🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+             "https://claude.ai/code/session_018ZJc3xYVZABiG4ANeJrZuL",
+             "https://claude.ai/code/session_018ZJc3xYVZABiG4ANeJrZuL   ",
+             "_Generated by [Claude Code](https://claude.ai/code)_"]
+
+    def test_each_footer_form_is_dropped_from_copied_text(self):
+        for form in self.FORMS:
+            self.expect(form, "- R1 none", review_rounds([pr(1, f"- R1 none\n\n{form}\n")])[0][3])
+
+    def test_a_footer_between_lines_is_dropped_too(self):
+        kept = review_rounds([pr(1, "- R1 none\n---\n- owner — none")])[0][3]
+        self.expect("both lines stay", "- R1 none\n- owner — none", kept)
+
+    def test_text_merely_containing_a_session_url_is_kept(self):
+        text = ("- R1 none\nSession: https://claude.ai/code/session_018Z\n"
+                "See https://claude.ai/code/session_018Z for it\n----\n***\nGenerated with Claude Code\n"
+                "*Generated by [Claude Code](https://claude.ai/code)*")
+        self.expect("all kept", text, review_rounds([pr(1, text)])[0][3])
+
+    def test_a_records_document_headings_sit_below_its_pull_requests(self):
+        body = "#### docs/a.md\n- R1 none\n- R1 cost: truth 50k\n\n####\tdocs/b.md\n- R1 none\n```\n#### kept\n```"
+        text = render(digest(reviews=[("o/p", 1, "docs", body)]))
+        self.expect("one level down", (True, True, False),
+                    ("##### docs/a.md" in text, "\n#### kept" in text, "\n####\tdocs/b.md" in text))
+        self.expect("the pull request's heading stays", True, "#### o/p#1 docs" in text)
+
+    def test_a_footer_form_inside_a_code_fence_is_kept(self):
+        text = "- R1 none\n```\n---\n```"
+        self.expect("kept", text, review_rounds([pr(1, text)])[0][3])
+
+
+class DocumentRows(Cases):
+    """CI-12: a `doc:` line carries a document's inputs; the digest tables them
+    beside what its review found."""
+
+    def test_doc_line_makes_a_row_with_every_input(self):
+        text = week(pr(1, WITH_DOC))
+        self.expect("the header", True, TABLE in text)
+        self.expect("the row", ["| o/p#1 | docs/a.md | rule | correction | 1200 | 14 | 3 | 2026-10-26 | 0 "
+                                "| 3 | 3 | 1 | 220k |"], rows_of(text))
+        self.expect("none unread", False, "`doc:` field(s) not read" in text)
+
+    def test_doc_line_fields_read_in_any_order(self):
+        shuffled = ("- doc: docs/a.md; terms added 0; last review 2026-10-26; places 3; lines 14; change correction; "
+                    "words 1200; type rule")
+        spaced = ("- doc:   docs/a.md ;type rule;  words 1200 ; change correction;lines 14;places 3;"
+                  "last review 2026-10-26; terms added 0;")
+        self.expect("same row", row_with(DOC), row_with(shuffled))
+        self.expect("spaces", row_with(DOC), row_with(spaced))
+
+    def test_misspelt_doc_lines_make_no_row(self):
+        for line in ["- doc docs/a.md; type rule", "- Doc: docs/a.md; type rule", "- docs: docs/a.md; type rule",
+                     "* doc: docs/a.md; type rule", "doc: docs/a.md; type rule", "-doc: docs/a.md; type rule"]:
+            self.expect(line, False, TABLE in week(pr(1, f"{line}\n- R1 none")))
+
+    def test_missing_doc_field_is_shown_unread_and_counted(self):
+        for key in ["; type rule", "; words 1200", "; change correction", "; lines 14", "; places 3",
+                    "; last review 2026-10-26", "; terms added 0"]:
+            text = week(pr(1, f"{DOC.replace(key, '')}\n- R1 none"))
+            self.expect(f"{key}: one ?", 1, rows_of(text)[0].count("?"))
+            self.expect(f"{key}: counted", True, "1 `doc:` field(s) not read" in text)
+
+    def test_unknown_type_or_change_is_shown_unread(self):
+        for bad in ["type Rule", "type runbooks", "type", "change fix", "change New-rule", "change"]:
+            key = bad.split()[0]
+            line = re.sub(rf"{key}( [\w-]+)?;", f"{bad};", DOC)
+            self.expect(bad, 1, row_with(line).count("?"))
+        for good in ["type runbook", "type code", "type readme", "change code", "change new-term"]:
+            key = good.split()[0]
+            self.expect(good, 0, row_with(re.sub(rf"{key}( [\w-]+)?;", f"{good};", DOC)).count("?"))
+
+    def test_comma_or_approximate_word_count_is_not_read(self):
+        for bad in ["16,946", "~17000", "17k", "0", "-5", "16946.5"]:
+            self.expect(bad, True, "| correction | ? | 14 |" in row_with(DOC.replace("words 1200", f"words {bad}")))
+        self.expect("plain", True, "| 16946 |" in row_with(DOC.replace("words 1200", "words 16946")))
+
+    def test_lines_and_terms_added_read_only_whole_numbers(self):
+        for field, bad in [("lines 14", "lines +12/-3"), ("lines 14", "lines -3"), ("terms added 0", "terms added none")]:
+            self.expect(bad, 1, row_with(DOC.replace(field, bad)).count("?"))
+        self.expect("zero lines is read", 0, row_with(DOC.replace("lines 14", "lines 0")).count("?"))
+
+    def test_tokens_are_partial_only_when_a_figure_is_not_read(self):
+        body = f"{DOC}\n- R1 reader — x — y\n- R1 cost: reader 60k, 30k\n"
+        self.expect("a read figure naming no reviewer is not partial", True, row_with(body, "").endswith("| 90k |"))
+        body = f"{DOC}\n- R1 reader — x — y\n- R1 cost: reader 60k, truth 1,200k\n"
+        self.expect("an unread figure is", True, row_with(body, "").endswith("| 60k (partial) |"))
+        for cost in ["reader about sixty thousand", "reader 1,200k"]:
+            body = f"{DOC}\n- R1 reader — x — y\n- R1 cost: {cost}\n"
+            self.expect(f"no figure read: {cost}", True, row_with(body, "").endswith("| ? |"))
+        self.expect("no cost line", True, row_with(DOC, "- R1 none").endswith("| —  |".replace("  ", " ")))
+
+    def test_a_runs_count_on_a_cost_line_leaves_its_tokens_whole(self):
+        body = f"{DOC}\n- R1 none\n- R1 cost: reader 60k, 80%, 3 runs; truth 50k, 85%\n"
+        self.expect("110k, not partial", True, row_with(body, "").endswith("| 110k |"))
+        c = RoundCount().add(body)
+        self.expect("tokens, nothing unread", (110.0, 0), (c.tokens, c.unread_figures))
+
+    def test_a_code_fence_holds_no_heading_or_doc_line(self):
+        body = f"#### docs/a.md\n{DOC}\n- R1 none\n```text\n#### docs/z.md\n{DOC}\n```"
+        rows, without, unread = documents(body, "x")
+        self.expect("one row, nothing else", (1, 0, 0), (len(rows), without, unread))
+
+    def test_places_is_the_count_of_places_changed(self):
+        self.expect("read", True, "| 14 | 3 |" in row_with(DOC))
+        self.expect("0 for a file reviewed unchanged", True, "| 14 | 0 |" in row_with(DOC.replace("places 3", "places 0")))
+        for bad in ["three", "3.5", "-1"]:
+            self.expect(bad, True, "| 14 | ? |" in row_with(DOC.replace("places 3", f"places {bad}")))
+        text = week(pr(1, DOC.replace("places 3; ", "") + "\n- R1 none"))
+        self.expect("missing is one field not read", True, "1 `doc:` field(s) not read" in text)
+
+    def test_last_review_never_is_read(self):
+        self.expect("never", True, "| never |" in row_with(DOC.replace("2026-10-26", "never")))
+
+    def test_invalid_last_review_date_is_not_read(self):
+        for bad in ["Never", "2026-13-40", "2026-1-5", "26 Oct"]:
+            self.expect(bad, True, "| ? |" in row_with(DOC.replace("2026-10-26", bad)))
+
+    def test_unknown_or_repeated_keys_are_counted_not_read(self):
+        text = week(pr(1, DOC + "; reviewers 2; words 5\n- R1 none"))
+        self.expect("the first word count kept", True, "| 1200 |" in rows_of(text)[0])
+        self.expect("two counted", True, "2 `doc:` field(s) not read" in text)
+        text = week(pr(1, DOC.replace("type rule", "typerule") + "\n- R1 none"))
+        self.expect("a key run into its value is not read", True, "| ? |" in rows_of(text)[0])
+
+    def test_doc_path_with_spaces_is_kept_whole_and_an_empty_path_is_no_row(self):
+        path = "benchmark-run runbook (3.1.7-changes/x/benchmark-run-runbook.md)"
+        self.expect("whole", True, f"| {path} |" in row_with(DOC.replace("docs/a.md", path)))
+        self.expect("no row", False, TABLE in week(pr(1, DOC.replace("docs/a.md", "") + "\n- R1 none")))
+        rows, without, unread = documents(DOC.replace("docs/a.md", "") + "\n- R1 none", "o/p#1")
+        self.expect("the path-less line is one field not read", (0, 1), (len(rows), unread))
+
+    def test_a_documents_rounds_are_its_highest_round_not_how_many(self):
+        rows, _, _ = documents(DOC + "\n- R1 none\n- R3 none", "o/p#1")
+        self.expect("three", 3, rows[0].rounds)
+
+    def test_lines_under_a_heading_belong_to_its_document(self):
+        body = f"""Prose first.
+
+#### docs/a.md
+{WITH_DOC}
+
+#### docs/b.md
+- doc: docs/b.md; type procedure; words 900; change applied; lines 3; places 2; last review never; terms added 1
+- R1 truth — 1.5 *True now* — x
+- R1 cost: truth 50k, 80%
+- R2 none
+- R2 cost: truth 20k, 85%
+- owner — none"""
+        text = week(pr(1, body))
+        self.expect("a", ["| o/p#1 | docs/a.md | rule | correction | 1200 | 14 | 3 | 2026-10-26 | 0 | 3 | 3 | 1 | 220k |"],
+                    [r for r in rows_of(text) if "docs/a.md" in r])
+        self.expect("b", ["| o/p#1 | docs/b.md | procedure | applied | 900 | 3 | 2 | never | 1 | 2 | 1 | 0 | 70k |"],
+                    [r for r in rows_of(text) if "docs/b.md" in r])
+
+    def test_per_document_findings_and_tokens_sum_to_the_record(self):
+        rounds = rounds_of("pr124-body.txt")
+        every = re.sub(r"^(#### (.+))$", lambda m: f"{m.group(1)}\n- doc: {m.group(2)}; type rule; words 1000; "
+                       "change correction; lines 10; places 2; last review never; terms added 0", rounds, flags=re.M)
+        docs, without, unread = documents(every, "o/p#1")
+        record = RoundCount().add(rounds)
+        self.expect("25 headings, 25 rows", (25, 0, 0), (len(docs), without, unread))
+        self.expect("findings sum", record.findings, sum(d.findings for d in docs))
+        self.expect("tokens sum", record.tokens, sum(d.tokens or 0 for d in docs))
+
+    def test_heading_without_doc_line_counts_as_document_without_inputs(self):
+        body = f"#### docs/a.md\n{WITH_DOC}\n\n#### docs/b.md\n- R1 none\n- R1 cost: truth 50k\n\n#### docs/c.md\n"
+        docs, without, unread = documents(body, "o/p#1")
+        self.expect("one row, two without", (1, 2), (len(docs), without))
+        self.expect("said in the digest", True, "Reviewed documents with no `doc:` line: 2" in week(pr(1, body)))
+
+    def test_adding_a_doc_line_moves_a_document_from_the_count_to_the_table(self):
+        before = documents("#### docs/b.md\n- R1 none", "x")
+        after = documents("#### docs/b.md\n" + DOC.replace("docs/a.md", "docs/b.md") + "\n- R1 none", "x")
+        self.expect("before", (0, 1), (len(before[0]), before[1]))
+        self.expect("after", (1, 0), (len(after[0]), after[1]))
+
+    def test_single_document_record_needs_no_heading(self):
+        text = week(pr(1, WITH_DOC))
+        self.expect("a row and no count of the missing", (1, False),
+                    (len(rows_of(text)), "no `doc:` line:" in text))
+        rows, without, _ = documents("- R1 reader — x — y\n- R1 none", "x")
+        self.expect("rounds with no doc line are one document without", (0, 1), (len(rows), without))
+
+    def test_lines_before_the_first_heading_and_other_headings(self):
+        before = f"- R1 reader — x — pre\n{DOC}\n\n#### docs/b.md\n- R1 reader — x — y"
+        rows, without, _ = documents(before, "x")
+        self.expect("the preamble's doc line is a row whose outputs are unknown", (1, 1, None),
+                    (len(rows), without, rows[0].findings))
+        text = "#### docs/b.md\n" + DOC + "\n- R1 reader — x — y\n### Not a document\n- R1 truth — x — z"
+        rows, without, _ = documents(text, "x")
+        self.expect("a ### heading starts no document", (1, 0, 2), (len(rows), without, rows[0].findings))
+
+    def test_doc_line_in_the_draft_takes_no_conclusion(self):
+        notes = ("- 2026-11-02, review rounds for abc1234:\n  " + DOC + "\n  - R1 reader — x — y\n"
+                 "  - R1 cost: reader 60k, 80%\n  - R2 none")
+        text = render(digest(reviews=[]), notes=notes)
+        self.expect("one note, one conclusion", 1, text.count(CONCLUDE))
+        row = [line for line in text.splitlines() if "| docs/a.md |" in line]
+        self.expect("the commit is in the pull request column", True,
+                    len(row) == 1 and row[0].startswith("| 2026-11-02, review rounds for abc1234 |"))
+        self.expect("the record's rounds, findings and tokens", True, row[0].endswith("| 2 | 1 | 0 | 60k |"))
+        top = "- 2026-11-02, review rounds for abc1234:\n- doc: docs/a.md; type rule\n  - R1 none"
+        self.expect("a top-level doc line belongs to the note above", 1, render(digest(reviews=[]), notes=top).count(CONCLUDE))
+
+    def test_pr_124_documents_each_get_a_row(self):
+        headed = re.sub(r"^#### (?!Round 2|Answers round)(.+)$", lambda m: f"#### {m.group(1)}\n- doc: {m.group(1)}; "
+                        "type rule; words 1000; change correction; lines 10; places 2; last review never; terms added 0",
+                        rounds_of("pr124-body.txt"), flags=re.M)
+        text = week(MergedPullRequest("delphside/programme", 124, "Week 1", f"## Review rounds\n\n{headed}"))
+        self.expect("23 rows", 23, sum(1 for line in text.splitlines() if line.startswith("| delphside/programme#124 |")))
+        self.expect("docs/1.1's row", True, "| delphside/programme#124 | docs/1.1 | rule | correction | 1000 | 10 | 2 | never | 0 | 1 | 7 | 0 | 307k |" in text)
+        self.expect("docs/1.2's row", True, "| delphside/programme#124 | docs/1.2 | rule | correction | 1000 | 10 | 2 | never | 0 | 1 | 10 | 0 | 314k |" in text)
+        self.expect("round 2 and the answers round are headings with no doc line", True,
+                    "Reviewed documents with no `doc:` line: 2" in text)
+
+    def test_pr_124_as_merged_counts_as_it_falls(self):
+        merged = MergedPullRequest("delphside/programme", 124, "Week 1", fixture("pr124-body.txt"))
+        text = week(merged)
+        self.expect("not unparsed", [], unparsed([merged]))
+        self.expect("no table", False, TABLE in text)
+        self.expect("25 headings", True, "Reviewed documents with no `doc:` line: 25" in text)
+        self.expect("its counts", True, "material findings: reader 35, truth 44; found by both" in text)
+        self.expect("no footer", False, "Generated by" in text or "claude.ai/code/session" in text)
+
+    def test_week_without_doc_lines_has_no_document_table(self):
+        self.expect("no table", False, TABLE in week(pr(1, DocumentReviews.ROUNDS)))
+
+    def test_the_format_example_in_docs_1_1_parses_as_documented(self):
+        doc = (Path(__file__).resolve().parents[3] / "docs" / "1.1-programme-tooling.md").read_text()
+        example = re.search(r"```text\n((?:- R\d[^\n]*\n)*\n?#### docs/.*?)```", doc, re.S).group(1)
+        rows, without, unread = documents(example, "x")
+        self.expect("two documents, both with every input", (2, 0, 0), (len(rows), without, unread))
+        c = RoundCount().add(example)
+        self.expect("the counts the document says", (4, 0, 0, 790.0, 0),
+                    (c.findings, c.both, c.from_fix, c.tokens, c.owner))
+
+
+class CountMarker(Cases):
+    """`(count N)` makes a finding line N material findings."""
+
+    def add(self, text):
+        return RoundCount().add(text)
+
+    def test_count_marker_multiplies_a_reviewers_findings(self):
+        c = self.add("- R1 reader — x — y (count 5)")
+        self.expect("five", ({"reader": 5}, 5), (dict(c.by_reviewer), c.findings))
+
+    def test_count_marker_on_a_shared_finding_credits_each_reviewer(self):
+        c = self.add("- R1 reader — x — y (also truth) (count 5)")
+        self.expect("each, both, all once", ({"reader": 5, "truth": 5}, 5, 5), (dict(c.by_reviewer), c.both, c.findings))
+
+    def test_count_marker_counts_in_from_a_fix_crossed_resume_and_missed(self):
+        c = self.add("- R1 truth — x — y\n"
+                     "- R2 reader — x — z (from a fix to R1 truth) (on resume) (missed in R1) (count 3)\n"
+                     "- R2 reader — x — w (from a fix to R1 reader) (count 3)\n"
+                     "- R2 reader — x — v (from a fix) (count 3)")
+        self.expect("counts", (10, 9, 3, 3, 3), (c.findings, c.from_fix, c.crossed, c.on_resume, c.missed))
+
+    def test_count_marker_counts_in_findings_left_out_of_a_rate(self):
+        self.expect("no cost line", 4, self.add("- R1 reader — x — y (count 4)").uncosted)
+        c = self.add("- R1 reader — x — y\n- R1 truth — x — z (count 4)\n- R1 cost: reader 60k")
+        self.expect("a reviewer without a figure", (5, 5, 4), (c.costed_findings, c.found["R1"], c.unfigured))
+
+    def test_count_one_marker_changes_nothing(self):
+        text = "- R1 reader — x — y (also truth) (from a fix to R0 truth)\n- R1 cost: reader 60k; truth 90k"
+        a, b = self.add(text), self.add(text.replace("(also truth)", "(also truth) (count 1)"))
+        self.expect("same", vars(a), vars(b))
+
+    def test_count_marker_leaves_tokens_unchanged(self):
+        self.expect("tokens", 150.0, self.add("- R1 reader — x — y (count 9)\n- R1 cost: reader 60k; truth 90k").tokens)
+
+    def test_owner_count_marker_counts_owner_findings(self):
+        self.expect("owner", 2, self.add("- owner — 1.5 *x* — y (count 2)").owner)
+
+    def test_malformed_count_markers_are_text_and_counted_unread(self):
+        for bad in ["(count 0)", "(count -1)", "(count 2.5)", "(count 1,200)", "(count five)", "(Count 5)",
+                    "(count5)", "( count 5 )", "(count 2) (count 3)"]:
+            c = self.add(f"- R1 reader — x — y {bad}")
+            self.expect(bad, (1, True), (c.findings, c.unread_counts >= 1))
+        self.expect("said in the digest", True,
+                    "count marker(s) not read" in RoundCount().add("- R1 reader — x — y (count 0)").cost())
+
+    def test_a_word_beginning_count_is_not_a_marker(self):
+        c = self.add("- R1 reader — x — y (counted twice)")
+        self.expect("one finding, nothing unread", (1, 0), (c.findings, c.unread_counts))
+
+    def test_count_marker_on_a_none_or_cost_line_is_not_read(self):
+        c = self.add("- R1 none (count 3)\n- R2 cost: reader 60k (count 3)")
+        self.expect("no findings, two unread", (0, 2), (c.findings, c.unread_counts))
+
+
+class OwnerLines(Cases):
+    def test_owner_reviewed_none_and_not_reviewed_are_not_findings(self):
+        for line in ["owner — none", "owner — reviewed, none", "owner — not reviewed", "owner — reviewed — none"]:
+            self.expect(line, 0, RoundCount().add(f"- R1 reader — x — y\n- {line}").owner)
+        self.expect("a finding is", 1, RoundCount().add("- owner — 1.5 *x* — y").owner)
+        self.expect("text that holds \"none\" is still a finding", 1,
+                    RoundCount().add("- owner — 1.5 r — none of the links work").owner)
+
+    def test_owner_finding_after_merge_counts_as_owner_found(self):
+        line = "- owner — 1.5 *x* — y (after merge, 2026-11-01)"
+        self.expect("record", 1, RoundCount().add(line).owner)
+        self.expect("a bad date still counts", 1, RoundCount().add(line.replace("2026-11-01", "1 Nov")).owner)
+        notes = "- Owner's finding on delphside/programme#124, after merge:\n  " + line
+        text = render(digest(reviews=[]), notes=notes)
+        self.expect("counted from a note in a later week", True, "found by the owner afterwards: 1" in text)
+        self.expect("the note is not said to be a change with no pull request", True,
+                    "From the notes below (changes with no pull request, and findings after a merge):" in text)
+        self.expect("an owner line at the top level joins the note above", 1,
+                    render(digest(reviews=[]), notes="- a note\n- owner — reviewed, none").count(CONCLUDE))
 
 
 if __name__ == "__main__":
