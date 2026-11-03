@@ -9,7 +9,12 @@ host_ctx_load() {   # reads the request and the payload's profile into shell var
   H_APP="$(jq -r .app "$REQ")"; H_ENV="$(jq -r .env "$REQ")"; H_ROLE="$(jq -r .role "$REQ")"
   H_SHA="$(jq -r '.sha // ""' "$REQ")"; H_VERSION="$(jq -r '.version // ""' "$REQ")"
   H_STATE="$ENVDIR"
-  H_IMAGES="$(jq -r '(.images // {}) | to_entries[] | "\(.key)=\(.value)"' "$REQ")"
+  # each image by digest, as the compose file and the hooks name it
+  if [[ "$(jq -r '.local' "$REQ")" == true ]]; then
+    H_IMAGES="$(jq -r '(.images // {}) | to_entries[] | "\(.key)=\(.value)"' "$REQ")"
+  else
+    H_IMAGES="$(jq -r --arg r "$DELIVER_REGISTRY/$(jq -r '.repo // ""' "$REQ")" '(.images // {}) | to_entries[] | "\(.key)=\($r)@\(.value)"' "$REQ")"
+  fi
   PROJECT="$(jq -r '.project // empty' "$REQ")"; PROJECT="${PROJECT:-$H_APP-$H_ENV}"
   PJSON="$PAYLOAD/profile.json"
   REQUIRED_HOOKS="$(jq -r '(.release.required_hooks // [])[]' "$PJSON" | tr '\n' ' ')"

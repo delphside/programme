@@ -48,12 +48,9 @@ while read -r f; do
   fi
 done < <(jq -r '.[]' <<< "$JOIN")
 : > "$DIR/deliver.env"
-REPO_REF="$DELIVER_REGISTRY/$(jq -r .repo "$REQ")"
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
-  name="${line%%=*}"; digest="${line#*=}"
-  if [[ "$LOCAL" == true ]]; then ref="$digest"; else ref="$REPO_REF@$digest"; fi
-  printf '%s=%s\n' "$(image_var "$name")" "$ref" >> "$DIR/deliver.env"
+  printf '%s=%s\n' "$(image_var "${line%%=*}")" "${line#*=}" >> "$DIR/deliver.env"
 done <<< "$H_IMAGES"
 jq -c 'select(.record != null) | .record' "$REQ" > "$DIR/record.json"
 jq -nc --argjson n "$N" --slurpfile r "$REQ" --argjson join "$JOIN" --argjson hf "$HOST_FILES" --arg project "$PROJECT" \
