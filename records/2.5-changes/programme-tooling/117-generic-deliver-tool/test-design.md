@@ -46,14 +46,14 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R17 † | The release commit must be on `origin/main`. With `--emergency REASON` it must instead descend from the tag of the release production runs (its record, read from production's host state; where production has no `deliver` state, the version its `/health` reports, whose tag is the release's), and none of its commits after that tag may be on `main`. The newest tag is not the test: a release made but not yet run in production does not count. | §6 |
 | R18 | Every check in `required_checks` must be green on the commit. | §6 |
 | R19 | The version is read from the version file at the commit. No tag or record may exist for it, and it must be higher than the newest release tag of any prefix. | §4; §6 |
-| R20 | Parents aside, every open issue in milestone VERSION must be evidenced by a `Refs #N` since the previous release tag. A parent's `Refs` counts for its work package where the parent has exactly one in the milestone. Every work package those commits name must be in the milestone. With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 6. Otherwise the release refuses. `--set-aside milestone REASON` sets the gate aside where the profile's `[release].overridable` lists `milestone`. | §6; docs/1.2 |
+| R20 | Parents aside, every open issue in milestone VERSION must be evidenced by a `Refs #N` since the previous release tag. A parent's `Refs` counts for its work package where the parent has exactly one in the milestone. Every work package those commits name whose `Route` is Production Release must be in the milestone; work packages of other routes are left out. With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 6. Otherwise the release refuses. `--set-aside milestone REASON` sets the gate aside where the profile's `[release].overridable` lists `milestone`. | §6; docs/1.2 |
 | R21 | `release-check` is a gate. It can be set aside with `--set-aside` where overridable. | §6 |
 | R22 | The release runs in this order: gates and confirmation, then copy, then `VERSION-record`, then the annotated tag `vVERSION`, then the GitHub Release, then the bump, then the milestone. A copy already present with the same digest is a no-op. The version is spent at the tag. A rerun after the tag checks that the tag's record matches and resumes at the GitHub Release. A failure after the tag exits 3. | §7 |
 | R23 | The record has the §7 fields, `record: 1`, and the tag's message is the record. A reader refuses an unknown record version. A tag without JSON is history only. | §7 |
 | R24 | The bump goes to the next patch above both the released version and `main`'s own. An emergency that holds `main`'s number moves `main` on, and moves the open issues of that milestone with it. | §7 |
 | R25 | The GitHub Release notes run from the previous release tag of any prefix. The next milestone is opened. | §7 |
 | R26 | A production deploy needs a record for VERSION, with its digests pulled from releases. `--unrecorded REASON` instead copies `SHA-IMAGE` to releases with no record. No version is spent, and settle moves nothing. | §4; §6 |
-| R27 | `settle` acts only on what the record carries. A carried work package, of any route, goes to Post-deployment with a comment. A carried non-project issue is closed as completed with a comment. The milestone is closed. Each action checks first, so settle is safe to rerun. If settle fails, it lists the items left, the deploy stands, and the exit is 3. | §8; §6 |
+| R27 | `settle` acts only on what the record carries. A carried work package goes to Post-deployment with a comment. Only Production Release work packages are carried, because the milestone gate counts no other route. A carried non-project issue is closed as completed with a comment. The milestone is closed. Each action checks first, so settle is safe to rerun. If settle fails, it lists the items left, the deploy stands, and the exit is 3. | §8; §6 |
 | R28 | Rollback switches to `previous` and runs `restore-state`, and restores the previous deploy's host-file set, removing the current deploy's extra files. With no previous deploy it refuses and names the fallback. | §9 |
 | R29 | A hook listed in `required_hooks` that is missing or not executable refuses. Any other missing hook is a no-op. A hook's exit means 0 passed, 75 not yet, and anything else refused or failed. Hooks receive `DELIVER_APP`, `_ENV`, `_ROLE`, `_SHA`, `_VERSION`, `_STATE` and `_IMAGE_<NAME>`. A hook of kind check (`post-deploy`) that exits non-zero is reported, changes nothing else, and leaves the exit code as it was. | §5 |
 | R30 | Every override takes a reason. The reason goes into the record where there is one, and always into the run log. | §4 |
@@ -101,7 +101,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 - **C20 release progress on a rerun** (complete): nothing done · copied, no tag · tag present with a matching record · tag present with a different record · all steps done
 - **C21 owner confirmation** (complete): typed correctly · typed wrongly · `--expect` matching · `--expect` not matching
 - **C22 override** (complete over §4): none · `--emergency` · `--skip-rehearsal` · `--unrecorded` · `--off-level` · `--set-aside` (overridable, including `milestone`) · `--set-aside` (not overridable) · flag without reason · `--wait` · `--check`
-- **C23 settle item** (complete over the record): Production Release work package · non-project issue · milestone · carried work package of another route · parent
+- **C23 settle item** (complete over the record): Production Release work package · non-project issue · milestone · work package of another route, referenced in the release's commits but in its own date milestone · parent
 - **C24 settle progress** (complete): none done · some done · all done · `gh` fails
 - **C25 registry credential** (complete): the role's own · another role's
 - **C26 image arch** (complete): single · multi-arch index
@@ -128,7 +128,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | O11 | `main` holds the bumped version. The stub `gh` saw the Release, with notes from the previous tag of any prefix, and the next milestone opened. |
 | O12 | The override's reason appears in the record field (`emergency`, `rehearsal_skipped`, `set_aside`) where there is a record, and always in the run log. |
 | O13 | The stub `gh` saw a retrospective issue naming the reason and what was skipped. |
-| O14 | Settle: the stub `gh` saw exactly the record's work packages, of any route, moved to Post-deployment, the issues closed as completed with a comment, and the milestone closed. A rerun makes no new mutation. |
+| O14 | Settle: the stub `gh` saw exactly the record's work packages moved to Post-deployment, and nothing done to a work package of another route, the issues closed as completed with a comment, and the milestone closed. A rerun makes no new mutation. |
 | O15 | The deploy stands (O4 holds), and the exit is 3 with the items left listed. |
 | O16 | `--wait` blocks, then proceeds once the lock frees or the hook returns 0. |
 | O17 | The registry refuses another role's write. The role's own credential succeeds. |
@@ -203,7 +203,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S27 | Normal bump; an emergency when `main` holds the emergency's number. | C29 | O11; `main` moves to the next patch and the milestone's open issues move | CI |
 | S28 | A reader given record version 2; a text tag `v0.10.1`; a `prod-` tag. | C27 | O1; history only, not deployable as a record | CI |
 | S29 | Production deploy of a version with no record; with `--unrecorded R` by SHA; of a recorded version; of a raw SHA without a flag. | C2 production, C4 | O1; `SHA-IMAGE` in releases, no tag, O12, settle moves nothing; O4 + O14; O1 | CI |
-| S30 | Production deploy of a record carrying a Production Release work package, a work package of another route (Application Tooling) and a non-project issue, where settle's `gh` fails partway; then `deliver settle VERSION` is rerun; then rerun again. | C23, C24 | O15; O14, with both work packages moved; no new mutation | CI |
+| S30 | Production deploy of a record carrying a Production Release work package and a non-project issue, where the release's commits also reference an Application Tooling work package in its own date milestone, and settle's `gh` fails partway; then `deliver settle VERSION` is rerun; then rerun again. | C23, C24 | O15; O14, with the Production Release work package moved and the Application Tooling one untouched; no new mutation | CI |
 | S31 | Rollback with a previous deploy; with none. | C12 | O7; O1 naming the fallback | CI |
 | S32 | Each command's run log and exit codes; `--check` on deploy and release. | R31, R32 | O23, O20 | CI |
 | S33 | TLE's real hooks on rehearsal: snapshot, `--migrate-only`, `/health` within 60 s; smoke failure injected. | R12, R29 | O4; then O7 with the database restored | REH |
@@ -226,6 +226,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S50 † | Emergency where 0.10.1 is made and 0.10.0 is what production runs, production having no `deliver` state, so the stub `/health` reports 0.10.0: a commit cut from `v0.10.1`; then one cut from `v0.10.0`. Then a production with `deliver` state, whose record (read from the stub ssh host state) names a release that is not the newest tag: the same two cuts. | C16, C16a | O1 (it holds `main` commits after the release production runs); O10 + O12; the same results | CI |
 | S51 | A parent whose `Refs` is the only evidence: with one work package in the milestone; then with two. | C19 | O10 for the first; O1 for two (the work packages are unevidenced); then each work package referenced, O10 | CI |
 | S52 | An emergency (C29 = equal to the emergency's number) where an open issue in the milestone is evidenced by no commit; then where it is evidenced only by a commit on `main` after the tag. | C19, C29 | O1 naming the milestone gate; then O10 + O12, step 6 moves the issue to the next milestone, and `carries` excludes it | CI |
+| S53a | The release's commits reference an Application Tooling work package that is in a date milestone, not in milestone VERSION; then a Production Release work package that is not in milestone VERSION. | C19 | O10, the tooling work package neither counted nor carried; then O1 naming the milestone gate | CI |
 | S53 | `--set-aside milestone R`, five cases: (1) the milestone disagrees, no flag; (2) the flag without a reason; (3) the flag where the profile does not list `milestone` in `overridable`; (4) the flag with a reason where it is overridable; (5) the milestone agreeing, no flag. | C22, C19 | O1; O1; O1; O10 + O12, with the record's `set_aside` = `[{"gate":"milestone","reason":R}]` and `carries` the milestone's open items; O10 with `set_aside` empty | CI |
 | S54 | `--wait=1` with the lock held beyond the limit; with a hook returning 75 beyond it; with the lock freed within it. | C7, C9, C22 | O1 (refuses, exit 1, naming the lock) and nothing changed; O1 (the same, naming the hook); O16 then O4 | CI |
 | S55 | A host file the previous deploy installed and this one drops; then `status`. | C28 | O25 (the dropped file is gone, the others have the payload's mode); `status` is quiet | CI; REH half of S34 |
@@ -288,7 +289,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R17 † | S20, S50, S52 |
 | R18 | S21 |
 | R19 | S22 |
-| R20 | S23, S51, S52, S53 |
+| R20 | S23, S51, S52, S53, S53a |
 | R21 | S24 |
 | R22 | S26 |
 | R23 | S26, S28 |
@@ -366,6 +367,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S51 | R20 |
 | S52 | R20, R17 |
 | S53 | R20, R30, R10 |
+| S53a | R20 |
 | S54 | R8 |
 | S55 | R13 |
 | S56 | R28, R13 |
