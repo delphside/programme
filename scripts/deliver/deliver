@@ -57,14 +57,44 @@ load_profile() {
   TAG_PREFIX="$(pq .release.tag_prefix)"; [[ -n "$TAG_PREFIX" ]] || die "$PROFILE_FILE has no release.tag_prefix"
   mapfile -t HIST_PREFIXES < <(pqa .release.history_prefixes)
   ANNOUNCEMENT="$(pq .release.announcement)"
+  CANDIDATES="$(pq .deliver.candidates)"; RELEASES="$(pq .deliver.releases)"
+  derive_gate_config
+  [[ -n "$CANDIDATES" && -n "$RELEASES" && ${#IMAGES[@]} -gt 0 ]] || die "$PROFILE_FILE needs [deliver] candidates, releases and images"
+  run_log_start "$APP" "$DELIVER_SUBCOMMAND" "${DELIVER_ARGS[@]}"
+}
+
+# derive_gate_config: the settings a gate reads, from PJ.
+derive_gate_config() {
   mapfile -t REQUIRED_CHECKS_A < <(pqa .release.required_checks)
   REQUIRED_HOOKS="$(pqa .release.required_hooks | tr '\n' ' ')"
   OVERRIDABLE="$(pqa .release.overridable | tr '\n' ' ')"
-  CANDIDATES="$(pq .deliver.candidates)"; RELEASES="$(pq .deliver.releases)"
   mapfile -t IMAGES < <(pqa .deliver.images)
   PAYLOAD_IMAGE="$(pq .deliver.payload_image)"
-  [[ -n "$CANDIDATES" && -n "$RELEASES" && ${#IMAGES[@]} -gt 0 ]] || die "$PROFILE_FILE needs [deliver] candidates, releases and images"
-  run_log_start "$APP" "$DELIVER_SUBCOMMAND" "${DELIVER_ARGS[@]}"
+}
+
+# use_commit_profile SHA: what a gate asks of a commit (its required checks and
+# hooks, what may be set aside, its images) is read from that commit's profile,
+# as its hooks are, and not from the working tree. Which machine an environment
+# is, and its role, stay the control node's own.
+use_commit_profile() {
+  local sha="$1" rel text tmp cj
+  case "$PROFILE_FILE" in "$REPO"/*) rel="${PROFILE_FILE#"$REPO"/}" ;; *) return 0 ;; esac
+  if ! g cat-file -e "$sha^{commit}" 2>/dev/null; then
+    run_log_event profile "source=working-tree" "reason=commit-not-in-this-repository"; return 0
+  fi
+  text="$(g show "$sha:$rel" 2>/dev/null)" || die "commit ${sha:0:12} has no $rel"
+  tmp="$(mktemp)"; printf '%s\n' "$text" > "$tmp"
+  cj="$(toml_to_json "$tmp")" || { rm -f "$tmp"; die "cannot read $rel at ${sha:0:12}"; }
+  rm -f "$tmp"
+  PJ="$(jq -c --argjson c "$cj" '
+    .release.required_checks = ($c.release.required_checks // [])
+    | .release.required_hooks = ($c.release.required_hooks // [])
+    | .release.overridable = ($c.release.overridable // [])
+    | .deliver.images = ($c.deliver.images // [])
+    | .deliver.payload_image = ($c.deliver.payload_image // null)' <<< "$PJ")"
+  derive_gate_config
+  [[ ${#IMAGES[@]} -gt 0 ]] || die "$rel at ${sha:0:12} lists no [deliver] images"
+  run_log_event profile "source=commit" "sha=$sha"
 }
 
 # ------------------------------------------------------------------ git helpers
@@ -144,25 +174,40 @@ env_of_role() {    # ROLE -> first environment name with it
   jq -r --arg r "$1" '.environments | to_entries[] | select(.value.role == $r) | .key' <<< "$PJ" | head -1
 }
 
-# run_on_host ENV ARGS...: deliver-host on ENV's machine, stdin passed through.
+# run_deliver_host PLACE ARGS...: deliver-host on a machine, stdin passed through. PLACE
+# is control-node or an ssh alias.
+run_deliver_host() {
+  local place="$1"; shift
+  if [[ "$place" == control-node || -z "$place" ]]; then
+    "${DELIVER_HOST_BIN:-$HERE/deliver-host}" "$@"
+  else
+    local cmd; cmd="$(printf '%q ' deliver-host "$@")"
+    ssh "$place" "$cmd"
+  fi
+}
+
+# run_on_host ENV ARGS...: deliver-host on ENV's machine.
 run_on_host() {
   local env="$1"; shift
   local host ssh
   host="$(env_q "$env" host)"; ssh="$(env_q "$env" ssh)"
-  if [[ "$host" == control-node ]]; then
-    "${DELIVER_HOST_BIN:-$HERE/deliver-host}" "$@"
-  elif [[ -n "$ssh" ]]; then
-    local cmd; cmd="$(printf '%q ' deliver-host "$@")"
-    ssh "$ssh" "$cmd"
-  else
-    die "environment $env has neither host = \"control-node\" nor ssh"
-  fi
+  if [[ "$host" == control-node ]]; then run_deliver_host control-node "$@"
+  elif [[ -n "$ssh" ]]; then run_deliver_host "$ssh" "$@"
+  else die "environment $env has neither host = \"control-node\" nor ssh"; fi
 }
 
-# run_where PLACE CMD...: on the control node or on an ssh alias (for build and copy).
-run_where() {
-  local place="$1"; shift
-  if [[ "$place" == control-node || -z "$place" ]]; then "$@"; else ssh "$place" "$(printf '%q ' "$@")"; fi
+# copier_run COPIES_JSON [RECORD_TAG RECORD_FILE]: the release copier does the
+# writing to releases (design sections 2 and 4, R33), where copy_on says, with
+# that machine's credential. Sets REG_ERR to its message on failure.
+copier_run() {
+  local copies="$1" rtag="${2:-}" rfile="${3:-}" place req out code=0
+  place="$(pq .deliver.release.copy_on)"; place="${place:-control-node}"
+  req="$(jq -nc --arg login "$(pq .deliver.release.copy_login)" --arg c "$CANDIDATES" --arg r "$RELEASES" \
+    --argjson copies "$copies" --arg rtag "$rtag" --slurpfile body "${rfile:-/dev/null}" \
+    '{login:$login,candidates:$c,releases:$r,copies:$copies,record:(if $rtag == "" then null else {tag:$rtag,body:$body[0]} end)}')"
+  run_log_event step "name=copier" "where=$place"
+  out="$(run_deliver_host "$place" copy "$APP" <<< "$req" 2>&1)" || code=$?
+  if [[ $code -ne 0 ]]; then REG_ERR="$(sed 's/^deliver-host: //' <<< "$out" | tail -1)"; return 1; fi
 }
 
 host_status() {    # ENV -> status JSON (the host's `deliver-host status --json`)
@@ -205,7 +250,7 @@ candidate_digests() {   # SHA -> IMAGES_JSON; refuses on none, some, or a failed
   local img d code missing=() out="{}"
   for img in "${IMAGES[@]}"; do
     d=""; code=0
-    d="$(reg_digest "$CANDIDATES" "$1-$img")" || code=$?
+    reg_digest "$CANDIDATES" "$1-$img" >/dev/null || code=$?; d="$REG_DIGEST"
     case $code in
       0) out="$(jq -c --arg i "$img" --arg d "$d" '. + {($i): $d}' <<< "$out")" ;;
       1) missing+=("$img") ;;
@@ -249,6 +294,7 @@ resolve_ref() {
     fi
     if [[ -n "$RECORD_JSON" ]]; then
       SHA="$(jq -r .commit <<< "$RECORD_JSON")"; IMAGES_JSON="$(jq -c .images <<< "$RECORD_JSON")"
+      use_commit_profile "$SHA"
       return
     fi
     if [[ "$role" == production ]]; then
@@ -257,6 +303,7 @@ resolve_ref() {
     [[ -n "$tag" ]] || gate_fail "ref" "no tag or record for version $VERSION"
     SHA="$(g rev-parse "$tag^{commit}")"      # a release made before the tool: by its commit's build
     RECORD_JSON=""
+    use_commit_profile "$SHA"
     candidate_digests "$SHA"
     return
   fi
@@ -267,6 +314,7 @@ resolve_ref() {
       fi
     fi
     resolve_sha "$ref"
+    use_commit_profile "$SHA"
     candidate_digests "$SHA"
     VERSION="$(version_at "$SHA" 2>/dev/null || true)"
     return
@@ -280,10 +328,24 @@ OPT_UNRECORDED=""
 # assemble_payload TREE DIR: the deploy steps, hooks and joined files the image
 # carries at /deliver/. Nothing secret.
 assemble_payload() {
-  local tree="$1" dir="$2" f
+  local tree="$1" dir="$2" sha="$3" f tooldir toollib pinned toolwork=""
+  # the steps and libraries are the programme's, at the commit the application
+  # pins at SHA, so a deploy runs what that commit was built and tested with
+  pinned="$(g ls-tree "$sha" programme 2>/dev/null | awk '$2=="commit"{print $3}')"
+  if [[ -n "$pinned" ]]; then
+    git -C "$REPO/programme" cat-file -e "$pinned^{commit}" 2>/dev/null \
+      || die "the programme submodule does not hold the commit ${pinned:0:12} that ${sha:0:12} pins: run git submodule update --init"
+    toolwork="$(mktemp -d)"
+    git -C "$REPO/programme" archive "$pinned" scripts/deliver/payload scripts/deliver/lib | tar -x -C "$toolwork" \
+      || { rm -rf "$toolwork"; die "cannot read the tool from the programme at ${pinned:0:12}"; }
+    tooldir="$toolwork/scripts/deliver"; toollib="$tooldir/lib"
+  else
+    tooldir="$HERE"; toollib="$DELIVER_LIB"
+  fi
   rm -rf "$dir"; mkdir -p "$dir/lib" "$dir/join" "$dir/host_files" "$dir/hooks"
-  cp -R "$HERE/payload/." "$dir/"
-  cp "$DELIVER_LIB/common.sh" "$DELIVER_LIB/toml.sh" "$DELIVER_LIB/toml.awk" "$dir/lib/"
+  cp -R "$tooldir/payload/." "$dir/"
+  cp "$toollib/common.sh" "$toollib/toml.sh" "$toollib/toml.awk" "$dir/lib/"
+  [[ -z "$toolwork" ]] || rm -rf "$toolwork"
   [[ -d "$tree/deliver/hooks" ]] && cp -R "$tree/deliver/hooks/." "$dir/hooks/"
   toml_to_json "$tree/app-profile.toml" > "$dir/profile.json" || die "cannot read the profile at the commit"
   local joins
@@ -298,9 +360,11 @@ assemble_payload() {
   done < <(jq -r '(.deliver.host_files // [])[].src' "$dir/profile.json")
 }
 
-programme_commit() {
+# tool_programme SHA: the programme commit the application pins at SHA (its
+# `programme` submodule), else the commit of the tool being run.
+tool_programme() {
   local c
-  c="$(g ls-tree HEAD programme 2>/dev/null | awk '$2=="commit"{print $3}')"
+  c="$(g ls-tree "$1" programme 2>/dev/null | awk '$2=="commit"{print $3}')"
   [[ -n "$c" ]] || c="$(git -C "$HERE" rev-parse HEAD 2>/dev/null || true)"
   printf '%s' "$c"
 }
@@ -331,6 +395,7 @@ cmd_build() {
     fi
     gate_ok build-commit "on the remote"
   fi
+  use_commit_profile "$sha"
   local place; place="$(pq .deliver.build.on)"
   if [[ -n "$place" && "$place" != control-node && -z "${DELIVER_ON_BUILD_HOST:-}" ]]; then
     local fwd=(deliver build "$sha"); [[ $local_only -eq 1 ]] && fwd+=(--local)
@@ -344,7 +409,7 @@ cmd_build() {
   local tobuild=() have="{}"
   if [[ $local_only -eq 0 ]]; then
     for img in "${IMAGES[@]}"; do
-      code=0; d="$(reg_digest "$CANDIDATES" "$sha-$img")" || code=$?
+      code=0; reg_digest "$CANDIDATES" "$sha-$img" >/dev/null || code=$?; d="$REG_DIGEST"
       case $code in
         0) have="$(jq -c --arg i "$img" --arg d "$d" '. + {($i): $d}' <<< "$have")" ;;
         1) tobuild+=("$img") ;;
@@ -363,7 +428,7 @@ cmd_build() {
     # shellcheck disable=SC2064
     trap "g worktree remove --force '$tree' >/dev/null 2>&1; rm -rf '$tree'; _run_log_exit \$?" EXIT
     version="$(version_in_tree "$tree")"
-    assemble_payload "$tree" "$tree/.deliver-payload"
+    assemble_payload "$tree" "$tree/.deliver-payload" "$sha"
     export DELIVER_SHA="$sha" DELIVER_VERSION="$version" DELIVER_BUILD_IMAGES="${tobuild[*]}"
     DELIVER_LABEL_CREATED="$(now_utc)"
     export DELIVER_LABEL_REVISION="$sha" DELIVER_LABEL_VERSION="$version" DELIVER_LABEL_CREATED
@@ -455,6 +520,7 @@ cmd_deploy() {
   local local_build=0 local_images="{}"
   if [[ "$role" == preview ]] && [[ "$(env_q "$env" host)" == control-node ]] && ! [[ "$ref" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     local lsha; lsha="$(g rev-parse --verify -q "$ref^{commit}" 2>/dev/null || true)"
+    [[ -z "$lsha" ]] || use_commit_profile "$lsha"
     if [[ -n "$lsha" ]] && docker image inspect "deliver-local/$APP-${IMAGES[0]}:$lsha" >/dev/null 2>&1; then
       local_build=1; SHA="$lsha"; VERSION="$(version_at "$SHA" 2>/dev/null || true)"; RECORD_JSON=""
       local img; for img in "${IMAGES[@]}"; do
@@ -480,7 +546,7 @@ cmd_deploy() {
     else
       # --unrecorded: the release copier puts SHA-IMAGE into releases; no version is spent
       if [[ $OPT_CHECK -eq 0 ]]; then
-        copy_to_releases "$SHA" "$SHA" || gate_fail "production-record" "the copy to releases failed: $REG_ERR"
+        copy_to_releases "$SHA" || gate_fail "production-record" "the copy to releases failed: $REG_ERR"
       fi
       gate_ok production-record "unrecorded: $OPT_UNRECORDED"
     fi
@@ -548,16 +614,13 @@ run_post_deploy() {   # ENV ROLE: the check hook, from the commit; its failure i
   rm -rf "$tmp"
 }
 
-# copy_to_releases SRC_TAG_SHA DST_TAG_PREFIX: each image by digest into releases as PREFIX-IMAGE.
+# copy_to_releases PREFIX: each image by digest into releases as PREFIX-IMAGE, on the release copier.
 copy_to_releases() {
-  local src="$1" prefix="$2" img d have dest
+  local prefix="$1" img copies="[]"
   for img in "${IMAGES[@]}"; do
-    d="$(jq -r --arg i "$img" '.[$i]' <<< "$IMAGES_JSON")"
-    dest="$prefix-$img"
-    have="$(reg_digest "$RELEASES" "$dest")" && { [[ "$have" == "$d" ]] && continue; REG_ERR="releases already holds $dest with another digest"; return 1; }
-    reg_copy "$CANDIDATES" "$d" "$RELEASES" "$dest" >/dev/null || return 1
+    copies="$(jq -c --arg i "$img" --arg d "$(jq -r --arg i "$img" '.[$i]' <<< "$IMAGES_JSON")" --arg dest "$prefix-$img" '. + [{digest:$d,dest:$dest}]' <<< "$copies")"
   done
-  : "$src"
+  copier_run "$copies"
 }
 
 rehearsal_level_gate() {
@@ -647,14 +710,14 @@ cmd_list() {
 
 # ------------------------------------------------------------------ release
 
-OPT_EXPECT=""; OPT_COMMIT=""; OPT_EMERGENCY=""; OPT_SKIP=""
+OPT_EXPECT=""; OPT_COMMIT=""; OPT_EMERGENCY=""; OPT_SKIP=""; OLD_RECORD=""
 
 cmd_release() {
   while [[ $# -gt 0 ]]; do
     parse_common_flag "$@" && { shift "$PARSED"; continue; }
     case "$1" in
-      --expect) OPT_EXPECT="${2:-}"; shift 2 ;;
-      --commit) OPT_COMMIT="${2:-}"; shift 2 ;;
+      --expect) [[ -n "${2:-}" && "$2" != --* ]] || die "--expect needs a version"; OPT_EXPECT="$2"; shift 2 ;;
+      --commit) [[ -n "${2:-}" && "$2" != --* ]] || die "--commit needs a commit"; OPT_COMMIT="$2"; shift 2 ;;
       --emergency) reason_ok "${2:-}" || die "--emergency needs a reason"; OPT_EMERGENCY="$2"; OVERRIDES+=("emergency"$'\t'"$2"); shift 2 ;;
       --skip-rehearsal) reason_ok "${2:-}" || die "--skip-rehearsal needs a reason"; OPT_SKIP="$2"; OVERRIDES+=("skip-rehearsal"$'\t'"$2"); shift 2 ;;
       *) die "release: unknown argument $1" ;;
@@ -682,6 +745,7 @@ cmd_release() {
     gate_fail rehearsal-passed "$renv has never deployed: nothing to release (name a commit with --commit and --skip-rehearsal REASON)"
   fi
   g cat-file -e "$SHA^{commit}" 2>/dev/null || die "commit ${SHA:0:12} is not in this repository"
+  use_commit_profile "$SHA"
   VERSION="$(version_at "$SHA")"; [[ -n "$VERSION" ]] || die "cannot read the version at ${SHA:0:12}"
   candidate_digests "$SHA"
 
@@ -739,6 +803,7 @@ cmd_release() {
       local old; old="$(record_pull "$RELEASES" "$VERSION-record")" || gate_fail version-spent-once "cannot read the $VERSION-record in releases"
       [[ "$(jq -r .commit <<< "$old")" == "$SHA" && "$(jq -c .images <<< "$old")" == "$IMAGES_JSON" ]] \
         || gate_fail version-spent-once "releases holds a $VERSION-record for another commit or other digests"
+      OLD_RECORD="$(jq -c . <<< "$old")"
     elif [[ $rcode -ne 1 ]]; then gate_fail version-spent-once "the registry could not be queried"; fi
     newest="$(newest_version_tag)"
     if [[ -n "$newest" ]] && ! semver_gt "$VERSION" "$newest"; then
@@ -776,17 +841,22 @@ cmd_release() {
   made="$(now_utc)"
   local rfile="${XDG_STATE_HOME:-$HOME/.local/state}/deliver/$APP/release-$VERSION.json"
   if [[ -f "$rfile" ]] && [[ "$(jq -r .commit "$rfile")" == "$SHA" ]]; then made="$(jq -r .made "$rfile")"; fi
-  rehearsal_json="$(jq -c '{environment: "'"$renv"'", deployed: (.current.deployed // null), smoke: (.current.smoke // null)}' <<< "$rst")"
+  # the rehearsal block describes this commit's rehearsal only: a release made with
+  # --skip-rehearsal --commit must not carry another commit's deploy and smoke result
+  rehearsal_json="$(jq -c --arg sha "$SHA" '{environment: "'"$renv"'"} + (if .current.sha == $sha then {deployed: (.current.deployed // null), smoke: (.current.smoke // null)} else {deployed: null, smoke: null} end)' <<< "$rst")"
   [[ -n "$OPT_SKIP" ]] && skipped_json="$(jq -nc --arg r "$OPT_SKIP" '$r')" || skipped_json=null
   [[ -n "$OPT_EMERGENCY" ]] && emergency_json="$(jq -nc --arg r "$OPT_EMERGENCY" '$r')" || emergency_json=null
   local used="[]"
   [[ ${#SET_ASIDE_USED[@]} -gt 0 ]] && used="$(printf '%s\n' "${SET_ASIDE_USED[@]}" | jq -Rn '[inputs | split("\t") | {gate: .[0], reason: .[1]}]')"
   RECORD="$(jq -nc --arg app "$APP" --arg v "$VERSION" --arg sha "$SHA" --argjson images "$IMAGES_JSON" --arg made "$made" \
     --argjson rehearsal "$rehearsal_json" --argjson emergency "$emergency_json" --argjson skipped "$skipped_json" \
-    --argjson aside "$used" --arg prog "$(programme_commit)" --argjson wps "$CARRIES_WP" --argjson iss "$CARRIES_ISSUES" \
+    --argjson aside "$used" --arg prog "$(tool_programme "$SHA")" --argjson wps "$CARRIES_WP" --argjson iss "$CARRIES_ISSUES" \
     '{record:1,application:$app,version:$v,commit:$sha,images:$images,made:$made,rehearsal:$rehearsal,
       emergency:$emergency,rehearsal_skipped:$skipped,set_aside:$aside,tool:{programme:$prog},
       carries:{work_packages:$wps,issues:$iss}}')"
+
+  # a record already pushed is the record: the tag carries what releases holds (O10)
+  [[ -z "$OLD_RECORD" ]] || RECORD="$OLD_RECORD"
 
   # the owner confirms
   say "release $VERSION of $APP"
@@ -865,25 +935,11 @@ release_steps() {
   rec_file="$(mktemp)"; printf '%s\n' "$RECORD" > "$rec_file"
   if [[ -z "$(g tag --list "$tag")" ]]; then
     done_all=0
-    # 2. copy each image by digest to releases (a copy already there is a no-op)
-    for img in "${IMAGES[@]}"; do
-      d="$(jq -r --arg i "$img" '.[$i]' <<< "$IMAGES_JSON")"
-      have=""; local c=0; have="$(reg_digest "$RELEASES" "$VERSION-$img")" || c=$?
-      if [[ $c -eq 0 ]]; then
-        [[ "$have" == "$d" ]] || { warn "refused: releases holds $VERSION-$img with another digest"; exit 1; }
-        continue
-      fi
-      [[ $c -eq 1 ]] || { warn "refused: the registry could not be queried: $REG_ERR"; exit 1; }
-      local place; place="$(pq .deliver.release.copy_on)"
-      login_run "$(pq .deliver.release.copy_login)" || { warn "refused: copy login failed: $REG_ERR"; exit 1; }
-      reg_copy "$CANDIDATES" "$d" "$RELEASES" "$VERSION-$img" >/dev/null || { warn "refused: the copy to releases failed: $REG_ERR"; exit 1; }
-    done
+    # 2. copy each image by digest to releases, on the release copier (a copy already there is a no-op)
+    copy_to_releases "$VERSION" || { warn "refused: the copy to releases failed: $REG_ERR"; exit 1; }
     run_log_event step "name=copy" "result=done"
-    # 3. the record as a scratch image
-    local rc=0; reg_inspect "$RELEASES" "$VERSION-record" >/dev/null || rc=$?
-    if [[ $rc -eq 1 ]]; then
-      record_push "$RELEASES" "$VERSION-record" "$rec_file" || { warn "refused: pushing the record failed: $REG_ERR"; exit 1; }
-    elif [[ $rc -ne 0 ]]; then warn "refused: the registry could not be queried"; exit 1; fi
+    # 3. the record as a scratch image (pushed once: a record already there is the one the tag carries)
+    copier_run "[]" "$VERSION-record" "$rec_file" || { warn "refused: pushing the record failed: $REG_ERR"; exit 1; }
     run_log_event step "name=record" "result=done"
     # 4. the annotated tag, whose message is the record: the version is spent here
     g tag -a -F "$rec_file" "$tag" "$SHA" || { warn "refused: cannot make tag $tag"; exit 1; }
@@ -898,9 +954,15 @@ release_steps() {
   # from here on the version is spent: a failure is reported, exit 3, and a rerun resumes
   if [[ -n "$OPT_SKIP" ]]; then
     local mark="deliver: rehearsal skipped for $VERSION"
-    gh_issue_create "Retrospective: $VERSION released with rehearsal skipped" \
-      "Release $VERSION ($SHA) was made with --skip-rehearsal. Reason: $OPT_SKIP. Skipped: rehearsal of this commit and the smoke test the release gate reads. $mark" \
-      || failed+=("retrospective issue")
+    local rtitle="Retrospective: $VERSION released with rehearsal skipped" exists=0
+    local tcode=0; gh_issue_titled "$rtitle" || tcode=$?
+    [[ $tcode -ne 0 ]] || exists=1
+    if [[ $tcode -eq 2 ]]; then failed+=("retrospective issue (cannot read the issues)")
+    elif [[ $exists -eq 0 ]]; then
+      gh_issue_create "$rtitle" \
+        "Release $VERSION ($SHA) was made with --skip-rehearsal. Reason: $OPT_SKIP. Skipped: rehearsal of this commit and the smoke test the release gate reads. $mark" \
+        || failed+=("retrospective issue")
+    fi
   fi
   # 5. the GitHub Release, notes from the previous release tag of any prefix
   if gh_release_exists "$tag"; then :; else

@@ -372,6 +372,8 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
 }
 
 @test "set_aside_milestone_needs_a_reason_and_an_overridable_profile (S53, R20, R30, R10)" {
+  # the commit's profile decides what may be set aside (F4)
+  sed -i 's/^overridable = .*/overridable = ["release-check"]/' "$W/work/app-profile.toml"
   ref_commit "a feature" 12
   release_ready "12|Requirement||0|" "50|Requirement||0|"
   # (1) disagrees, no flag
@@ -382,11 +384,12 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   assert_failure 1
   assert_output --partial "needs a reason"
   # (3) the profile does not list milestone
-  sed -i 's/^overridable = .*/overridable = ["release-check"]/' "$W/work/app-profile.toml"
   run d release --expect 0.10.2 --set-aside milestone "known extra"
   assert_failure 1
   assert_output --partial "does not list milestone"
   sed -i 's/^overridable = .*/overridable = ["milestone", "release-check"]/' "$W/work/app-profile.toml"
+  ref_commit "a feature" 12
+  release_ready "12|Requirement||0|" "50|Requirement||0|"
   # (4) with a reason where it is overridable
   run d release --expect 0.10.2 --set-aside milestone "the extra issue is a notes issue"
   assert_success

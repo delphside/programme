@@ -105,7 +105,7 @@ on = "control-node"
 login = "docker-config"
 
 [deliver.release]
-copy_on = "control-node"
+copy_on = "copier"
 copy_login = "docker-config"
 
 [deliver.ephemeral]
@@ -159,7 +159,7 @@ EOF
 # exit N for the first COUNT calls, then 0; "kill" = kill the parent (a deploy
 # interrupted at this step).
 name="$(basename "$0")"
-{ echo "== $name $*"; env | grep '^DELIVER_' | grep -v '^DELIVER_REQUEST\|^DELIVER_REGISTRY_TOKEN' | sort; } >> "${HOOKLOG:-/dev/null}"
+{ echo "== $name $*"; env | grep '^DELIVER_' | grep -v '^DELIVER_REQUEST' | sort; } >> "${HOOKLOG:-/dev/null}"
 ctl="${HOOKCTL:-/nonexistent}/$name"
 [[ -s "$ctl" ]] || exit 0
 read -r mode count < "$ctl"
@@ -226,7 +226,7 @@ run_log_gates() { jq -r 'select(.event=="gate") | .name' "$(run_log_latest "$1")
 snapshot() {
   {
     (cd "$W/registry" && find . -type f | sort | xargs -r sha256sum)
-    (cd "$W/hosts" && find . -path '*/.docker' -prune -o -path '*/log' -prune -o -type f -not -name '.systemctl.log' -not -name lock -print | sort | xargs -r sha256sum 2>/dev/null)
+    (cd "$W/hosts" && find . -path '*/.docker' -prune -o -path '*/log' -prune -o -type f -not -name '.systemctl.log' -not -name '.systemctl.failed' -not -name lock -print | sort | xargs -r sha256sum 2>/dev/null)
     (cd "$W/hosts" && find . -path '*/.docker/compose/*' -type f | sort | xargs -r sha256sum 2>/dev/null)
     git -C "$W/work" for-each-ref
     git -C "$W/remote.git" for-each-ref

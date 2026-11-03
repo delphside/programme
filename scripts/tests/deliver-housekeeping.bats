@@ -59,8 +59,17 @@ setup() {
 }
 
 @test "no_secret_reaches_a_log_record_tag_or_screen (S44, R34)" {
-  local canary="hunter2-canary"
-  export DELIVER_REGISTRY_TOKEN="$canary"
+  # the credential goes through the real path: oci-api-key on the control node, the
+  # copier and both hosts, the token command reading it from a file
+  local canary="hunter2-canary" h
+  printf '%s' "$canary" > "$W/token"; printf 'key' > "$W/key"
+  printf '#!/bin/sh\nexit 0\n' > "$W/bin/oci"; chmod +x "$W/bin/oci"
+  local lines; lines="$(printf 'DELIVER_OCI_TOKEN_CMD="cat %s"\nDELIVER_REGISTRY_USER=tenancy/user\nOCI_CLI_KEY_FILE=%s\n' "$W/token" "$W/key")"
+  printf '%s\n' "$lines" >> "$HOME/.config/deliver/acme.env"
+  printf '%s\n' "$lines" >> "$(host_state_dir rehearsal rehearsal)/.env"
+  printf '%s\n' "$lines" >> "$(host_state_dir prod production)/.env"
+  sed -i 's/"docker-config"/"oci-api-key"/' "$W/work/app-profile.toml"
+  : > "$W/logs/login.log"
   ref_commit "a feature" 12
   release_ready "12|Requirement||0|"
   run d release --expect 0.10.2
@@ -71,9 +80,11 @@ setup() {
   all+="$output"
   run d status rehearsal; all+="$output"
   run d list rehearsal; all+="$output"
-  # the host's .env holds the canary; nothing that is not .env may
+  # the credential was used on every machine that logs in, so the canary had somewhere to leak
+  assert_equal "$(grep -c "login ok bytes=${#canary}" "$W/logs/login.log")" "$(grep -c 'login ok' "$W/logs/login.log")"
+  [ "$(grep -c 'login ok' "$W/logs/login.log")" -ge 4 ]
   refute_regex "$all" "$canary"
-  run grep -rl "$canary" "$W" --exclude=.env
+  run grep -rl "$canary" "$W" --exclude=.env --exclude=token
   [ "$status" -eq 1 ]
   [ -z "$(git -C "$W/remote.git" tag -l -n99 | grep "$canary")" ]
 }
