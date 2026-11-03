@@ -753,6 +753,11 @@ class DocumentRows(Cases):
         self.expect("an unread figure is", True, row_with(body, "").endswith("| 60k (partial) |"))
         self.expect("no cost line", True, row_with(DOC, "- R1 none").endswith("| —  |".replace("  ", " ")))
 
+    def test_a_code_fence_holds_no_heading_or_doc_line(self):
+        body = f"#### docs/a.md\n{DOC}\n- R1 none\n```text\n#### docs/z.md\n{DOC}\n```"
+        rows, without, unread = documents(body, "x")
+        self.expect("one row, nothing else", (1, 0, 0), (len(rows), without, unread))
+
     def test_last_review_never_is_read(self):
         self.expect("never", True, "| never |" in row_with(DOC.replace("2026-10-26", "never")))
 
@@ -864,11 +869,11 @@ class DocumentRows(Cases):
 
     def test_the_format_example_in_docs_1_1_parses_as_documented(self):
         doc = (Path(__file__).resolve().parents[3] / "docs" / "1.1-programme-tooling.md").read_text()
-        example = re.search(r"```text\n(#### docs/.*?)```", doc, re.S).group(1)
+        example = re.search(r"```text\n((?:- R3[^\n]*\n)*\n?#### docs/.*?)```", doc, re.S).group(1)
         rows, without, unread = documents(example, "x")
         self.expect("two documents, both with every input", (2, 0, 0), (len(rows), without, unread))
         c = RoundCount().add(example)
-        self.expect("the counts the document says", (4, 0, 0, 570.0, 0),
+        self.expect("the counts the document says", (4, 0, 0, 650.0, 0),
                     (c.findings, c.both, c.from_fix, c.tokens, c.owner))
 
 
