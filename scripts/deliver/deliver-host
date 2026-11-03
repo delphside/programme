@@ -284,9 +284,28 @@ ALLOW_ROOT="$ROOT/etc/deliver"
 allow_app_of() {   # a path under the state folder -> the application it belongs to
   local rel="${1#"$STATE_ROOT"/}"; printf '%s' "${rel%%/*}"
 }
-host_file_allowed() {   # APP DEST: host-install allowed that destination
-  local f="$ALLOW_ROOT/$1/host_files.allow"
-  [[ -f "$f" ]] && grep -qxF -- "$2" "$f"
+host_file_entry() {   # APP DEST: sets A_SRC A_MODE A_ENABLE from the allowlist (dest, src, mode, enable per line)
+  local f="$ALLOW_ROOT/$1/host_files.allow" d
+  A_SRC=""; A_MODE=""; A_ENABLE=""
+  [[ -f "$f" ]] || return 1
+  while IFS=$'\t' read -r d A_SRC A_MODE A_ENABLE; do
+    [[ "$d" == "$2" && -n "$A_SRC" ]] && return 0
+  done < "$f"
+  return 1
+}
+unit_allowed() {   # UNIT: the basename of an allowlisted, enabled destination of some application
+  local f d s m e
+  for f in "$ALLOW_ROOT"/*/host_files.allow; do
+    [[ -f "$f" ]] || continue
+    while IFS=$'\t' read -r d s m e; do
+      [[ "$e" == true && "$(basename "$d")" == "$1" ]] && return 0
+    done < "$f"
+  done
+  return 1
+}
+mode_ok() {   # MODE: octal, no setuid, setgid or sticky bit, not writable by others
+  [[ "$1" =~ ^0?[0-7]{3}$ ]] || return 1
+  (( (8#$1 & 8#7000) == 0 && (8#$1 & 8#0002) == 0 ))
 }
 installed_dest() {   # DEST: root-ops installed it, for some application
   local f
@@ -320,19 +339,32 @@ cmd_root_ops() {
   local op="${1:-}"; shift || true
   case "$op" in
     install)
-      local src="$1" dest="$2" mode="$3"
+      local src="$1" dest="$2" app rel real
       path_ok "$dest" || die "root-ops: bad destination $dest"
       [[ "$src" == "$STATE_ROOT"/* && "$src" != *..* ]] || die "root-ops: the source must be under $STATE_ROOT"
-      local app; app="$(allow_app_of "$src")"
-      host_file_allowed "$app" "$dest" || die "root-ops: $dest is not on the host's allowlist for $app: rerun deliver host-install after changing the profile's host_files"
-      install -D -m "$mode" "$src" "$ROOT$dest" || return 1
+      app="$(allow_app_of "$src")"
+      host_file_entry "$app" "$dest" || die "root-ops: $dest is not on the host's allowlist for $app: rerun deliver host-install after changing the profile's host_files"
+      # a regular file, not a link, resolved under this application's own deploy folders and
+      # the one file this destination is listed for
+      [[ ! -L "$src" && -f "$src" ]] || die "root-ops: the source is not a regular file"
+      real="$(realpath -e -- "$src")" || die "root-ops: cannot resolve the source"
+      [[ "$real" == "$(realpath -e -- "$STATE_ROOT")/$app/"*/deploys/*/payload/host_files/"$A_SRC" ]] \
+        || die "root-ops: $dest accepts only $A_SRC from a deploy of $app"
+      mode_ok "$A_MODE" || die "root-ops: the allowlisted mode $A_MODE for $dest is not allowed (no setuid, setgid, sticky or world-writable)"
+      install -D -m "$A_MODE" "$real" "$ROOT$dest" || return 1
       record_installed "$app" "$dest" ;;
     rm)
       path_ok "$1" || die "root-ops: bad path $1"
       installed_dest "$1" || die "root-ops: $1 is not a file root-ops installed"
       rm -f -- "${ROOT}${1:?}"; forget_installed "$1" ;;
     systemctl)
-      case "${1:-}" in daemon-reload|enable|disable|restart|stop|start) systemctl "$@" ;; *) die "root-ops: systemctl $1 is not allowed" ;; esac ;;
+      case "${1:-}:$#" in
+        daemon-reload:1) systemctl daemon-reload ;;
+        enable:2|disable:2|restart:2|stop:2)
+          unit_allowed "$2" || die "root-ops: $2 is not a unit the allowlist derives"
+          systemctl "$1" "$2" ;;
+        *) die "root-ops: systemctl ${1:-} is not allowed (daemon-reload, or enable, disable, restart or stop of one allowlisted unit)" ;;
+      esac ;;
     useradd)
       ephemeral_user_ok "$1" || die "root-ops: $1 does not carry the ephemeral user_prefix"
       useradd -m -d "$2" "$1" ;;
