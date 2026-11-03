@@ -462,8 +462,8 @@ state file shows the last deploy finished, restored, or failed with no previous
 deploy. **root-ops** is the `deliver-host root-ops` subcommand, the one command
 the sudo rule lets the deploy user run as root. **Since the last release**,
 for rehearsal's level gate, means a deploy whose `deployed` time in the host's
-`meta.json` is at or after (`>=`, in seconds) the newest release tag's `made`
-time.
+`meta.json` is at or after (`>=`, in seconds) the newest release tag's
+creation date (`creatordate`).
 
 ### Commands and payload
 
@@ -522,9 +522,9 @@ time.
 - Production's version, for the emergency gate, comes from the record in its
   host state. Only when the host has no `current` at all is it read from
   `/health` through `versions.deployed` (`path` and `field`) and the
-  environment's `url`. A `current` with no record (a build from before the
-  tool) makes the gate refuse, saying it cannot tell which release production
-  runs.
+  environment's `url`, as for a production deployed before the tool. A
+  `current` with no record (a deploy made with `--unrecorded`) makes the gate
+  refuse, saying it cannot tell which release production runs.
 - `deliver prune` reads an image's `org.opencontainers.image.created` label.
   That is the time the build started, not the push time, and skopeo exposes
   only the image's own creation time, not the registry's push time. A
