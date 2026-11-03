@@ -197,10 +197,10 @@ docs/1.6 records the app it works through.
   or project it serves — possibly more than one.
 - **A milestone marks a delivery made at one point in time**, and places it in
   the sequence: the release semver where it includes a release, otherwise
-  **production's current version** with a letter appended, or for host
-  maintenance a date. Production's, not the development version, because the
-  development version is intent and can change, and a letter pinned to it can
-  name a release that is never made.
+  **the date it lands**, `YYYY.MM.DD-n`. The two are independent sequences
+  (owner, 2026-11-03): a release's semver is fixed when it is made, so a
+  tooling merge can go live after a release is made and before it is deployed,
+  and a number derived from production's version would misplace it.
 - `Route` belongs to the **artefact**, and **a delivery has one route**. Work
   touching artefacts with different routes is split into a delivery per route,
   each taking the shape its own route needs. A project might deliver its script
@@ -210,7 +210,7 @@ docs/1.6 records the app it works through.
   route lives where the delivery does: the parent carries no `Route`.
 - **Documentation riding on a release is a pre-approved add-on.** A release that
   also touches documents stays one delivery with one semver milestone: the
-  documents need no letter milestone, no second pull request and no row of their
+  documents need no dated milestone, no second pull request and no row of their
   own. They are on the project branch already, reviewed in the same diff, and
   live when the release is. A document carried along does not make a second
   delivery.
@@ -224,7 +224,7 @@ docs/1.6 records the app it works through.
   `main` as pre-approved, with none. A milestone on a requirement means a
   delivery happened with no work package to own it. An application's deploy
   script can warn about this.
-- **Milestones are only semvers, letters and dates** — owner, 2026-10-26.
+- **Milestones are only semvers and dates** — owner, 2026-10-26 and 2026-11-03.
   `pre-approved`, `no-release`, `patch`, `minor` and `major` are retired;
   `Route`, `Type of change` and the requirement and project states carry their
   meaning (docs/1.2 §2.15).
@@ -249,10 +249,10 @@ docs/1.6 records the app it works through.
   and carry out is the other case — the kernel and package work of 2026-09-19 —
   and it takes the project, a milestone (a date for host maintenance) and a row.
 - **A change to one of our own assets that reaches the image takes a new
-  semver**, not a letter: each application's artefact register (`3.n.2`) lists
-  them, and changing one is a Production Release. The letter form is for a
-  delivery that ships **no** application code at all — a console change, a
-  drill; host maintenance is numbered by date instead.
+  semver**, not a date: each application's artefact register (`3.n.2`) lists
+  them, and changing one is a Production Release. The date form is for a
+  delivery that ships **no** application code at all: a tooling merge, a
+  console change, a drill, host maintenance.
 - **Every delivery is one or more work packages**, each carried by a sub-project
   or by the parent. Work packages sharing a milestone are delivered together,
   and that grouping has no issue of its own — the milestone is what identifies
@@ -336,7 +336,7 @@ docs/1.6 records the app it works through.
 - A decision is not a change vehicle. It routes work: raise a requirement, add
   one to a project, update a project or the documents, or close something. It
   may make a pre-approved change only where no suitable requirement or project
-  exists. So it takes no semver and no letter milestone, and no delivery-log
+  exists. So it takes no semver and no dated milestone, and no delivery-log
   row.
 
 ## Documentation

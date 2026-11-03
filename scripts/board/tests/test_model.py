@@ -147,7 +147,7 @@ class TheBoardModel(Cases):
         """Docs and Programme Tooling owes no milestone; the other routes still do"""
         # Owner, 2026-10-26: it is delivered, but not at one point in time, and
         # the `pre-approved` milestone that used to satisfy this is retired. The
-        # route decides the shape, so Application Tooling still takes a letter.
+        # route decides the shape, so Application Tooling still takes a dated milestone.
         def answer(number, route):
             wp = classify(issue(number, parent=9, fields={"Project State": "Post-deployment",
                                                           "Route": route}))

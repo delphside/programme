@@ -15,7 +15,7 @@ before it, if there is one.*
 
 | ID | Released (UTC) | Deployed (UTC) | Kind | Where | What | Outcome |
 | --- | --- | --- | --- | --- | --- | --- |
-| *the release version, production's version plus a letter, or the date (`YYYY.MM.DD-n`) in the infrastructure application's log* | *for a release, when it was made; otherwise when it was applied* | *when it reached its users; `—` until a release is deployed* | *the kind of delivery: image (a release, or a preview or rehearsal deploy), host, drill, service or repository; several joined by ` · `* | *the environment or service it is for* | *each project and its delivery, and what it changed; for a release, a citation of its release record and any deploy gate set aside, with its reason* | *for a release, **released, not deployed** until it is deployed; then **done**, **done, part descoped** (what) or **failed** (what), each with how it was proved* |
+| *the release version, or the date (`YYYY.MM.DD-n`) for any other delivery* | *for a release, when it was made; otherwise when it was applied* | *when it reached its users; `—` until a release is deployed* | *the kind of delivery: image (a release, or a preview or rehearsal deploy), host, drill, service or repository; several joined by ` · `* | *the environment or service it is for* | *each project and its delivery, and what it changed; for a release, a citation of its release record and any deploy gate set aside, with its reason* | *for a release, **released, not deployed** until it is deployed; then **done**, **done, part descoped** (what) or **failed** (what), each with how it was proved* |
 
 ## What each delivery found or left outside git
 
