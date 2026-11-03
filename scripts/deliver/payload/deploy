@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# deploy: the steps of design §9 after the pull and the payload: pre-deploy,
+# the new deploy folder, save-state, migrate, host files, the switch, compose up,
+# smoke, finished, pruning. Started by `deliver-host deploy` from the payload
+# taken out of the image, with the lock held (the inherited descriptor 9).
+set -uo pipefail
+PAYLOAD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib/common.sh
+. "$PAYLOAD/lib/common.sh"
+# shellcheck source=steps.sh
+. "$PAYLOAD/steps.sh"
+DELIVER_CMD="deliver-host"
+host_ctx_load
+
+CHECK="$(jq -r '.check' "$REQ")"; LOCAL="$(jq -r '.local' "$REQ")"
+PRIOR="$(state_read)"; PRIOR_N="$(state_n)"
+OLD="$(link_n current || true)"; OLDPREV="$(link_n previous || true)"
+
+# a hook the profile requires that is missing or not executable refuses, so a
+# renamed hook cannot pass silently
+for h in $REQUIRED_HOOKS; do
+  if [[ ! -e "$HOOKS_DIR/$h" ]]; then gate_fail hooks-present "required hook $h is missing"; fi
+  if [[ ! -x "$HOOKS_DIR/$h" ]]; then gate_fail hooks-present "required hook $h is not executable"; fi
+done
+gate_ok hooks-present "${REQUIRED_HOOKS:-none required}"
+
+# pre-deploy: a gate
+hook_gate pre-deploy
+
+if [[ "$CHECK" == true ]]; then
+  say "check: the deploy's host gates passed; nothing changed"
+  exit 0
+fi
+
+N="$(next_n)"; DIR="$(deploy_dir "$N")"
+cleanup_unchanged() { drop_dir "$DIR"; if [[ -n "$PRIOR" ]]; then state_write "$PRIOR" "$PRIOR_N"; fi; }
+
+mkdir -p "$DIR" || die "cannot make $DIR"
+cp -a "$PAYLOAD" "$DIR/payload" || { cleanup_unchanged; die "cannot keep the payload"; }
+# the joined files are the commit's, taken from the payload: the environment's own list or the default
+JOIN="$(jq -c --slurpfile req "$REQ" '($req[0].env_join // []) as $e | if ($e | length) > 0 then $e else (.deliver.join // []) end' "$PJSON")"
+while read -r f; do
+  [[ -n "$f" ]] || continue
+  if [[ -e "$PAYLOAD/join/$f" ]]; then
+    (cd "$PAYLOAD/join" && cp --parents -a "$f" "$DIR/") || { cleanup_unchanged; die "cannot join $f"; }
+  else
+    cleanup_unchanged; die "the payload does not carry joined file $f"
+  fi
+done < <(jq -r '.[]' <<< "$JOIN")
+: > "$DIR/deliver.env"
+REPO_REF="$DELIVER_REGISTRY/$(jq -r .repo "$REQ")"
+while IFS= read -r line; do
+  [[ -n "$line" ]] || continue
+  name="${line%%=*}"; digest="${line#*=}"
+  if [[ "$LOCAL" == true ]]; then ref="$digest"; else ref="$REPO_REF@$digest"; fi
+  printf '%s=%s\n' "$(image_var "$name")" "$ref" >> "$DIR/deliver.env"
+done <<< "$H_IMAGES"
+jq -c 'select(.record != null) | .record' "$REQ" > "$DIR/record.json"
+jq -nc --argjson n "$N" --slurpfile r "$REQ" --argjson join "$JOIN" --argjson hf "$HOST_FILES" --arg project "$PROJECT" \
+  '$r[0] as $q | {n:$n, project:$project, sha:$q.sha, version:$q.version, images:$q.images, role:$q.role, record:$q.record, join:$join, host_files:($hf==1), deployed:null, smoke:null}' \
+  > "$DIR/meta.json"
+
+# from save-state on, a failure puts the previous deploy back
+fail_deploy() {   # STEP
+  warn "the deploy failed at $1"
+  restore_to "$OLD" "$N" "$OLDPREV"
+  if [[ -z "$OLD" ]]; then
+    warn "no previous deploy to go back to; the new containers are stopped. Fallback: $FALLBACK"
+  else
+    warn "the previous deploy (#$OLD) is back"
+  fi
+  exit 1
+}
+state_write "in progress: deploy-folder" "$N"
+state_write "in progress: save-state" "$N"
+hook_step save-state || fail_deploy save-state
+state_write "in progress: migrate" "$N"
+hook_step migrate || fail_deploy migrate
+if [[ "$HOST_FILES" -eq 1 ]]; then
+  state_write "in progress: host-files" "$N"
+  install_set "$DIR" || fail_deploy host-files
+fi
+state_write "in progress: switch" "$N"
+set_link previous "$OLD"; set_link current "$N"
+state_write "in progress: compose-up" "$N"
+compose_run "$N" up -d --no-build --remove-orphans || fail_deploy "compose up"
+verify_running "$N" || fail_deploy "the digest check of the running containers"
+state_write "in progress: smoke" "$N"
+code=0; hook_run smoke || code=$?
+if [[ $code -eq 0 ]]; then
+  gate_ok smoke
+else
+  run_log_event gate "name=smoke" "result=refused"; gate_emit smoke refused
+  [[ -z "$HOOK_REFUSAL" ]] || warn "$HOOK_REFUSAL"
+  warn "refused at gate smoke (exit $code)"; fail_deploy smoke
+fi
+jq -c --arg t "$(now_utc)" '.deployed = $t | .smoke = "passed"' "$DIR/meta.json" > "$DIR/meta.new" && mv "$DIR/meta.new" "$DIR/meta.json"
+state_write "finished" "$N"
+prune_host_images
+say "deployed $H_APP to $H_ENV: deploy #$N"

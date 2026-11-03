@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+echo "curl $*" >> "${STUB_LOG_DIR:?}/curl.log"
+[[ -n "${STUB_HEALTH_JSON:-}" ]] || exit 22
+printf '%s\n' "$STUB_HEALTH_JSON"

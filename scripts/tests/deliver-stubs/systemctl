@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+echo "systemctl $*" >> "${DELIVER_HOST_ROOT:-${STUB_LOCAL_ROOT:?}}/.systemctl.log"
+[[ -z "${STUB_SYSTEMCTL_FAIL:-}" ]] || exit 1
