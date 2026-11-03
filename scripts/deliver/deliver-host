@@ -278,12 +278,12 @@ cmd_env() {
           printf 'COMPOSE_PROJECT_NAME=%s\n' "$project"
           [[ -z "${DELIVER_REGISTRY:-}" ]] || printf 'DELIVER_REGISTRY=%s\n' "$DELIVER_REGISTRY"
           local s v
-          while read -r s; do
+          while read -r s <&3; do
             [[ -n "$s" ]] || continue
             printf '%s: ' "$s" >&2
             IFS= read -rs v || true; printf '\n' >&2
             printf '%s=%s\n' "$s" "$v"
-          done < <(jq -r '(.deliver.ephemeral.secrets // [])[]' <<< "$pj")
+          done 3< <(jq -r '(.deliver.ephemeral.secrets // [])[]' <<< "$pj")
         } > "$envdir/.env" )
       chmod 600 "$envdir/.env"
       hook_step env-create || die "the env-create hook failed"

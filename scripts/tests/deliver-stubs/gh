@@ -63,6 +63,7 @@ if [[ "$method" != GET ]]; then
   logline
   case "$method $path" in
     "POST repos/"*"/milestones")
+    # shellcheck disable=SC2010
       n=$((100 + $(ls "$G/state" | grep -c '^ms-new-'))); jq -nc --argjson n "$n" --arg t "$(fkv title)" '{number:$n,title:$t,state:"open"}' > "$G/state/ms-new-$n"
       echo "{\"number\":$n}" ;;
     "PATCH repos/"*"/milestones/"*) : > "$G/state/ms-closed-${path##*/}" ;;

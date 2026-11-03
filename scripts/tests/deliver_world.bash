@@ -18,7 +18,7 @@ STUBS_SRC="$(cd "$BATS_TEST_DIRNAME/deliver-stubs" && pwd)"
 
 world_new() {
   W="$BATS_TEST_TMPDIR"
-  mkdir -p "$W/bin" "$W/registry" "$W/hosts/local" "$W/hosts/rehearsal" "$W/hosts/prod" "$W/logs" "$W/gh" "$W/home" "$W/hookctl" "$W/xdg"
+  mkdir -p "$W/gh/fix" "$W/gh/state" "$W/bin" "$W/registry" "$W/hosts/local" "$W/hosts/rehearsal" "$W/hosts/prod" "$W/logs" "$W/gh" "$W/home" "$W/hookctl" "$W/xdg"
   cp "$STUBS_SRC"/* "$W/bin/"
   ln -sf "$DELIVER_HOST" "$W/bin/deliver-host"
   ln -sf "$DELIVER" "$W/bin/deliver"
@@ -159,7 +159,7 @@ EOF
 # exit N for the first COUNT calls, then 0; "kill" = kill the parent (a deploy
 # interrupted at this step).
 name="$(basename "$0")"
-{ echo "== $name $*"; env | grep '^DELIVER_' | grep -v '^DELIVER_REQUEST' | sort; } >> "${HOOKLOG:-/dev/null}"
+{ echo "== $name $*"; env | grep '^DELIVER_' | grep -v '^DELIVER_REQUEST\|^DELIVER_REGISTRY_TOKEN' | sort; } >> "${HOOKLOG:-/dev/null}"
 ctl="${HOOKCTL:-/nonexistent}/$name"
 [[ -s "$ctl" ]] || exit 0
 read -r mode count < "$ctl"
@@ -200,6 +200,7 @@ d() { ( cd "$W/work" && "$DELIVER" "$@" ); }
 
 build_ok() {      # [REF]: build, expect success
   run d build "${1:-HEAD}"
+  # shellcheck disable=SC2154
   [ "$status" -eq 0 ] || { echo "build failed: $output" >&2; return 1; }
 }
 
@@ -225,7 +226,7 @@ run_log_gates() { jq -r 'select(.event=="gate") | .name' "$(run_log_latest "$1")
 snapshot() {
   {
     (cd "$W/registry" && find . -type f | sort | xargs -r sha256sum)
-    (cd "$W/hosts" && find . -path '*/.docker' -prune -o -path '*/log' -prune -o -type f -not -name '.systemctl.log' -print | sort | xargs -r sha256sum 2>/dev/null)
+    (cd "$W/hosts" && find . -path '*/.docker' -prune -o -path '*/log' -prune -o -type f -not -name '.systemctl.log' -not -name lock -print | sort | xargs -r sha256sum 2>/dev/null)
     (cd "$W/hosts" && find . -path '*/.docker/compose/*' -type f | sort | xargs -r sha256sum 2>/dev/null)
     git -C "$W/work" for-each-ref
     git -C "$W/remote.git" for-each-ref
@@ -258,6 +259,7 @@ gh_milestone() {
       subIssues:{totalCount:$s}, projectItems:{nodes:[{fieldValueByName:(if $r=="" then null else {name:$r} end)}]}}]' <<< "$nodes")"
   done
   jq -nc --arg v "$version" --argjson nodes "$nodes" '{data:{repository:{milestones:{nodes:[{number:7,title:$v,state:"OPEN",issues:{nodes:$nodes}}]}}}}' > "$W/gh/fix/graphql_MilestoneItems.json"
+  jq -nc --arg v "$version" '[{number:7,title:$v,state:"open"}]' > "$W/gh/fix/repos_acme_acme_milestones.json"
 }
 # gh_issue N type parent milestone subs route [state]
 gh_issue() {
@@ -287,7 +289,7 @@ bake_count() { grep -c . "$W/logs/bake.log" 2>/dev/null || echo 0; }
 # lock_hold HOST ENV: hold that environment's lock in the background (LOCK_PID).
 lock_hold() {
   local f; f="$(host_state_dir "$1" "$2")/lock"; mkdir -p "$(dirname "$f")"
-  ( exec 9>>"$f"; flock -n 9 && sleep 60 ) &
+  ( exec 9>>"$f"; flock -n 9 && exec sleep 60 ) &
   LOCK_PID=$!
   sleep 0.3
 }
@@ -312,4 +314,54 @@ running_digests_of() {   # HOST PROJECT
 }
 digests_of() {   # SHA -> sorted candidate digests of both images
   { cand "$1-server"; cand "$1-web"; } | sort | tr '\n' ' '
+}
+
+# registry_record VERSION: the record held by the VERSION-record scratch image in releases.
+registry_record() {
+  local d="$W/registry/reg.test/ns/acme/releases/oci/$1-record" man layer
+  man="$(jq -r '.manifests[0].digest' "$d/index.json")"
+  layer="$(jq -r '.layers[0].digest' "$d/blobs/sha256/${man#sha256:}")"
+  tar -xOf "$d/blobs/sha256/${layer#sha256:}" record.json
+}
+tag_record() { git -C "$W/remote.git" tag -l "$1" --format='%(contents)'; }   # the annotated tag's message
+remote_version() { git -C "$W/remote.git" show main:app.toml | sed -n 's/^version = "\(.*\)"/\1/p'; }
+
+# fake_production VERSION SHA: production's host state as a deliver deploy left it.
+# VERSION "" = a build with no record (deployed before the tool).
+fake_production() {
+  local version="$1" sha="$2" d images record
+  d="$(host_state_dir prod production)"
+  mkdir -p "$d/deploys/1"
+  images="$(jq -nc --arg s "$(cand "$sha-server")" --arg w "$(cand "$sha-web")" '{server:$s,web:$w}')"
+  if [[ -n "$version" ]]; then
+    record="$(jq -nc --arg v "$version" --arg c "$sha" --argjson i "$images" '{record:1,application:"acme",version:$v,commit:$c,images:$i}')"
+  else record=null; fi
+  jq -nc --arg sha "$sha" --argjson i "$images" --argjson r "$record" --arg v "$version" \
+    '{n:1,sha:$sha,version:$v,images:$i,role:"production",record:$r,join:[],host_files:false,deployed:"2026-10-01T00:00:00Z",smoke:"passed"}' > "$d/deploys/1/meta.json"
+  ln -sfn deploys/1 "$d/current"
+  printf 'finished\ndeploy=1\n' > "$d/state"
+}
+
+# text_tag TAG COMMIT: a release made before the tool (no JSON message), pushed.
+text_tag() {
+  git -C "$W/work" tag -a -m "Release ${1#v}" "$1" "$2" && git -C "$W/work" push -q origin "refs/tags/$1"
+}
+
+# a commit with a Refs trailer: ref_commit "subject" 12 14
+ref_commit() {
+  local subject="$1"; shift
+  local trailer="" n
+  for n in "$@"; do trailer+="Refs #$n"$'\n'; done
+  commit_change "$subject"$'\n\n'"$trailer"
+}
+
+# release_ready [issues...]: the current SHA built, deployed to rehearsal (off level),
+# CI green, and a milestone 0.10.2 holding the open issues given as "n|type|parent|subs|route".
+release_ready() {
+  build_ok "$SHA" || return 1
+  RSHA="$SHA"
+  deploy_rehearsal "$RSHA"
+  [ "$status" -eq 0 ] || { echo "deploy failed: $output" >&2; return 1; }
+  gh_checks "$RSHA" e2e=success
+  gh_milestone 0.10.2 "$@"
 }
