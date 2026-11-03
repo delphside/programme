@@ -1152,11 +1152,14 @@ cmd_host_install() {
     # what root-ops may do is decided by files only root writes (design section 13):
     # the host-file destinations and the ephemeral user prefix, from the profile as
     # it is now, so a changed host_files list owes a rerun of this command
-    local allow_dir="/etc/deliver/$APP" dests prefix
-    dests="$(pqa '.deliver.host_files | map(.dest)')"; prefix="$(pq .deliver.ephemeral.user_prefix)"
+    local allow_dir="/etc/deliver/$APP" lines prefix
+    # one line per host file: destination, source within the payload, mode, enable (tab-separated);
+    # carried base64 so a path with a space or a quote stays what it is
+    lines="$(jq -r '(.deliver.host_files // [])[] | [.dest, .src, (.mode // "0644"), ((.enable // false) | tostring)] | @tsv' <<< "$PJ")"
+    prefix="$(pq .deliver.ephemeral.user_prefix)"
     script+="sudo install -d -m 0755 \"\$R/etc/deliver\" \"\$R$allow_dir\""$'\n'
-    script+="printf '%s\\n' $(printf '%q ' $dests) | sudo install -m 0644 /dev/stdin \"\$R$allow_dir/host_files.allow\""$'\n'
-    script+="printf '%s\\n' $(printf '%q' "$prefix") | sudo install -m 0644 /dev/stdin \"\$R$allow_dir/ephemeral.prefix\""$'\n'
+    script+="printf '%s' '$(printf '%s' "$lines" | base64 -w0)' | base64 -d | { cat; echo; } | sed '/^\$/d' | sudo install -m 0644 /dev/stdin \"\$R$allow_dir/host_files.allow\""$'\n'
+    script+="printf '%s\\n' '$(printf '%s' "$prefix" | base64 -w0)' | base64 -d | { cat; echo; } | sed '/^\$/d' | sudo install -m 0644 /dev/stdin \"\$R$allow_dir/ephemeral.prefix\""$'\n'
     script+='U="$(id -un)"'$'\n'
     script+='printf "%s ALL=(root) NOPASSWD: /usr/local/bin/deliver-host root-ops *\n" "$U" | sudo install -D -m 0440 /dev/stdin "$R/etc/sudoers.d/deliver-host"'$'\n'
   fi

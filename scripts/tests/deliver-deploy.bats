@@ -346,7 +346,7 @@ EOF
   assert_success
   [ ! -e "$W/hosts/rehearsal/etc/systemd/system/acme-backup.timer" ]
   assert_equal "$(stat -c %a "$W/hosts/rehearsal/opt/acme/backup.sh")" 755
-  run grep -c "disable --now acme-backup.timer" "$W/hosts/rehearsal/.systemctl.log"
+  run grep -c "^systemctl disable acme-backup.timer" "$W/hosts/rehearsal/.systemctl.log"
   assert_output 1
   run d status rehearsal
   refute_output --partial "differs"
@@ -367,7 +367,7 @@ EOF
   run d rollback rehearsal
   assert_success
   [ ! -e "$W/hosts/rehearsal/etc/systemd/system/acme-backup.timer" ]
-  run grep -c "disable --now acme-backup.timer" "$W/hosts/rehearsal/.systemctl.log"
+  run grep -c "^systemctl disable acme-backup.timer" "$W/hosts/rehearsal/.systemctl.log"
   assert_output 1
   assert_equal "$(host_current rehearsal rehearsal)" 1
   assert_equal "$(running_digests_of rehearsal acme-rehearsal)" "$(digests_of "$sha1")"
