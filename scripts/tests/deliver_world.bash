@@ -99,7 +99,6 @@ candidates = "acme/candidates"
 releases = "acme/releases"
 images = ["server", "web"]
 payload_image = "server"
-keep_images = ["acme-server:latest"]
 join = ["docker-compose.yml", "Caddyfile"]
 fallback = "stop the deliver project, restore the snapshot, run the old script"
 

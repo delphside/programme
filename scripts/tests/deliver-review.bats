@@ -393,3 +393,77 @@ EOF
   run awk -F'\t' '$1 == "/opt/acme/two words.sh" && $2 == "ops/backup.sh" && $3 == "0644" {print "ok"}' "$W/hosts/rehearsal/etc/deliver/acme/host_files.allow"
   assert_output ok
 }
+
+# round 4 ---------------------------------------------------------------------
+@test "R4 host-install merges: a rollback across a moved host file still finds its entry" {
+  commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  sed -i 's|dest = "/opt/acme/backup.sh"|dest = "/srv/opt/acme/backup.sh"|' "$W/work/app-profile.toml"
+  commit_change b; build_ok "$SHA"
+  run d host-install rehearsal; assert_success
+  run d deploy rehearsal "$SHA"; assert_success
+  [ -f "$W/hosts/rehearsal/srv/opt/acme/backup.sh" ]; [ ! -e "$W/hosts/rehearsal/opt/acme/backup.sh" ]
+  run d rollback rehearsal
+  assert_success
+  assert_equal "$(host_state rehearsal rehearsal)" restored
+  [ -f "$W/hosts/rehearsal/opt/acme/backup.sh" ]
+  # nothing uses the new destination now, so the next install drops it; the restored one stays
+  run d host-install rehearsal; assert_success
+}
+
+@test "R4 host-install merges: a dropped unit is stopped and disabled by the deploy that drops it" {
+  commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  drop_timer_from_profile
+  commit_change b; build_ok "$SHA"
+  run d host-install rehearsal; assert_success
+  grep -q acme-backup.timer "$W/hosts/rehearsal/etc/deliver/acme/host_files.allow"      # still in use until the deploy has run
+  run d deploy rehearsal "$SHA"; assert_success
+  run cat "$W/hosts/rehearsal/.systemctl.log"
+  assert_regex "$output" "systemctl stop acme-backup.timer"
+  assert_regex "$output" "systemctl disable acme-backup.timer"
+  [ ! -e "$W/hosts/rehearsal/etc/systemd/system/acme-backup.timer" ]
+  # and once nothing uses it, the next install drops the entry
+  commit_change c; build_ok "$SHA"; run d deploy rehearsal "$SHA"; assert_success
+  run d host-install rehearsal; assert_success
+  ! grep -q acme-backup.timer "$W/hosts/rehearsal/etc/deliver/acme/host_files.allow"
+}
+
+@test "R4 a refused stop of a dropped unit fails the deploy and names the unit" {
+  commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  drop_timer_from_profile
+  commit_change b; build_ok "$SHA"
+  run d host-install rehearsal; assert_success
+  STUB_SYSTEMCTL_FAIL=once run d deploy rehearsal "$SHA"
+  assert_failure 1
+  assert_output --partial "cannot stop acme-backup.timer"
+}
+
+@test "R4 settle matches the exact version: a 0.10.20 comment is not 0.10.2's" {
+  ref_commit "a feature" 12
+  release_ready "12|Requirement||0|"
+  run d release --expect 0.10.2
+  assert_success
+  gh_fixture repos_acme_acme_issues_12_comments '[{"body":"Released in v0.10.20 (deployed to production)"}]'
+  gh_issue 12 Requirement "" 0.10.2 0 ""
+  run d settle 0.10.2
+  assert_success
+  assert_regex "$(gh_log)" "POST repos/acme/acme/issues/12/comments body=Released in v0.10.2 \(deployed"
+}
+
+@test "R4 the rehearsal environment's name is data in the record, not part of a jq program" {
+  sed -i 's/^\[environments.rehearsal\]/[environments."re hearsal"]/' "$W/work/app-profile.toml"
+  commit_change a; build_ok "$SHA"; gh_checks "$SHA" e2e=success; gh_milestone 0.10.2
+  run d release --check --expect 0.10.2 --commit "$SHA" --skip-rehearsal "no host"
+  assert_success
+  run d release --expect 0.10.2 --commit "$SHA" --skip-rehearsal "no host"
+  assert_success
+  assert_equal "$(jq -r .rehearsal.environment <<< "$(tag_record v0.10.2)")" '"re hearsal"'
+}
+
+@test "R4 prune names only registry images and leaves local ones" {
+  commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  mkdir -p "$W/hosts/rehearsal/.docker/local"
+  jq -nc '{Id:"sha256:local1",RepoDigests:[],Config:{Labels:{}}}' > "$W/hosts/rehearsal/.docker/local/acme-server_latest.json"
+  commit_change b; build_ok "$SHA"; run d deploy rehearsal "$SHA"; assert_success
+  commit_change c; build_ok "$SHA"; run d deploy rehearsal "$SHA"; assert_success
+  [ -f "$W/hosts/rehearsal/.docker/local/acme-server_latest.json" ]
+}

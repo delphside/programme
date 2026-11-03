@@ -27,7 +27,6 @@ host_ctx_load() {   # reads the request and the payload's profile into shell var
     *) case "$H_ROLE" in rehearsal|production) HOST_FILES=1 ;; *) HOST_FILES=0 ;; esac ;;
   esac
   FALLBACK="$(jq -r '.deliver.fallback // "the application has named no fallback"' "$PJSON")"
-  KEEP_IMAGES="$(jq -r '(.deliver.keep_images // [])[]' "$PJSON")"
 }
 
 state_read()  { head -1 "$ENVDIR/state" 2>/dev/null || true; }
@@ -106,7 +105,10 @@ install_set() {
     while IFS=$'\t' read -r dest enable; do
       [[ -n "$dest" ]] || continue
       awk -F'\t' -v d="$dest" '$1 == d {f = 1} END {exit !f}' "$new" && continue
-      if [[ "$enable" == true ]]; then { root_ops systemctl stop "$(basename "$dest")"; root_ops systemctl disable "$(basename "$dest")"; } || true; fi
+      if [[ "$enable" == true ]]; then
+        root_ops systemctl stop "$(basename "$dest")" || { warn "cannot stop $(basename "$dest"), which this deploy no longer carries"; return 1; }
+        root_ops systemctl disable "$(basename "$dest")" || { warn "cannot disable $(basename "$dest"), which this deploy no longer carries"; return 1; }
+      fi
       root_ops rm "$dest" || return 1; changed=1
     done < "$listed"
   fi
@@ -151,7 +153,8 @@ restore_to() {
 }
 
 # prune_host_images: keep the current and previous sets of every environment on this
-# host (and of every application), and keep_images; remove the rest.
+# host (and of every application); remove the rest. Only images from the registry are
+# considered, so a local image such as a fallback's `:latest` is never touched.
 prune_host_images() {
   local keep="" line repo digest id f state_root
   state_root="$(dirname "$(dirname "$ENVDIR")")"
@@ -163,7 +166,6 @@ prune_host_images() {
     read -r repo digest id <<< "$line"
     [[ "$repo" == "$DELIVER_REGISTRY/"* ]] || continue
     grep -qxF "$digest" <<< "$keep" && continue
-    grep -qxF "$repo" <<< "$KEEP_IMAGES" && continue
     docker rmi "${repo%:*}@$digest" >/dev/null 2>&1 || true
   done < <(docker image ls --digests --format '{{.Repository}}:{{.Tag}} {{.Digest}} {{.ID}}' 2>/dev/null)
   : "${id:-}"
