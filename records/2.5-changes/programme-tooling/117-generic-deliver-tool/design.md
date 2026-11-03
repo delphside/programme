@@ -266,7 +266,7 @@ row says what it is for before what it compares.
 | release | an emergency ships nothing unreleased | with `--emergency`, the commit descends from the tag of the release production runs (its record, read from production's host state as for rehearsal's level; where production has no `deliver` state, the version its `/health` reports, whose tag is the release's) and none of its commits after that tag is on `main` | gate | nothing |
 | release | CI has passed the commit | every check in `required_checks` is green on the commit | gate | nothing |
 | release | the version is spent once, and moves forward | no tag or record exists for the version, and it is higher than the newest release tag of any prefix | gate | nothing |
-| release | the milestone is a shipping list | parents aside, every open issue in milestone VERSION is evidenced by a commit in the release (`Refs #N` since the previous release tag; a parent's `Refs` counts for its work package where the parent has exactly one in the milestone), and every work package the commits name is in the milestone. With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 6 | gate | `--set-aside milestone REASON` |
+| release | the milestone is a shipping list | parents aside, every open issue in milestone VERSION is evidenced by a commit in the release (`Refs #N` since the previous release tag; a parent's `Refs` counts for its work package where the parent has exactly one in the milestone), and every work package the commits name whose `Route` is Production Release is in the milestone. Work packages of other routes are left out, because they deliver on their own date milestones (docs/1.2 §2.15). With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 6 | gate | `--set-aside milestone REASON` |
 | release | the application's own release rules | the `release-check` hook | gate | `--set-aside`, where overridable |
 | production deploy | production runs only rehearsed releases | a record exists for VERSION; its digests are pulled from releases | gate | `--unrecorded` |
 | after a production deploy | the board says what shipped | `settle` (§8) | check: a failure is reported, exit 3, the deploy stands | — |
@@ -333,7 +333,7 @@ as docs/1.2 §2.5 says, parents aside:
 
 | item | becomes |
 | --- | --- |
-| a carried work package, of any route (docs/1.2 §2.5: a project advances) | `Project State` Post-deployment, with a comment that starts with the profile's `[release].announcement` and the version, so the board recognises it |
+| a carried work package, which a release milestone holds only for the Production Release route (docs/1.2 §2.5: a project advances) | `Project State` Post-deployment, with a comment that starts with the profile's `[release].announcement` and the version, so the board recognises it |
 | a carried issue that is not a project | closed as completed, with the same comment |
 | the milestone VERSION | closed |
 
