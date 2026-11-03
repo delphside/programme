@@ -16,10 +16,11 @@ if [[ "$1" == release && "$2" == create ]]; then
 fi
 [[ "$1" == api ]] || { echo "gh stub: unsupported: $*" >&2; exit 9; }
 shift
-method=GET; fields=(); query=""; number=""; path=""
+paginate=0; method=GET; fields=(); query=""; number=""; path=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -X) method="$2"; shift 2 ;;
+    --paginate) paginate=1; shift ;;
     -f|-F)
       kv="$2"; shift 2; fields+=("$kv")
       case "$kv" in query=*) query="${kv#query=}" ;; number=*) number="${kv#number=}" ;; esac ;;
@@ -88,7 +89,9 @@ case "$path" in
   repos/*/issues)
     base='[]'; [[ -f "$f.json" ]] && base="$(cat "$f.json")"
     extra="$(cat "$G/state/issues-new" 2>/dev/null | jq -sc '.')"; [[ -n "$extra" ]] || extra='[]'
-    jq -c --argjson e "$extra" '. + $e' <<< "$base" ;;
+    jq -c --argjson e "$extra" '. + $e' <<< "$base"
+    # a second page exists only for a caller that asked for every page
+    if [[ $paginate -eq 1 && -f "${f}_page2.json" ]]; then cat "${f}_page2.json"; fi ;;
   repos/*/issues/*/comments)
     n="${path%/comments}"; n="${n##*/}"
     base='[]'; [[ -f "$f.json" ]] && base="$(cat "$f.json")"

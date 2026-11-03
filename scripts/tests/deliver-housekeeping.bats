@@ -214,6 +214,7 @@ oci-instance-principal"
   local h
   for h in rehearsal prod local; do mv "$W/hosts/$h/var/lib/deliver/acme" "$W/hosts/$h/var/lib/deliver/widget"; done
   export DELIVER_GH_REPO=widget/widget
+  local e; for e in preview rehearsal production; do run d host-install "$e"; assert_success; done
   ref_commit "a feature" 12
   run d build "$SHA"
   assert_success
