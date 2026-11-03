@@ -1,0 +1,53 @@
+# Keeps the board's PR State current for the programme's own pull requests,
+# as each application's `pr-state.yml` does for its own. Without it a
+# programme pull request reached the board only through `board-add.yml`, with
+# PR State unset, so the owner could not see it was waiting for him.
+#
+# `PR State` is derived, never typed (docs/1.6): `board-pr-state.py` reads
+# GitHub's own state and writes the field. The programme's checkout has no
+# programme profile, so `BOARD_REPOSITORY` names the repository it acts on,
+# and `PROGRAMME_CONFIG` the programme file at the checkout's top.
+#
+# **It needs `BOARD_TOKEN`**, as `board-add.yml` does: the automatic workflow
+# token cannot write a Projects v2 field. Without it this run warns and
+# changes nothing, rather than failing every pull request.
+name: PR State
+
+on:
+  pull_request:
+    types: [opened, reopened, closed, ready_for_review, converted_to_draft,
+            review_requested, review_request_removed]
+  pull_request_review:
+    types: [submitted, dismissed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One sync at a time: each run reads every pull request, so a later run
+# supersedes an earlier one that has not finished.
+concurrency:
+  group: pr-state
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: set the board's PR State
+    runs-on: ubuntu-latest
+    # One read of the pull requests and the board, and a write per drift.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Sync
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.BOARD_TOKEN }}
+          BOARD_REPOSITORY: ${{ github.repository }}
+          PROGRAMME_CONFIG: config/programme.toml
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::warning::BOARD_TOKEN is not set, so PR State was not synced. See this file's header."
+            exit 0
+          fi
+          python3 scripts/board/board-pr-state.py
