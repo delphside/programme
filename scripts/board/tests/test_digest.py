@@ -448,6 +448,9 @@ class DocumentReviews(Cases):
         # The record's form is docs/1.1's example; the parser is tested against it.
         doc = (Path(__file__).resolve().parents[3] / "docs" / "1.1-programme-tooling.md").read_text()
         example = re.search(r"```text\n(?:- doc:[^\n]*\n)?(- R1 reader.*?)```", doc, re.S).group(1)
+        doc_line = re.search(r"```text\n(- doc:[^\n]*)\n", doc).group(1)
+        rows, without, unread = documents(doc_line + "\n" + example, "o/p#1")
+        self.expect("the example's doc: line is read whole", (1, 0, 0), (len(rows), without, unread))
         c = RoundCount().add(example)
         self.expect("counts",
                     ({"reader": 3, "truth": 3}, 1, 2, 2, 1, 1, 0, 5, 370),
