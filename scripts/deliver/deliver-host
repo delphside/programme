@@ -184,6 +184,36 @@ cmd_rollback() {
   exit "$code"
 }
 
+# allowlist APP < lines: run by `deliver host-install` as root. It writes the application's
+# host_files.allow from the profile's lines (destination, source, mode, enable), and
+# keeps an entry the new list lacks for as long as something still uses it: root's own
+# `installed` record names its destination, or the current or previous deploy of any
+# environment lists it. So a rollback or a restore across a moved or dropped host file,
+# and the stop of a dropped unit, still find their entries; an entry nothing uses is dropped.
+cmd_allowlist() {
+  local app="$1" new old out dest line pj
+  new="$(cat)"
+  old="$ALLOW_ROOT/$app/host_files.allow"
+  mkdir -p "$ALLOW_ROOT/$app"
+  out="$(mktemp "$ALLOW_ROOT/$app/.allow.XXXXXX")"
+  printf '%s\n' "$new" | sed '/^$/d' > "$out"
+  if [[ -f "$old" ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      dest="${line%%$'\t'*}"
+      awk -F'\t' -v d="$dest" '$1 == d {f = 1} END {exit !f}' "$out" && continue
+      if grep -qxF -- "$dest" "$ALLOW_ROOT/$app/installed" 2>/dev/null; then printf '%s\n' "$line" >> "$out"; continue; fi
+      for pj in "$STATE_ROOT/$app"/*/current/payload/profile.json "$STATE_ROOT/$app"/*/previous/payload/profile.json; do
+        [[ -f "$pj" ]] || continue
+        if jq -e --arg d "$dest" 'any((.deliver.host_files // [])[]; .dest == $d)' "$pj" >/dev/null 2>&1; then
+          printf '%s\n' "$line" >> "$out"; break
+        fi
+      done
+    done < "$old"
+  fi
+  chmod 0644 "$out"; mv -f "$out" "$old"
+}
+
 # copy APP < request: runs on the release copier (design sections 2 and 4), with
 # that machine's own registry configuration and credential. The request:
 #   {login, candidates, releases, copies:[{digest, dest}], record:{tag, body}|null}
@@ -439,10 +469,11 @@ main() {
     deploy) [[ $# -ge 2 ]] || die "usage: deliver-host deploy APP ENV < request"; cmd_deploy "$@" ;;
     rollback) [[ $# -ge 2 ]] || die "usage: deliver-host rollback APP ENV < request"; cmd_rollback "$@" ;;
     status) [[ $# -ge 2 ]] || die "usage: deliver-host status APP ENV --json"; cmd_status "$@" ;;
+    allowlist) [[ $# -ge 1 ]] || die "usage: deliver-host allowlist APP < lines"; cmd_allowlist "$@" ;;
     copy) [[ $# -ge 1 ]] || die "usage: deliver-host copy APP < request"; cmd_copy "$@" ;;
     root-ops) cmd_root_ops "$@" ;;
     env) cmd_env "$@" ;;
-    *) die "usage: deliver-host deploy|rollback|status|copy|env|root-ops" ;;
+    *) die "usage: deliver-host deploy|rollback|status|copy|allowlist|env|root-ops" ;;
   esac
 }
 main "$@"
