@@ -359,7 +359,7 @@ PLACEHOLDER = "Anything noticed during the week, for the review."
 
 def note_records(notes: str) -> list[str]:
     """The notes split into records, one per top-level `- ` line other than a
-    round, cost or owner line, so each record's cost lines pay only for its own
+    round, `R<n> none`, cost, owner or `doc:` line, so each record's cost lines pay only for its own
     findings; such a line stays with the record above it."""
     records, current = [], []
     for line in (notes or "").splitlines():
@@ -625,11 +625,14 @@ def documents(text: str, where: str) -> tuple[list[Document], int, int]:
     a block with several `doc:` lines shows them on each; a `doc:` line among
     the record's own lines in a record with headings shows none."""
     blocks: list[tuple[str | None, list[str]]] = [(None, [])]
+    fenced = False
     for line in (text or "").splitlines():
-        if m := _HEADING4.match(line):
+        if line.strip().startswith("```"):
+            fenced = not fenced
+        if not fenced and (m := _HEADING4.match(line)):
             blocks.append((m.group(1), []))
         else:
-            blocks[-1][1].append(line)
+            blocks[-1][1].append(("" if fenced or line.strip().startswith("```") else line))
     headed = len(blocks) > 1
     rows, without, unread = [], 0, 0
     for heading, lines in blocks:
