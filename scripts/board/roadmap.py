@@ -37,7 +37,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from .model import Issue, ParentProject, StandaloneProject, WorkPackage, classify
+from .model import (APPLICATION_TOOLING, OTHER, PROGRAMME_TOOLING, Issue, ParentProject,
+                    StandaloneProject, WorkPackage, classify, route_of)
 from .sources import Snapshot
 
 # Progress along a delivery, worst to best. Q1 is nearer than Q3, which is why
@@ -98,6 +99,22 @@ def _band(phase: str | None) -> str:
 
 def _phase_index(phase: str | None) -> int:
     return PHASE_ORDER.index(phase) if phase in PHASE_ORDER else 0
+
+
+def _milestone_label(issue: Issue) -> str:
+    """The bar's milestone, or why it has none yet.
+
+    A delivery other than a release takes the date it lands (owner,
+    2026-11-03), so its missing milestone is expected, not a gap.
+    """
+    if issue.raw.milestone:
+        return issue.raw.milestone
+    route = route_of(issue.field("Route"))
+    if route == PROGRAMME_TOOLING:
+        return "no milestone"
+    if route in (APPLICATION_TOOLING, OTHER):
+        return "dated when it lands"
+    return "milestone not set"
 
 
 def _clean(text: str, limit: int) -> str:
@@ -356,7 +373,7 @@ def draw(road: Roadmap) -> str:
                 part = f"part of {road.parents[issue.number]}"
                 out.append(f'<text x="{bx + 9}" y="{by + BAR_H - 20}" font-size="9.5" '
                            f'fill="{MUTED}">{_esc(_wrap(part, BAR_W - 18, 5.0, 1)[0])}</text>')
-            meta = f"{issue.raw.milestone or 'milestone not set'} \u00b7 {issue.step or 'phase not set'}"
+            meta = f"{_milestone_label(issue)} \u00b7 {issue.step or 'phase not set'}"
             out.append(f'<text x="{bx + 9}" y="{by + BAR_H - 7}" font-size="9.5" '
                        f'font-style="italic" fill="{MUTED}">'
                        f'{_esc(_wrap(meta, BAR_W - 18, 5.0, 1)[0])}</text>')

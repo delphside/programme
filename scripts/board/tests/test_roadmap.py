@@ -19,9 +19,12 @@ from board.sources import Snapshot
 
 
 def issue(number, kind="Project", subs=(), parent=None, ws="W",
-          milestone=None, blocked_by=()):
+          milestone=None, blocked_by=(), route=None):
+    fields = {"Workstream": ws, "Project State": "Q1"}
+    if route:
+        fields["Route"] = route
     return RawIssue(number, f"issue {number}", "OPEN", "", kind,
-                    {"Workstream": ws, "Project State": "Q1"}, tuple(subs), parent,
+                    fields, tuple(subs), parent,
                     milestone, frozenset(), frozenset(blocked_by), frozenset())
 
 def road(*raws, **kw):
@@ -111,6 +114,16 @@ class TheRoadmap(Cases):
         for banned in ("<style", "<defs", "<marker", "foreignObject", "<script"):
             self.expect(f"nothing the sanitiser strips: {banned}", False, banned in text)
         self.expect("an arrow is drawn for the dependency", True, "<polygon" in text)
+
+    def test_a_delivery_dated_when_it_lands_says_so(self):
+        """a delivery dated when it lands says so, rather than reading as a gap"""
+        # Owner, 2026-11-03: a date milestone is set when the delivery lands.
+        text = draw(road(issue(1, route="Application Tooling"),
+                         issue(2, route="Production Release")))
+        self.expect("tooling with no date yet is labelled as such", True,
+              "dated when it lands" in text)
+        self.expect("a release with no semver is still a gap", True,
+              "milestone not set" in text)
 
     def test_a_bar_is_one_width_because_width_would_imply_duration(self):
         """a bar is one width, because width would imply duration"""
