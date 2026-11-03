@@ -186,10 +186,10 @@ cmd_rollback() {
 
 # allowlist APP < lines: run by `deliver host-install` as root. It writes the application's
 # host_files.allow from the profile's lines (destination, source, mode, enable), and
-# keeps an entry the new list lacks for as long as something still uses it: root's own
-# `installed` record names its destination, or the current or previous deploy of any
-# environment lists it. So a rollback or a restore across a moved or dropped host file,
-# and the stop of a dropped unit, still find their entries; an entry nothing uses is dropped.
+# keeps an entry the new list lacks for as long as the current or previous deploy of an
+# environment (with host files installed) still lists it, so a rollback or a restore across
+# a moved or dropped host file, and the stop of a dropped unit, find their entries. An entry
+# nothing uses is dropped, and if root-ops installed its file the file is removed too.
 cmd_allowlist() {
   local app="$1" new old out line dest src mode enable pj meta used dropped=() d
   new="$(cat)"
@@ -370,14 +370,11 @@ forget_installed() {   # APP DEST: from that application's record only
   [[ -f "$f" ]] || return 0
   t="$(mktemp "$f.XXXXXX")"; grep -vxF -- "$2" "$f" > "$t" || true; mv -f "$t" "$f"
 }
-ephemeral_user_ok() {   # NAME: it starts with a prefix host-install recorded (non-empty)
-  local f prefix
-  for f in "$ALLOW_ROOT"/*/ephemeral.prefix; do
-    [[ -f "$f" ]] || continue
-    prefix="$(head -1 "$f")"
-    [[ -n "$prefix" && "$1" == "$prefix"?* ]] && return 0
-  done
-  return 1
+ephemeral_user_ok() {   # NAME APP: NAME starts with the non-empty prefix host-install recorded for APP
+  local f="$ALLOW_ROOT/${2:-}/ephemeral.prefix" prefix
+  [[ -n "${2:-}" && -f "$f" ]] || return 1
+  prefix="$(head -1 "$f")"
+  [[ -n "$prefix" && "$1" == "$prefix"?* ]]
 }
 cmd_root_ops() {
   local op="${1:-}"; shift || true
@@ -412,10 +409,10 @@ cmd_root_ops() {
         *) die "root-ops: systemctl ${1:-} is not allowed (daemon-reload, or enable, disable, restart or stop of one allowlisted unit)" ;;
       esac ;;
     useradd)
-      ephemeral_user_ok "$1" || die "root-ops: $1 does not carry the ephemeral user_prefix"
+      ephemeral_user_ok "$1" "${3:-}" || die "root-ops: $1 does not carry the ephemeral user_prefix of ${3:-no application}"
       useradd -m -d "$2" "$1" ;;
     userdel)
-      ephemeral_user_ok "$1" || die "root-ops: $1 does not carry the ephemeral user_prefix"
+      ephemeral_user_ok "$1" "${2:-}" || die "root-ops: $1 does not carry the ephemeral user_prefix of ${2:-no application}"
       userdel "$1" ;;
     *) die "root-ops: unknown operation $op" ;;
   esac
@@ -451,7 +448,7 @@ cmd_env() {
   case "$op" in
     create)
       [[ ! -e "$envdir" ]] || die "environment $name already exists at $envdir"
-      root_via_sudo useradd "$user" "$home/$name" || die "cannot create the user $user"
+      root_via_sudo useradd "$user" "$home/$name" "$app" || die "cannot create the user $user"
       mkdir -p "$envdir"
       ( umask 077
         {
@@ -473,7 +470,7 @@ cmd_env() {
       hook_step env-destroy || warn "the env-destroy hook failed; continuing"
       docker compose -p "$project" down -v >/dev/null 2>&1 || true
       drop_tmp "$envdir"
-      root_via_sudo userdel "$user" || warn "cannot remove the user $user"
+      root_via_sudo userdel "$user" "$app" || warn "cannot remove the user $user"
       say "environment $name destroyed" ;;
     *) die "usage: deliver-host env create|destroy NAME" ;;
   esac
