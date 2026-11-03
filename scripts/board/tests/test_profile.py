@@ -261,6 +261,13 @@ class TheProgrammeProfile(Cases):
     def test_the_repository_is_split_into_owner_and_name(self):
         self.expect("owner and name", ("fakeorg", "widget"), profile.repository())
 
+    def test_the_programme_repository_names_itself_without_a_profile(self):
+        # The programme's own checkout has no programme profile, so its
+        # workflows name the repository the board scripts act on.
+        os.environ["BOARD_REPOSITORY"] = "fakeorg/programme"
+        self.addCleanup(os.environ.pop, "BOARD_REPOSITORY", None)
+        self.expect("the override wins", ("fakeorg", "programme"), profile.repository())
+
     def test_the_organisation_is_the_programme_files_not_the_repository_owner(self):
         self.expect("organisation", "fakeorg", profile.organisation())
 

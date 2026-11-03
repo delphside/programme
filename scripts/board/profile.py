@@ -37,6 +37,9 @@ from typing import Any
 
 ENV_PROFILE = "PROGRAMME_PROFILE"
 ENV_CONFIG = "PROGRAMME_CONFIG"
+# The programme's own checkout has no programme profile, so its workflows name
+# the repository the board scripts act on.
+ENV_REPOSITORY = "BOARD_REPOSITORY"
 
 TECHNICAL_FILE = "app-profile.toml"
 
@@ -361,8 +364,9 @@ def application_profile(root: Path | None = None) -> dict:
 # --------------------------------------------------------------------------
 
 def repository(root: Path | None = None) -> tuple[str, str]:
-    """(owner, name) of this application's repository, from its programme profile."""
-    nwo = application_profile(root)["identity"]["repository"]
+    """(owner, name) of this application's repository, from its programme profile,
+    or from `BOARD_REPOSITORY` where it is set."""
+    nwo = os.environ.get(ENV_REPOSITORY) or application_profile(root)["identity"]["repository"]
     owner, _, name = nwo.partition("/")
     if not owner or not name:
         raise ProfileError(f"the programme profile's repository `{nwo}` is not `owner/name`")
