@@ -348,9 +348,12 @@ OBLIGATIONS: tuple[Obligation, ...] = (
     # point in time -- many edits over many commits -- so it takes no milestone
     # (owner, 2026-10-26; docs/1.2 §1.1). It used to carry `pre-approved`,
     # which met this check. Application Tooling always takes a branch, so owes
-    # a dated milestone like any other delivery.
+    # a dated milestone like any other delivery. It is owed from Development
+    # (owner, 2026-11-03): a date is set to the day planned and a release's
+    # semver when the package is scheduled into it, so both exist by then.
     Obligation(
-        "wp-milestone", DELIVERING, ("Deployment", "Post-deployment"),
+        "wp-milestone", DELIVERING,
+        ("Development", "User testing", "Deployment", "Post-deployment"),
         "a milestone, unless it is Docs and Programme Tooling",
         "a delivery made at one point in time is placed in the sequence",
         lambda i: bool(i.milestone) or route_of(i.field("Route")) == PROGRAMME_TOOLING,
