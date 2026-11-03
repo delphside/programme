@@ -201,7 +201,8 @@ HOOK_REFUSAL=""
 # hook_gate NAME: a hook that is a gate. With --wait, 75 retries each minute.
 # A set-aside hook (profile-overridable, named by --set-aside) is passed on.
 hook_gate() {
-  local name="$1" code=0 waited=0 limit="${OPT_WAIT:-}"
+  # one --wait budget covers the lock and this hook: what the lock used is spent
+  local name="$1" code=0 waited="${DELIVER_WAIT_USED:-0}" limit="${OPT_WAIT:-}"
   local unit="${DELIVER_WAIT_UNIT:-60}"
   while :; do
     code=0; hook_run "$name" || code=$?

@@ -29,6 +29,8 @@ deny_write() {
 }
 
 cmd="$1"; shift
+# where each write ran: the machine's root (the ssh stub sets it) or the control node
+case "$cmd" in copy|delete) echo "$cmd ${DELIVER_HOST_ROOT##*/}" >> "${STUB_LOG_DIR}/where.log" ;; esac
 case "$cmd" in
   inspect)
     parse "${@: -1}"

@@ -8,6 +8,9 @@
 #   deliver-host rollback APP ENV < request.json
 #   deliver-host status APP ENV --json
 #   deliver-host env create|destroy NAME
+#   deliver-host copy APP < request.json   the release copier's work: copy images
+#                                           from candidates to releases by digest
+#                                           and push the record image
 #   deliver-host root-ops install|rm|systemctl|useradd|userdel ...
 #
 # It holds the environment's lock for the whole deploy or rollback (descriptor 9,
@@ -45,11 +48,19 @@ state_settled() {
 
 # the registry address of this machine: its own .env, else its environment
 host_registry() {
-  local f="$1/.env" v=""
+  local f="$1/.env" v="" k
   [[ -f "$f" ]] && v="$(sed -n 's/^DELIVER_REGISTRY=//p' "$f" | head -1)"
   DELIVER_REGISTRY="${v:-${DELIVER_REGISTRY:-}}"
   [[ -n "$DELIVER_REGISTRY" ]] || die "DELIVER_REGISTRY is not set in $f or the environment"
   export DELIVER_REGISTRY
+  # the login adapter's settings, from the same file (design section 5): these
+  # lines only, read as text and never sourced
+  if [[ -f "$f" ]]; then
+    for k in DELIVER_OCI_TOKEN_CMD DELIVER_REGISTRY_USER OCI_CLI_AUTH OCI_CLI_KEY_FILE OCI_CLI_CONFIG_FILE; do
+      v="$(sed -n "s/^$k=//p" "$f" | head -1)"; v="${v#\"}"; v="${v%\"}"
+      [[ -z "$v" ]] || export "$k=$v"
+    done
+  fi
 }
 
 # take_lock ENVDIR LOCKFILE WAIT: the lock is descriptor 9, held to the end.
@@ -57,10 +68,11 @@ take_lock() {
   local lock="$2" wait="$3" waited=0 unit="${DELIVER_WAIT_UNIT:-60}"
   mkdir -p "$(dirname "$lock")"
   exec 9>>"$lock"
+  DELIVER_WAIT_USED=0; export DELIVER_WAIT_USED
   if flock -n 9; then gate_ok lock "free"; return 0; fi
   if [[ -z "$wait" ]]; then gate_fail lock "the lock $lock is held by another deploy or run"; fi
   while ! flock -w "$unit" 9; do
-    waited=$((waited + 1))
+    waited=$((waited + 1)); DELIVER_WAIT_USED=$waited
     if (( waited >= wait )); then gate_fail lock "still held after waiting $wait minute(s) for the lock $lock"; fi
   done
   gate_ok lock "free after waiting $waited minute(s)"
@@ -87,7 +99,7 @@ cmd_deploy() {
   take_lock "$envdir" "$lock" "$wait"
 
   if ! state_settled "$envdir"; then
-    gate_fail state "the last deploy did not finish (state: $(state_line "$envdir")); run deliver rollback, or redeploy the previous version"
+    gate_fail state "the last deploy did not finish (state: $(state_line "$envdir")); run deliver rollback ENV to put the last good deploy back (a redeploy is refused until then)"
   fi
   gate_ok state "$(state_line "$envdir")"
 
@@ -172,6 +184,45 @@ cmd_rollback() {
   exit "$code"
 }
 
+# copy APP < request: runs on the release copier (design sections 2 and 4), with
+# that machine's own registry configuration and credential. The request:
+#   {login, candidates, releases, copies:[{digest, dest}], record:{tag, body}|null}
+# A copy already in releases with the same digest is a no-op; with another digest
+# it refuses. The record image is pushed only where its tag is absent.
+cmd_copy() {
+  local app="$1" req conf
+  req="$(cat)"
+  jq -e . >/dev/null 2>&1 <<< "$req" || die "the request is not JSON"
+  conf="${DELIVER_CONFIG_DIR:-$HOME/.config/deliver}/$app.env"
+  if [[ -f "$conf" ]]; then set -a; . "$conf"; set +a; fi
+  [[ -n "${DELIVER_REGISTRY:-}" ]] || die "DELIVER_REGISTRY is not set for the release copier: put it in $conf"
+  local login candidates releases digest dest have code
+  login="$(jq -r '.login // empty' <<< "$req")"
+  candidates="$(jq -r .candidates <<< "$req")"; releases="$(jq -r .releases <<< "$req")"
+  [[ -z "$login" ]] || login_run "$login" || die "the copier's registry login ($login) failed: $REG_ERR"
+  while IFS=$'\t' read -r digest dest; do
+    [[ -n "$digest" ]] || continue
+    code=0; reg_digest "$releases" "$dest" >/dev/null || code=$?; have="$REG_DIGEST"
+    case $code in
+      0) [[ "$have" == "$digest" ]] && continue; die "releases already holds $dest with another digest" ;;
+      1) ;;
+      *) die "the registry could not be queried: $REG_ERR" ;;
+    esac
+    reg_copy "$candidates" "$digest" "$releases" "$dest" || die "the copy of $dest to releases failed: $REG_ERR"
+  done < <(jq -r '(.copies // [])[] | [.digest, .dest] | @tsv' <<< "$req")
+  local rtag; rtag="$(jq -r '.record.tag // empty' <<< "$req")"
+  if [[ -n "$rtag" ]]; then
+    local tmp; tmp="$(mktemp)"; jq -c '.record.body' <<< "$req" > "$tmp"
+    code=0; reg_inspect "$releases" "$rtag" >/dev/null || code=$?
+    case $code in
+      0) ;;
+      1) record_push "$releases" "$rtag" "$tmp" || { rm -f "$tmp"; die "pushing the record failed: $REG_ERR"; } ;;
+      *) rm -f "$tmp"; die "the registry could not be queried: $REG_ERR" ;;
+    esac
+    rm -f "$tmp"
+  fi
+}
+
 cmd_status() {
   local app="$1" env="$2" envdir state cur prev
   envdir="$(env_dir "$app" "$env")"
@@ -220,8 +271,34 @@ running_digests_status() {
 
 path_ok() { [[ "$1" == /* && "$1" != *..* ]]; }
 
-# root-ops: the one thing the sudo rule lets this command do as root. The source of
-# an install must be under the state folder; the destination an absolute path.
+# root-ops: the one thing the sudo rule lets this command do as root, and it does
+# less than the rule's wildcard allows. An install goes only to a destination the
+# payload it comes from lists in its profile's host_files for that source; rm only
+# of a file an earlier install recorded; useradd and userdel only for a name with
+# the ephemeral user_prefix an `env` command recorded from the profile.
+host_file_allowed() {   # SRC DEST: is DEST the destination the payload's profile gives SRC
+  local src="$1" dest="$2" pdir rel pj
+  pdir="${src%%/payload/host_files/*}/payload"
+  [[ "$src" == */payload/host_files/* && -f "$pdir/profile.json" ]] || return 1
+  rel="${src#*/payload/host_files/}"; pj="$pdir/profile.json"
+  jq -e --arg s "$rel" --arg d "$dest" 'any((.deliver.host_files // [])[]; .src == $s and .dest == $d)' "$pj" >/dev/null 2>&1
+}
+installed_dest() {   # DEST: did an earlier install on this host record it
+  local f
+  for f in "$STATE_ROOT"/*/*/host_files.installed; do
+    [[ -f "$f" ]] && awk -F'\t' -v d="$1" '$1 == d {f = 1} END {exit !f}' "$f" && return 0
+  done
+  return 1
+}
+ephemeral_user_ok() {   # NAME: it starts with a recorded, non-empty ephemeral user_prefix
+  local f prefix
+  for f in "$STATE_ROOT"/*/ephemeral.prefix; do
+    [[ -f "$f" ]] || continue
+    prefix="$(head -1 "$f")"
+    [[ -n "$prefix" && "$1" == "$prefix"?* ]] && return 0
+  done
+  return 1
+}
 cmd_root_ops() {
   local op="${1:-}"; shift || true
   case "$op" in
@@ -229,14 +306,20 @@ cmd_root_ops() {
       local src="$1" dest="$2" mode="$3"
       path_ok "$dest" || die "root-ops: bad destination $dest"
       [[ "$src" == "$STATE_ROOT"/* && "$src" != *..* ]] || die "root-ops: the source must be under $STATE_ROOT"
+      host_file_allowed "$src" "$dest" || die "root-ops: $dest is not a destination the profile lists for that file"
       install -D -m "$mode" "$src" "$ROOT$dest" ;;
     rm)
       path_ok "$1" || die "root-ops: bad path $1"
+      installed_dest "$1" || die "root-ops: $1 is not a file a deploy installed"
       rm -f -- "${ROOT}${1:?}" ;;
     systemctl)
       case "${1:-}" in daemon-reload|enable|disable|restart|stop|start) systemctl "$@" ;; *) die "root-ops: systemctl $1 is not allowed" ;; esac ;;
-    useradd) useradd -m -d "$2" "$1" ;;
-    userdel) userdel "$1" ;;
+    useradd)
+      ephemeral_user_ok "$1" || die "root-ops: $1 does not carry the ephemeral user_prefix"
+      useradd -m -d "$2" "$1" ;;
+    userdel)
+      ephemeral_user_ok "$1" || die "root-ops: $1 does not carry the ephemeral user_prefix"
+      userdel "$1" ;;
     *) die "root-ops: unknown operation $op" ;;
   esac
 }
@@ -263,6 +346,7 @@ cmd_env() {
   prefix="$(jq -r '.deliver.ephemeral.user_prefix // empty' <<< "$pj")"
   home="$(jq -r '.deliver.ephemeral.home // empty' <<< "$pj")"
   [[ -n "$app" && -n "$prefix" && -n "$home" ]] || die "the profile needs application and [deliver.ephemeral] user_prefix and home"
+  mkdir -p "$STATE_ROOT/$app"; printf '%s\n' "$prefix" > "$STATE_ROOT/$app/ephemeral.prefix"
   user="$prefix$name"; project="$app-$name"; envdir="$(env_dir "$app" "$name")"
   DELIVER_LOG_DIR="$STATE_ROOT/$app/log"; run_log_start "$app" "env-$op" "$name" 2>/dev/null || true
   local payload; payload="$(ephemeral_payload "$app")"
@@ -305,9 +389,10 @@ main() {
     deploy) [[ $# -ge 2 ]] || die "usage: deliver-host deploy APP ENV < request"; cmd_deploy "$@" ;;
     rollback) [[ $# -ge 2 ]] || die "usage: deliver-host rollback APP ENV < request"; cmd_rollback "$@" ;;
     status) [[ $# -ge 2 ]] || die "usage: deliver-host status APP ENV --json"; cmd_status "$@" ;;
+    copy) [[ $# -ge 1 ]] || die "usage: deliver-host copy APP < request"; cmd_copy "$@" ;;
     root-ops) cmd_root_ops "$@" ;;
     env) cmd_env "$@" ;;
-    *) die "usage: deliver-host deploy|rollback|status|env|root-ops" ;;
+    *) die "usage: deliver-host deploy|rollback|status|copy|env|root-ops" ;;
   esac
 }
 main "$@"

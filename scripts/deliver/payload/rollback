@@ -28,9 +28,12 @@ gate_ok rollback-target "back to ${GOOD:-nothing}"
 if [[ -n "$GOOD" && ! -d "$(deploy_dir "$GOOD")" ]]; then die "deploy #$GOOD is gone from $ENVDIR/deploys"; fi
 
 state_write "in progress: rollback" "$FAILED"
-restore_to "$GOOD" "$FAILED" "$PREVPREV"
+if ! restore_to "$GOOD" "$FAILED" "$PREVPREV"; then
+  warn "the rollback did not complete: the state is left interrupted ($(state_read)). Fallback: $FALLBACK"; exit 1
+fi
 if [[ -z "$GOOD" ]]; then
   warn "rolled back to nothing: the failed first deploy is stopped. Fallback: $FALLBACK"; exit 1
 fi
 prune_host_images
+prune_deploys
 say "rolled back to deploy #$GOOD"
