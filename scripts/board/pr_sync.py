@@ -72,6 +72,11 @@ def plan(prs: Iterable[RawPullRequest],
     out = []
     for pr in prs:
         item = items.get(pr.number)
+        # Open items only are added, as board-add.py's rule: a first run in a
+        # repository would otherwise add its whole history and bury the board.
+        # One already on the board is still corrected, whatever its state.
+        if item is None and pr.state != "OPEN":
+            continue
         d = Drift(pr.number, pr.node_id, want(pr),
                   item.pr_state if item else None,
                   item.item_id if item else None,

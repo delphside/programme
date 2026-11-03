@@ -97,6 +97,16 @@ class WhatARunDoes(Cases):
         self.expect("and its state set on the new item",
                     [("PVTI_new_PR_7", "Approved")], fake.set)
 
+    def test_a_closed_or_merged_pull_request_not_on_the_board_is_not_added(self):
+        # Open items only, as board-add's rule: a first run in a repository
+        # would otherwise add its whole history and bury the board.
+        fake, tally = run_plain([pr(8, state="MERGED"), pr(9, state="CLOSED")], [])
+        self.expect("nothing added", [], fake.added)
+        self.expect("nothing counted", 0, tally.added)
+        fake, tally = run_plain([pr(8, state="MERGED")], [on_board(8, "Awaiting review")])
+        self.expect("but one on the board is still corrected",
+                    [("PVTI_8", "Merged")], fake.set)
+
     def test_a_failed_add_is_reported_and_not_counted(self):
         fake, tally = run_plain([pr(7)], [], Board(refuse_add={"PR_7"}))
         self.expect("not counted as added", 0, tally.added)
