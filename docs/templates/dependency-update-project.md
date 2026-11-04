@@ -10,7 +10,7 @@ Only the fenced block is copied, into the project's body when it is raised.
 Placeholders: `#N` is this project's number; `X.Y.Z` is the release it rides;
 `#nnn` is a pull request or an advisory requirement.
 
-What changes from release to release is 1.2 §2.2.1's.
+What changes from release to release is listed in 1.2 §2.2.1.
 -->
 
 ````markdown
