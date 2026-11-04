@@ -12,11 +12,11 @@ questions and waits.
 
 **Claude triages alone in Process Definition, Programme Tooling and each
 application's Delivery Tooling, for type `tooling` or `documentation` in
-any workstream, and for a dependency advisory**, where only the call that one
-cannot wait goes to the owner
-([1.2 §2.2.1](../../../docs/1.2-change-lifecycle.md#221-business-as-usual-updates)). Everything else in those areas is Claude's to classify,
-scope, group, fold and close, except what still comes to the owner whatever
-its workstream ([1.7 *Who decides*](../../../docs/1.7-roles-and-responsibilities.md#who-decides)):
+any workstream, and for a dependency advisory**, where only whether one can
+wait goes to the owner
+([1.2 §2.2.1](../../../docs/1.2-change-lifecycle.md#221-business-as-usual-updates)).
+Everything else in those areas is Claude's to classify, scope, group, fold and
+close, except what still comes to the owner whatever its workstream ([1.7 *Who decides*](../../../docs/1.7-roles-and-responsibilities.md#who-decides)):
 
 - anything reaching production;
 - the product and its rules;

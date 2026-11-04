@@ -257,7 +257,10 @@ takes `Route` when it is known; a parent never does.
 neither is invisible in the same way an untyped one is: the Requirement rules
 key on `Requirement State` and the Project rules on `Project State`, so an issue
 with no stage is asked for nothing. A new requirement takes `Requirement State`
-`Triage`; a new project takes `Project State` `Scope`.
+`Triage`; a new project takes `Project State` `Scope`, except a release's
+dependency update project, which takes the fields
+[1.2 §2.2.1](../../../docs/1.2-change-lifecycle.md#221-business-as-usual-updates)
+lists.
 
 | field or option | id |
 | --- | --- |
