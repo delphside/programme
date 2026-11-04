@@ -192,6 +192,11 @@ docs/1.6 records the app it works through.
   to an asset BAU does not own, becomes a project, never a requirement. Every
   subject starts with the application's stamp and a space; each application's
   CLAUDE.md says what its stamp is.
+- **A commit on a project's branch says `Refs` for the work package it
+  delivers**, and need not name the requirements folded into it (docs/1.2 §2.5).
+  A rebase merge adds no commit of its own, so the author rewords any commit
+  written before its work package was raised. That happens before the branch's
+  first test deployment, or its merge where it has none.
 - Push immediately after committing. Until pushed, a change does not exist.
   Run an unpushed script to test it, never to use it.
 
@@ -287,11 +292,10 @@ docs/1.6 records the app it works through.
 - The parent owns the requirements, the design and the documents; a work package
   links to them and carries its own artefacts, test approach and post-deployment
   checks, because a check is answered per delivery. A parent with sub-projects
-  (a parent with none is the work package) needs no milestone and no Route: it
-  has no delivery role, and both answer how a change reaches its users. A
-  milestone may still be set — a target release, say — and is then ignored:
-  making the release leaves the parent out of the record, so no deploy settles
-  it. A Route may not: `board-check.py` reports one on a parent, because in
+  (a parent with none is the work package) carries no milestone and no Route. A
+  milestone says the issue represents a delivery, and a parent has no delivery
+  role; a Route answers how a change reaches its users. Settling a milestone
+  leaves a parent out. `board-check.py` reports a Route on a parent, because in
   delphside/tile-lite-elite#297 parents were given routes to silence a report
   that had asked for the wrong thing.
 - The parent runs Scope, the queue, and Design and Test Approach, then stops —
