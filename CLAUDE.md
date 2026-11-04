@@ -152,10 +152,10 @@ docs/1.6 records the app it works through.
   session's branch and pull request are incidental to the route. One branch per
   project at a time (a dependency update project excepted: each update keeps
   its own pull request's branch), and everything the project touches goes on
-  it, its technical documentation included. Programme documents, generic assets and
-  records alike (docs/1.3; the list is
-  `programme/scripts/board/documents.py`'s), belong to no project and change on
-  main.
+  it, its technical documentation included. Programme documents, generic
+  assets and records alike (docs/1.3; the list is
+  `programme/scripts/board/documents.py`'s), belong to no project and change
+  on main.
 - A pull request is what gives a review mechanics: a diff, a place to comment,
   a recorded approval, a merge that waits for a tick. Pre-approved does not mean
   unreviewed — it means the discussion was the review, which is enough where a
@@ -244,16 +244,15 @@ docs/1.6 records the app it works through.
   row in its delivery log, numbered by date. What an application installs on its
   host (its scripts, systemd units and the packages it needs) is its release.
   `docs/1.2` §2.2.1 is the table, and §2.15 the rule.
-- **A dependency update takes the least ceremony its route allows, not one
-  sized to its diff.** An `Application Tooling` one, a GitHub Actions bump,
-  takes none: its pull request and commit message are the record (owner). A
-  `Production Release` one, a base image, a library or an advisory's fix,
-  whether tooling raised it or we chose it, is a row in the release's standing
-  project, `#N Dependency updates for X.Y.Z`, whose body is a fixed template,
-  so it is tracked to production without a project of its own (owner,
-  2026-11-04; docs/1.2 §2.2.1). A host change we decide on and carry out — the
-  kernel and package work of 2026-09-19 — takes its own work package, a date
-  milestone and a row.
+- **A dependency update takes the least ceremony its route allows.** An
+  `Application Tooling` one, a GitHub Actions bump, takes none: its pull
+  request and commit message are the record (owner). A `Production Release`
+  one, a base image, a library or an advisory's fix, whoever raised it, is a
+  row in the release's dependency update project, `#N Dependency updates for
+  X.Y.Z`, whose body is a fixed template, so it is tracked to production
+  without a project of its own (owner, 2026-11-04; docs/1.2 §2.2.1). A host
+  change the owner decides on — the kernel and package work of 2026-09-19 —
+  takes its own work package, a date milestone and a row.
 - **A change to one of our own assets that reaches the image takes a new
   semver**, not a date: each application's artefact register (`3.n.2`) lists
   them, and changing one is a Production Release. The date form is for a
