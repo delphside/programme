@@ -151,6 +151,7 @@ and takes no sub-project: the parent and the child would say the same thing.
 | a work package, alone in its delivery | `#N WP A Del 1 of 2: <what it delivers>` |
 | a work package sharing its delivery | `#N WP A Del 1 of 2, pt 1 of 2: <what it delivers>` |
 | a work package whose deliveries are not yet decided | `#N WP A: <what it delivers>` |
+| a release's dependency update project | `#N Dependency updates for X.Y.Z`, from [`dependency-update-project.md`](../../../docs/templates/dependency-update-project.md) |
 
 `WP A` is which package, lettered so it never reads as a delivery number; the
 packages of one change split by route may share a letter, as `docs/1.2` *Naming*
