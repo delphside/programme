@@ -63,7 +63,9 @@ docs/1.6 records the app it works through.
 - Triage is done jointly with the owner, never alone, and Claude leads it:
   bring the reading and the proposal, then agree it. **Except in Process
   Definition, Programme Tooling and each application's Delivery Tooling, and for type `tooling` or `documentation` in
-  any workstream, where Claude triages alone** — D54, 2026-09-17. Anything
+  any workstream, where Claude triages alone** — D54, 2026-09-17 — and for a
+  dependency advisory, where only the call that one cannot wait comes to him
+  (owner, 2026-11-03). Anything
   reaching production, the product and its rules, and anything irreversible
   outside git still come to the owner whatever their workstream. Minimum: clear short
   description, workstream, priority, type of change. Then scope (options,
@@ -148,7 +150,8 @@ docs/1.6 records the app it works through.
   branch unless it is large enough to be given Application Tooling: a document
   branch lives too long, main moves, and the review does not happen. A cloud
   session's branch and pull request are incidental to the route. One branch per
-  project at a time, and everything the project touches goes on it, its
+  project at a time (a dependency update project excepted: each update keeps
+  its own pull request's branch), and everything the project touches goes on it, its
   technical documentation included. Programme documents, generic assets and
   records alike (docs/1.3; the list is
   `programme/scripts/board/documents.py`'s), belong to no project and change on
@@ -242,9 +245,13 @@ docs/1.6 records the app it works through.
   host (its scripts, systemd units and the packages it needs) is its release.
   `docs/1.2` §2.2.1 is the table, and §2.15 the rule.
 - **Who drove the change decides the ceremony, not how big the diff is.** A
-  routine dependency bump raised by tooling takes none: a Dependabot pull
-  request has no project, no milestone and no delivery-log row, and its commit
-  message is the record (owner). A host or dependency change **we** decide on
+  routine dependency bump raised by tooling takes as little as its route
+  allows. An `Application Tooling` one, a GitHub Actions bump, takes none: its
+  pull request and commit message are the record (owner). A `Production
+  Release` one, a base image, a library or an advisory's fix, is a row in the
+  release's standing project, `#N Dependency updates for X.Y.Z`, whose body is
+  a fixed template, so it is tracked to production without a project of its
+  own (owner, 2026-11-04; docs/1.2 §2.2.1). A host or dependency change **we** decide on
   and carry out is the other case — the kernel and package work of 2026-09-19 —
   and it takes the project, a milestone (a date for host maintenance) and a row.
 - **A change to one of our own assets that reaches the image takes a new
