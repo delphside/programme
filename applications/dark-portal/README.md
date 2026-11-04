@@ -14,6 +14,6 @@ the list of applications in [2.1](../../records/2.1-applications.md).
 | 3.2.2 | [artefact register](3.2.2-artefacts.md) |
 | 3.2.3 | [capacity plans](3.2.3-capacity-plan/README.md) |
 | 3.2.4 | [workstreams](3.2.4-workstreams.md) |
-| 3.2.5 | role holders: not yet written |
+| 3.2.5 | [role holders](3.2.5-roles.md) |
 | 3.2.6 | [application profile](3.2.6-profile.md) |
 | 3.2.7 | change documents: not yet written |

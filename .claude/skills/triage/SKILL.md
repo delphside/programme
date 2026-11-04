@@ -7,8 +7,10 @@ description: Raise, title and triage any issue, whether requirement, project or 
 
 **Triage is joint, except where Claude triages alone.** Raising a project
 folds and closes requirements, and setting a stage or a milestone commits to a
-shape; none of that is cheap to reverse, so by default Claude presents the
-questions and waits.
+shape; none of that is cheap to reverse, so by default the owner comments
+first, and Claude writes the triage comment and sets the fields from his
+([1.2 §2.17](../../../docs/1.2-change-lifecycle.md#what-triage-asks)). Until
+he has commented, the issue waits for him.
 
 **Claude triages alone in Process Definition, Programme Tooling and each
 application's Delivery Tooling, for type `tooling` or `documentation` in

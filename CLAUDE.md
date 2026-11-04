@@ -60,8 +60,9 @@ docs/1.6 records the app it works through.
   identifies what can be progressed; the owner should not have to scan the
   board to find work waiting on him. So anything genuinely needing him is
   brought to him, and everything else is Claude's to find and move.
-- Triage is done jointly with the owner, never alone, and Claude leads it:
-  bring the reading and the proposal, then agree it. **Except in Process
+- Triage is done jointly with the owner, never alone: he comments first, and
+  Claude writes the triage comment and sets the fields from his (owner,
+  2026-11-04). **Except in Process
   Definition, Programme Tooling and each application's Delivery Tooling, and for type `tooling` or `documentation` in
   any workstream, where Claude triages alone** — D54, 2026-09-17 — and for a
   dependency advisory, where only whether one can wait comes to him (owner,
@@ -118,6 +119,13 @@ docs/1.6 records the app it works through.
 
   A test approach is approved by the test manager before the project leaves
   Design and Test Approach (docs/1.9 *The test policy*).
+
+  Whoever holds a phase moves it on where no tool does: the design authority
+  at Scope and Design and Test Approach, the technical lead from Development to
+  closing (for a parent, its design authority). At each board-sweep Claude
+  proposes moving a workstream's Q1 project to Design and Test Approach where
+  it has none there, and the owner agrees it (owner, 2026-11-04; docs/1.2
+  §2.15, §2.22).
 
   The post-deployment check has one row per requirement.
 - **A problem found in testing is fixed on the branch, and the branch is
