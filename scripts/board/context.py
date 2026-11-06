@@ -144,16 +144,21 @@ def render(root: Issue, board: Mapping[int, Issue],
     inside = {m.number for m in members}
     waits = sorted({n for m in members for n in m.raw.blocked_by} - inside)
     needed = sorted({n for m in members for n in m.raw.blocks} - inside)
+    # Another repository's issue is named in full, `owner/repo#N`, with the
+    # title GitHub gave with the link.
+    waits_away = sorted({x for m in members for x in m.raw.blocked_by_elsewhere})
+    needed_away = sorted({x for m in members for x in m.raw.blocks_elsewhere})
 
-    def names(numbers: Sequence[int]) -> str:
-        if not numbers:
-            return "none"
-        return " · ".join(f"#{n} {short_title(titles.get(n, ''), outside=True)}".rstrip()
-                          for n in numbers)
+    def names(numbers: Sequence[int], away: Sequence[tuple[str, int, str]]) -> str:
+        named = [f"#{n} {short_title(titles.get(n, ''), outside=True)}".rstrip()
+                 for n in numbers]
+        named += [f"{repo}#{n} {short_title(title, outside=True)}".rstrip()
+                  for repo, n, title in away]
+        return " · ".join(named) if named else "none"
 
     lines = [START, as_of(day or date.today()), "", *rows, "",
-             f"Waits on: {names(waits)}",
-             f"Needed by: {names(needed)}",
+             f"Waits on: {names(waits, waits_away)}",
+             f"Needed by: {names(needed, needed_away)}",
              END]
     return "\n".join(lines)
 

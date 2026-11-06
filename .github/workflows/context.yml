@@ -9,9 +9,9 @@
 # facts changed, so an unchanged project's `updatedAt` does not move.
 #
 # The programme's checkout has no programme profile, so `BOARD_REPOSITORY`
-# names the repository it acts on, `PROGRAMME_CONFIG` the programme file at
-# the checkout's top, and `PROGRAMME_DIR` this checkout as the live records,
-# as `pr-state.yml` does.
+# names the repository it acts on, as `pr-state.yml` does. `board-context.py`
+# reads nothing else from a profile today; `PROGRAMME_CONFIG` and
+# `PROGRAMME_DIR` point at this checkout so a later read finds it.
 #
 # **It needs `BOARD_TOKEN`**: the automatic token cannot read an
 # organisation's issue fields. Without it this run warns and changes nothing.
@@ -20,12 +20,19 @@ name: Context headers
 
 on:
   schedule:
-    # 06:35 UTC daily, after the applications' 06:30 runs.
+    # 06:35 UTC daily. Each repository's run writes only its own issues, so
+    # the order beside the applications' runs does not matter.
     - cron: "35 6 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# One run at a time: a manual run and the scheduled one would edit the same
+# headers.
+concurrency:
+  group: context
+  cancel-in-progress: false
 
 jobs:
   write:

@@ -92,7 +92,10 @@ G_PROJECT = graphql_issue(
     10, issueType={"name": "Project"}, milestone={"title": "0.9.0"}, parent={"number": 3},
     labels={"nodes": [{"name": "tooling"}]},
     subIssues={"nodes": [{"number": 11, "issueType": {"name": "Project"}}]},
-    blockedBy={"nodes": [{"number": 7}]}, blocking={"nodes": [{"number": 12}]},
+    blockedBy={"nodes": [{"number": 7},
+                         {"number": 545, "title": "Build once",
+                          "repository": {"nameWithOwner": "delphside/tile-lite-elite"}}]},
+    blocking={"nodes": [{"number": 12}]},
     issueFieldValues={"nodes": [{"value": "Development", "field": {"name": "Project State"}}]})
 R_PROJECT = rest_issue(
     10, type={"name": "Project"}, milestone={"title": "0.9.0"},
@@ -137,7 +140,10 @@ def rest_table():
         f"{REST_BASE}/issues?state=open": [R_PROJECT, rest_issue(12),
                                            rest_issue(13, pull_request={"url": "x"})],
         f"{REST_BASE}/issues/10/sub_issues": [{"number": 11, "type": {"name": "Project"}}],
-        f"{REST_BASE}/issues/10/dependencies/blocked_by": [{"number": 7}],
+        f"{REST_BASE}/issues/10/dependencies/blocked_by": [
+            {"number": 7, "repository_url": f"https://api.github.com/repos/{OWNER_REPO}"},
+            {"number": 545, "title": "Build once",
+             "repository_url": "https://api.github.com/repos/delphside/tile-lite-elite"}],
         f"{REST_BASE}/issues/10/dependencies/blocking": [{"number": 12}],
         f"{REST_BASE}/pulls?state=open": [open_pr(20, reviewers=["owner"])],
         f"{REST_BASE}/pulls/20/reviews": [
@@ -160,6 +166,9 @@ class TheRestFallback(Cases):
         self.expect("with the sub-issue, parent and dependencies", True,
                     got[0].sub_issues == (RawSubIssue(11, "Project"),) and got[0].parent == 3
                     and got[0].blocked_by == {7} and got[0].blocks == {12})
+        self.expect("another repository's issue is kept apart, named in full",
+                    {("delphside/tile-lite-elite", 545, "Build once")},
+                    got[0].blocked_by_elsewhere)
         self.expect("and the pull request's state from the ladder", "Approved",
                     got[-1].fields[PR_STATE])
         self.expect("a pull request in the issues list is not an issue", [10, 12, 20],
