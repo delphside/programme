@@ -533,6 +533,19 @@ creation date (`creatordate`).
   worst case, a build that began before a release and pushed after it, costs a
   rebuild.
 
+### The board
+
+- The release and settle steps assume the programme's board: issue types
+  (projects, with sub-issues as work packages), the `Route` and
+  `Project State` fields, and `Refs #N` in commit messages. Build, deploy and
+  rollback use no board. Every GitHub call is in `lib/github.sh`, with the
+  field names there.
+- An application without that board sets the milestone gate aside through
+  `[release].overridable`, and settle reports its board steps as not done
+  (exit 3). A profile switch that turns the board steps off, with field names
+  from the programme file, is built when an application first needs it
+  (owner, 2026-11-06).
+
 ### Root-ops and the allowlist
 
 The deploy user is root-equivalent through Docker, as today's deploy user is.
