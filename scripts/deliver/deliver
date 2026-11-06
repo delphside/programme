@@ -164,6 +164,43 @@ refs_in() {        # RANGE -> sorted unique issue numbers named `Refs #N` or `Cl
   g log --format=%B "$@" 2>/dev/null | grep -oE '\b(Refs|Closes) #[0-9]+\b' | grep -oE '[0-9]+$' | sort -un
 }
 
+# local_tags_in_range RANGE -> release tags (any prefix) whose commit lies in the range
+local_tags_in_range() {
+  local t c inrange
+  inrange="$(g rev-list "$@" 2>/dev/null)"
+  while read -r t; do
+    [[ -n "$t" ]] || continue
+    c="$(g rev-parse "$t^{commit}")"
+    grep -qx "$c" <<< "$inrange" && echo "$t"
+  done < <(release_tags)
+}
+
+# refs_effective RANGE -> as refs_in, leaving out a commit that a later commit in the
+# range reverts ("This reverts commit <sha>.") and the revert itself. A revert of a
+# commit outside the range, or one that is itself reverted, has no effect.
+refs_effective() {
+  local sha body target
+  declare -A in_range=() reverts=() revert_of=() skip=()
+  local order=()
+  while read -r sha; do [[ -n "$sha" ]] && { in_range[$sha]=1; order+=("$sha"); }; done < <(g rev-list "$@" 2>/dev/null)
+  for sha in "${order[@]}"; do
+    target="$(g log -1 --format=%B "$sha" | grep -oE 'This reverts commit [0-9a-f]{40}' | head -1 | grep -oE '[0-9a-f]{40}$')" || true
+    [[ -n "$target" && -n "${in_range[$target]:-}" ]] && revert_of[$sha]="$target"
+  done
+  for sha in "${!revert_of[@]}"; do
+    target="${revert_of[$sha]}"
+    # effective unless something in the range reverts this revert
+    local undone=0 other
+    for other in "${!revert_of[@]}"; do [[ "${revert_of[$other]}" == "$sha" ]] && undone=1; done
+    [[ $undone -eq 1 ]] && continue
+    skip[$sha]=1; skip[$target]=1
+  done
+  for sha in "${order[@]}"; do
+    [[ -n "${skip[$sha]:-}" ]] && continue
+    g log -1 --format=%B "$sha"
+  done | grep -oE '\b(Refs|Closes) #[0-9]+\b' | grep -oE '[0-9]+$' | sort -un
+}
+
 # ------------------------------------------------------------------ hosts
 
 env_role()  { local r; r="$(env_q "$1" role)"; [[ -n "$r" ]] || die "environment $1 has no role in the profile"; printf '%s' "$r"; }
@@ -264,6 +301,7 @@ production_version() {
 
 # ------------------------------------------------------------------ resolving a REF
 
+CARRY_FROM=""; CARRIES_EARLIER="[]"
 SHA=""; VERSION=""; IMAGES_JSON="{}"; RECORD_JSON=""
 
 candidate_digests() {   # SHA -> IMAGES_JSON; refuses on none, some, or a failed query
@@ -791,6 +829,15 @@ cmd_release() {
     if g merge-base --is-ancestor "$SHA" origin/main 2>/dev/null; then gate_ok on-main "on origin/main"
     else gate_fail on-main "${SHA:0:12} is not on origin/main (a commit off main needs --emergency REASON)"; fi
     gate_ok emergency-descent "not an emergency"
+    # the carried range starts at the release production runs, so a record lists
+    # everything production gains with it (design 7); the GitHub notes keep $prev
+    if [[ $resuming -eq 0 && -n "$(release_tags)" ]]; then
+      local cpv cptag
+      cpv="$(production_version)" || gate_fail milestone "cannot tell which release production runs: the carried range starts there"
+      cptag="$(tag_for_version "$cpv")"
+      [[ -n "$cptag" ]] || gate_fail milestone "no tag for production's release $cpv: the carried range starts there"
+      range_arg=("$cptag..$SHA"); main_range=("$cptag..origin/main"); CARRY_FROM="$cptag"
+    fi
   else
     local pv ptag
     pv="$(production_version)" || gate_fail emergency-descent "cannot tell which release production runs"
@@ -802,7 +849,7 @@ cmd_release() {
     [[ -z "$both" ]] || gate_fail emergency-descent "$(wc -l <<< "$both") commit(s) after $ptag are on main: an emergency ships nothing unreleased"
     gate_ok on-main "emergency: not required"
     gate_ok emergency-descent "cut from $ptag"
-    prev="$ptag"; range_arg=("$ptag..$SHA"); main_range=("$ptag..origin/main")
+    CARRY_FROM="$ptag"; prev="$ptag"; range_arg=("$ptag..$SHA"); main_range=("$ptag..origin/main")
   fi
 
   # CI
@@ -842,7 +889,7 @@ cmd_release() {
   # the milestone is a shipping list
   CARRIES_WP="[]"; CARRIES_ISSUES="[]"; LEFT_OUT="[]"
   if [[ $resuming -eq 1 ]]; then
-    CARRIES_WP="$(jq -c '.carries.work_packages' <<< "$trec")"; CARRIES_ISSUES="$(jq -c '.carries.issues' <<< "$trec")"
+    CARRIES_WP="$(jq -c '.carries.work_packages' <<< "$trec")"; CARRIES_ISSUES="$(jq -c '.carries.issues' <<< "$trec")"; CARRIES_EARLIER="$(jq -c '.carries.releases // []' <<< "$trec")"
     gate_ok milestone "resuming: carried as recorded"
     gate_ok release-check "resuming"
   else
@@ -871,10 +918,10 @@ cmd_release() {
   [[ ${#SET_ASIDE_USED[@]} -gt 0 ]] && used="$(printf '%s\n' "${SET_ASIDE_USED[@]}" | jq -Rn '[inputs | split("\t") | {gate: .[0], reason: .[1]}]')"
   RECORD="$(jq -nc --arg app "$APP" --arg v "$VERSION" --arg sha "$SHA" --argjson images "$IMAGES_JSON" --arg made "$made" \
     --argjson rehearsal "$rehearsal_json" --argjson emergency "$emergency_json" --argjson skipped "$skipped_json" \
-    --argjson aside "$used" --arg prog "$(tool_programme "$SHA")" --argjson wps "$CARRIES_WP" --argjson iss "$CARRIES_ISSUES" \
+    --argjson aside "$used" --arg prog "$(tool_programme "$SHA")" --argjson wps "$CARRIES_WP" --argjson iss "$CARRIES_ISSUES" --argjson earlier "$CARRIES_EARLIER" \
     '{record:1,application:$app,version:$v,commit:$sha,images:$images,made:$made,rehearsal:$rehearsal,
       emergency:$emergency,rehearsal_skipped:$skipped,set_aside:$aside,tool:{programme:$prog},
-      carries:{work_packages:$wps,issues:$iss}}')"
+      carries:{work_packages:$wps,issues:$iss,releases:$earlier}}')"
 
   # a record already pushed is the record: the tag carries what releases holds (O10)
   [[ -z "$OLD_RECORD" ]] || RECORD="$OLD_RECORD"
@@ -907,9 +954,11 @@ milestone_gate() {
     if gate_set_aside milestone; then milestone_carries "$version"; return; fi
     gate_fail milestone "the profile does not list milestone in [release].overridable"
   fi
-  local ev emain
+  local ev emain evall
   # shellcheck disable=SC2086
-  ev="$(refs_in $erange | jq -Rn '[inputs | tonumber]')"
+  ev="$(refs_effective $erange | jq -Rn '[inputs | tonumber]')"
+  # shellcheck disable=SC2086
+  evall="$(refs_in $erange | jq -Rn '[inputs | tonumber]')"
   # shellcheck disable=SC2086
   emain="$(refs_in $emain_range | jq -Rn '[inputs | tonumber]')"
   items="$(gh_milestone_items "$version")" || gate_fail milestone "cannot read milestone $version"
@@ -927,12 +976,37 @@ milestone_gate() {
   local refused; refused="$(jq -r '.refused | map("#\(.)") | join(" ")' <<< "$unevidenced")"
   [[ -z "$refused" ]] || gate_fail milestone "open in milestone $version but no commit in the release says Refs: $refused"
 
+  # releases made but not deployed, whose tags lie in the range: production gains them too
+  local earlier="[]" t tv trec2 ewp eis
+  if [[ -n "$CARRY_FROM" ]]; then
+    while read -r t; do
+      [[ -n "$t" ]] || continue
+      tv="$(tag_version "$t")"; [[ "$tv" != "$version" ]] || continue
+      if trec2="$(record_of_tag "$t" 2>/dev/null)"; then
+        # named only by a reverted commit: not carried
+        ewp="$(jq -c --argjson ev "$ev" --argjson all "$evall" '[.carries.work_packages[] | select(((. | IN($all[])) | not) or (. | IN($ev[])))]' <<< "$trec2")"
+        eis="$(jq -c --argjson ev "$ev" --argjson all "$evall" '[.carries.issues[] | select(((. | IN($all[])) | not) or (. | IN($ev[])))]' <<< "$trec2")"
+      else ewp="[]"; eis="[]"; trec2=""; fi
+      earlier="$(jq -c --arg v "$tv" --argjson w "$ewp" --argjson i "$eis" --argjson r "${trec2:-null}" \
+        '. + [{version: $v, work_packages: $w, issues: $i,
+               dropped: ((($r.carries.work_packages + $r.carries.issues) // []) - ($w + $i) | sort)}]' <<< "$earlier")"
+    done < <(local_tags_in_range "$CARRY_FROM..$SHA")
+  fi
+  CARRIES_EARLIER="$(jq -c 'sort_by(.version | split(".") | map(tonumber))' <<< "$earlier")"
+  local evers; evers="$(jq -c '[.[].version]' <<< "$CARRIES_EARLIER")"
+  # a check, not a gate: what an earlier release in the range held that this one does not carry
+  local dn dv
+  while read -r dv dn; do
+    [[ -n "$dn" ]] && say "note: #$dn is in $dv but not carried by $version"
+  done < <(jq -r '.[] | .version as $v | .dropped[] | "\($v) \(.)"' <<< "$CARRIES_EARLIER")
+
   # every Production Release work package the commits name must be in the milestone
+  # of this release or of a release in the range
   local n info absent_wps=""
   for n in $(jq -r '.[]' <<< "$ev"); do
     info="$(gh_issue_info "$n")" || gate_fail milestone "cannot read #$n"
     [[ "$info" != null ]] || continue
-    if jq -e --arg v "$version" '.type == "Project" and .subs == 0 and .route == "Production Release" and .milestone != $v' >/dev/null <<< "$info"; then
+    if jq -e --arg v "$version" '.type == "Project" and .subs == 0 and .route == "Production Release" and .milestone != $v and ((.milestone | IN($e[])) | not)' --argjson e "$evers" >/dev/null <<< "$info"; then
       absent_wps+="#$n "
     fi
   done
@@ -940,7 +1014,9 @@ milestone_gate() {
   LEFT_OUT="$(jq -c .left_out <<< "$unevidenced")"
   CARRIES_WP="$(jq -c --argjson lo "$LEFT_OUT" '[.[] | select(.subs == 0 and .type == "Project" and ((.number | IN($lo[])) | not)) | .number] | sort' <<< "$items")"
   CARRIES_ISSUES="$(jq -c --argjson lo "$LEFT_OUT" '[.[] | select(.subs == 0 and .type != "Project" and ((.number | IN($lo[])) | not)) | .number] | sort' <<< "$items")"
-  gate_ok milestone "carries work packages $CARRIES_WP and issues $CARRIES_ISSUES"
+  CARRIES_WP="$(jq -c --argjson e "$CARRIES_EARLIER" '. + ($e | map(.work_packages[]) ) | unique' <<< "$CARRIES_WP")"
+  CARRIES_ISSUES="$(jq -c --argjson e "$CARRIES_EARLIER" '. + ($e | map(.issues[]) ) | unique' <<< "$CARRIES_ISSUES")"
+  gate_ok milestone "carries work packages $CARRIES_WP and issues $CARRIES_ISSUES$([[ "$evers" == "[]" ]] || echo " (earlier releases in the range: $evers)")"
 }
 
 milestone_carries() {   # set aside: the milestone's open items are carried as they stand
@@ -1069,23 +1145,43 @@ settle_version() {
   rec="$(record_of_tag "$tag")" || { warn "settle: $tag has no record this tool reads: nothing to settle"; return 1; }
   comment="${ANNOUNCEMENT}${version}"
   [[ -n "$ANNOUNCEMENT" ]] || { warn "settle: the profile has no release.announcement"; return 1; }
+  # items of earlier releases in the record's range, with the release that held them
+  local earlier_map; earlier_map="$(jq -c '[(.carries.releases // [])[] | . as $r | ((.work_packages + .issues)[] | {n: ., v: $r.version})]' <<< "$rec")"
+  local own_comment text accept ev
+  settle_text() {   # N -> sets text and accept for item N
+    ev="$(jq -r --argjson n "$1" '[.[] | select(.n == $n)][0].v // empty' <<< "$earlier_map")"
+    if [[ -n "$ev" ]]; then
+      text="${ANNOUNCEMENT}${ev}, deployed with ${tag}"; accept="${ANNOUNCEMENT}${ev}"
+    else text="$comment (deployed to production)"; accept="$comment"; fi
+  }
   for n in $(jq -r '.carries.work_packages[]' <<< "$rec"); do
     state="$(gh_project_state "$n")" || { left+=("#$n"); continue; }
     if [[ "$state" != "Post-deployment" ]]; then gh_set_project_state "$n" "Post-deployment" || { left+=("#$n state"); continue; }; fi
-    settle_comment "$n" "$comment" || left+=("#$n comment")
+    settle_text "$n"; settle_comment "$n" "$text" "$accept" || left+=("#$n comment")
   done
   for n in $(jq -r '.carries.issues[]' <<< "$rec"); do
     info="$(gh_issue_info "$n")" || { left+=("#$n"); continue; }
-    settle_comment "$n" "$comment" || { left+=("#$n comment"); continue; }
+    settle_text "$n"; settle_comment "$n" "$text" "$accept" || { left+=("#$n comment"); continue; }
     if [[ "$(jq -r '.state // empty' <<< "$info")" != CLOSED ]]; then gh_issue_close "$n" || left+=("#$n close"); fi
   done
-  local mn
-  mn="$(gh_milestone_number "$version")" || left+=("milestone $version")
-  if [[ -n "$mn" ]]; then
-    if [[ "$(gh_milestones | jq -r --arg t "$version" '[.[] | select(.title == $t)][0].state')" != closed ]]; then
-      gh_milestone_close "$mn" || left+=("milestone $version")
+  # items an earlier release held that this one does not carry: out of its milestone, state untouched
+  local dv dn
+  while read -r dv dn; do
+    [[ -n "$dn" ]] || continue
+    info="$(gh_issue_info "$dn")" || { left+=("#$dn"); continue; }
+    [[ "$(jq -r '.milestone // empty' <<< "$info")" == "$dv" ]] || continue
+    settle_comment "$dn" "Not shipped: in ${dv} but not carried by ${tag}, so removed from milestone ${dv}" || { left+=("#$dn comment"); continue; }
+    gh_issue_clear_milestone "$dn" || left+=("#$dn milestone")
+  done < <(jq -r '(.carries.releases // [])[] | .version as $v | (.dropped // [])[] | "\($v) \(.)"' <<< "$rec")
+  local mn mv mvs
+  mvs="$version"; for mv in $(jq -r '(.carries.releases // [])[].version' <<< "$rec"); do mvs+=" $mv"; done
+  for mv in $mvs; do
+    mn="$(gh_milestone_number "$mv")" || { left+=("milestone $mv"); continue; }
+    [[ -n "$mn" ]] || continue
+    if [[ "$(gh_milestones | jq -r --arg t "$mv" '[.[] | select(.title == $t)][0].state')" != closed ]]; then
+      gh_milestone_close "$mn" || left+=("milestone $mv")
     fi
-  fi
+  done
   if [[ ${#left[@]} -gt 0 ]]; then
     warn "settle of $version failed; left to do: ${left[*]}; rerun deliver settle $version"
     return 1
@@ -1093,11 +1189,11 @@ settle_version() {
   say "settled $version"
 }
 
-settle_comment() {   # N TEXT: once
+settle_comment() {   # N TEXT [ACCEPT]: once; ACCEPT is the plain announcement an earlier deploy may already have made
   local existing
   existing="$(gh_issue_comments "$1")" || return 1
-  if jq -e --arg c "$2" 'any(.[]; .body == $c or .body == ($c + " (deployed to production)"))' >/dev/null <<< "$existing"; then return 0; fi
-  gh_issue_comment "$1" "$2 (deployed to production)"
+  if jq -e --arg c "${3:-$2}" --arg t "$2" 'any(.[]; .body == $c or .body == ($c + " (deployed to production)") or .body == $t)' >/dev/null <<< "$existing"; then return 0; fi
+  gh_issue_comment "$1" "$2"
 }
 
 # ------------------------------------------------------------------ prune, host-install, env

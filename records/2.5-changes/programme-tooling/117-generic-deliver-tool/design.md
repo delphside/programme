@@ -265,7 +265,7 @@ row says what it is for before what it compares.
 | release | an emergency ships nothing unreleased | with `--emergency`, the commit descends from the tag of the release production runs (its record, read from production's host state as for rehearsal's level; where production has no `deliver` state, the version its `/health` reports, whose tag is the release's) and none of its commits after that tag is on `main` | gate | nothing |
 | release | CI has passed the commit | every check in `required_checks` is green on the commit | gate | nothing |
 | release | the version is spent once, and moves forward | no tag or record exists for the version, and it is higher than the newest release tag of any prefix | gate | nothing |
-| release | the milestone is a shipping list | parents aside, every open issue in milestone VERSION is evidenced by a commit in the release (`Refs #N` since the previous release tag; a parent's `Refs` counts for its work package where the parent has exactly one in the milestone), and every work package the commits name whose `Route` is Production Release is in the milestone. Work packages of other routes are left out, because they deliver on their own date milestones (docs/1.2 §2.15). With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 6 | gate | `--set-aside milestone REASON` |
+| release | the milestone is a shipping list | parents aside, every open issue in milestone VERSION is evidenced by a commit in the release (`Refs #N` since the release production runs, which is where the carried range starts; a commit a later commit in the range reverts, and that revert, name nothing; a parent's `Refs` counts for its work package where the parent has exactly one in the milestone), and every work package the commits name whose `Route` is Production Release is in the milestone, or in the milestone of a release made but not deployed whose tag lies in the range. Work packages of other routes are left out, because they deliver on their own date milestones (docs/1.2 §2.15). With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 6 | gate | `--set-aside milestone REASON` |
 | release | the application's own release rules | the `release-check` hook | gate | `--set-aside`, where overridable |
 | production deploy | production runs only rehearsed releases | a record exists for VERSION; its digests are pulled from releases | gate | `--unrecorded` |
 | after a production deploy | the board says what shipped | `settle` (§8) | check: a failure is reported, exit 3, the deploy stands | — |
@@ -308,9 +308,26 @@ before the tool and are read as history only.
   "rehearsal_skipped": null,
   "set_aside": [{"gate": "milestone", "reason": "..."}],
   "tool": {"programme": "the programme commit the application pins"},
-  "carries": {"work_packages": [555, 556], "issues": [560]}
+  "carries": {"work_packages": [555, 556], "issues": [560],
+              "releases": [{"version": "0.10.1", "work_packages": [555], "issues": [], "dropped": []}]}
 }
 ```
+
+`carries.work_packages` and `issues` list everything production gains with this
+release: its own milestone's items and those of `releases`. The carried range
+starts at the release production runs (its record or `/health`, as the
+emergency path reads it), not at the nearest release tag, so a release made
+while an earlier one was never deployed carries both. Where production's release
+cannot be read, or has no tag, the release is refused at the milestone gate; the
+first release of an application, which has no tag at all, takes the whole
+history. `releases` has one entry per release tag in the range other than this
+one: the items its own record carried, less any named only by a commit that a
+later commit in the range reverts (`This reverts commit <sha>.`; the reverted
+commit and the revert are both left out, unless the revert is itself reverted,
+and a revert of a commit outside the range has no effect), and `dropped` lists
+those. The release notes on GitHub keep the previous release tag as their start.
+At release the tool says, as a check and not a gate, `#N is in 0.10.2 but not
+carried by 0.10.3` for each dropped item.
 
 `set_aside` lists each gate `--set-aside` named, with its reason, and is empty
 where none was. `carries` is the milestone's open items once the gate has passed,
@@ -335,6 +352,20 @@ as docs/1.2 §2.5 says, parents aside:
 | a carried work package, which a release milestone holds only for the Production Release route (docs/1.2 §2.5: a project advances) | `Project State` Post-deployment, with a comment that starts with the profile's `[release].announcement` and the version, so the board recognises it |
 | a carried issue that is not a project | closed as completed, with the same comment |
 | the milestone VERSION | closed |
+| an item of a release in `carries.releases` | as above, but the comment is `<announcement><its version>, deployed with v<VERSION>` (still starting with the announcement and a version), unless it already has that release's own comment |
+| a `dropped` item still in its release's milestone | a comment `Not shipped: in <its version> but not carried by v<VERSION>`, then removed from that milestone; its state and openness are left alone |
+| the milestone of each release in `carries.releases` | closed |
+
+The worked example. Production runs 0.10.1. 0.10.2 is made with #1 #2 #3 and
+never deployed. #2 is reverted on `main`. 0.10.3 is made with #1 #3 #4: its gate
+passes because #1 #3 are in the milestone of 0.10.2, which is in the range, and
+issue 4 is in 0.10.3, and its record carries #1 #3 #4 with `releases` holding 0.10.2
+(`issues` [1, 3], `dropped` [2]); the release says `#2 is in 0.10.2 but not
+carried by 0.10.3`. Deploying 0.10.3 settles #4 normally, #1 and #3 with
+`Released in v0.10.2, deployed with v0.10.3`, comments on #2 that it did not
+ship and removes it from 0.10.2, and closes both milestones. 0.10.2's own tag
+and record are not changed. A rerun finds each comment, each removal and each
+closed milestone and changes nothing.
 
 Each action checks first and does nothing if it is already done, so a rerun is
 harmless. A failure is reported with the items left, and the deploy's exit is 3.
