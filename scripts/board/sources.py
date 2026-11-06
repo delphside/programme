@@ -46,8 +46,8 @@ query($owner:String!, $repo:String!, $cursor:String, $states:[IssueState!]) {
         parent { number }
         labels(first:20) { nodes { name } }
         subIssues(first:50) { nodes { number issueType { name } } }
-        blockedBy(first:20) { nodes { number } }
-        blocking(first:20) { nodes { number } }
+        blockedBy(first:20) { nodes { number title repository { nameWithOwner } } }
+        blocking(first:20) { nodes { number title repository { nameWithOwner } } }
         issueFieldValues(first:20) {
           nodes { ... on IssueFieldSingleSelectValue {
                     value field { ... on IssueFieldCommon { name } } } }
@@ -180,6 +180,28 @@ def _gh_graphql(query: str, partial: bool = False, **variables) -> dict:
         raise Unavailable(f"GitHub returned no JSON: {exc}") from exc
 
 
+def _split_links(links) -> tuple[frozenset[int], frozenset[tuple[str, int, str]]]:
+    """Dependency links as this repository's numbers, and the rest as
+    (owner/repo, number, title). A link that does not name its repository is
+    this repository's."""
+    ours = "/".join(_repository()).lower()
+    here, away = set(), set()
+    for repo, number, title in links:
+        if not repo or repo.lower() == ours:
+            here.add(number)
+        else:
+            away.add((repo, number, title))
+    return frozenset(here), frozenset(away)
+
+
+def _rest_repo(item: dict) -> str | None:
+    """`owner/repo` from a REST issue's `repository_url`, or None."""
+    url = item.get("repository_url") or ""
+    if "/repos/" not in url:
+        return None
+    return url.rstrip("/").split("/repos/", 1)[1]
+
+
 def _to_raw(node: dict) -> RawIssue:
     fields = {
         n["field"]["name"]: n["value"]
@@ -191,6 +213,12 @@ def _to_raw(node: dict) -> RawIssue:
         for s in node.get("subIssues", {}).get("nodes", [])
         if s
     )
+    here, away = _split_links(
+        ((n.get("repository") or {}).get("nameWithOwner"), n["number"], n.get("title") or "")
+        for n in (node.get("blockedBy") or {}).get("nodes", []) if n)
+    here_blocks, away_blocks = _split_links(
+        ((n.get("repository") or {}).get("nameWithOwner"), n["number"], n.get("title") or "")
+        for n in (node.get("blocking") or {}).get("nodes", []) if n)
     return RawIssue(
         number=node["number"],
         title=node.get("title") or "",
@@ -207,12 +235,10 @@ def _to_raw(node: dict) -> RawIssue:
         # `blockedBy` is {nodes: [...]}, not a list. The shape crashed
         # roadmap-diagram.py the first time it ran, so it is named here once
         # and never guessed at again.
-        blocked_by=frozenset(
-            n["number"] for n in (node.get("blockedBy") or {}).get("nodes", []) if n
-        ),
-        blocks=frozenset(
-            n["number"] for n in (node.get("blocking") or {}).get("nodes", []) if n
-        ),
+        blocked_by=here,
+        blocks=here_blocks,
+        blocked_by_elsewhere=away,
+        blocks_elsewhere=away_blocks,
         created_at=node.get("createdAt"),
         updated_at=node.get("updatedAt"),
         closed_at=node.get("closedAt"),
@@ -598,7 +624,7 @@ _FULL_FIELDS = """number title state createdAt updatedAt closedAt
   issueType { name } milestone { title } parent { number }
   labels(first:20) { nodes { name } }
   subIssues(first:50) { nodes { number issueType { name } } }
-  blockedBy(first:20) { nodes { number } } blocking(first:20) { nodes { number } }
+  blockedBy(first:20) { nodes { number title repository { nameWithOwner } } } blocking(first:20) { nodes { number title repository { nameWithOwner } } }
   issueFieldValues(first:20) { nodes { ... on IssueFieldSingleSelectValue {
     value field { ... on IssueFieldCommon { name } } } } }"""
 
@@ -978,10 +1004,15 @@ def _rest_to_raw(rest: _Rest, owner: str, repo: str, n: dict) -> RawIssue:
                      for s in rest.list(f"{base}/sub_issues"))
     summary = n.get("issue_dependencies_summary") or {}
     blocked_by = blocks = frozenset()
+    blocked_by_elsewhere = blocks_elsewhere = frozenset()
     if summary.get("total_blocked_by"):
-        blocked_by = frozenset(i["number"] for i in rest.list(f"{base}/dependencies/blocked_by"))
+        blocked_by, blocked_by_elsewhere = _split_links(
+            (_rest_repo(i), i["number"], i.get("title") or "")
+            for i in rest.list(f"{base}/dependencies/blocked_by"))
     if summary.get("total_blocking"):
-        blocks = frozenset(i["number"] for i in rest.list(f"{base}/dependencies/blocking"))
+        blocks, blocks_elsewhere = _split_links(
+            (_rest_repo(i), i["number"], i.get("title") or "")
+            for i in rest.list(f"{base}/dependencies/blocking"))
     parent = None
     if n.get("parent_issue_url"):
         parent = int(n["parent_issue_url"].rstrip("/").split("/")[-1])
@@ -997,6 +1028,7 @@ def _rest_to_raw(rest: _Rest, owner: str, repo: str, n: dict) -> RawIssue:
         milestone=(n.get("milestone") or {}).get("title"),
         labels=frozenset(label["name"] for label in n.get("labels") or []),
         blocked_by=blocked_by, blocks=blocks,
+        blocked_by_elsewhere=blocked_by_elsewhere, blocks_elsewhere=blocks_elsewhere,
         created_at=n.get("created_at"), updated_at=n.get("updated_at"),
         closed_at=n.get("closed_at"))
 

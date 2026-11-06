@@ -21,10 +21,13 @@ from board.context import (INTRODUCTION, current, declared, fields_visible,
                            short_title, stale, undeclared_links, with_header)
 
 def raw(n, title, kind="Project", fields=None, subs=(), parent=None,
-        milestone=None, body="", blocked_by=(), blocks=(), state="OPEN"):
+        milestone=None, body="", blocked_by=(), blocks=(), state="OPEN",
+        blocked_by_elsewhere=(), blocks_elsewhere=()):
     return RawIssue(n, title, state, body, kind, fields or {}, tuple(subs),
                     parent, milestone, frozenset(),
-                    blocked_by=frozenset(blocked_by), blocks=frozenset(blocks))
+                    blocked_by=frozenset(blocked_by), blocks=frozenset(blocks),
+                    blocked_by_elsewhere=frozenset(blocked_by_elsewhere),
+                    blocks_elsewhere=frozenset(blocks_elsewhere))
 
 def board_of(*raws):
     return {r.number: classify(r) for r in raws}
@@ -67,6 +70,21 @@ class TheContextHeader(Cases):
                short_title("Idle game removal"))
         self.expect("a numbered package keeps its number", "WP A2: the image",
                short_title("#545 WP A2 Del 3 of 3: the image"))
+
+    def test_another_repositorys_issue_is_named_in_full(self):
+        """dependencies in another repository"""
+        # delphside/programme#117 waits on delphside/tile-lite-elite#545: a bare
+        # #545 would name the programme's own #545, or nothing.
+        b = board_of(raw(117, "Deliver tool", fields={"Project State": "Scope"},
+                         blocked_by=(256,),
+                         blocked_by_elsewhere=[("delphside/tile-lite-elite", 545,
+                                                "#545 MAIN PROJECT: Build once")],
+                         blocks_elsewhere=[("delphside/dark-portal", 11, "Environments")]))
+        got = headers(b, {117: "Deliver tool", 256: "Split sweeps"}, TODAY)[117]
+        self.expect("waits on: this repository's first, then the other's in full", True,
+                    "Waits on: #256 Split sweeps · delphside/tile-lite-elite#545 Build once" in got)
+        self.expect("needed by: another repository's, in full", True,
+                    "Needed by: delphside/dark-portal#11 Environments" in got)
 
     def test_r10_one_header_per_family(self):
         """R10: one header per family"""

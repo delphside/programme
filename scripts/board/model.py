@@ -122,6 +122,12 @@ class RawIssue:
     closed_at: str | None = None
     # A pull request's branch. None for an issue.
     head_ref: str | None = None
+    # Dependencies on issues in another repository, as (owner/repo, number,
+    # title). Kept apart from `blocked_by` and `blocks`, whose numbers are this
+    # repository's: a programme project waits on applications' issues, and a
+    # bare number there named the wrong issue.
+    blocked_by_elsewhere: frozenset[tuple[str, int, str]] = frozenset()
+    blocks_elsewhere: frozenset[tuple[str, int, str]] = frozenset()
 
 
 @dataclass(frozen=True)
