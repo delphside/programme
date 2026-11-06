@@ -66,8 +66,8 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R37 | `env create\|destroy NAME` works from the profile's template: a user, a state folder, a `.env` with secrets at a hidden prompt, a Compose project, and the hooks. | §4 |
 | R38 | `host-install` installs or updates `deliver-host`, `jq`, the login adapter's tools and the single `sudo` rule. | §4; §9 |
 | R39 | The login adapters are `oci-instance-principal`, `oci-api-key` and `docker-config`. Hosts log in by instance principal. | §2; owner 2026-10-28 |
-| R40 | The carried range starts at the release production runs, so a release made while an earlier one is undeployed carries both; an item named only by a commit a later commit in the range reverts is not carried, and a revert of a commit outside the range has no effect. | §6; §7 |
-| R41 | Settling a record settles the items of the earlier releases it carries (comment `..., deployed with vV`), closes their milestones, and takes a dropped item out of its milestone with a comment, leaving its state alone; a rerun changes nothing. | §8 |
+| R42 | The carried range starts at the release production runs, so a release made while an earlier one is undeployed carries both; an item named only by a commit a later commit in the range reverts is not carried, and a revert of a commit outside the range has no effect. | §6; §7 |
+| R43 | Settling a record settles the items of the earlier releases it carries (comment `..., deployed with vV`), closes their milestones, and takes a dropped item out of its milestone with a comment, leaving its state alone; a rerun changes nothing. | §8 |
 | R40 | `status ENV` shows the digests, the matching record, the deploy state and host-file equality. `list ENV` shows the records beside what ENV runs. | §4 |
 | R41 | Tile Lite Elite's move: the first `deliver` deploy to rehearsal takes `--off-level`. The fallback until 0.10.2 has run in production is the written procedure to 0.10.0: stop the `deliver` project, restore the snapshot, then `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason. 0.10.2 is the first release with a record. The board reads `v` as released and `prod-` as history. | §10; (H) |
 
@@ -236,9 +236,11 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S57 | A first deploy to a bare environment: failing at `migrate`; at `smoke`; at `compose up`; and before `save-state`. Then a fresh deploy of the same REF after the restore. | C11, C12 none, C8 | O24 for the first three; O1 for the last; the fresh deploy is not refused by the state check and gives O4 | CI |
 | S58 | A short SHA matching two candidates; then the longer prefix. | C4 ambiguous | O1 naming the gate and the candidates it matched; then O4 | CI |
 | S59 | The `post-deploy` check exits 1 after a deploy that is otherwise exit 0; then after one that is otherwise exit 3 (settle failed); then it exits 0. | C30 | the failure reported, exit 0 and exit 3 unchanged, no other mutation; then quiet | CI |
-| S60 | Production runs 0.10.1; 0.10.2 is made with #1 #2 #3 and not deployed; 0.10.3 is made with #1 #3 #4. | R40 | the record carries #1 #2 #3 #4, `releases` holds 0.10.2 | CI |
-| S61 | As S60, with #2 reverted on `main` between the releases; the release is made, then deployed. | R40, R41 | the record carries #1 #3 #4 and drops #2 with a note at release; settle comments #1 #3 as deployed with 0.10.3, comments #2 and removes it from 0.10.2, closes both milestones; 0.10.2's tag is unchanged | CI |
-| S62 | A revert of a commit outside the range; a Production Release work package of the earlier milestone; the settle rerun. | R40, R41 | the revert's own `Refs` count; the work package passes the gate in 0.10.2 and is refused in another; the rerun changes nothing | CI |
+| S60 | Production runs 0.10.1; 0.10.2 is made with #1 #2 #3 and not deployed; 0.10.3 is made with #1 #3 #4. | R42 | the record carries #1 #2 #3 #4, `releases` holds 0.10.2 | CI |
+| S61 | As S60, with #2 reverted on `main` between the releases; the release is made, then deployed. | R42, R43 | the record carries #1 #3 #4 and drops #2 with a note at release; settle comments #1 #3 as deployed with 0.10.3, comments #2 and removes it from 0.10.2, closes both milestones; 0.10.2's tag is unchanged | CI |
+| S62 | A revert of a commit outside the range; a Production Release work package of the earlier milestone; the settle rerun. | R42, R43 | the revert's own `Refs` count; the work package passes the gate in 0.10.2 and is refused in another; the rerun changes nothing | CI |
+| S63 | Reverts by count (a revert of a revert, a third revert, a short sha); production's release unreadable or untagged; a resumed release. | R42 | a revert of a revert keeps the change, three leave it out, a short sha matches; the release is refused at the milestone gate; the record keeps `releases` | CI |
+| S64 | An earlier release in the range made before the tool (a text tag) with open items in its milestone; an emergency cut from an undeployed release. | R42, R43 | items named in the range are carried and settled, the others dropped and removed; the emergency lists the release in its range | CI |
 
 ## 6. Refusals and successes
 
@@ -314,8 +316,8 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R37 | S41 |
 | R38 | S42 |
 | R39 | S35 |
-| R40 | S60, S61, S62 |
-| R41 | S61, S62 |
+| R42 | S60, S61, S62, S63, S64 |
+| R43 | S61, S62, S63, S64 |
 | R40 | S46 |
 | R41 | S39, S47 |
 
@@ -381,9 +383,11 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S57 | R12, R9 |
 | S58 | R6 |
 | S59 | R29, R31 |
-| S60 | R40 |
-| S61 | R40, R41 |
-| S62 | R40, R41 |
+| S60 | R42 |
+| S61 | R42, R43 |
+| S62 | R42, R43 |
+| S63 | R42 |
+| S64 | R42, R43 |
 
 ## 8. Approach
 
@@ -507,7 +511,11 @@ Everything else runs in CI.
 - `deploying it settles both, closes both milestones; a rerun changes nothing`
 - `the owner's scenario: #2 reverted between the releases is not carried, is removed from 0.10.2 and its state left alone`
 - `a revert of a commit outside the range has no effect`
-- `an emergency range still starts at production's tag`
+- `a revert of a revert keeps the change`, `three reverts leave the change out`, `a revert naming the commit by a short sha is matched`
+- `production's release unreadable, or without a tag, refuses the release`
+- `a rerun that resumes the release keeps carries.releases`
+- `a release made before the tool, in the range, has its milestone's open items gated, settled and closed`
+- `an emergency range still starts at production's tag, and lists a release made in it`
 
 ### Logs, access and housekeeping
 

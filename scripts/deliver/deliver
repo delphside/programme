@@ -176,24 +176,33 @@ local_tags_in_range() {
 }
 
 # refs_effective RANGE -> as refs_in, leaving out a commit that a later commit in the
-# range reverts ("This reverts commit <sha>.") and the revert itself. A revert of a
-# commit outside the range, or one that is itself reverted, has no effect.
+# range reverts ("This reverts commit <sha>.", a short sha too) and the revert itself.
+# Reverts count by parity: a revert that is itself reverted is undone, so a revert of
+# a revert keeps the change and a third revert leaves it out. A revert of a commit
+# outside the range has no effect. A cherry-picked revert names the original's sha,
+# which is not in the range, so it is not matched (design 7).
 refs_effective() {
-  local sha body target
-  declare -A in_range=() reverts=() revert_of=() skip=()
+  local sha target t
+  declare -A in_range=() revert_of=() undone=() skip=()
   local order=()
   while read -r sha; do [[ -n "$sha" ]] && { in_range[$sha]=1; order+=("$sha"); }; done < <(g rev-list "$@" 2>/dev/null)
   for sha in "${order[@]}"; do
-    target="$(g log -1 --format=%B "$sha" | grep -oE 'This reverts commit [0-9a-f]{40}' | head -1 | grep -oE '[0-9a-f]{40}$')" || true
-    [[ -n "$target" && -n "${in_range[$target]:-}" ]] && revert_of[$sha]="$target"
+    t="$(g log -1 --format=%B "$sha" | grep -oE 'This reverts commit [0-9a-f]{7,40}' | head -1 | grep -oE '[0-9a-f]+$')" || true
+    [[ -n "$t" ]] || continue
+    target="$(g rev-parse -q --verify "$t^{commit}" 2>/dev/null)" || continue
+    [[ -n "${in_range[$target]:-}" ]] && revert_of[$sha]="$target"
   done
-  for sha in "${!revert_of[@]}"; do
-    target="${revert_of[$sha]}"
-    # effective unless something in the range reverts this revert
-    local undone=0 other
-    for other in "${!revert_of[@]}"; do [[ "${revert_of[$other]}" == "$sha" ]] && undone=1; done
-    [[ $undone -eq 1 ]] && continue
-    skip[$sha]=1; skip[$target]=1
+  # newest first, so every reverting commit is decided before what it reverts
+  local r
+  for sha in "${order[@]}"; do
+    undone[$sha]=0
+    for r in "${!revert_of[@]}"; do
+      [[ "${revert_of[$r]}" == "$sha" && "${undone[$r]:-0}" -eq 0 ]] && undone[$sha]=1
+    done
+  done
+  for sha in "${order[@]}"; do
+    [[ "${undone[$sha]}" -eq 1 ]] && skip[$sha]=1
+    [[ -n "${revert_of[$sha]:-}" && "${undone[$sha]}" -eq 0 ]] && skip[$sha]=1
   done
   for sha in "${order[@]}"; do
     [[ -n "${skip[$sha]:-}" ]] && continue
@@ -986,7 +995,19 @@ milestone_gate() {
         # named only by a reverted commit: not carried
         ewp="$(jq -c --argjson ev "$ev" --argjson all "$evall" '[.carries.work_packages[] | select(((. | IN($all[])) | not) or (. | IN($ev[])))]' <<< "$trec2")"
         eis="$(jq -c --argjson ev "$ev" --argjson all "$evall" '[.carries.issues[] | select(((. | IN($all[])) | not) or (. | IN($ev[])))]' <<< "$trec2")"
-      else ewp="[]"; eis="[]"; trec2=""; fi
+      else
+        # a release made before the tool has no record: its milestone's open items stand
+        # for it, and are carried only where an unreverted commit in the range names them
+        local eitems; eitems="$(gh_milestone_items "$tv")" || gate_fail milestone "cannot read milestone $tv"
+        [[ "$eitems" != null ]] || eitems="[]"
+        trec2="$(jq -c --argjson ev "$ev" '
+          [.[] | select(.subs == 0)] as $i
+          | {carries: {work_packages: [$i[] | select(.type == "Project") | .number],
+                       issues: [$i[] | select(.type != "Project") | .number]}}' <<< "$eitems")"
+        local named; named="$(jq -c --argjson ev "$ev" '[.[] | select(.subs == 0 and ((.number | IN($ev[])) or (.parent != null and (.parent | IN($ev[])))) ) | .number]' <<< "$eitems")"
+        ewp="$(jq -c --argjson n "$named" '[.carries.work_packages[] | select(. | IN($n[]))]' <<< "$trec2")"
+        eis="$(jq -c --argjson n "$named" '[.carries.issues[] | select(. | IN($n[]))]' <<< "$trec2")"
+      fi
       earlier="$(jq -c --arg v "$tv" --argjson w "$ewp" --argjson i "$eis" --argjson r "${trec2:-null}" \
         '. + [{version: $v, work_packages: $w, issues: $i,
                dropped: ((($r.carries.work_packages + $r.carries.issues) // []) - ($w + $i) | sort)}]' <<< "$earlier")"
@@ -1170,7 +1191,7 @@ settle_version() {
     [[ -n "$dn" ]] || continue
     info="$(gh_issue_info "$dn")" || { left+=("#$dn"); continue; }
     [[ "$(jq -r '.milestone // empty' <<< "$info")" == "$dv" ]] || continue
-    settle_comment "$dn" "Not shipped: in ${dv} but not carried by ${tag}, so removed from milestone ${dv}" || { left+=("#$dn comment"); continue; }
+    settle_comment "$dn" "${ANNOUNCEMENT}${version} without this (not shipped): it was in milestone ${dv}, which ${tag} supersedes, but ${tag} does not carry it, so it is removed from ${dv}" || { left+=("#$dn comment"); continue; }
     gh_issue_clear_milestone "$dn" || left+=("#$dn milestone")
   done < <(jq -r '(.carries.releases // [])[] | .version as $v | (.dropped // [])[] | "\($v) \(.)"' <<< "$rec")
   local mn mv mvs
