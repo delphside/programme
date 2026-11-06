@@ -1,0 +1,51 @@
+# Keeps the context header on every open programme project current, as each
+# application's `context.yml` does for its own. Without it a programme project
+# (delphside/programme#117, the first) never got the generated header, because
+# only the applications ran `board-context.py`.
+#
+# **Daily, because the header is a view of facts that move without it.** A
+# phase set, a pull request opened or merged, a dependency linked: none of
+# them touches the body the header lives in. It writes only headers whose
+# facts changed, so an unchanged project's `updatedAt` does not move.
+#
+# The programme's checkout has no programme profile, so `BOARD_REPOSITORY`
+# names the repository it acts on, `PROGRAMME_CONFIG` the programme file at
+# the checkout's top, and `PROGRAMME_DIR` this checkout as the live records,
+# as `pr-state.yml` does.
+#
+# **It needs `BOARD_TOKEN`**: the automatic token cannot read an
+# organisation's issue fields. Without it this run warns and changes nothing.
+# A failed run is the script refusing because the token cannot see the fields.
+name: Context headers
+
+on:
+  schedule:
+    # 06:35 UTC daily, after the applications' 06:30 runs.
+    - cron: "35 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  write:
+    name: rewrite stale context headers
+    runs-on: ubuntu-latest
+    # One read of the board, and an edit per stale header.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Rewrite
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.BOARD_TOKEN }}
+          BOARD_REPOSITORY: ${{ github.repository }}
+          PROGRAMME_CONFIG: config/programme.toml
+          PROGRAMME_DIR: ${{ github.workspace }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "::warning::BOARD_TOKEN is not set, so no context header was written. See this file's header."
+            exit 0
+          fi
+          python3 scripts/board/board-context.py --write
