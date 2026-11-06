@@ -322,10 +322,15 @@ cannot be read, or has no tag, the release is refused at the milestone gate; the
 first release of an application, which has no tag at all, takes the whole
 history. `releases` has one entry per release tag in the range other than this
 one: the items its own record carried, less any named only by a commit that a
-later commit in the range reverts (`This reverts commit <sha>.`; the reverted
-commit and the revert are both left out, unless the revert is itself reverted,
-and a revert of a commit outside the range has no effect), and `dropped` lists
-those. The release notes on GitHub keep the previous release tag as their start.
+later commit in the range reverts (`This reverts commit <sha>.`, a short sha
+too; the reverted commit and the revert are both left out). Reverts count by
+parity: a revert of a revert keeps the change, a third revert leaves it out. A
+revert of a commit outside the range has no effect, and a cherry-picked revert,
+which names the original's sha, is not matched: that is a stated limit. `dropped`
+lists the items so left out. A release in the range with no record (made before
+the tool) has its milestone's open items stand for its record: those an
+unreverted commit in the range names, or whose parent it names, are carried and
+the rest are `dropped`. The release notes on GitHub keep the previous release tag as their start.
 At release the tool says, as a check and not a gate, `#N is in 0.10.2 but not
 carried by 0.10.3` for each dropped item.
 
@@ -353,7 +358,7 @@ as docs/1.2 §2.5 says, parents aside:
 | a carried issue that is not a project | closed as completed, with the same comment |
 | the milestone VERSION | closed |
 | an item of a release in `carries.releases` | as above, but the comment is `<announcement><its version>, deployed with v<VERSION>` (still starting with the announcement and a version), unless it already has that release's own comment |
-| a `dropped` item still in its release's milestone | a comment `Not shipped: in <its version> but not carried by v<VERSION>`, then removed from that milestone; its state and openness are left alone |
+| a `dropped` item still in its release's milestone | a comment `<announcement><VERSION> without this (not shipped): ...`, which starts with the announcement so the board reads it as the tool's and not the owner's, then removed from that milestone; its state and openness are left alone |
 | the milestone of each release in `carries.releases` | closed |
 
 The worked example. Production runs 0.10.1. 0.10.2 is made with #1 #2 #3 and

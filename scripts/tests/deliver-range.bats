@@ -38,7 +38,9 @@ first_release() {
 # the second release: #4 in 0.10.3, #1 #3 in the made-but-undeployed 0.10.2
 second_release() {   # [revert]
   if [[ "${1:-}" == revert ]]; then
-    git -C "$W/work" revert --no-edit "$S2" >/dev/null; git -C "$W/work" push -q origin HEAD:main
+    git -C "$W/work" revert --no-edit "$S2" >/dev/null
+    local k; for (( k = 1; k < ${REVERTS:-1}; k++ )); do git -C "$W/work" revert --no-edit HEAD >/dev/null; done
+    git -C "$W/work" push -q origin HEAD:main
   fi
   file_commit four 4
   release_ready "4|Requirement||0|"; gh_milestone 0.10.3 "4|Requirement||0|"
@@ -122,14 +124,20 @@ issues_fixtures() {
   assert_regex "$(gh_log)" "issues/1/comments body=Released in v0.10.2, deployed with v0.10.3"
   assert_regex "$(gh_log)" "issues/3/comments body=Released in v0.10.2, deployed with v0.10.3"
   assert_regex "$(gh_log)" "issues/4/comments body=Released in v0.10.3 \(deployed to production\)"
-  assert_regex "$(gh_log)" "issues/2/comments body=Not shipped: in 0.10.2 but not carried by v0.10.3"
+  assert_regex "$(gh_log)" "issues/2/comments body=Released in v0.10.3 without this \(not shipped\)"
   assert_regex "$(gh_log)" "PATCH repos/acme/acme/issues/2 milestone=null"
   refute_regex "$(gh_log)" "PATCH repos/acme/acme/issues/2 state"
-  refute_regex "$(gh_log)" "issues/2/comments body=Released"
+  refute_regex "$(gh_log)" "issues/2/comments body=Released in v0.10.[0-9]+(,| \\()"
   assert_regex "$(gh_log)" "milestones/7 state=closed"
   assert_regex "$(gh_log)" "milestones/8 state=closed"
   # 0.10.2's own tag is untouched
   assert_equal "$(git -C "$W/remote.git" rev-parse refs/tags/v0.10.2)" "$t2"
+  # a rerun of the settle: #2 is out of the milestone and has its comment, so nothing is written for it
+  gh_issue 2 Requirement "" "" 0 ""
+  jq -nc --arg b "$(sed -n 's/.*issues\/2\/comments body=//p' "$W/gh/log" | head -1)" '[{body:$b}]' > "$W/gh/fix/repos_acme_acme_issues_2_comments.json"
+  : > "$W/gh/log"
+  run d settle 0.10.3
+  refute_regex "$(gh_log)" "issues/2"
 }
 
 @test "a revert of a commit outside the range has no effect: its own Refs still count" {
@@ -145,22 +153,106 @@ issues_fixtures() {
   assert_equal "$(jq -c '.carries.issues' <<< "$(tag_record v0.10.3)")" '[1,2,3,4,6]'
 }
 
-@test "an emergency range still starts at production's tag" {
-  set_version 0.10.0; commit_change "base"; C0="$SHA"; text_tag v0.10.0 "$C0"
-  [[ -z "${OLD:-}" ]] || { file_commit old 6; OLDSHA="$SHA"; }
-  set_version 0.10.1; commit_change "release 0.10.1"; C1="$SHA"; text_tag v0.10.1 "$C1"
+@test "a revert of a revert keeps the change" {
+  first_release
+  REVERTS=2 second_release revert
+  gh_issue 1 Requirement "" 0.10.2 0 ""; gh_issue 2 Requirement "" 0.10.2 0 ""; gh_issue 3 Requirement "" 0.10.2 0 ""
+  run d release --expect 0.10.3; assert_success
+  assert_equal "$(jq -c '.carries.issues' <<< "$(tag_record v0.10.3)")" '[1,2,3,4]'
+  assert_equal "$(jq -c '.carries.releases[0].dropped' <<< "$(tag_record v0.10.3)")" '[]'
+}
+
+@test "three reverts leave the change out" {
+  first_release
+  REVERTS=3 second_release revert
+  gh_issue 1 Requirement "" 0.10.2 0 ""; gh_issue 2 Requirement "" 0.10.2 0 ""; gh_issue 3 Requirement "" 0.10.2 0 ""
+  run d release --expect 0.10.3; assert_success
+  assert_equal "$(jq -c '.carries.issues' <<< "$(tag_record v0.10.3)")" '[1,3,4]'
+}
+
+@test "a revert naming the commit by a short sha is matched" {
+  first_release
+  git -C "$W/work" revert --no-edit "$S2" >/dev/null
+  git -C "$W/work" commit -q --amend -m "Revert two"$'\n\n'"This reverts commit ${S2:0:7} (two)."
+  git -C "$W/work" push -q origin HEAD:main
+  file_commit four 4
+  release_ready "4|Requirement||0|"; gh_milestone 0.10.3 "4|Requirement||0|"
+  gh_issue 1 Requirement "" 0.10.2 0 ""; gh_issue 2 Requirement "" 0.10.2 0 ""; gh_issue 3 Requirement "" 0.10.2 0 ""
+  run d release --expect 0.10.3; assert_success
+  assert_equal "$(jq -c '.carries.issues' <<< "$(tag_record v0.10.3)")" '[1,3,4]'
+}
+
+@test "production's release unreadable, or without a tag, refuses the release" {
+  set_version 0.10.1; commit_change "release 0.10.1"; text_tag v0.10.1 "$SHA"
+  set_version 0.10.2; file_commit four 4
+  release_ready "4|Requirement||0|"
+  run d release --expect 0.10.2
+  assert_failure 1
+  assert_output --partial "refused at gate milestone"
+  assert_output --partial "which release production runs"
+  fake_production 0.9.9 "$(git -C "$W/work" rev-parse HEAD~1)"
+  run d release --expect 0.10.2
+  assert_failure 1
+  assert_output --partial "no tag for production's release 0.9.9"
+}
+
+@test "a rerun that resumes the release keeps carries.releases" {
+  first_release
+  second_release
+  STUB_GH_FAIL=release run d release --expect 0.10.3
+  assert_failure 3
+  run d release --expect 0.10.3
+  assert_success
+  assert_equal "$(jq -c '[.carries.releases[].version]' <<< "$(tag_record v0.10.3)")" '["0.10.2"]'
+  assert_equal "$(jq -c '[.carries.releases[].version]' "${XDG_STATE_HOME:-$HOME/.local/state}/deliver/acme/release-0.10.3.json")" '["0.10.2"]'
+}
+
+@test "a release made before the tool, in the range, has its milestone's open items gated, settled and closed" {
+  set_version 0.10.0; commit_change base; C0="$SHA"; text_tag v0.10.0 "$C0"
   production_runs 0.10.0 "$C0"
-  set_version 0.10.2; ref_commit "unreleased work on main" 9
-  git -C "$W/work" checkout -q -b emergency "$C0"
-  set_version 0.10.2; printf 'emergency fix\n' > "$W/work/src.txt"
-  git -C "$W/work" commit -qam "emergency fix"$'\n\nRefs #30'; git -C "$W/work" push -q origin emergency
-  local E; E="$(git -C "$W/work" rev-parse HEAD)"
+  set_version 0.10.1; file_commit eight 8; text_tag v0.10.1 "$SHA"
+  set_version 0.10.2; file_commit four 4
+  release_ready "4|Requirement||0|"
+  local two; two="$(jq -c '.data.repository.milestones.nodes[0]' "$W/gh/fix/graphql_MilestoneItems.json")"
+  gh_milestone 0.10.1 "8|Requirement||0|" "9|Requirement||0|"
+  jq -c --argjson two "$two" '.data.repository.milestones.nodes += [$two]' "$W/gh/fix/graphql_MilestoneItems.json" > "$W/m.json"
+  mv "$W/m.json" "$W/gh/fix/graphql_MilestoneItems.json"
+  gh_fixture repos_acme_acme_milestones '[{"number":6,"title":"0.10.1","state":"open"},{"number":7,"title":"0.10.2","state":"open"}]'
+  run d release --expect 0.10.2
+  assert_success
+  assert_output --partial "#9 is in 0.10.1 but not carried by 0.10.2"
+  assert_equal "$(jq -c '.carries.releases[0] | [.version, .issues, .dropped]' <<< "$(tag_record v0.10.2)")" '["0.10.1",[8],[9]]'
+  assert_equal "$(jq -c '.carries.issues' <<< "$(tag_record v0.10.2)")" '[4,8]'
+  gh_issue 8 Requirement "" 0.10.1 0 ""; gh_issue 9 Requirement "" 0.10.1 0 ""; gh_issue 4 Requirement "" 0.10.2 0 ""
+  rm -f "$W"/gh/state/ms-new-* "$W"/gh/state/ms-closed-*; : > "$W/gh/log"
+  run d deploy production 0.10.2
+  assert_success
+  assert_regex "$(gh_log)" "issues/8/comments body=Released in v0.10.1, deployed with v0.10.2"
+  assert_regex "$(gh_log)" "PATCH repos/acme/acme/issues/8 state=closed"
+  assert_regex "$(gh_log)" "issues/9/comments body=Released in v0.10.2 without this"
+  assert_regex "$(gh_log)" "PATCH repos/acme/acme/issues/9 milestone=null"
+  refute_regex "$(gh_log)" "PATCH repos/acme/acme/issues/9 state"
+  assert_regex "$(gh_log)" "milestones/6 state=closed"
+}
+
+@test "an emergency range still starts at production's tag, and lists a release made in it" {
+  set_version 0.10.0; commit_change "base"; C0="$SHA"; text_tag v0.10.0 "$C0"
+  production_runs 0.10.0 "$C0"
+  # 0.10.1 was made off main (a side line from 0.10.0) and never deployed; the emergency is cut from it
+  git -C "$W/work" checkout -q -b side "$C0"
+  set_version 0.10.1; file_commit five 5; C1="$(git -C "$W/work" rev-parse HEAD)"
+  jq -nc --arg c "$C1" '{record:1,application:"acme",version:"0.10.1",commit:$c,images:{},made:"2026-10-01T00:00:00Z",carries:{work_packages:[],issues:[5]}}' > "$W/rec.json"
+  git -C "$W/work" tag -a -F "$W/rec.json" v0.10.1 "$C1" && git -C "$W/work" push -q origin refs/tags/v0.10.1
+  git -C "$W/work" checkout -q main; set_version 0.10.9; file_commit unreleased 9
+  git -C "$W/work" checkout -q -b emergency "$C1"
+  set_version 0.10.2; file_commit fix 30; local E; E="$(git -C "$W/work" rev-parse HEAD)"
+  git -C "$W/work" push -q origin emergency
   build_ok "$E"; deploy_rehearsal "$E"; assert_success
   gh_checks "$E" e2e=success
   git -C "$W/work" checkout -q -f main
   gh_milestone 0.10.2 "30|Requirement||0|"
   run d release --expect 0.10.2 --commit "$E" --emergency "outage"
   assert_success
-  assert_equal "$(jq -c '.carries.issues' <<< "$(tag_record v0.10.2)")" '[30]'
-  assert_equal "$(jq -c '.carries.releases' <<< "$(tag_record v0.10.2)")" '[]'
+  assert_equal "$(jq -c '.carries.issues' <<< "$(tag_record v0.10.2)")" '[5,30]'
+  assert_equal "$(jq -c '[.carries.releases[].version]' <<< "$(tag_record v0.10.2)")" '["0.10.1"]'
 }
