@@ -73,6 +73,7 @@ gh_milestone_number() {  # TITLE -> number or empty
 gh_milestone_create()  { gh api -X POST "repos/$GH_REPO/milestones" -f title="$1" >/dev/null; }
 gh_milestone_close()   { gh api -X PATCH "repos/$GH_REPO/milestones/$1" -f state=closed >/dev/null; }
 gh_issue_set_milestone() { gh api -X PATCH "repos/$GH_REPO/issues/$1" -F milestone="$2" >/dev/null; }
+gh_issue_clear_milestone() { gh api -X PATCH "repos/$GH_REPO/issues/$1" -F milestone=null >/dev/null; }
 gh_issue_comments()    { gh api "repos/$GH_REPO/issues/$1/comments?per_page=100"; }
 gh_issue_comment()     { gh api -X POST "repos/$GH_REPO/issues/$1/comments" -f body="$2" >/dev/null; }
 gh_issue_close()       { gh api -X PATCH "repos/$GH_REPO/issues/$1" -f state=closed -f state_reason=completed >/dev/null; }

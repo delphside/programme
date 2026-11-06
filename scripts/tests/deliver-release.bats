@@ -121,7 +121,7 @@ two_builds() {   # P (production's) and Q (another)
   assert_equal "$(reg_meta acme/releases "$server")" "$(reg_meta acme/candidates "$server")"
   assert_equal "$(tag_record v0.10.2 | jq -S .)" "$(registry_record 0.10.2 | jq -S .)"
   run jq -r '[.record, .application, .version, .commit, .images.server, .images.web, (.made|type), .rehearsal.environment, .rehearsal.smoke, (.emergency|tostring), (.rehearsal_skipped|tostring), (.set_aside|tostring), (.tool.programme|type), (.carries|tostring)] | join(" ")' <<< "$(tag_record v0.10.2)"
-  assert_output "1 acme 0.10.2 $a $server $web string rehearsal passed null null [] string {\"work_packages\":[],\"issues\":[12]}"
+  assert_output "1 acme 0.10.2 $a $server $web string rehearsal passed null null [] string {\"work_packages\":[],\"issues\":[12],\"releases\":[]}"
   # O11
   assert_equal "$(remote_version)" 0.10.3
   assert_regex "$(gh_log)" "RELEASE create v0.10.2 notes-start-tag="
@@ -253,7 +253,7 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   gh_milestone 0.10.2 "30|Requirement||0|" "9|Requirement||0|"
   run d release --expect 0.10.2 --commit "$E" --emergency "outage"
   assert_success
-  assert_equal "$(jq -c .carries <<< "$(tag_record v0.10.2)")" '{"work_packages":[],"issues":[30]}'
+  assert_equal "$(jq -c .carries <<< "$(tag_record v0.10.2)")" '{"work_packages":[],"issues":[30],"releases":[]}'
   assert_equal "$(remote_version)" 0.10.3
   assert_regex "$(gh_log)" "PATCH repos/acme/acme/issues/9 milestone=100"
   refute_regex "$(gh_log)" "PATCH repos/acme/acme/issues/30 "
@@ -295,6 +295,7 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   rm -rf "$W/registry/reg.test/ns/acme/releases/oci/0.10.2-record" "$W/registry/reg.test/ns/acme/releases/tags/0.10.2-record"
   # lower than a prod- tag of an earlier prefix
   text_tag prod-0.11.0 "$(git -C "$W/work" rev-parse HEAD~1)"
+  fake_production 0.11.0 "$(git -C "$W/work" rev-parse HEAD~1)"
   run d release --expect 0.10.2
   assert_failure 1
   assert_output --partial "not higher than the newest release tag 0.11.0"
@@ -327,7 +328,7 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   gh_issue 40 Project "" 0.10.2 0 "Production Release"
   run d release --expect 0.10.2
   assert_success
-  assert_equal "$(jq -c .carries <<< "$(tag_record v0.10.2)")" '{"work_packages":[40],"issues":[12]}'
+  assert_equal "$(jq -c .carries <<< "$(tag_record v0.10.2)")" '{"work_packages":[40],"issues":[12],"releases":[]}'
 }
 
 @test "parent_refs_counts_for_its_only_work_package (S51, R20)" {
@@ -336,7 +337,7 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   release_ready "70|Project||1|" "71|Project|70|0|Production Release"
   run d release --expect 0.10.2
   assert_success
-  assert_equal "$(jq -c .carries <<< "$(tag_record v0.10.2)")" '{"work_packages":[71],"issues":[]}'
+  assert_equal "$(jq -c .carries <<< "$(tag_record v0.10.2)")" '{"work_packages":[71],"issues":[],"releases":[]}'
 }
 
 @test "parent_refs_does_not_count_with_two_work_packages (S51, R20)" {
@@ -358,7 +359,7 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   release_ready "12|Requirement||0|"
   run d release --expect 0.10.2
   assert_success
-  assert_equal "$(jq -c .carries <<< "$(tag_record v0.10.2)")" '{"work_packages":[],"issues":[12]}'
+  assert_equal "$(jq -c .carries <<< "$(tag_record v0.10.2)")" '{"work_packages":[],"issues":[12],"releases":[]}'
 }
 
 @test "a Production Release work package outside the milestone refuses (S53a, R20)" {
@@ -394,7 +395,7 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   run d release --expect 0.10.2 --set-aside milestone "the extra issue is a notes issue"
   assert_success
   assert_equal "$(jq -c .set_aside <<< "$(tag_record v0.10.2)")" '[{"gate":"milestone","reason":"the extra issue is a notes issue"}]'
-  assert_equal "$(jq -c .carries <<< "$(tag_record v0.10.2)")" '{"work_packages":[],"issues":[12,50]}'
+  assert_equal "$(jq -c .carries <<< "$(tag_record v0.10.2)")" '{"work_packages":[],"issues":[12,50],"releases":[]}'
 }
 
 @test "the milestone agreeing needs no flag, and set_aside is empty (S53, R20)" {
