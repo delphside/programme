@@ -20,20 +20,27 @@ The owner's decisions (2026-10-27 and 28) are listed in #117's body.
 
 ## 2. Roles
 
-The tool names roles, never machines or applications. *Control node* is
-Ansible's name for the machine a run is started from. Each application's
-profile says where each role is.
+The tool is `deliver`, two commands from the programme repository:
+`deliver`, which a person or a timer runs, and `deliver-host`, which `deliver`
+runs on a host over ssh. A **role** is a job a machine does for the tool. The
+tool names roles, never machines or applications, and each application's
+profile says which machine plays each role; one machine may play several.
+*Control node* is Ansible's name for the machine a run is started from.
 
-| role | holds | does |
-| --- | --- | --- |
-| **build environment** | the repository, the candidates write credential | makes one image set per commit from a clean checkout, pushes it to candidates |
-| **release copier** | the release credential: the registry login of the Oracle user allowed to read candidates and write releases | copies a rehearsed image set by digest from candidates to releases, and pushes the record |
-| **control node** | git with push rights to `main`, a GitHub credential | runs the release step's gates, tag and bump; starts deploys; settles the board from the record |
-| **environment host** | its own registry identity, its `.env`, its state folder | `deliver-host`: pulls by digest, takes the payload out of the image, runs the deploy steps, holding the environment's lock throughout |
-| **payload** | nothing secret; inside one named image at `/deliver/` | the deploy steps, the application's hooks, the files joined at deploy, the host files |
+| role | runs | holds | does |
+| --- | --- | --- | --- |
+| **build environment** | `deliver build` | the repository, the candidates write credential | makes one image set per commit from a clean checkout, pushes it to candidates |
+| **release copier** | `deliver-host copy`, started by `deliver release` | the release credential: the registry login of the Oracle user allowed to read candidates and write releases | copies a rehearsed image set by digest from candidates to releases, and pushes the record |
+| **control node** | `deliver release`, `deploy`, `settle`, `rollback`, `status`, `list`, `prune`, `host-install` | git with push rights to `main`, a GitHub credential | runs the release step's gates, tag and bump; starts deploys; settles the board from the record |
+| **environment host** | `deliver-host deploy` and `rollback`, started by `deliver`; `deliver env create` and `destroy` | its own registry identity, its `.env`, its state folder | pulls by digest, takes the payload out of the image, runs the deploy steps, holding the environment's lock throughout |
 
-Each environment also has a **role** of its own, which the gates key on, never
-its name:
+The **payload** is not a role but what the hosts run: the deploy steps, the
+application's hooks, the files joined at deploy and the host files, copied at
+build into one named image at `/deliver/`. It holds nothing secret.
+
+Each environment also has an **environment role**, which says what the
+environment is for rather than which machine does a job. The gates key on it,
+never on the environment's name:
 
 | environment role | reads | gates that key on it |
 | --- | --- | --- |
