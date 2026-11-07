@@ -59,16 +59,20 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R30 | Every override takes a reason. The reason goes into the record where there is one, and always into the run log. | §4 |
 | R31 | Every command writes a run log on its own machine, naming each gate it ran. A command that ends with a gate unrun refuses. Exits are 0 done; 1 refused, failed with nothing changed, or rolled back; 3 live but a later step failed. | §4 |
 | R32 | `--check` runs every gate and changes nothing. | §4 |
-| R33 | Each component has its own registry access, and no component's credential can do another role's writes. | §10; §12 |
+| R33 | Each component has its own registry access, and no component's credential can do another role's writes: the builder alone writes and deletes candidates, the copier alone writes releases, the controller and the hosts write nothing. | §2; §10; §12 |
 | R34 | Nothing secret is written to a profile, record, tag or log. | §12 |
 | R35 | Every pull completes within the environment's `pull_timeout`, or the deploy refuses before any change. | §9; §12 |
-| R36 | `prune` removes candidates whose `created` label (the build's start) is before the newest release was made, not released, and not in any environment's current or previous deploy. It never removes releases. | §4 |
+| R36 | `prune` removes candidates whose `created` label (the build's start) is before the newest release was made, not released, and not in any environment's current or previous deploy. It never removes releases. The controller chooses; R46 says who deletes. | §4 |
 | R37 | `env create\|destroy NAME` works from the profile's template: a user, a state folder, a `.env` with secrets at a hidden prompt, a Compose project, and the hooks. | §4 |
 | R38 | `host-install` installs or updates `deliver-host` and its libraries and the single `sudo` rule, installs `jq` where it is missing, and checks that `flock` and the login adapter's tools (`oci`) are present, refusing when one is not. | §4; §9 |
 | R39 | The login adapters are `oci-instance-principal`, `oci-api-key` and `docker-config`. Hosts log in by instance principal. | §10; owner 2026-10-28 |
 | R42 | The carried range starts at the release production runs, so a release made while an earlier one is undeployed carries both; an item named only by a commit a later commit in the range reverts is not carried, and a revert of a commit outside the range has no effect. | §6; §7 |
 | R43 | Settling a record settles the items of the earlier releases it carries (comment `..., deployed with vV`), closes their milestones, and takes a dropped item out of its milestone with a comment, leaving its state alone; a rerun changes nothing. | §8 |
 | R40 | `status ENV` shows the digests, the matching record, the deploy state and host-file equality. `list ENV` shows the records beside what ENV runs. | §4 |
+| R44 | Each component has a registry login of its own. A component that only calls `skopeo` (the controller's reads, the copier, the builder's delete) uses its own auth file, `~/.config/deliver/auth/APP/COMPONENT.json` (directory 0700, file 0600), chosen by `REGISTRY_AUTH_FILE` alone; a component that calls `docker` (the builder's push, a deployer's pull) uses the machine user's own `docker` login. `DOCKER_CONFIG` is never set, so contexts and builders stay. Components sharing a machine never replace one another's login. The one exception is an environment on the builder's machine (preview on the laptop), which shares the builder's `docker` login: `deliver login` refuses it and names `deliver login builder`, as does a refused pull. A `docker-config` auth file that is missing is refused, naming `deliver login COMPONENT`; a registry refusal names it too. | §10 |
+| R45 | The controller reads candidates and releases (digests, tags, records) with its own login, `[deliver].login`, and with no other. | §2; §10 |
+| R46 | `prune`: the controller chooses what to delete, and sends the list, with each tag's digest, to `deliver-host delete` on `[deliver.build].on`, which deletes with the builder's login, only while a tag still has the digest sent. The controller never deletes. `--dry-run` sends nothing. | §4; §10 |
+| R47 | `deliver login COMPONENT` makes the `docker-config` login: `skopeo login --authfile` for the controller and copier, both that and `docker login` for the builder, `docker login` for an environment's deployer, on the component's machine (over `ssh` where it is another). The token is read at a hidden prompt and passed on standard input only: never printed, logged or an argument. | §4; §10; R34 |
 | R41 | Tile Lite Elite's move: the first `deliver` deploy to rehearsal takes `--off-level`. The fallback until 0.10.2 has run in production is the written procedure to 0.10.0: stop the `deliver` project, restore the snapshot, then `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason. 0.10.2 is the first release with a record. The board reads `v` as released and `prod-` as history. | §13; (H) |
 
 ### Checked for contradiction
@@ -241,6 +245,12 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S62 | A revert of a commit outside the range; a Production Release work package of the earlier milestone; the settle rerun. | R42, R43 | the revert's own `Refs` count; the work package passes the gate in 0.10.2 and is refused in another; the rerun changes nothing | CI |
 | S63 | Reverts by count (a revert of a revert, a third revert, a short sha); production's release unreadable or untagged; a resumed release. | R42 | a revert of a revert keeps the change, three leave it out, a short sha matches; the release is refused at the milestone gate; the record keeps `releases` | CI |
 | S64 | An earlier release in the range made before the tool (a text tag) with open items in its milestone; an emergency cut from an undeployed release. | R42, R43 | items named in the range are carried and settled, the others dropped and removed; the emergency lists the release in its range | CI |
+| S65 | A feature built, rehearsed, released and deployed to production, with the stub registry enforcing which login each call carries. | R44, R33 | the builder's login pushes, the copier's writes releases and the record, the hosts' pull, no call is made without a login, and the controller's reads carry the controller's | CI |
+| S66 | The copier, builder and controller each log in with `deliver login`, in turn, with different users; then a release. A builder with no login made. | R44 | three auth files, each keeping its own user, and the builder's `docker` login made once; no `DOCKER_CONFIG` set; the release works; the build refuses, naming `deliver login builder`; a copier refused by the registry is told to `deliver login copier` | CI |
+| S67 | A release with the controller's login absent; then made for the wrong role; then right. A local preview build and deploy with no controller login. | R45 | O1 naming `deliver login controller`; O1 (releases refused to it); O10; the preview deploy needs none | CI |
+| S68 | `prune` with the builder on another machine; on the controller's own; a delete made with the controller's login. | R46, R33 | the deletion runs on the builder's machine with the builder's login, the controller's calls are reads, and the registry refuses the controller's delete | CI |
+| S69 | `prune --dry-run`; a delete request whose tag has moved to another digest; one naming a tag already gone. | R46 | nothing sent and nothing changed (O1's snapshot); the moved tag is left and the command fails; the gone tag is a no-op | CI |
+| S70 | `deliver login` with a canary token, for the builder, for a deployer on another machine over `ssh` (the builder's file landing on its own machine), and for preview, which is refused as sharing the builder's login; then with an empty token. | R47, R34 | the canary is in no output, log, argument or file (the `ssh` log too); the auth directory is 0700 and the file 0600; the empty token is refused and writes nothing | CI |
 
 ## 6. Refusals and successes
 
@@ -309,10 +319,10 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R30 | S12, S17, S19, S20, S29, S49, S53 |
 | R31 | S32, S59 |
 | R32 | S32 |
-| R33 | S35, S40 |
-| R34 | S41, S44 |
+| R33 | S35, S40, S65, S68 |
+| R34 | S41, S44, S70 |
 | R35 | S36 |
-| R36 | S43 |
+| R36 | S43, S68 |
 | R37 | S41 |
 | R38 | S42 |
 | R39 | S35 |
@@ -320,6 +330,10 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R43 | S61, S62, S63, S64 |
 | R40 | S46 |
 | R41 | S39, S47 |
+| R44 | S65, S66 |
+| R45 | S65, S67 |
+| R46 | S68, S69 |
+| R47 | S70 |
 
 | scenario | rules |
 | --- | --- |
@@ -388,6 +402,12 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S62 | R42, R43 |
 | S63 | R42 |
 | S64 | R42, R43 |
+| S65 | R33, R44 |
+| S66 | R44 |
+| S67 | R45 |
+| S68 | R33, R36, R46 |
+| S69 | R46 |
+| S70 | R34, R47 |
 
 ## 8. Approach
 
@@ -578,5 +598,6 @@ on the real stack does.
 | X20 S5 (multi-arch: a real `buildx` build and the index digest kept by the copy) is stubbed only through `STUB_ARCH`, which salts the digest. | The same rehearsal run: a multi-arch build, copy and pull on the real stack. | The copy is `skopeo copy --all --preserve-digests`, whose behaviour the stub cannot vouch for. |
 | X21 S36 (a slow pull) is a delayed-pull stub, not a throttling proxy. | The rehearsal run's measured pull on a real host (`pull_timeout`). | The timeout path is exercised; the number is measured on the host. |
 | X22 S40 (each component's registry credential writes only its own repositories) uses the stub's `STUB_WRITE_ONLY`, not a registry's access control; the stub also records which machine each registry write ran on (`where.log`), so a copy made on the wrong machine fails the test. | The rehearsal run, with the real credentials of the builder, the copier and the hosts. | The tool's part (which machine, which login) is asserted; the registry's enforcement is not the tool's. |
+| X23 S65 to S70 (each component's login is its own, the controller cannot delete) rest on the stub registry reading a role from the auth file a `skopeo` call names and from the stub machine's `docker` login, not on a registry's policy or the real tools' handling of `REGISTRY_AUTH_FILE`, `~/.docker` contexts, `buildx` builders and credential stores. | The rehearsal run, with the laptop's real `docker` and `skopeo` and the real users and groups: `deliver login` for each component, then a build (with a `docker-container` builder), a release and a `prune`; the laptop's `docker context ls` unchanged. | The tool's part (which file, which machine, `DOCKER_CONFIG` untouched) is asserted; the registry's enforcement is not the tool's. |
 
 Derived by a fresh `test-designer` agent that read no implementation (docs/1.9).

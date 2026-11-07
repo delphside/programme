@@ -45,10 +45,13 @@ environment: addresses, keys, limits.
 
 | Component | Purpose | Runs | Holds | Does |
 | --- | --- | --- | --- | --- |
-| *controller* | Decides what ships; only it changes `main`, tags, the board | all `deliver` commands but `build`, `env` | push rights to `main`; GitHub credential | gates, tag, bump, deploys, settle |
-| *builder* | Builds each commit once | `build` | repository; candidates write credential | image set to candidates |
-| *release copier* | Only writes releases | `deliver-host copy`, from `release` and `deploy --unrecorded` | login that reads candidates, writes releases | copy by digest; record |
-| *deployer* | Changes an environment by one locked, restorable path | `deliver-host deploy`, `rollback`, `status`, `allowlist`, `env`; `deliver env create`, `destroy` | registry identity, `.env`, [state folder](#9-on-the-host) | lock, pull by digest, deploy steps |
+| *controller* | Decides what ships; only it changes `main`, tags, the board | all `deliver` commands but `build`, `env` | its [privileges](#component-privileges) | gates, tag, bump, deploys, settle; reads the registry; decides what `prune` deletes |
+| *builder* | Builds each commit once; owns the candidates | `build`; `deliver-host delete`, from `prune` | its privileges; the repository | image set to candidates; deletes the candidates the controller chose |
+| *release copier* | Only writes releases | `deliver-host copy`, from `release` and `deploy --unrecorded` | its privileges | copy by digest; record |
+| *deployer* | Changes an environment by one locked, restorable path | `deliver-host deploy`, `rollback`, `status`, `allowlist`, `env`; `deliver env create`, `destroy` | its privileges; `.env`, [state folder](#9-on-the-host) | lock, pull by digest, deploy steps |
+
+Every component has a registry login of its own, so components sharing a machine
+never replace one another's ([§10](#10-oci-integration)).
 
 | Component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- |
@@ -56,6 +59,20 @@ environment: addresses, keys, limits.
 | builder | the laptop: production's 1 GB host cannot compile | the non-production VM (E2), on a timer |
 | release copier | the controller, as Oracle user `tle-releaser` | the non-production VM, as Linux user `dp-release` ([§10](#10-oci-integration)) |
 | deployer, environments | `preview` on the laptop; `rehearsal`, `production` on their VMs | E3 to E5 (test), E6 (rehearsal) on the non-production VM; production |
+
+### Component privileges
+
+What each component may do and what for. The registry's side of each login is
+[§10](#10-oci-integration)'s policy, GitHub's is [§11](#11-github-integration)'s
+credential; those sections keep the calls' detail, not the privileges.
+
+| Component | Privilege | Needed for | External API calls |
+| --- | --- | --- | --- |
+| *controller* | Registry: its own `skopeo` login, read candidates and releases. GitHub: the owner's `gh` login, with the scopes [§11](#11-github-integration) lists. Git: push to `main` and tags, by admin bypass. `ssh` to every environment's host, the release copier and the builder. No sudo | candidate and release digests, listing tags for `prune`; the release gates, tag, Release, bump, milestone and settle; running `deliver-host` on each machine | registry v2 reads through `skopeo inspect`, `list-tags`; GitHub REST and GraphQL ([§11](#11-github-integration)); `curl` of production's `/health` over HTTPS where the host has no `deliver` state |
+| *builder* | Registry: its own `skopeo` login (reads, deletes) and the machine user's `docker` login (pushes), write and delete candidates, read nothing of releases. Git: read the repository. `ssh` to nothing | pushing `SHA-IMAGE`; deleting the candidates `prune` chose; checking what is already stored | registry v2 `skopeo inspect`, `list-tags`, `delete`; `docker buildx bake --push`; the OCI CLI token call for `oci-*` logins; `git fetch` |
+| *release copier* | Registry: its own `skopeo` login, read candidates, write releases. No GitHub, no git push, no `ssh` | the release copy and the record; `deploy --unrecorded` | registry v2 `skopeo inspect`, `copy --all --preserve-digests` (candidates to releases), `copy` of the record from an OCI layout; the OCI CLI token call for `oci-*` logins |
+| *deployer* | Registry: the machine user's own `docker` login (instance principal, or the builder's on the laptop for preview), read candidates (preview, test, rehearsal) or releases (production). The deploy user runs the payload's steps and Docker; root only through root-ops. No GitHub, no `ssh` out | pulling by digest, running the payload's steps, state | registry v2 `docker pull` by digest; the OCI CLI token call for `oci-instance-principal` |
+| *root-ops* | The deployer's one `sudo` rule, for `deliver-host root-ops`: install a listed host file, remove one it installed, `systemctl` of one listed unit, create or remove an ephemeral user ([§9](#9-on-the-host)). Nothing it does touches a registry | host files, units, ephemeral users | none |
 
 Terms and
 [views](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md#which-view-a-diagram-takes-and-saying-so)
@@ -67,19 +84,23 @@ are C4's: `deliver` and `deliver-host` are *containers*, environments
 ```mermaid
 flowchart TB
   subgraph DELIVER["Container: deliver"]
-    CTL["<i>controller</i><br>[component]<br>release, deploy, settle, rollback,<br>status, list, prune, host-install"]
-    BLD["<i>builder</i><br>[component]<br>build"]
+    CTL["<i>controller</i><br>[Component]<br>release, deploy, settle, rollback,<br>status, list, prune, host-install"]
+    BLD["<i>builder</i><br>[Component]<br>build, delete"]
   end
   subgraph HOST["Container: deliver-host"]
-    COPY["<i>release copier</i><br>[component]<br>copy"]
-    DEP["<i>deployer</i><br>[component]<br>deploy, rollback, env"]
+    COPY["<i>release copier</i><br>[Component]<br>copy"]
+    DEP["<i>deployer</i><br>[Component]<br>deploy, rollback, env"]
   end
   subgraph OCIR["OCI Registry"]
-    CAND[("<i>APP/candidates</i><br>[store]")]
-    REL[("<i>APP/releases</i><br>[store]")]
+    CAND[("<i>APP/candidates</i><br>[Container: OCI repository]")]
+    REL[("<i>APP/releases</i><br>[Container: OCI repository]")]
   end
-  GH["<i>GitHub</i><br>[external system]<br>tags, Releases, milestones, board"]
+  GH["<i>GitHub</i><br>[Software System]<br>tags, Releases, milestones, board"]
   BLD -->|"image set SHA-IMAGE, payload inside"| CAND
+  CAND -->|"read: digests, tags"| CTL
+  REL -->|"read: digests, records"| CTL
+  CTL -->|"delete request (JSON)"| BLD
+  BLD -->|"delete candidates"| CAND
   CTL -->|"copy request (JSON)"| COPY
   CAND -->|"image set, by digest"| COPY
   COPY -->|"image set, VERSION-record"| REL
@@ -89,28 +110,33 @@ flowchart TB
   CTL -->|"tag, record, settle"| GH
 ```
 
-**Component view, command flow**: who starts each command, and which
-`deliver-host` command it runs.
+**Component view, command flow**: who starts each command, what it is given
+(its parameters), and which `deliver-host` command it runs with what request.
+[§4](#4-commands) lists each request's fields.
 
 ```mermaid
 flowchart LR
-  OWN(["<i>owner</i><br>[person]"])
-  TIMER(["<i>timer</i><br>[timer]<br>Dark Portal's"])
-  BUILD["<i>builder</i><br>[component]<br>deliver build"]
-  REL["<i>controller</i><br>[component]<br>deliver release"]
-  DEP["<i>controller</i><br>[component]<br>deliver deploy"]
-  SET["<i>controller</i><br>[component]<br>deliver settle"]
-  RB["<i>controller</i><br>[component]<br>deliver rollback"]
-  READ["<i>controller</i><br>[component]<br>deliver status, list, prune"]
-  HI["<i>controller</i><br>[component]<br>deliver host-install"]
-  ENV["<i>deployer</i><br>[component]<br>deliver env create, destroy"]
-  COPY["<i>release copier</i><br>[component]<br>deliver-host copy"]
-  HST["<i>deployer</i><br>[component]<br>deliver-host status"]
-  HDEP["<i>deployer</i><br>[component]<br>deliver-host deploy"]
-  HRB["<i>deployer</i><br>[component]<br>deliver-host rollback"]
-  AL["<i>deployer</i><br>[component]<br>deliver-host allowlist"]
-  HENV["<i>deployer</i><br>[component]<br>deliver-host env"]
-  ROOT["<i>deployer</i><br>[component]<br>deliver-host root-ops, by sudo"]
+  OWN(["<i>owner</i><br>[Person]"])
+  TIMER(["<i>timer</i><br>[Software System: systemd timer]<br>Dark Portal's"])
+  BUILD["<i>builder</i><br>[Component]<br>deliver build REF"]
+  REL["<i>controller</i><br>[Component]<br>deliver release --expect VERSION"]
+  DEP["<i>controller</i><br>[Component]<br>deliver deploy ENV REF"]
+  SET["<i>controller</i><br>[Component]<br>deliver settle VERSION"]
+  RB["<i>controller</i><br>[Component]<br>deliver rollback ENV"]
+  READ["<i>controller</i><br>[Component]<br>deliver status ENV, list ENV"]
+  PR["<i>controller</i><br>[Component]<br>deliver prune"]
+  LG["<i>controller</i><br>[Component]<br>deliver login COMPONENT"]
+  HI["<i>controller</i><br>[Component]<br>deliver host-install ENV"]
+  ENV["<i>deployer</i><br>[Component]<br>deliver env create, destroy NAME"]
+  COPY["<i>release copier</i><br>[Component]<br>deliver-host copy APP"]
+  BDEL["<i>builder</i><br>[Component]<br>deliver-host delete APP"]
+  HLG["<i>any component</i><br>[Component]<br>deliver-host login APP COMPONENT"]
+  HST["<i>deployer</i><br>[Component]<br>deliver-host status APP ENV"]
+  HDEP["<i>deployer</i><br>[Component]<br>deliver-host deploy APP ENV"]
+  HRB["<i>deployer</i><br>[Component]<br>deliver-host rollback APP ENV"]
+  AL["<i>deployer</i><br>[Component]<br>deliver-host allowlist APP"]
+  HENV["<i>deployer</i><br>[Component]<br>deliver-host env create, destroy NAME"]
+  ROOT["<i>deployer</i><br>[Component]<br>deliver-host root-ops, by sudo"]
   TIMER --> BUILD
   OWN --> BUILD
   OWN --> REL
@@ -118,17 +144,22 @@ flowchart LR
   OWN --> SET
   OWN --> RB
   OWN --> READ
+  OWN --> PR
+  OWN --> LG
   OWN --> HI
   OWN --> ENV
-  REL -->|"copy request"| COPY
-  DEP -->|"--unrecorded copy"| COPY
-  REL -->|"rehearsal's state"| HST
+  REL -->|"candidates, releases, digests, record"| COPY
+  DEP -->|"--unrecorded: digests, SHA-IMAGE names"| COPY
+  REL -->|"state"| HST
   DEP -->|"what runs now"| HST
-  DEP -->|"deploy request"| HDEP
-  DEP -->|"production only"| SET
-  RB --> HRB
-  READ --> HST
-  HI -->|"installs deliver-host, then"| AL
+  DEP -->|"SHA, version, images by digest, role, record, join"| HDEP
+  DEP -->|"VERSION"| SET
+  RB -->|"role, repo, lock, project"| HRB
+  READ -->|"APP ENV --json"| HST
+  PR -->|"APP ENV --json"| HST
+  PR -->|"tags with digests"| BDEL
+  LG -->|"user, token on standard input"| HLG
+  HI -->|"installs deliver-host, then host files, user prefix"| AL
   ENV --> HENV
   HDEP -->|"host files"| ROOT
   HRB -->|"host files"| ROOT
@@ -141,33 +172,35 @@ flowchart LR
 flowchart TB
   subgraph LAPTOP["Owner's laptop (WSL)"]
     subgraph TOOLS["tool environments"]
-      CTL["<i>controller</i><br>[component]"]
-      BLD["<i>builder</i><br>[component]"]
-      COPY["<i>release copier</i><br>[component]<br>Oracle user tle-releaser"]
+      CTL["<i>controller</i><br>[Component]<br>Oracle user tle-controller"]
+      BLD["<i>builder</i><br>[Component]<br>Oracle user tle-builder"]
+      COPY["<i>release copier</i><br>[Component]<br>Oracle user tle-releaser"]
     end
-    subgraph PREV["preview (role preview)"]
-      DEPP["<i>deployer</i><br>[component]"]
+    subgraph PREV["preview"]
+      DEPP["<i>deployer</i><br>[Component]"]
     end
   end
   subgraph REHVM["Oracle VM: rehearsal"]
-    subgraph REH["rehearsal (role rehearsal)"]
-      DEPR["<i>deployer</i><br>[component]"]
+    subgraph REH["rehearsal"]
+      DEPR["<i>deployer</i><br>[Component]"]
     end
   end
   subgraph PRODVM["Oracle VM: production"]
-    subgraph PROD["production (role production)"]
-      DEPX["<i>deployer</i><br>[component]"]
+    subgraph PROD["production"]
+      DEPX["<i>deployer</i><br>[Component]"]
     end
   end
   subgraph OCIR["OCI Registry"]
-    CAND[("<i>tile-lite-elite/candidates</i><br>[store]")]
-    REL[("<i>tile-lite-elite/releases</i><br>[store]")]
+    CAND[("<i>tile-lite-elite/candidates</i><br>[Container: OCI repository]")]
+    REL[("<i>tile-lite-elite/releases</i><br>[Container: OCI repository]")]
   end
-  GH["<i>GitHub</i><br>[external system]<br>delphside/tile-lite-elite: repository, issues, Releases; the board"]
+  GH["<i>GitHub</i><br>[Software System]<br>delphside/tile-lite-elite: repository, issues, Releases; the board"]
   GH -->|"fetch the commit"| BLD
   CTL -->|"tag, bump, Release, settle"| GH
   BLD -->|push| CAND
   COPY -->|copy| REL
+  CAND -->|read| CTL
+  REL -->|read| CTL
   CTL -->|local| DEPP
   CTL -->|ssh| DEPR
   CTL -->|ssh| DEPX
@@ -181,33 +214,35 @@ flowchart TB
 ```mermaid
 flowchart TB
   subgraph OWNER["Owner's machine"]
-    CTL["<i>controller</i><br>[component]"]
+    CTL["<i>controller</i><br>[Component]<br>Oracle user dp-controller"]
   end
   subgraph NONPROD["Oracle VM: non-production"]
     subgraph TOOLS["tool environments"]
-      BLD["<i>builder</i><br>[component]<br>E2, on a timer"]
-      COPY["<i>release copier</i><br>[component]<br>Linux user dp-release"]
+      BLD["<i>builder</i><br>[Component]<br>E2, on a timer"]
+      COPY["<i>release copier</i><br>[Component]<br>Linux user dp-release"]
     end
     subgraph TEST["E3 to E5 (role test)"]
-      DEPT["<i>deployer</i><br>[component]"]
+      DEPT["<i>deployer</i><br>[Component]"]
     end
     subgraph REH["E6 (role rehearsal)"]
-      DEPR["<i>deployer</i><br>[component]"]
+      DEPR["<i>deployer</i><br>[Component]"]
     end
   end
   subgraph PRODVM["Oracle VM: production"]
-    subgraph PROD["production (role production)"]
-      DEPX["<i>deployer</i><br>[component]"]
+    subgraph PROD["production"]
+      DEPX["<i>deployer</i><br>[Component]"]
     end
   end
   subgraph OCIR["OCI Registry"]
-    CAND[("<i>dark-portal/candidates</i><br>[store]")]
-    REL[("<i>dark-portal/releases</i><br>[store]")]
+    CAND[("<i>dark-portal/candidates</i><br>[Container: OCI repository]")]
+    REL[("<i>dark-portal/releases</i><br>[Container: OCI repository]")]
   end
-  GH["<i>GitHub</i><br>[external system]<br>delphside/dark-portal: repository, issues, Releases; the board"]
+  GH["<i>GitHub</i><br>[Software System]<br>delphside/dark-portal: repository, issues, Releases; the board"]
   GH -->|"fetch the commit"| BLD
   CTL -->|"tag, bump, Release, settle"| GH
   BLD -->|push| CAND
+  CAND -->|read| CTL
+  REL -->|read| CTL
   CTL -->|ssh| COPY
   COPY -->|copy| REL
   CTL -->|ssh| DEPT
@@ -238,7 +273,7 @@ and host files.
 | Technology | Used for | Where |
 | --- | --- | --- |
 | bash, `jq` | the tool; JSON | all |
-| `skopeo` | registry reads, copy, record (§10) | controller, builder, copier |
+| `skopeo` | registry reads, copy, record, delete (§10) | controller, builder, copier |
 | `docker`, `compose`, `buildx` | pull by digest; run; build (`buildx`: default hook); login by the `oci-*` adapters | hosts, builder, controller, release copier |
 | `git` | worktrees, payload archive, tag, bump | controller, builder |
 | `gh` | every GitHub call (§11) | controller only |
@@ -314,7 +349,8 @@ its list did not.
 
 **The `deliver` commands.** `ENV` is a profile environment, `REF` a commit or
 version, `GATE` a [§6](#6-gates-and-checks) gate, `COPIER` the release copier's
-host (`copy_on`).
+host (`copy_on`), `BUILDER` the builder's (`build.on`), `COMPONENT` `controller`,
+`builder`, `copier` or an `ENV`.
 
 | Command | Component | What |
 | --- | --- | --- |
@@ -324,9 +360,10 @@ host (`copy_on`).
 | `deliver settle VERSION` | controller | the board to what the record says shipped ([§8](#8-settling)); safe to rerun |
 | `deliver rollback ENV` | controller | `deliver-host rollback`: ENV's previous deploy ([§9](#9-on-the-host)) |
 | `deliver status ENV`, `list ENV` | controller | digests ENV runs (`RepoDigests`), their record, deploy state, host files against the payload's (a check); `list`: the records beside what ENV runs |
-| `deliver prune [--dry-run]` | controller | removes unneeded candidates, never releases |
+| `deliver prune [--dry-run]` | controller; delete on the builder | the controller picks the unneeded candidates, reading every environment's state and the registry with its own login, and sends the list to the builder (`[deliver.build].on`), whose login deletes them; never releases. `--dry-run` lists and sends nothing. Exit 1 if the builder fails to delete any chosen candidate (the rest are deleted) |
+| `deliver login COMPONENT` | the component's machine | the owner's one `docker-config` login for `controller`, `builder`, `copier` or an environment (its deployer): asks for the registry user, reads the token at a hidden prompt, and sends both on standard input to `deliver-host login` on the component's machine ([§10](#10-oci-integration) says which login each makes). Prints nothing of the token |
 | `deliver env create\|destroy NAME` | deployer, on the environment's host | an ephemeral environment from the profile template: user, state folder, `.env` (secrets at a hidden prompt), Compose project; the `env-*` hooks |
-| `deliver host-install ENV\|COPIER` | controller | installs or updates `deliver-host` and libraries on ENV's host or the copier; installs `jq` if missing; refuses if `flock` or the login adapter's tools (`oci`) are absent. A copier hosting no environment gets `deliver-host` and libraries (including `registry.sh`), no allowlist or sudo rule. Refuses environments that would remove each other's host files ([§6](#6-gates-and-checks)) |
+| `deliver host-install ENV\|COPIER\|BUILDER` | controller | installs or updates `deliver-host` and libraries on ENV's host, the copier or the builder; installs `jq` if missing; refuses if `flock` or the login adapter's tools (`oci`) are absent. A copier or builder hosting no environment gets `deliver-host` and libraries (including `registry.sh`), no allowlist or sudo rule. Refuses environments that would remove each other's host files ([§6](#6-gates-and-checks)) |
 
 `prune` removes a candidate only if built before the newest release was made,
 not released, and not run by any current or previous deploy. "Built" is the
@@ -336,14 +373,16 @@ costs a rebuild.
 
 **The `deliver-host` commands** are called by `deliver` (over `ssh`, or directly
 on the controller's host), or, as `root-ops`, by the payload steps through
-`sudo`; `deploy`, `rollback` and `copy` take a JSON request on standard input.
+`sudo`; `deploy`, `rollback`, `copy` and `delete` take a JSON request on standard input.
 
 | Command | Called by | What |
 | --- | --- | --- |
-| `deliver-host deploy APP ENV < request` | `deliver deploy` | [§9](#9-on-the-host)'s steps |
-| `deliver-host rollback APP ENV < request` | `deliver rollback` | switch to `previous` |
+| `deliver-host deploy APP ENV < request` | `deliver deploy` | [§9](#9-on-the-host)'s steps. The request: `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` |
+| `deliver-host rollback APP ENV < request` | `deliver rollback` | switch to `previous`. The request: `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait` |
 | `deliver-host status APP ENV --json` | `status`, `list`, `prune`, release, the rehearsal-level gate, production's version read | what runs, its record, state |
-| `deliver-host copy APP < request` | `deliver release` and `deliver deploy --unrecorded`, on `[deliver.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads |
+| `deliver-host copy APP < request` | `deliver release` and `deliver deploy --unrecorded`, on `[deliver.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request: `login`, `candidates`, `releases`, `copies` (`digest`, `dest` name), `record` (`tag`, `body`) or null |
+| `deliver-host delete APP < request` | `deliver prune`, on `[deliver.build].on` with the build login | delete each candidate the controller chose, the request being `login`, `candidates` and `deletes` (`tag`, `digest`), and only while the tag still has that digest; an absent tag is done |
+| `deliver-host login APP COMPONENT [ENV]` | `deliver login`, on the component's machine | `skopeo login --authfile` for the controller and copier; both that and `docker login` for the builder; `docker login` for a deployer; all `--password-stdin`, user and token on standard input |
 | `deliver-host allowlist APP < lines` | `host-install`, as root | the root-owned allowlist |
 | `deliver-host env create\|destroy NAME` | `deliver env` | an ephemeral environment |
 | `deliver-host root-ops ...` | payload steps and `env`, by one `sudo` rule | the deploy user's only root operations |
@@ -388,8 +427,10 @@ images     = ["server", "web"]             # dp: ["dp"]; tag is SHA-IMAGE
 payload_image = "server"
 join = ["docker-compose.yml", "Caddyfile"]
 
+login = "docker-config"                    # the controller's own login: reads candidates and releases
+
 [deliver.build]
-on    = "controller"                     # dp: ssh alias of the non-production VM
+on    = "controller"                     # dp: ssh alias of the non-production VM; builds and deletes candidates
 login = "docker-config"                    # dp: "oci-instance-principal"
 
 [deliver.release]
@@ -405,6 +446,7 @@ mode = "0755"
 [environments.preview]                     # existing keys stay
 role  = "preview"
 host  = "controller"
+login = "docker-config"                    # the machine user's docker login, shared with the builder on the laptop
 join  = ["docker-compose.preview.yml", "Caddyfile.preview"]
 
 [environments.rehearsal]
@@ -423,13 +465,15 @@ pull_timeout = 300                         # from delphside/tile-lite-elite#554'
 
 Also:
 
+- a `login` is one of the [§10](#10-oci-integration) adapters; where a component has none
+  it is `docker-config`;
 - `[deliver].fallback`, the sentence a failed first deploy prints;
 - `[deliver.ephemeral]` (`user_prefix`, `home`, `secrets`), `deliver env`'s
   template;
 - per environment `project` (Compose project) and `url`;
 - `[versions].deployed` (`path`, `field`), where `/health` reports production's
   version ([§6](#6-gates-and-checks));
-- `on`, `copy_on` and `host` take `"controller"` (`"control-node"` still works);
+- `on` (builder), `copy_on` and `host` take `"controller"` (`"control-node"` still works);
   `on` and `copy_on` also take an `ssh` alias.
 
 Each key is read from one of two profiles:
@@ -745,7 +789,8 @@ hold `VERSION-IMAGE` and `VERSION-record` (an `--unrecorded` copy is
 `SHA-IMAGE`). The registry address carries the tenancy's namespace, so it is
 never in a repository or profile: each component reads `DELIVER_REGISTRY` from
 `~/.config/deliver/APP.env` (controller, builder, copier) or the host's `.env`
-(`/var/lib/deliver/APP/ENV/.env`, a deployer; [§9](#9-on-the-host)). A `skopeo`
+(`/var/lib/deliver/APP/ENV/.env`, a deployer; [§9](#9-on-the-host)); a builder
+or copier on another machine reads its own user's `APP.env`. A `skopeo`
 failure is summarised (`reg_summarise`) to *refused*, *not found*, *unreachable*
 or *failed*, keeping the address and repository off screen and log (the `build`
 hook prints image references, which carry the address).
@@ -756,29 +801,76 @@ hook prints image references, which carry the address).
 | Operation | Through | Used for |
 | --- | --- | --- |
 | inspect an image | `skopeo inspect` | digest and labels; only *absent*, told from *unreachable*, allows a build |
-| list tags | `skopeo list-tags` | resolving a short SHA; the candidates `prune` considers (`list` reads git tags) |
+| list tags | `skopeo list-tags` | resolving a short SHA; the candidates `prune` considers (`list` reads git tags); the controller's read |
 | copy an image set | `skopeo copy --all --preserve-digests` | the release copy: every architecture, the bytes rehearsal ran |
 | push the record | `skopeo copy` from an OCI layout | `VERSION-record`: a one-layer scratch image holding `record.json` |
-| delete a candidate | `skopeo delete` | `prune` |
+| delete a candidate | `skopeo delete` | `prune`, run by the builder |
 | pull on a host | `docker pull` by digest | every deploy ([§9](#9-on-the-host)) |
 | push from the builder | the `build` hook | `SHA-IMAGE` to candidates |
 
-**Identities.** Each component has its own login, with least access. Two cases
-are open (#117): components sharing an environment, such as Tile Lite Elite's
-builder, release copier and preview deployer on the laptop, and the
-controller's own login.
+**Identities.** Each component has its own login, with least access
+([privileges](#component-privileges) say what each is for). The controller
+reads candidates and releases and writes nothing; the builder alone writes and
+deletes candidates; the copier alone writes releases.
 
 | Component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- |
+| controller | Oracle user `tle-controller`, group `tle-controllers`, auth token; `docker-config` | Oracle user `dp-controller`, group `dp-controllers`, auth token; `docker-config` |
 | builder | Oracle user `tle-builder`, group `tle-builders`, auth token; `docker-config` | the non-production VM, instance principal |
 | release copier | Oracle user `tle-releaser`, group `tle-releasers`, auth token; `docker-config` | Linux user `dp-release` on the non-production VM, holding Oracle user `dp-releaser`'s API key (never leaves it); `oci-api-key` |
+| preview deployer | the laptop's `preview` environment, which uses the builder's `docker` login (below); `docker-config` | none |
 | rehearsal, production hosts | instance principal, dynamic groups `tle-nonprod` (rehearsal) and `tle-prod` (production) | instance principal |
 
 The Oracle users have no console password.
 
+**One login per component.** `skopeo` takes its login from the auth file
+`REGISTRY_AUTH_FILE` names, so a component that only calls `skopeo` has a file
+of its own, `~/.config/deliver/auth/APP/COMPONENT.json` (`DELIVER_CONFIG_DIR`
+moves `~/.config/deliver`), in a 0700 directory with the file 0600, both set on
+every use:
+
+| Component | Calls | Login |
+| --- | --- | --- |
+| controller | `skopeo` reads | `controller.json` |
+| release copier | `skopeo` copy and record push | `copier.json` |
+| builder | `skopeo` reads in `build`, and the delete `prune` sends | `builder.json` |
+| builder | `docker` push, by the `build` hook | the machine user's `docker` login |
+| deployer | `docker` pull | the machine user's `docker` login |
+
+`docker` keeps the machine user's login in `~/.docker`, with the user's contexts
+and `buildx` builders (Dark Portal's multi-arch build needs a `docker-container`
+builder there), so the tool never sets `DOCKER_CONFIG`, and the builder's push
+and each deployer's pull use that login as they always did. The tool sets
+`REGISTRY_AUTH_FILE` only, before a `skopeo` call.
+
+**The one shared login.** On Tile Lite Elite's laptop the builder and the
+`preview` deployer are the same machine user, so they share its `docker` login,
+Oracle user `tle-builder`'s. That is safe: it is one user's login on one
+machine, and the builder's access (read and write candidates) is a superset of
+preview's (read candidates). The VMs' deployers have users of their own, with
+instance principals.
+
+`deliver login COMPONENT` makes the login, on the component's machine and with
+the token on standard input only: `controller` and `copier` run `skopeo login
+--authfile` for their file; `builder` does that for `builder.json` and also
+`docker login` for the machine user; an environment runs `docker login` for its
+machine user, except one on the builder's machine (preview on the laptop), which
+refuses and names `deliver login builder`: it shares the builder's login. The controller's adapter is `[deliver].login`; the builder's,
+`[deliver.build].login`; the copier's, `[deliver.release].copy_login`; a
+deployer's, its environment's `login`; each defaults to `docker-config`. An
+`oci-*` adapter makes a `docker` user's login with `docker login` and a
+`skopeo` user's with `skopeo login --authfile`. A refusal by the registry
+(an expired or revoked token, or a missing right) names `deliver login` and the
+component (`builder` for an environment on the builder's machine). The controller makes its login on its first registry read, so a
+command that reads none, a local preview deploy, needs none. An `oci-*`
+controller login runs on each registry read, with no caching; both applications
+use `docker-config` for the controller.
+
 **Policy.** One per application; Tile Lite Elite's:
 
 ```text
+Allow group tle-controllers to read repos in tenancy where target.repo.name = 'tile-lite-elite/candidates'
+Allow group tle-controllers to read repos in tenancy where target.repo.name = 'tile-lite-elite/releases'
 Allow group tle-builders to manage repos in tenancy where target.repo.name = 'tile-lite-elite/candidates'
 Allow group tle-releasers to read repos in tenancy where target.repo.name = 'tile-lite-elite/candidates'
 Allow group tle-releasers to manage repos in tenancy where target.repo.name = 'tile-lite-elite/releases'
@@ -786,20 +878,23 @@ Allow dynamic-group tle-nonprod to read repos in tenancy where target.repo.name 
 Allow dynamic-group tle-prod to read repos in tenancy where target.repo.name = 'tile-lite-elite/releases'
 ```
 
-The build credential cannot write releases, and production reads releases only.
+The controller's credential writes nothing; the builder's `manage` on candidates
+is what deletes them, so `prune` deletes on the builder. The build credential
+cannot write releases, and production reads releases only.
 So production runs a release that was made from a rehearsed commit. Two flags
 go round that ([§4](#4-commands)): `--unrecorded` deploys a SHA with no
 record; `--skip-rehearsal` releases a commit rehearsal has not passed.
 
-Dark Portal's statements are `in compartment COMPARTMENT`; its non-production
-group manages candidates, as its builder runs there.
+Dark Portal's statements are `in compartment COMPARTMENT`; `dp-controllers`
+reads both repositories, and its non-production group manages candidates, as
+its builder runs there.
 
 **Login adapters** are named for the vendor; another registry adds one, nothing
 else changing. Docker's credential store holds the login.
 
 | Adapter | How the login is made |
 | --- | --- |
-| `docker-config` | a login made once with `docker login`, the auth token pasted at a hidden prompt |
+| `docker-config` | a login made once by `deliver login COMPONENT`, the auth token typed at a hidden prompt; a `skopeo` user's file is checked on each use and `deliver login` named if it holds no login for the registry; a `docker` user's is the machine user's own |
 | `oci-instance-principal` | runs the host's `DELIVER_OCI_TOKEN_CMD`, an `oci` call (such as `oci raw-request --auth instance_principal`) printing a short-lived token, then `docker login -u $DELIVER_REGISTRY_USER --password-stdin` |
 | `oci-api-key` | the same with the API key: `OCI_CLI_KEY_FILE` or `OCI_CLI_CONFIG_FILE`, or `~/.oci/config` |
 
@@ -807,12 +902,14 @@ A host's `.env` is read as text, never sourced, for `DELIVER_REGISTRY`,
 `DELIVER_OCI_TOKEN_CMD`, `DELIVER_REGISTRY_USER`, `OCI_CLI_AUTH`,
 `OCI_CLI_KEY_FILE` and `OCI_CLI_CONFIG_FILE`, so `oci-instance-principal` works
 over non-interactive `ssh`, which carries no environment.
-`~/.config/deliver/APP.env` is sourced as shell.
+`~/.config/deliver/APP.env` is sourced as shell. The `oci-*` adapters write a
+short-lived token into the login the component uses ([above](#10-oci-integration)):
+the machine user's `docker` login, or the component's auth file.
 
 ## 11. GitHub integration
 
 Only the controller calls GitHub; the builder, copier and hosts hold no GitHub
-credential. Every call is in `lib/github.sh`, through `gh api` (and
+credential ([privileges](#component-privileges)). Every call is in `lib/github.sh`, through `gh api` (and
 `gh release create`); the repository is `DELIVER_GH_REPO` or the origin URL's.
 
 | REST call | Used for |
@@ -858,8 +955,12 @@ done (exit 3).
 - **Limits and timeouts.** `pull_timeout` per environment, from a measured pull
   on its host (delphside/tile-lite-elite#554's check); a hook's limit is the
   application's, such as Tile Lite Elite's 60-second smoke test.
-- **Secrets and access.** The tool holds no credential
-  ([§10](#10-oci-integration), [§11](#11-github-integration)); nothing secret
+- **Secrets and access.** The tool holds no credential of its own: each
+  component's registry login is in its own auth file or the machine user's
+  `docker` login, written by those tools ([§10](#10-oci-integration)), and GitHub's is the `gh` login
+  ([§11](#11-github-integration)); the [privileges](#component-privileges) are
+  least access, and a token reaches `deliver login` at a hidden prompt, then
+  standard input only. Nothing secret
   reaches a profile, record, tag or log. Reading production's host state or
   `/health` (rehearsal's level, the emergency gate) is a scripted, bounded,
   read-only check each application's CLAUDE.md names.
@@ -883,6 +984,12 @@ made with `deliver` (owner, 2026-10-28), and the first with a record.
   `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason, which
   copies that commit's compose file and so its image names. `deploy.sh` and
   `rollback.sh` are retired in 0.10.3.
+- **The logins.** Before the first `deliver` command: run `deliver login
+  controller`, `copier` and `builder` on the laptop (each asks for its Oracle
+  user and auth token; preview shares the builder's `docker` login); `host-install` on a remote builder before
+  `prune` deletes there; and `docker logout` of any old `tle-releaser` login left
+  in the laptop's `~/.docker`, so the builder's and preview's `docker` login is
+  `tle-builder`'s alone.
 - **The board** reads the `v` prefix for releases and keeps `prod-*` as history
   (`history_prefixes`); "running in production" comes from settle and `/health`,
   not from the tag.

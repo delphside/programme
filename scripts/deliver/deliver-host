@@ -11,6 +11,9 @@
 #   deliver-host copy APP < request.json   the release copier's work: copy images
 #                                           from candidates to releases by digest
 #                                           and push the record image
+#   deliver-host delete APP < request      the builder's work for prune: delete the
+#                                           candidates the controller chose
+#   deliver-host login APP COMPONENT [ENV] < user, token   the owner's one login
 #   deliver-host root-ops install|rm|systemctl|useradd|userdel ...
 #
 # It holds the environment's lock for the whole deploy or rollback (descriptor 9,
@@ -104,6 +107,8 @@ cmd_deploy() {
   gate_ok state "$(state_line "$envdir")"
 
   # every image by digest; the label must be the commit; then the payload
+  # the machine user's own docker login (design §10)
+  REG_COMPONENT="$(jq -r '.login_component // empty' "$req")"; REG_COMPONENT="${REG_COMPONENT:-$env}"
   [[ -z "$login" ]] || login_run "$login" || gate_fail digests "registry login ($login) failed: $REG_ERR"
   local name digest ref labels rev
   while IFS=$'\t' read -r name digest; do
@@ -114,10 +119,10 @@ cmd_deploy() {
         || gate_fail digests "local image $name ($ref) is not there"
     else
       ref="$DELIVER_REGISTRY/$repo@$digest"
-      local pcode=0
-      timeout "$timeout" docker pull -q "$ref" >/dev/null 2>&1 || pcode=$?
+      local pcode=0 perr
+      perr="$(timeout "$timeout" docker pull -q "$ref" 2>&1 >/dev/null)" || pcode=$?
       if [[ $pcode -eq 124 ]]; then gate_fail digests "pulling $name took longer than pull_timeout ($timeout s)"; fi
-      [[ $pcode -eq 0 ]] || gate_fail digests "cannot pull $name by digest $digest"
+      [[ $pcode -eq 0 ]] || gate_fail digests "cannot pull $name by digest $digest: $(reg_summarise "$perr")"
       labels="$(docker image inspect "$ref" --format '{{json .Config.Labels}}' 2>/dev/null)" || gate_fail digests "cannot inspect $name"
       rev="$(jq -r '.["org.opencontainers.image.revision"] // empty' <<< "$labels")"
     fi
@@ -243,7 +248,8 @@ cmd_copy() {
   local login candidates releases digest dest have code
   login="$(jq -r '.login // empty' <<< "$req")"
   candidates="$(jq -r .candidates <<< "$req")"; releases="$(jq -r .releases <<< "$req")"
-  [[ -z "$login" ]] || login_run "$login" || die "the copier's registry login ($login) failed: $REG_ERR"
+  APP="$app"; auth_use "$(auth_file_of copier)" copier
+  auth_login "release copier" "$login" skopeo
   while IFS=$'\t' read -r digest dest; do
     [[ -n "$digest" ]] || continue
     code=0; reg_digest "$releases" "$dest" >/dev/null || code=$?; have="$REG_DIGEST"
@@ -265,6 +271,74 @@ cmd_copy() {
     esac
     rm -f "$tmp"
   fi
+}
+
+# delete APP < request: runs on the builder (design sections 2 and 4), with the
+# builder's own registry login: the controller decides which candidates go and
+# sends them, as it decides what the copier copies. The request:
+#   {login, candidates, deletes:[{tag, digest}]}
+# A tag is deleted only while it still points at the digest the controller saw;
+# an absent tag is done already. Prints `removed TAG` for each.
+cmd_delete() {
+  local app="$1" req conf
+  req="$(cat)"
+  jq -e . >/dev/null 2>&1 <<< "$req" || die "the request is not JSON"
+  conf="${DELIVER_CONFIG_DIR:-$HOME/.config/deliver}/$app.env"
+  if [[ -f "$conf" ]]; then set -a; . "$conf"; set +a; fi
+  [[ -n "${DELIVER_REGISTRY:-}" ]] || die "DELIVER_REGISTRY is not set for the builder: put it in $conf"
+  local login candidates tag digest code have failed=0
+  login="$(jq -r '.login // empty' <<< "$req")"
+  candidates="$(jq -r '.candidates // empty' <<< "$req")"
+  [[ -n "$candidates" ]] || die "the request names no candidates repository"
+  APP="$app"; auth_use "$(auth_file_of builder)" builder
+  auth_login "builder" "$login" skopeo
+  while IFS=$'\t' read -r tag digest; do
+    [[ -n "$tag" ]] || continue
+    [[ "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ && "$digest" == sha256:* ]] || { warn "refusing the tag or digest $tag"; failed=1; continue; }
+    code=0; reg_digest "$candidates" "$tag" >/dev/null || code=$?; have="$REG_DIGEST"
+    case $code in
+      0) ;;
+      1) continue ;;
+      *) die "the registry could not be queried: $REG_ERR" ;;
+    esac
+    [[ "$have" == "$digest" ]] || { warn "$tag no longer points at the digest it was chosen at: left"; failed=1; continue; }
+    if reg_delete "$candidates" "$tag"; then say "removed $tag"; else warn "the delete of $tag failed: $REG_ERR"; failed=1; fi
+  done < <(jq -r '(.deletes // [])[] | [.tag, .digest] | @tsv' <<< "$req")
+  return "$failed"
+}
+
+# login APP COMPONENT [ENV] < "user, newline, token": the owner's one login for
+# a component, made on its machine. The token arrives on standard input and goes
+# straight to `docker login` or `skopeo login --password-stdin`:
+#   controller, copier   the component's auth file (skopeo only)
+#   builder              the auth file and the machine user's docker login
+#   deployer             the machine user's docker login
+cmd_login() {
+  local app="$1" comp="$2" env="${3:-}" conf user token
+  APP="$app"
+  conf="${DELIVER_CONFIG_DIR:-$HOME/.config/deliver}/$app.env"
+  case "$comp" in
+    controller|builder|copier)
+      if [[ -f "$conf" ]]; then set -a; . "$conf"; set +a; fi
+      [[ -n "${DELIVER_REGISTRY:-}" ]] || die "DELIVER_REGISTRY is not set: put it in $conf"
+      auth_use "$(auth_file_of "$comp")" "$comp" ;;
+    deployer)
+      [[ -n "$env" ]] || die "login deployer needs the environment"
+      host_registry "$(env_dir "$app" "$env")"
+      REG_COMPONENT="$env" ;;
+    *) die "unknown component $comp (controller, builder, copier or deployer)" ;;
+  esac
+  IFS= read -r user || true
+  IFS= read -r token || true
+  [[ -n "$user" && -n "$token" ]] || die "login needs a user and a token"
+  case "$comp" in
+    controller|copier) printf '%s' "$token" | login_skopeo "$user" || die "$REG_ERR" ;;
+    builder)
+      printf '%s' "$token" | login_skopeo "$user" || die "$REG_ERR"
+      printf '%s' "$token" | login_docker "$user" || die "$REG_ERR" ;;
+    deployer) printf '%s' "$token" | login_docker "$user" || die "$REG_ERR" ;;
+  esac
+  say "logged in: ${env:-$comp}"
 }
 
 cmd_status() {
@@ -483,10 +557,12 @@ main() {
     rollback) [[ $# -ge 2 ]] || die "usage: deliver-host rollback APP ENV < request"; cmd_rollback "$@" ;;
     status) [[ $# -ge 2 ]] || die "usage: deliver-host status APP ENV --json"; cmd_status "$@" ;;
     allowlist) [[ $# -ge 1 ]] || die "usage: deliver-host allowlist APP < lines"; cmd_allowlist "$@" ;;
+    delete) [[ $# -ge 1 ]] || die "usage: deliver-host delete APP < request"; cmd_delete "$@" ;;
+    login) [[ $# -ge 2 ]] || die "usage: deliver-host login APP COMPONENT [ENV] < user-and-token"; cmd_login "$@" ;;
     copy) [[ $# -ge 1 ]] || die "usage: deliver-host copy APP < request"; cmd_copy "$@" ;;
     root-ops) cmd_root_ops "$@" ;;
     env) cmd_env "$@" ;;
-    *) die "usage: deliver-host deploy|rollback|status|copy|allowlist|env|root-ops" ;;
+    *) die "usage: deliver-host deploy|rollback|status|copy|delete|login|allowlist|env|root-ops" ;;
   esac
 }
 main "$@"

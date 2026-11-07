@@ -11,7 +11,7 @@ REG_ERR=""; REG_DIGEST=""
 # reaches the screen and the run log); the raw text is kept nowhere.
 reg_summarise() {
   case "$1" in
-    *denied*|*unauthorized*|*"authentication required"*|*forbidden*|*"not authorized"*) printf 'the registry refused access: check the credential for this step' ;;
+    *denied*|*unauthorized*|*"authentication required"*|*forbidden*|*"not authorized"*) printf 'the registry refused access: the login may have expired or been revoked, or lacks the right (deliver login%s)' "${REG_COMPONENT:+ $REG_COMPONENT}" ;;
     *"manifest unknown"*|*"name unknown"*|*"not found"*) printf 'not found in the registry' ;;
     *"connection refused"*|*"no such host"*|*timeout*|*dial*|*TLS*|*"tls:"*|*"EOF"*) printf 'the registry could not be reached' ;;
     *) printf 'the registry operation failed' ;;
@@ -33,6 +33,7 @@ reg_ref() {        # REPO TAG|@DIGEST  ->  docker://REGISTRY/REPO:TAG
 # absent (the registry answered "unknown"), 2 the registry could not be queried.
 reg_inspect() {
   local out err
+  reg_prepare || return 2
   err="$(mktemp)"
   if out="$(skopeo inspect "$(reg_ref "$1" "$2")" 2>"$err")"; then
     rm -f "$err"; printf '%s\n' "$out"; return 0
@@ -58,8 +59,16 @@ reg_digest() {     # REPO TAG -> REG_DIGEST (and stdout); same return codes as r
 
 reg_list_tags() {  # REPO -> one tag per line
   local out
+  reg_prepare || return 1
   out="$(skopeo list-tags "docker://$DELIVER_REGISTRY/$1" 2>/dev/null)" || return 1
   jq -r '.Tags[]' <<< "$out"
+}
+
+# reg_delete REPO TAG: only the builder's login may.
+reg_delete() {
+  local out
+  out="$(skopeo delete "$(reg_ref "$1" "$2")" 2>&1)" && return 0
+  REG_ERR="$(reg_summarise "$out")"; return 1
 }
 
 # reg_copy SRC_REPO SRC_REF DST_REPO DST_TAG: by digest, every architecture.
@@ -69,9 +78,64 @@ reg_copy() {
   REG_ERR="$(reg_summarise "$out")"; return 1
 }
 
+# ---------------------------------------------------------------- one login per component
+# `skopeo` keeps its login in an auth file, so a component that only calls
+# skopeo (the controller's reads, the release copier's copy and record, the
+# builder's delete) has a file of its own, ~/.config/deliver/auth/APP/COMPONENT.json,
+# chosen with REGISTRY_AUTH_FILE alone: two components on one machine never
+# replace one another's login. `docker` keeps the machine user's login in
+# ~/.docker beside its contexts and builders, which the tool never moves
+# (DOCKER_CONFIG is never set): the builder's push and each deployer's pull use it
+# (design §10).
+
+# REG_COMPONENT names the component whose login is in use, for the messages.
+REG_COMPONENT=""
+# REG_AUTH_HOOK: a command run before a registry read (the controller makes its
+# login lazily, so a command that never reads the registry needs none).
+REG_AUTH_HOOK=""
+
+auth_file_of() {   # COMPONENT -> the auth file of the controller, builder or copier on this machine
+  printf '%s/auth/%s/%s.json' "${DELIVER_CONFIG_DIR:-$HOME/.config/deliver}" "${APP:?}" "$1"
+}
+
+# auth_use FILE COMPONENT: this process's skopeo login is FILE. The directory is
+# 0700 and the file 0600, set on every use.
+auth_use() {
+  local file="$1" dir
+  dir="$(dirname "$file")"
+  ( umask 077; mkdir -p "$dir" ) || die "cannot make the registry login directory $dir"
+  chmod 700 "$dir" 2>/dev/null || true
+  [[ ! -e "$file" ]] || chmod 600 "$file" 2>/dev/null || true
+  export REGISTRY_AUTH_FILE="$file"
+  REG_COMPONENT="$2"
+}
+
+reg_prepare() {
+  [[ -z "$REG_AUTH_HOOK" ]] && return 0
+  "$REG_AUTH_HOOK"
+}
+
+# login_docker USER, login_skopeo USER: the token on standard input, to
+# `docker login` (the machine user's) or `skopeo login` (REGISTRY_AUTH_FILE).
+# The tool's own words only: a failure is summarised, never the tool's text.
+login_docker() {
+  local out
+  out="$(docker login -u "$1" --password-stdin "${DELIVER_REGISTRY%%/*}" 2>&1 >/dev/null)" \
+    || { REG_ERR="docker login: $(reg_summarise "$out")"; return 1; }
+}
+login_skopeo() {
+  local out
+  [[ -n "${REGISTRY_AUTH_FILE:-}" ]] || { REG_ERR="no auth file chosen"; return 1; }
+  out="$(skopeo login --authfile "$REGISTRY_AUTH_FILE" -u "$1" --password-stdin "${DELIVER_REGISTRY%%/*}" 2>&1 >/dev/null)" \
+    || { REG_ERR="skopeo login: $(reg_summarise "$out")"; return 1; }
+  chmod 600 "$REGISTRY_AUTH_FILE" 2>/dev/null || true
+}
+
 # ---------------------------------------------------------------- login adapters
 # One adapter per vendor method, named for the vendor (design §10). Another
-# registry adds an adapter here and changes nothing else.
+# registry adds an adapter here and changes nothing else. Each is used for the
+# docker login of a docker user (login_run) or for the auth file of a skopeo
+# user (login_run_skopeo).
 
 login_adapters() { printf '%s\n' docker-config oci-api-key oci-instance-principal; }
 
@@ -84,27 +148,42 @@ login_tools() {    # ADAPTER -> the commands it needs on the machine
   esac
 }
 
-# login_run ADAPTER: make the machine's registry login valid. The adapters read
+login_run() { _login_adapter docker "$1"; }          # the machine user's docker login
+login_run_skopeo() { _login_adapter skopeo "$1"; }   # REGISTRY_AUTH_FILE's login
+
+# _login_adapter KIND ADAPTER: make the login valid. The adapters read
 # credentials the machine already holds and write none into the tool's own
-# output. oci-*: DELIVER_OCI_TOKEN_CMD names the command that prints a registry
-# auth token (`oci` CLI call chosen on the host, since the CLI's flags are the
-# host's business, #554); the user is DELIVER_REGISTRY_USER.
-login_run() {
-  case "$1" in
-    docker-config) return 0 ;;
+# output. docker-config: the owner made the login with `deliver login`; a docker
+# user's is the machine user's own, a skopeo user's file is checked. oci-*:
+# DELIVER_OCI_TOKEN_CMD names the command that prints a registry auth token (`oci`
+# CLI call chosen on the host, since the CLI's flags are the host's business,
+# #554); the user is DELIVER_REGISTRY_USER.
+_login_adapter() {
+  local kind="$1" adapter="${2:-docker-config}"
+  case "$adapter" in
+    docker-config)
+      [[ "$kind" == docker ]] && return 0
+      jq -e --arg h "${DELIVER_REGISTRY%%/*}" '((.auths // {}) | has($h)) or ((.credHelpers // {}) | has($h))' \
+        "${REGISTRY_AUTH_FILE:-/nonexistent}" >/dev/null 2>&1 \
+        || { REG_ERR="no registry login for the ${REG_COMPONENT:-component}: make it with deliver login ${REG_COMPONENT:-COMPONENT}"; return 1; }
+      ;;
     oci-api-key|oci-instance-principal)
-      command -v oci >/dev/null 2>&1 || { REG_ERR="login $1 needs the oci CLI"; return 1; }
-      [[ -n "${DELIVER_OCI_TOKEN_CMD:-}" && -n "${DELIVER_REGISTRY_USER:-}" ]] || { REG_ERR="login $1 needs DELIVER_OCI_TOKEN_CMD and DELIVER_REGISTRY_USER in the local configuration"; return 1; }
-      if [[ "$1" == oci-api-key && -z "${OCI_CLI_KEY_FILE:-}${OCI_CLI_CONFIG_FILE:-}" && ! -f "$HOME/.oci/config" ]]; then
+      command -v oci >/dev/null 2>&1 || { REG_ERR="login $adapter needs the oci CLI"; return 1; }
+      [[ -n "${DELIVER_OCI_TOKEN_CMD:-}" && -n "${DELIVER_REGISTRY_USER:-}" ]] || { REG_ERR="login $adapter needs DELIVER_OCI_TOKEN_CMD and DELIVER_REGISTRY_USER in the local configuration"; return 1; }
+      if [[ "$adapter" == oci-api-key && -z "${OCI_CLI_KEY_FILE:-}${OCI_CLI_CONFIG_FILE:-}" && ! -f "$HOME/.oci/config" ]]; then
         REG_ERR="login oci-api-key needs an API key (OCI_CLI_KEY_FILE or ~/.oci/config)"; return 1
       fi
       local token
       token="$(bash -c "$DELIVER_OCI_TOKEN_CMD")" || { REG_ERR="the token command failed"; return 1; }
-      printf '%s' "$token" | docker login -u "$DELIVER_REGISTRY_USER" --password-stdin "${DELIVER_REGISTRY%%/*}" >/dev/null 2>&1 \
-        || { REG_ERR="docker login failed"; return 1; }
+      printf '%s' "$token" | "login_$kind" "$DELIVER_REGISTRY_USER" || return 1
       ;;
-    *) REG_ERR="unknown login adapter $1"; return 1 ;;
+    *) REG_ERR="unknown login adapter $adapter"; return 1 ;;
   esac
+}
+
+# auth_login LABEL ADAPTER [docker|skopeo]: as above, or die naming the label.
+auth_login() {
+  _login_adapter "${3:-skopeo}" "${2:-docker-config}" || die "the $1's registry login (${2:-docker-config}) failed: $REG_ERR"
 }
 
 # ---------------------------------------------------------------- the record image
@@ -141,6 +220,7 @@ record_push() {
 # record_pull REPO TAG: prints the record JSON held by the scratch image.
 record_pull() {
   local dir out code=0
+  reg_prepare || return 1
   dir="$(mktemp -d)"
   out="$(skopeo copy "$(reg_ref "$1" "$2")" "oci:$dir/layout" 2>&1)" || code=$?
   if [[ $code -ne 0 ]]; then REG_ERR="$(reg_summarise "$out")"; rm -rf "$dir"; return 1; fi
