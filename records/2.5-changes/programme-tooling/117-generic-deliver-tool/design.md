@@ -27,7 +27,7 @@ profile says where each role is.
 | role | holds | does |
 | --- | --- | --- |
 | **build environment** | the repository, the candidates write credential | makes one image set per commit from a clean checkout, pushes it to candidates |
-| **release copier** | the release credential | copies a rehearsed image set by digest from candidates to releases, and pushes the record |
+| **release copier** | the release credential: the registry login of the Oracle user allowed to read candidates and write releases | copies a rehearsed image set by digest from candidates to releases, and pushes the record |
 | **control node** | git with push rights to `main`, a GitHub credential | runs the release step's gates, tag and bump; starts deploys; settles the board from the record |
 | **environment host** | its own registry identity, its `.env`, its state folder | `deliver-host`: pulls by digest, takes the payload out of the image, runs the deploy steps, holding the environment's lock throughout |
 | **payload** | nothing secret; inside one named image at `/deliver/` | the deploy steps, the application's hooks, the files joined at deploy, the host files |
@@ -45,7 +45,7 @@ its name:
 | role | Tile Lite Elite | Dark Portal |
 | --- | --- | --- |
 | build environment | the owner's laptop (WSL): production's 1 GB host cannot compile | the non-production VM's build environment (E2), on a timer |
-| release copier | the control node, Oracle user `tle-releaser` | the non-production VM, user `dp-release`, whose key never leaves it |
+| release copier | the control node, logged in as Oracle user `tle-releaser` with an auth token (`docker-config`) | the non-production VM, as its Linux user `dp-release`, holding the API key of Oracle user `dp-releaser` (`oci-api-key`), which never leaves it |
 | control node | the owner's laptop (WSL) | the owner's machine |
 | environments | `preview` (role preview, on the control node itself), `rehearsal` VM, `production` VM | E3 to E5 (role test), E6 (role rehearsal) on the non-production VM; production VM |
 
