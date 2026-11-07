@@ -309,7 +309,7 @@ and host files.
 | [Docker](https://docs.docker.com/), [Compose](https://docs.docker.com/compose/), [Buildx](https://docs.docker.com/build/) | the container engine; its multi-container runner; its builder, which can build several architectures in one run | pull by digest and run; the default `build` hook |
 | [Python 3](https://www.python.org/) | the language of the reused board model | the release's board gates and settle, on the controller ([§6](#the-board-models-part)) |
 | [git](https://git-scm.com/) | version control | worktrees, the payload archive, tag, bump |
-| [GitHub CLI](https://cli.github.com/) (`gh`) | GitHub's command-line client, which also calls its REST and GraphQL APIs | every GitHub call ([§11](#11-github-integration)) |
+| [GitHub CLI](https://cli.github.com/) (`gh`) | GitHub's command-line client, which also calls its REST and GraphQL APIs | every GitHub call, made through the board model ([§11](#11-github-integration)) |
 | [OpenSSH](https://www.openssh.com/), [curl](https://curl.se/) | remote commands; HTTP requests | `deliver-host` calls; production's `/health` ([§6](#6-gates-and-checks)) |
 | [flock](https://man7.org/linux/man-pages/man1/flock.1.html), [sudo](https://www.sudo.ws/), [systemd](https://systemd.io/) | a file lock; running one command as root; Linux's service manager | the deploy lock; `root-ops`; units ([§9](#9-on-the-host)) |
 | [OCI CLI](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/cliconcepts.htm) (`oci`) | Oracle Cloud's command-line client | the registry token for `oci-instance-principal` and `oci-api-key` ([§10](#10-oci-integration)) |
@@ -321,9 +321,9 @@ and host files.
 | --- | --- |
 | `scripts/deliver/deliver`, `deliver-host` | the commands; `deliver-host` is installed by `host-install` |
 | `scripts/deliver/payload/` | deploy and rollback steps for the payload image |
-| `scripts/deliver/lib/` | profile, run log, gate list, registry and login adapters, GitHub |
+| `scripts/deliver/lib/` | profile, run log, gate list, registry and login adapters |
 | `scripts/tests/deliver-*.bats` | tests |
-| `scripts/board/` | the board reads tags with `tag_prefix` as releases and `history_prefixes` as history |
+| `scripts/board/` | the board model, reused: `board-release.py`, and the GitHub adapter; the board reads tags with `tag_prefix` as releases and `history_prefixes` as history |
 | docs/1.1, 1.2 | 1.1: the tool's row. 1.2: *Making a release, then deploying it*, and §1.0, which states that a release is "a commit on `main`" (delphside/tile-lite-elite#545 R5) |
 
 ## 3. The route
@@ -608,7 +608,7 @@ prerequisite; the builder, copier and hosts need bash only.
 ```mermaid
 flowchart LR
   CTL["<i>controller</i><br>[Component: bash]<br>deliver release, deploy, settle"]
-  BR["<i>board-release.py</i><br>[Component: Python]<br>gate, carries, settle, next"]
+  BR["<i>board-release.py</i><br>[Component: Python]<br>gate, settle, next, checks, publish"]
   subgraph MODEL["Container: board model"]
     M["<i>model.py</i><br>[Component]<br>classify: work package, parent, ..."]
     MS["<i>milestone.py</i><br>[Component]<br>carried, unbuilt"]
@@ -630,6 +630,8 @@ flowchart LR
 | `board-release.py gate < request` | the milestone gate, `refs_in`, `refs_effective`, the work-package classification; adds the tests-passed gate | passed or refused, with each finding; what the release carries (`work_packages`, `issues`, and `releases` with `dropped`), which goes into the record; with `--emergency`, the items left out |
 | `board-release.py settle < record` | `settle_version` | does [§8](#8-settling)'s table, skipping what is done; prints what is left; exit 3 if anything is |
 | `board-release.py next VERSION [--move N...]` | step 7 of [§7](#7-the-release-and-its-record) | opens the next milestone and moves the left-out items into it |
+| `board-release.py checks SHA` | the `ci-passed` gate's read | each `required_checks` check's conclusion on the commit |
+| `board-release.py publish TAG [--retrospective REASON]` | step 5 of [§7](#7-the-release-and-its-record), and `--skip-rehearsal`'s issue | the GitHub Release, and the retrospective issue, each skipped where it exists |
 
 The request carries the version, the release's range and, with `--emergency`,
 the range on `main`; the controller reads the earlier releases' records from
@@ -642,8 +644,8 @@ own: a parent's `Refs` is reported beside its work package as a fact, never
 counted for it (delphside/tile-lite-elite#375), so the exception for a parent
 with one package goes. The revert rule ([the milestone gate](#the-milestone-gate))
 moves into `repo.py`, so `board-check.py`'s pre-flight counts reverts as the
-gate does. The `ci-passed` gate, the retrospective issue and the GitHub Release
-stay in `deliver`: they are about the commit and the release, not the board.
+gate does. `deliver` keeps no GitHub code: the board model is its GitHub adapter
+([§11](#11-github-integration)), so `lib/github.sh` goes.
 
 ### Which release production runs
 
@@ -1010,24 +1012,23 @@ forms:
   REST calls. So the tool holds no GitHub token of its own.
 
 Only the controller calls GitHub; the builder, copier and hosts hold no GitHub
-credential ([privileges](#component-privileges)). Every call is in `lib/github.sh`, through `gh api` (and
-`gh release create`); the repository is `DELIVER_GH_REPO` or the origin URL's.
+credential ([privileges](#component-privileges)). **The board model is the
+GitHub adapter**: every call goes through it, by `board-release.py`
+([the board model's part](#the-board-models-part)), and `deliver` keeps no
+GitHub code of its own. The adapter chooses the API by where it runs: GraphQL
+where the token allows it, and REST where GraphQL is refused, as it is to a
+cloud session's token. A read that neither answers refuses, never reads as
+empty. The repository is `DELIVER_GH_REPO` or the origin URL's.
 
-| REST call | Used for |
+| Call | Used for |
 | --- | --- |
-| `GET repos/R/commits/SHA/check-runs` | the `required_checks` gate |
-| `GET`, `POST repos/R/milestones`; `PATCH repos/R/milestones/N` | find the release's milestone, open the next, close one |
-| `PATCH repos/R/issues/N` | set or clear a milestone; close as completed |
-| `GET`, `POST repos/R/issues/N/comments` | settle's comments, already-there check |
-| `GET repos/R/issues?state=all` (paginated), `POST repos/R/issues` | find, raise the retrospective issue |
-| `GET repos/R/releases/tags/TAG`, `gh release create TAG --verify-tag --generate-notes --notes-start-tag PREV` | the GitHub Release |
-
-**GraphQL.** Queries `MilestoneItems` (a milestone's open issues with type,
-parent, sub-issue count, `Route`), `IssueInfo` (one issue's state, type, parent,
-milestone and `Route`, which the milestone gate and settle read an item by),
-`ProjectState` (the item's current state and the field's option ids the mutation
-needs); mutation `updateProjectV2ItemFieldValue`, setting `Project State` to
-Post-deployment.
+| a milestone's issues, with type, parent, sub-issues, `Route` and `Project State` | the milestone and tests-passed gates, carries |
+| check runs on a commit | the `required_checks` gate |
+| milestones: find, open, close; an issue's milestone set or cleared | step 7, settle |
+| an issue's comments: read, add; close as completed | settle |
+| `Project State` set to Post-deployment | settle |
+| an issue found by title, raised | the retrospective issue |
+| a Release found by tag, created with notes from the previous release tag | the GitHub Release |
 
 **git, not the API.** The tag `vVERSION` and the bump to `main` are pushed with
 the controller's git credential, which bypasses `main`'s ruleset (admin bypass).
@@ -1039,7 +1040,7 @@ organisation Projects read and write (`Project State`).
 
 **The board.** Release and settle assume the programme's board: issue types
 (projects, with sub-issues as work packages), the `Route` and `Project State`
-fields and `Refs #N` in commits; field names are in `lib/github.sh`. Build,
+fields and `Refs #N` in commits; field names are the board model's. Build,
 deploy and rollback use none. An application without it sets the milestone gate
 aside through `[release].overridable`; settle reports its board steps as not
 done (exit 3).
