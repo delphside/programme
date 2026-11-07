@@ -22,11 +22,25 @@ The owner's decisions (2026-10-27 and 28) are listed in #117's body.
 
 This project introduces a new generic tool, called *deliver*. It is started
 by a command, `deliver`, run by a person or a timer. It invokes another
-command, `deliver-host`, over an ssh connection to a host.
+command, `deliver-host`, on the other machines involved, which this section
+describes.
 
-A **tool role** is a job a machine does for the tool. The tool names tool
-roles, never machines or applications. For each application, its profile
-(`app-profile.toml`, §5) maps each generic tool role to a specific machine,
+**Environments.** An environment is one running copy of an application, such
+as Tile Lite Elite's preview, rehearsal or production. A **host** is the
+machine an environment runs on; one host may run several environments. Each
+environment has an **environment role**, which says what the environment is
+for. The gates key on it, never on the environment's name:
+
+| environment role | reads | gates that key on it |
+| --- | --- | --- |
+| `preview` | candidates | none beyond every deploy's |
+| `test` | candidates | none beyond every deploy's |
+| `rehearsal` | candidates | the release step reads what it runs; a rehearsal starts from production's level |
+| `production` | releases only | a record is needed; settle follows |
+
+**Tool roles.** A tool role is a job a machine does for the tool. The tool
+names tool roles, never machines or applications. For each application, its
+profile (`app-profile.toml`, §5) maps each tool role to a specific machine,
 and one machine may play several. A host's `.env` holds only what differs per
 environment: addresses, keys, limits. *Control node* is Ansible's name for the
 machine a run is started from.
@@ -42,18 +56,7 @@ The **payload** is not a tool role but what the hosts run: the deploy steps, the
 application's hooks, the files joined at deploy and the host files, copied at
 build into one named image at `/deliver/`. It holds nothing secret.
 
-Each environment also has an **environment role**, which says what the
-environment is for rather than which machine does a job. The gates key on it,
-never on the environment's name:
-
-| environment role | reads | gates that key on it |
-| --- | --- | --- |
-| `preview` | candidates | none beyond every deploy's |
-| `test` | candidates | none beyond every deploy's |
-| `rehearsal` | candidates | the release step reads what it runs; a rehearsal starts from production's level |
-| `production` | releases only | a record is needed; settle follows |
-
-| role | Tile Lite Elite | Dark Portal |
+| tool role | Tile Lite Elite | Dark Portal |
 | --- | --- | --- |
 | build environment | the owner's laptop (WSL): production's 1 GB host cannot compile | the non-production VM's build environment (E2), on a timer |
 | release copier | the control node, logged in as Oracle user `tle-releaser` with an auth token (`docker-config`) | the non-production VM, as its Linux user `dp-release`, holding the API key of Oracle user `dp-releaser` (`oci-api-key`), which never leaves it |
