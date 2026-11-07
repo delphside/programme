@@ -161,8 +161,15 @@ nearest_release_tag() {
   printf '%s' "$best"
 }
 
+# refs_named < messages -> sorted unique issue numbers the messages name. The rule
+# (`Refs #N` or `Closes #N`) is the board's, in programme/scripts/board/refs.py,
+# kept once (#421); the controller runs it with python3.
+refs_named() {
+  python3 -I "$HERE/../board/board-refs.py" named | sort -un
+}
+
 refs_in() {        # RANGE -> sorted unique issue numbers named `Refs #N` or `Closes #N`
-  g log --format=%B "$@" 2>/dev/null | grep -oE '\b(Refs|Closes) #[0-9]+\b' | grep -oE '[0-9]+$' | sort -un
+  g log --format=%B "$@" 2>/dev/null | refs_named
 }
 
 # local_tags_in_range RANGE -> release tags (any prefix) whose commit lies in the range
@@ -208,7 +215,7 @@ refs_effective() {
   for sha in "${order[@]}"; do
     [[ -n "${skip[$sha]:-}" ]] && continue
     g log -1 --format=%B "$sha"
-  done | grep -oE '\b(Refs|Closes) #[0-9]+\b' | grep -oE '[0-9]+$' | sort -un
+  done | refs_named
 }
 
 # ------------------------------------------------------------------ hosts
