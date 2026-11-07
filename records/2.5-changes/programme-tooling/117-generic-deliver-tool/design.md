@@ -73,22 +73,114 @@ build into one named image at `/deliver/`. It holds nothing secret.
 | hosts of preview, test and rehearsal roles | read candidates |
 | production host | reads releases only |
 
+The terms and the views below are C4's
+([views](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md#which-view-a-diagram-takes-and-saying-so)):
+`deliver` and `deliver-host` are its *containers*, the four components are
+parts of them, and environments are its *deployment nodes*.
+
+**Container view**: the tool's containers, their components, and what each
+arrow carries.
+
 ```mermaid
 flowchart TB
-  CN["controller<br>deliver release, deploy, settle"]
-  BE["builder<br>deliver build"]
-  RC["release copier<br>skopeo copy --all --preserve-digests"]
-  C[("APP/candidates<br>SHA-IMAGE, immutable")]
-  R[("APP/releases<br>by digest, VERSION-record, immutable")]
-  B["deployer<br>deliver-host, payload from the image"]
-  BE -->|push| C
-  CN -->|"release"| RC
-  C --> RC
-  RC -->|write| R
-  C -->|"pull, non-production"| B
-  R -->|"pull, production"| B
-  CN -->|ssh| B
-  CN -->|"settle from the record"| G["GitHub board"]
+  subgraph DELIVER["deliver"]
+    CTL["controller<br>release, deploy, settle, rollback,<br>status, list, prune, host-install"]
+    BLD["builder<br>build"]
+  end
+  subgraph HOST["deliver-host"]
+    COPY["release copier<br>copy"]
+    DEP["deployer<br>deploy, rollback, env"]
+  end
+  subgraph OCIR["OCI Registry"]
+    CAND[("APP/candidates")]
+    REL[("APP/releases")]
+  end
+  GH["GitHub<br>tags, Releases, milestones, board"]
+  BLD -->|"image set SHA-IMAGE, payload inside"| CAND
+  CTL -->|"copy request (JSON)"| COPY
+  CAND -->|"image set, by digest"| COPY
+  COPY -->|"image set, VERSION-record"| REL
+  CTL -->|"deploy request (JSON)"| DEP
+  CAND -->|"pull: preview, test, rehearsal"| DEP
+  REL -->|"pull: production"| DEP
+  CTL -->|"tag, record, settle"| GH
+```
+
+**Deployment view, Tile Lite Elite**: which environments each host runs.
+
+```mermaid
+flowchart TB
+  subgraph LAPTOP["Owner's laptop (WSL)"]
+    subgraph TOOLS["tool environments"]
+      CTL["controller"]
+      BLD["builder"]
+      COPY["release copier<br>Oracle user tle-releaser"]
+    end
+    subgraph PREV["preview (role preview)"]
+      DEPP["deployer"]
+    end
+  end
+  subgraph REHVM["Oracle VM: rehearsal"]
+    subgraph REH["rehearsal (role rehearsal)"]
+      DEPR["deployer"]
+    end
+  end
+  subgraph PRODVM["Oracle VM: production"]
+    subgraph PROD["production (role production)"]
+      DEPX["deployer"]
+    end
+  end
+  subgraph OCIR["OCI Registry"]
+    CAND[("tile-lite-elite/candidates")]
+    REL[("tile-lite-elite/releases")]
+  end
+  BLD -->|push| CAND
+  COPY -->|copy| REL
+  CTL -->|local| DEPP
+  CTL -->|ssh| DEPR
+  CTL -->|ssh| DEPX
+  CAND -->|pull| DEPP
+  CAND -->|pull| DEPR
+  REL -->|pull| DEPX
+```
+
+**Deployment view, Dark Portal**: which environments each host runs.
+
+```mermaid
+flowchart TB
+  subgraph OWNER["Owner's machine"]
+    CTL["controller"]
+  end
+  subgraph NONPROD["Oracle VM: non-production"]
+    subgraph TOOLS["tool environments"]
+      BLD["builder (E2), on a timer"]
+      COPY["release copier<br>Linux user dp-release"]
+    end
+    subgraph TEST["E3 to E5 (role test)"]
+      DEPT["deployer"]
+    end
+    subgraph REH["E6 (role rehearsal)"]
+      DEPR["deployer"]
+    end
+  end
+  subgraph PRODVM["Oracle VM: production"]
+    subgraph PROD["production (role production)"]
+      DEPX["deployer"]
+    end
+  end
+  subgraph OCIR["OCI Registry"]
+    CAND[("dark-portal/candidates")]
+    REL[("dark-portal/releases")]
+  end
+  BLD -->|push| CAND
+  CTL -->|ssh| COPY
+  COPY -->|copy| REL
+  CTL -->|ssh| DEPT
+  CTL -->|ssh| DEPR
+  CTL -->|ssh| DEPX
+  CAND -->|pull| DEPT
+  CAND -->|pull| DEPR
+  REL -->|pull| DEPX
 ```
 
 The payload is copied at build into the image the profile names
@@ -120,7 +212,7 @@ sequenceDiagram
   CN->>H: deliver deploy rehearsal PRODUCTION'S RECORD (start of the cycle)
   CN->>H: deliver deploy rehearsal SHA
   H->>C: pull by digest, run payload
-  Note over H: regression; test manager checks; owner judges passed
+  Note over H: regression, test manager checks, owner judges passed
   CN->>CN: deliver release: gates, record
   CN->>RC: copy by digest, push record
   RC->>R: write
