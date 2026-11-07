@@ -106,6 +106,53 @@ flowchart TB
   CTL -->|"tag, record, settle"| GH
 ```
 
+**Component view, command flow**: who starts each command, and which
+`deliver-host` command it runs. `deliver` is the public interface;
+`deliver-host` is called only by it, over `ssh`, or directly where the host
+is the controller's own.
+
+```mermaid
+flowchart LR
+  OWN(["owner"])
+  TIMER(["timer<br>Dark Portal"])
+  BUILD["deliver build<br><i>builder</i>"]
+  REL["deliver release<br><i>controller</i>"]
+  DEP["deliver deploy<br><i>controller</i>"]
+  SET["deliver settle<br><i>controller</i>"]
+  RB["deliver rollback<br><i>controller</i>"]
+  READ["deliver status, list, prune<br><i>controller</i>"]
+  HI["deliver host-install<br><i>controller</i>"]
+  ENV["deliver env create, destroy<br><i>on the environment's host</i>"]
+  COPY["deliver-host copy<br><i>release copier</i>"]
+  HST["deliver-host status<br><i>deployer</i>"]
+  HDEP["deliver-host deploy<br><i>deployer</i>"]
+  HRB["deliver-host rollback<br><i>deployer</i>"]
+  AL["deliver-host allowlist<br><i>deployer</i>"]
+  HENV["deliver-host env<br><i>deployer</i>"]
+  ROOT["deliver-host root-ops<br>by sudo"]
+  TIMER --> BUILD
+  OWN --> BUILD
+  OWN --> REL
+  OWN --> DEP
+  OWN --> SET
+  OWN --> RB
+  OWN --> READ
+  OWN --> HI
+  OWN --> ENV
+  REL -->|"copy request"| COPY
+  REL -->|"rehearsal's state"| HST
+  DEP -->|"what runs now"| HST
+  DEP -->|"deploy request"| HDEP
+  DEP -->|"production only"| SET
+  RB --> HRB
+  READ --> HST
+  HI -->|"installs deliver-host, then"| AL
+  ENV --> HENV
+  HDEP -->|"host files"| ROOT
+  HRB -->|"host files"| ROOT
+  HENV -->|"user, folders"| ROOT
+```
+
 **Deployment view, Tile Lite Elite**: which environments each host runs.
 
 ```mermaid
