@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# STUB_SYSTEMCTL_FAIL=1 fails every call; =once fails the first call on this machine only.
+root="${DELIVER_HOST_ROOT:-${STUB_LOCAL_ROOT:?}}"
+echo "systemctl $*" >> "$root/.systemctl.log"
+case "${STUB_SYSTEMCTL_FAIL:-}" in
+  "") exit 0 ;;
+  once) [[ -f "$root/.systemctl.failed" ]] && exit 0; : > "$root/.systemctl.failed"; exit 1 ;;
+  *) exit 1 ;;
+esac

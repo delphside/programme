@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# A stand-in for gh. Reads come from fixtures in $STUB_GH/fix (the path with / as
+# _, or graphql_<Operation>[-<number>].json) overlaid with what earlier calls
+# changed ($STUB_GH/state); every write is logged to $STUB_GH/log as one line.
+set -uo pipefail
+G="${STUB_GH:?}"; mkdir -p "$G/fix" "$G/state"
+echo "gh $*" >> "$G/calls"
+fail_if() { [[ -n "${STUB_GH_FAIL:-}" && "$1" =~ $STUB_GH_FAIL ]] && { echo "gh: simulated failure ($1)" >&2; exit 1; }; return 0; }
+
+if [[ "$1" == release && "$2" == create ]]; then
+  fail_if "release"
+  tag="$3"; start=""; shift 3
+  while [[ $# -gt 0 ]]; do [[ "$1" == --notes-start-tag ]] && start="$2"; shift; done
+  echo "RELEASE create $tag notes-start-tag=$start" >> "$G/log"
+  mkdir -p "$G/state/releases"; : > "$G/state/releases/$tag"; exit 0
+fi
+[[ "$1" == api ]] || { echo "gh stub: unsupported: $*" >&2; exit 9; }
+shift
+paginate=0; method=GET; fields=(); query=""; number=""; path=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -X) method="$2"; shift 2 ;;
+    --paginate) paginate=1; shift ;;
+    -f|-F)
+      kv="$2"; shift 2; fields+=("$kv")
+      case "$kv" in query=*) query="${kv#query=}" ;; number=*) number="${kv#number=}" ;; esac ;;
+    *) path="$1"; shift ;;
+  esac
+done
+fix() { cat "$G/fix/$1.json" 2>/dev/null; }
+
+if [[ "$path" == graphql ]]; then
+  op="$(sed -n 's/^[[:space:]]*\(query\|mutation\) \([A-Za-z]*\).*/\2/p' <<< "$query" | head -1)"
+  fail_if "$op"
+  if [[ "$query" == mutation* ]]; then
+    item="" ; for kv in "${fields[@]}"; do [[ "$kv" == item=* ]] && item="${kv#item=}"; done
+    echo "GRAPHQL $op item=$item" >> "$G/log"
+    n="${item#PVTI_}"; echo "Post-deployment" > "$G/state/pstate-$n"
+    echo '{"data":{}}'; exit 0
+  fi
+  f="$G/fix/graphql_$op-$number.json"; [[ -f "$f" ]] || f="$G/fix/graphql_$op.json"
+  if [[ ! -f "$f" ]]; then
+    case "$op" in
+      IssueInfo) echo '{"data":{"repository":{"issue":null}}}'; exit 0 ;;
+      *) echo "gh: no fixture for $op" >&2; exit 1 ;;
+    esac
+  fi
+  out="$(cat "$f")"
+  if [[ "$op" == ProjectState && -f "$G/state/pstate-$number" ]]; then
+    out="$(jq -c --arg s "$(cat "$G/state/pstate-$number")" '.data.repository.issue.projectItems.nodes[0].fieldValueByName = {name: $s}' <<< "$out")"
+  fi
+  if [[ "$op" == IssueInfo && -f "$G/state/closed-$number" ]]; then
+    out="$(jq -c '.data.repository.issue.state = "CLOSED"' <<< "$out")"
+  fi
+  printf '%s\n' "$out"; exit 0
+fi
+
+path="${path%%\?*}"
+fkv() { local kv; for kv in "${fields[@]}"; do [[ "$kv" == "$1="* ]] && { printf '%s' "${kv#*=}"; return; }; done; }
+logline() { printf '%s %s' "$method" "$path" >> "$G/log"; for kv in "${fields[@]}"; do printf ' %s' "$kv" >> "$G/log"; done; echo >> "$G/log"; }
+
+if [[ "$method" != GET ]]; then
+  fail_if "$method $path"
+  logline
+  case "$method $path" in
+    "POST repos/"*"/milestones")
+    # shellcheck disable=SC2010
+      n=$((100 + $(ls "$G/state" | grep -c '^ms-new-'))); jq -nc --argjson n "$n" --arg t "$(fkv title)" '{number:$n,title:$t,state:"open"}' > "$G/state/ms-new-$n"
+      echo "{\"number\":$n}" ;;
+    "POST repos/"*"/issues")
+      jq -nc --arg t "$(fkv title)" --arg b "$(fkv body)" '{title:$t,body:$b}' >> "$G/state/issues-new"; echo '{}' ;;
+    "PATCH repos/"*"/milestones/"*) : > "$G/state/ms-closed-${path##*/}" ;;
+    "PATCH repos/"*"/issues/"*) [[ "$(fkv state)" == closed ]] && : > "$G/state/closed-${path##*/}"; echo '{}' ;;
+    "POST repos/"*"/issues/"*"/comments")
+      n="${path%/comments}"; n="${n##*/}"; jq -nc --arg b "$(fkv body)" '{body:$b}' >> "$G/state/comments-$n"; echo '{}' ;;
+    *) echo '{}' ;;
+  esac
+  exit 0
+fi
+
+fail_if "GET $path"
+f="$G/fix/$(printf '%s' "$path" | tr '/' '_')"
+case "$path" in
+  repos/*/milestones)
+    base='[]'; [[ -f "$f.json" ]] && base="$(cat "$f.json")"
+    new="$(cat "$G"/state/ms-new-* 2>/dev/null | jq -sc '.')"; [[ -n "$new" ]] || new='[]'
+    closed="$(ls "$G/state" | sed -n 's/^ms-closed-//p' | jq -Rsc 'split("\n") | map(select(length>0) | tonumber)')"
+    jq -c --argjson new "$new" --argjson closed "$closed" '(. + $new) | map(if (.number | IN($closed[])) then .state = "closed" else . end)' <<< "$base" ;;
+  repos/*/issues)
+    base='[]'; [[ -f "$f.json" ]] && base="$(cat "$f.json")"
+    extra="$(cat "$G/state/issues-new" 2>/dev/null | jq -sc '.')"; [[ -n "$extra" ]] || extra='[]'
+    jq -c --argjson e "$extra" '. + $e' <<< "$base"
+    # a second page exists only for a caller that asked for every page
+    if [[ $paginate -eq 1 && -f "${f}_page2.json" ]]; then cat "${f}_page2.json"; fi ;;
+  repos/*/issues/*/comments)
+    n="${path%/comments}"; n="${n##*/}"
+    base='[]'; [[ -f "$f.json" ]] && base="$(cat "$f.json")"
+    extra="$(cat "$G/state/comments-$n" 2>/dev/null | jq -sc '.')"; [[ -n "$extra" ]] || extra='[]'
+    jq -c --argjson e "$extra" '. + $e' <<< "$base" ;;
+  repos/*/releases/tags/*)
+    [[ -f "$G/state/releases/${path##*/}" || -f "$f.json" ]] && echo '{}' || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; } ;;
+  repos/*/commits/*/check-runs)
+    [[ -f "$f.json" ]] && cat "$f.json" || echo '{"check_runs":[]}' ;;
+  *) [[ -f "$f.json" ]] && cat "$f.json" || { echo "gh: Not Found (HTTP 404): $path" >&2; exit 1; } ;;
+esac

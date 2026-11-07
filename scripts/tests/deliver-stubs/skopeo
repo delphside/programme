@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# A stand-in for skopeo over a directory registry ($STUB_REGISTRY). It records
+# its calls in $STUB_LOG_DIR/skopeo.log and answers as skopeo does: "manifest
+# unknown" for an absent image, a failure for a registry that is down.
+#   <repo dir>/tags/<tag>        the digest the tag points at
+#   <repo dir>/meta/<hex>.json   {"Digest","Labels"}
+#   <repo dir>/oci/<tag>/        the OCI layout of a record image
+set -uo pipefail
+R="${STUB_REGISTRY:?}"
+echo "skopeo $*" >> "${STUB_LOG_DIR:?}/skopeo.log"
+[[ -z "${STUB_REGISTRY_DOWN:-}" ]] || { echo "dial tcp: connection refused" >&2; exit 1; }
+
+# parse docker://host/ns/repo:tag or @digest -> REPODIR TAG|DIGEST
+parse() {
+  local ref="${1#docker://}"
+  if [[ "$ref" == *@* ]]; then P_REPO="${ref%@*}"; P_REF="${ref#*@}"; else
+    if [[ "${ref##*/}" == *:* ]]; then P_REPO="${ref%:*}"; P_REF="${ref##*:}"; else P_REPO="$ref"; P_REF="latest"; fi
+  fi
+}
+digest_of() {   # REPO REF -> digest on stdout, 1 when absent
+  if [[ "$2" == sha256:* ]]; then [[ -f "$R/$1/meta/${2#sha256:}.json" ]] && { echo "$2"; return 0; }; return 1; fi
+  [[ -f "$R/$1/tags/$2" ]] && { cat "$R/$1/tags/$2"; return 0; }; return 1
+}
+unknown() { echo "manifest unknown: manifest unknown" >&2; exit 1; }
+deny_write() {
+  if [[ -n "${STUB_WRITE_ONLY:-}" ]] && ! [[ "$1" =~ $STUB_WRITE_ONLY ]]; then
+    echo "denied: requested access to the resource is denied" >&2; exit 1
+  fi
+}
+
+cmd="$1"; shift
+# where each write ran: the machine's root (the ssh stub sets it) or the controller
+case "$cmd" in copy|delete) echo "$cmd ${DELIVER_HOST_ROOT##*/}" >> "${STUB_LOG_DIR}/where.log" ;; esac
+case "$cmd" in
+  inspect)
+    parse "${@: -1}"
+    d="$(digest_of "$P_REPO" "$P_REF")" || unknown
+    cat "$R/$P_REPO/meta/${d#sha256:}.json" ;;
+  list-tags)
+    parse "${@: -1}"
+    [[ -d "$R/$P_REPO/tags" ]] || { echo "name unknown: repository name not known to registry" >&2; exit 1; }
+    ls -1 "$R/$P_REPO/tags" | jq -Rn '{Repository: "x", Tags: [inputs]}' ;;
+  delete)
+    parse "${@: -1}"
+    deny_write "$P_REPO"
+    [[ -f "$R/$P_REPO/tags/$P_REF" ]] || unknown
+    rm -f "$R/$P_REPO/tags/$P_REF" ;;
+  copy)
+    args=(); for a in "$@"; do [[ "$a" == --* ]] || args+=("$a"); done
+    src="${args[0]}"; dst="${args[1]}"
+    if [[ "$dst" == oci:* ]]; then
+      parse "$src"; d="$(digest_of "$P_REPO" "$P_REF")" || unknown
+      mkdir -p "${dst#oci:}"; cp -a "$R/$P_REPO/oci/$P_REF/." "${dst#oci:}/"
+    elif [[ "$src" == oci:* ]]; then
+      [[ -z "${STUB_FAIL_RECORD_PUSH:-}" ]] || { echo "error: simulated failure pushing the record" >&2; exit 1; }
+      parse "$dst"; deny_write "$P_REPO"
+      lay="${src#oci:}"; man="$(jq -r '.manifests[0].digest' "$lay/index.json")"
+      d="sha256:$(sha256sum < "$lay/blobs/sha256/${man#sha256:}" | cut -d' ' -f1)"
+      mkdir -p "$R/$P_REPO/tags" "$R/$P_REPO/meta" "$R/$P_REPO/oci/$P_REF"
+      cp -a "$lay/." "$R/$P_REPO/oci/$P_REF/"
+      echo "$d" > "$R/$P_REPO/tags/$P_REF"
+      jq -nc --arg d "$d" '{Digest:$d, Labels:{}}' > "$R/$P_REPO/meta/${d#sha256:}.json"
+    else
+      parse "$src"; SR="$P_REPO"; SREF="$P_REF"
+      d="$(digest_of "$SR" "$SREF")" || unknown
+      parse "$dst"; deny_write "$P_REPO"
+      mkdir -p "$R/$P_REPO/tags" "$R/$P_REPO/meta"
+      cp "$R/$SR/meta/${d#sha256:}.json" "$R/$P_REPO/meta/${d#sha256:}.json"
+      [[ -d "$R/$SR/payload/${d#sha256:}" ]] && { mkdir -p "$R/$P_REPO/payload"; cp -a "$R/$SR/payload/${d#sha256:}" "$R/$P_REPO/payload/"; }
+      [[ "$P_REF" == sha256:* ]] || echo "$d" > "$R/$P_REPO/tags/$P_REF"
+      echo "$dst" >> "${STUB_LOG_DIR}/copies.log"
+    fi ;;
+  *) echo "skopeo stub: unsupported $cmd" >&2; exit 9 ;;
+esac

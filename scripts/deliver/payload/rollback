@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# rollback: the same switch to `previous`, with restore-state, on demand
+# (design §9). Run by `deliver-host rollback` from the payload of the deploy being
+# rolled back from, with the lock held.
+set -uo pipefail
+PAYLOAD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib/common.sh
+. "$PAYLOAD/lib/common.sh"
+# shellcheck source=steps.sh
+. "$PAYLOAD/steps.sh"
+DELIVER_CMD="deliver-host"
+host_ctx_load
+
+CUR="$(link_n current || true)"; PREV="$(link_n previous || true)"
+STATE="$(state_read)"
+if [[ "$STATE" == "failed, no previous deploy" ]]; then
+  gate_fail rollback-target "the last deploy failed with no previous deploy: nothing to roll back to. Fallback: $FALLBACK"
+fi
+if state_settled; then
+  [[ -n "$CUR" ]] || gate_fail rollback-target "nothing is deployed here. Fallback: $FALLBACK"
+  [[ -n "$PREV" ]] || gate_fail rollback-target "there is no previous deploy to go back to. Fallback: $FALLBACK"
+  GOOD="$PREV"; FAILED="$CUR"; PREVPREV=""
+else
+  FAILED="$(state_n)"
+  if [[ "$CUR" == "$FAILED" ]]; then GOOD="$PREV"; PREVPREV=""; else GOOD="$CUR"; PREVPREV="$PREV"; fi
+fi
+gate_ok rollback-target "back to ${GOOD:-nothing}"
+if [[ -n "$GOOD" && ! -d "$(deploy_dir "$GOOD")" ]]; then die "deploy #$GOOD is gone from $ENVDIR/deploys"; fi
+
+state_write "in progress: rollback" "$FAILED"
+if ! restore_to "$GOOD" "$FAILED" "$PREVPREV"; then
+  warn "the rollback did not complete: the state is left interrupted ($(state_read)). Fallback: $FALLBACK"; exit 1
+fi
+if [[ -z "$GOOD" ]]; then
+  warn "rolled back to nothing: the failed first deploy is stopped. Fallback: $FALLBACK"; exit 1
+fi
+prune_host_images
+prune_deploys
+say "rolled back to deploy #$GOOD"

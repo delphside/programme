@@ -28,7 +28,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | | rule | source |
 | --- | --- | --- |
 | R1 | The tool names no application and no machine. Anything that differs comes from `app-profile.toml` or a hook. | G1; §2 |
-| R2 | The registry address is never in the profile. Each role reads `DELIVER_REGISTRY` from its own local configuration. | §5 |
+| R2 | The registry address is never in the profile. Each component reads `DELIVER_REGISTRY` from its own local configuration. | §5 |
 | R3 | `build [REF]` is non-interactive and refuses a REF that is not a commit on the remote. It builds from a clean worktree with the `build` hook, or `docker buildx bake` by default. It labels each image `org.opencontainers.image.revision` = SHA and `.version` = the version file. It pushes each image as `SHA-IMAGE` and prints the digests, an index digest for a multi-arch build. | §4 |
 | R4 | An image whose `SHA-IMAGE` is already present is not rebuilt. A failed registry query refuses. Releases is immutable. | §4; §6 |
 | R5 | The payload goes into `payload_image` at `/deliver/`, from the pinned submodule and the app repository. It holds nothing secret. Joined files come from the payload and never from a working tree. An environment may name its own `join`. | §2; §5 |
@@ -59,13 +59,15 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R30 | Every override takes a reason. The reason goes into the record where there is one, and always into the run log. | §4 |
 | R31 | Every command writes a run log on its own machine, naming each gate it ran. A command that ends with a gate unrun refuses. Exits are 0 done; 1 refused, failed with nothing changed, or rolled back; 3 live but a later step failed. | §4 |
 | R32 | `--check` runs every gate and changes nothing. | §4 |
-| R33 | Each role has its own registry access, and no role's credential can do another role's writes. | §2; §11 |
+| R33 | Each component has its own registry access, and no component's credential can do another role's writes. | §2; §11 |
 | R34 | Nothing secret is written to a profile, record, tag or log. | §11 |
 | R35 | Every pull completes within the environment's `pull_timeout`, or the deploy refuses before any change. | §9; §11 |
-| R36 | `prune` removes candidates pushed before the newest release was made, not released, and not in any environment's current or previous deploy. It never removes releases. | §4 |
+| R36 | `prune` removes candidates whose `created` label (the build's start) is before the newest release was made, not released, and not in any environment's current or previous deploy. It never removes releases. | §4 |
 | R37 | `env create\|destroy NAME` works from the profile's template: a user, a state folder, a `.env` with secrets at a hidden prompt, a Compose project, and the hooks. | §4 |
 | R38 | `host-install` installs or updates `deliver-host`, `jq`, the login adapter's tools and the single `sudo` rule. | §4; §9 |
 | R39 | The login adapters are `oci-instance-principal`, `oci-api-key` and `docker-config`. Hosts log in by instance principal. | §2; owner 2026-10-28 |
+| R42 | The carried range starts at the release production runs, so a release made while an earlier one is undeployed carries both; an item named only by a commit a later commit in the range reverts is not carried, and a revert of a commit outside the range has no effect. | §6; §7 |
+| R43 | Settling a record settles the items of the earlier releases it carries (comment `..., deployed with vV`), closes their milestones, and takes a dropped item out of its milestone with a comment, leaving its state alone; a rerun changes nothing. | §8 |
 | R40 | `status ENV` shows the digests, the matching record, the deploy state and host-file equality. `list ENV` shows the records beside what ENV runs. | §4 |
 | R41 | Tile Lite Elite's move: the first `deliver` deploy to rehearsal takes `--off-level`. The fallback until 0.10.2 has run in production is the written procedure to 0.10.0: stop the `deliver` project, restore the snapshot, then `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason. 0.10.2 is the first release with a record. The board reads `v` as released and `prod-` as history. | §10; (H) |
 
@@ -80,7 +82,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 
 - **C1 command** (complete over §4): build · deploy · release · settle · rollback · status · list · prune · env create · env destroy · host-install
 - **C2 environment role** (complete): preview · test · rehearsal · production
-- **C3 host placement** (complete): over ssh · local (`control-node`)
+- **C3 host placement** (complete): over ssh · local (`controller`)
 - **C4 REF form** (complete): full SHA · short SHA (unique) · short SHA (ambiguous, refused: X12) · version with record · version without record · other name · absent
 - **C5 REF on the remote** (complete): pushed · not pushed
 - **C6 candidates for the SHA** (complete): all images present · some · none · registry query fails
@@ -103,7 +105,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 - **C22 override** (complete over §4): none · `--emergency` · `--skip-rehearsal` · `--unrecorded` · `--off-level` · `--set-aside` (overridable, including `milestone`) · `--set-aside` (not overridable) · flag without reason · `--wait` · `--check`
 - **C23 settle item** (complete over the record): Production Release work package · non-project issue · milestone · work package of another route, referenced in the release's commits but in its own date milestone · parent
 - **C24 settle progress** (complete): none done · some done · all done · `gh` fails
-- **C25 registry credential** (complete): the role's own · another role's
+- **C25 registry credential** (complete): the component's own · another component's
 - **C26 image arch** (complete): single · multi-arch index
 - **C27 record version** (complete): 1 · unknown · tag without JSON
 - **C28 host file** (complete): equal · edited · missing · new in this release · dropped in this release · on rollback, extra in the current release
@@ -131,7 +133,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | O14 | Settle: the stub `gh` saw exactly the record's work packages moved to Post-deployment, and nothing done to a work package of another route, the issues closed as completed with a comment, and the milestone closed. A rerun makes no new mutation. |
 | O15 | The deploy stands (O4 holds), and the exit is 3 with the items left listed. |
 | O16 | `--wait` blocks, then proceeds once the lock frees or the hook returns 0. |
-| O17 | The registry refuses another role's write. The role's own credential succeeds. |
+| O17 | The registry refuses another component's write. The component's own credential succeeds. |
 | O18 | A canary secret, from `.env`, the credential and the hidden prompt, appears in no log, record, tag, profile or terminal echo. |
 | O19 | Grep finds no application name in `scripts/deliver/`. A second dummy profile drives every CI scenario. |
 | O20 | `--check` exits 0 or 1 with every gate named in the log, and the O1 snapshot shows no change. |
@@ -180,7 +182,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S4 | Build with no `build` hook, then with one. | C9 | buildx bake, then the hook is called | CI |
 | S5 | Multi-arch build, then a deploy of it. | C26 | O2 with an index digest; O4 matches it | CI (buildx + qemu) |
 | S6 | Deploy to rehearsal a SHA with no build; build; deploy over ssh. | C6, C3 ssh | O1, then O4, O5, O6, O8 | CI |
-| S7 | Deploy to preview on the control node, with the preview's own `join`. | C2 preview, C3 local | O4; the joined files are `docker-compose.preview.yml` and `Caddyfile.preview` from the payload; no ssh call | CI |
+| S7 | Deploy to preview on the controller, with the preview's own `join`. | C2 preview, C3 local | O4; the joined files are `docker-compose.preview.yml` and `Caddyfile.preview` from the payload; no ssh call | CI |
 | S8 | A registry tag repointed so the digest's revision label is another SHA; then a true image. | R7 | O1, then O4 | CI |
 | S9 | Deploy while the lock is held; release it; deploy; `--wait` while held. | C7, C22 | O1, then O4, then O16 | CI |
 | S10 | `pre-deploy` exits 1, then 75, then 75 with `--wait` returning 0 later, then 0. | C9 | O1, O1, O16, O4 | CI |
@@ -213,10 +215,10 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S37 | A deploy waits on the lock held by the application's own heavy run (the backup). | R8 | O1, then O16 | REH |
 | S38 | A reboot of the rehearsal VM mid-deploy, then rerun. | R9 | O1 naming the step reached | REH |
 | S39 † | TLE's move: the first `deliver deploy` to rehearsal with `--off-level "first deliver deploy"`; then `deploy.sh` at production's previous commit puts rehearsal back. | R41 | O4 + O12; the old compose and image names running, with `/health` | REH |
-| S40 | Release copy by the copier with skopeo; another role's credential writing releases. | R33 | O10; O17 | CI (htpasswd per role) |
+| S40 | Release copy by the copier with skopeo; another component's credential writing releases. | R33 | O10; O17 | CI (htpasswd per component) |
 | S41 | `env create` with secrets at a hidden prompt, then `env destroy`. | R37 | the user, the state folder, `.env` and the project exist, then are gone; hooks called; O18 | CI (pty) |
 | S42 | `host-install` on a bare host container, then again. | R38 | `deliver-host`, `jq` and the sudo rule present; then updated | CI; REH |
-| S43 | Prune with a mix of candidates, including one pushed before the newest release was made but built from a commit dated after it. | R36 | O22; the push time decides | CI |
+| S43 | Prune with a mix of candidates, including one built from a commit dated after the newest release but whose `created` label is before it. | R36 | O22; the `created` label decides | CI |
 | S44 | A canary secret through every command. | R34 | O18 | CI |
 | S45 | The tool contains no application name; a second dummy app runs S1, S6 and S18. | R1, R2 | O19; a profile without `DELIVER_REGISTRY` in local config refuses | CI |
 | S46 | `status` and `list` on an environment after two deploys. | R40 | the digests, the matched record, the state, host-file equality; the records beside the current one | CI |
@@ -234,6 +236,11 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S57 | A first deploy to a bare environment: failing at `migrate`; at `smoke`; at `compose up`; and before `save-state`. Then a fresh deploy of the same REF after the restore. | C11, C12 none, C8 | O24 for the first three; O1 for the last; the fresh deploy is not refused by the state check and gives O4 | CI |
 | S58 | A short SHA matching two candidates; then the longer prefix. | C4 ambiguous | O1 naming the gate and the candidates it matched; then O4 | CI |
 | S59 | The `post-deploy` check exits 1 after a deploy that is otherwise exit 0; then after one that is otherwise exit 3 (settle failed); then it exits 0. | C30 | the failure reported, exit 0 and exit 3 unchanged, no other mutation; then quiet | CI |
+| S60 | Production runs 0.10.1; 0.10.2 is made with #1 #2 #3 and not deployed; 0.10.3 is made with #1 #3 #4. | R42 | the record carries #1 #2 #3 #4, `releases` holds 0.10.2 | CI |
+| S61 | As S60, with #2 reverted on `main` between the releases; the release is made, then deployed. | R42, R43 | the record carries #1 #3 #4 and drops #2 with a note at release; settle comments #1 #3 as deployed with 0.10.3, comments #2 and removes it from 0.10.2, closes both milestones; 0.10.2's tag is unchanged | CI |
+| S62 | A revert of a commit outside the range; a Production Release work package of the earlier milestone; the settle rerun. | R42, R43 | the revert's own `Refs` count; the work package passes the gate in 0.10.2 and is refused in another; the rerun changes nothing | CI |
+| S63 | Reverts by count (a revert of a revert, a third revert, a short sha); production's release unreadable or untagged; a resumed release. | R42 | a revert of a revert keeps the change, three leave it out, a short sha matches; the release is refused at the milestone gate; the record keeps `releases` | CI |
+| S64 | An earlier release in the range made before the tool (a text tag) with open items in its milestone; an emergency cut from an undeployed release. | R42, R43 | items named in the range are carried and settled, the others dropped and removed; the emergency lists the release in its range | CI |
 
 ## 6. Refusals and successes
 
@@ -309,6 +316,8 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R37 | S41 |
 | R38 | S42 |
 | R39 | S35 |
+| R42 | S60, S61, S62, S63, S64 |
+| R43 | S61, S62, S63, S64 |
 | R40 | S46 |
 | R41 | S39, S47 |
 
@@ -374,6 +383,11 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S57 | R12, R9 |
 | S58 | R6 |
 | S59 | R29, R31 |
+| S60 | R42 |
+| S61 | R42, R43 |
+| S62 | R42, R43 |
+| S63 | R42 |
+| S64 | R42, R43 |
 
 ## 8. Approach
 
@@ -382,7 +396,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 - a temp git repository with a bare remote, and a version file;
 - a dummy application, "acme", with two images, `payload_image`, a `required_hooks` list and a second environment `join`;
 - stub hooks that log their argv and environment and exit as each test sets;
-- `registry:2` as a CI service. For S40 it runs with an htpasswd user per role and a proxy that refuses writes outside each role's repositories;
+- `registry:2` as a CI service. For S40 it runs with an htpasswd user per component and a proxy that refuses writes outside each component's repositories;
 - a "host" container reached through a stub `ssh` that runs `deliver-host` inside it, with Docker-in-Docker for compose, `RepoDigests` and pulls;
 - stub `systemctl` and `sudo` inside the host container;
 - a stub `gh` that answers checks, milestones and issue types from fixture files and logs every mutation.
@@ -490,6 +504,19 @@ Everything else runs in CI.
 - `settle_rerun_changes_nothing`
 - `rollback_without_a_previous_deploy_names_the_fallback`
 
+### Range and carried releases (deliver-range.bats)
+
+- `a release made while an earlier one is undeployed carries both`
+- `a Production Release work package of an earlier release in the range passes the gate; elsewhere it refuses`
+- `deploying it settles both, closes both milestones; a rerun changes nothing`
+- `the owner's scenario: #2 reverted between the releases is not carried, is removed from 0.10.2 and its state left alone`
+- `a revert of a commit outside the range has no effect`
+- `a revert of a revert keeps the change`, `three reverts leave the change out`, `a revert naming the commit by a short sha is matched`
+- `production's release unreadable, or without a tag, refuses the release`
+- `a rerun that resumes the release keeps carries.releases`
+- `a release made before the tool, in the range, has its milestone's open items gated, settled and closed`
+- `an emergency range still starts at production's tag, and lists a release made in it`
+
 ### Logs, access and housekeeping
 
 - `every_run_log_names_each_gate_it_ran`
@@ -526,7 +553,8 @@ Everything else runs in CI.
 - X8 by S29: `--unrecorded` takes a full SHA, and a copy already present is a no-op.
 - X9 by S26: a different record refuses (exit 1), and all steps done exits 0. The gate count (X9b) stays untestable from outside.
 - X10 by S55 and S56.
-- X11 by S43, which now asserts the push time.
+- X11 by S43, which asserts the `created` label, the build's start time
+  (design §13).
 - X12 by S58 and X13 by S59.
 - X17 (the next deploy after a failed first deploy proceeds) by S57, and X18 (`--wait` at its limit refuses, exit 1, naming what it waited for) by S54.
 - X16 no longer applies: #117's body now has a decisions list.
@@ -539,5 +567,16 @@ Still open, each a question for the owner:
 | X9b A command "ending with a gate unrun refuses" cannot be provoked from outside, and §4 gives no per-command gate list beyond §6. | A test hook or a documented gate list. | The run log is asserted against §6 (O23). The self-check is reviewed, not tested. |
 | X14 The `oci-api-key` adapter (Dark Portal's copier) is exercised by no Tile Lite Elite test. | Dark Portal's adoption, delphside/dark-portal#15, carries the test: the key missing, then present, with the refusal shown before the success. | Dark Portal is out of scope here. |
 | X15 The production-role gates are shown on a real host only by the owner's `--check` runs and 0.10.2's first production deploy (part 8), not before the merge. The real-host statement is: `deliver deploy production <raw SHA> --check` and `deliver deploy production <unrecorded version> --check` both refuse, naming the gate, and change nothing. It matches the post-deployment box of delphside/tile-lite-elite#555. | #555's test-approach box is changed to point at the CI tests and the post-deployment check. | Accepted at the test manager's sign-off on #117, 2026-10-28: production reads and deploys are the owner's, and the rehearsal identity cannot read releases. |
+
+Accepted gaps, closed by the rehearsal run rather than by CI (part 8). The
+stubs stand in for the real tools; what a stub cannot show, the rehearsal run
+on the real stack does.
+
+| gap | what would close it | why it is acceptable |
+| --- | --- | --- |
+| X19 The CI world is stubs, not `registry:2` and Docker-in-Docker: `skopeo`, `docker`, `ssh`, `gh`, `curl`, `sudo`, `systemctl`, `useradd` and `userdel` are PATH stubs over folders, and the "machines" are folders. | A rehearsal run of the real tool against a real registry and host. | The rehearsal run (part 8) covers what a stub cannot show. |
+| X20 S5 (multi-arch: a real `buildx` build and the index digest kept by the copy) is stubbed only through `STUB_ARCH`, which salts the digest. | The same rehearsal run: a multi-arch build, copy and pull on the real stack. | The copy is `skopeo copy --all --preserve-digests`, whose behaviour the stub cannot vouch for. |
+| X21 S36 (a slow pull) is a delayed-pull stub, not a throttling proxy. | The rehearsal run's measured pull on a real host (`pull_timeout`). | The timeout path is exercised; the number is measured on the host. |
+| X22 S40 (each component's registry credential writes only its own repositories) uses the stub's `STUB_WRITE_ONLY`, not a registry's access control; the stub also records which machine each registry write ran on (`where.log`), so a copy made on the wrong machine fails the test. | The rehearsal run, with the real credentials of the builder, the copier and the hosts. | The tool's part (which machine, which login) is asserted; the registry's enforcement is not the tool's. |
 
 Derived by a fresh `test-designer` agent that read no implementation (docs/1.9).
