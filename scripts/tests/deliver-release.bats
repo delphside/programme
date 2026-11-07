@@ -428,6 +428,8 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   assert_equal "$(jq -c .set_aside <<< "$(tag_record v0.10.2)")" '[]'
   run hook_calls
   assert_regex "$output" "release-check"
+  # the release step's hook runs on the controller
+  assert_regex "$(hook_log_for release-check)" "DELIVER_ROLE=controller"
 }
 
 @test "release_refuses_a_mistyped_confirmation (S25, R16)" {
