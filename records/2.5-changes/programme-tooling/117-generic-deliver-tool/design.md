@@ -25,6 +25,15 @@ Its decisions are in #117's body.
 *deliver* is the programme's generic tool, started by a person or timer; it
 invokes `deliver-host` elsewhere.
 
+*deliver* and *deliver-host* are shell scripts, installed and run directly on
+their host by a Linux user; neither is a Docker container. Only the application
+runs in Docker containers, which the deployer starts with `docker compose`. The
+scripts are bash, with awk to read the profile, and copy images with
+[skopeo](https://github.com/containers/skopeo), a tool for copying container
+images between registries. They integrate with OCI Registry, which holds the
+images ([§10](#10-oci-integration)), and GitHub, which holds the code and
+tracks each delivery ([§11](#11-github-integration)).
+
 **Environments.** An *application environment* is one running copy of the
 application, with an *environment role* that [gates](#6-gates-and-checks) key
 on. *Candidates* and *releases* are its two registry repositories
@@ -78,9 +87,7 @@ Terms and
 [views](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md#which-view-a-diagram-takes-and-saying-so)
 are C4's: `deliver` and `deliver-host` are *containers*, environments
 *deployment nodes*. A C4 container is a separately run program, not a Docker
-container: both are bash scripts, run as ordinary processes by a Linux user on
-their machine. Only the application runs in Docker containers, which the
-deployer starts with `docker compose`.
+container.
 
 **Container view**: what each arrow carries.
 
