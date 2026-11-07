@@ -576,8 +576,8 @@ which exits 3 ([§8](#8-settling)).
   production runs, the carried range's start
   ([§7](#7-the-release-and-its-record)).
   - A commit a later commit in the range reverts, and that revert, name nothing.
-  - A parent's `Refs` counts for its work package where it has exactly one in
-    the milestone.
+  - A parent's `Refs` is shown beside its work package, never counted for it
+    ([the board model's part](#the-board-models-part)).
 - Every work package the commits name with `Route` Production Release is in the
   milestone, or that of a release made but not deployed whose tag is in the
   range. Other routes are left out: they deliver on date milestones (docs/1.2
@@ -585,6 +585,55 @@ which exits 3 ([§8](#8-settling)).
 - With `--emergency`, open issues evidenced only by commits on `main` are left
   out, and moved to the next milestone by [§7](#7-the-release-and-its-record)
   step 7.
+
+### The board model's part
+
+Every rule about issues, milestones and `Refs` is the board model's, in
+`scripts/board/`, so the lifecycle's checks and gates share one code and one
+logic: `board-check.py` before a release, this tool's gates at it, `settle`
+after it. The controller calls one command, `board-release.py`, and keeps only
+what is about images, hosts and git. Python 3 is therefore a controller
+prerequisite; the builder, copier and hosts need bash only.
+
+```mermaid
+flowchart LR
+  CTL["<i>controller</i><br>[Component: bash]<br>deliver release, deploy, settle"]
+  BR["<i>board-release.py</i><br>[Component: Python]<br>gate, carries, settle, next"]
+  subgraph MODEL["Container: board model"]
+    M["<i>model.py</i><br>[Component]<br>classify: work package, parent, ..."]
+    MS["<i>milestone.py</i><br>[Component]<br>carried, unbuilt"]
+    RF["<i>refs.py, repo.py</i><br>[Component]<br>Refs in a range, reverts"]
+    SRC["<i>sources.py</i><br>[Component]<br>GitHub reads and writes"]
+  end
+  GH["<i>GitHub</i><br>[Software System]<br>issues, milestones, the board"]
+  CTL -->|"VERSION, range, earlier records<br>[JSON on standard input]"| BR
+  BR -->|"verdict, carries, findings<br>[JSON on standard output, exit code]"| CTL
+  BR --> M
+  BR --> MS
+  BR --> RF
+  BR --> SRC
+  SRC -->|"[GraphQL and REST, through gh]"| GH
+```
+
+| Command | Replaces in `deliver` | Answers |
+| --- | --- | --- |
+| `board-release.py gate < request` | the milestone gate, `refs_in`, `refs_effective`, the work-package classification | passed or refused, with each finding; what the release carries (`work_packages`, `issues`, and `releases` with `dropped`), which goes into the record; with `--emergency`, the items left out |
+| `board-release.py settle < record` | `settle_version` | does [§8](#8-settling)'s table, skipping what is done; prints what is left; exit 3 if anything is |
+| `board-release.py next VERSION [--move N...]` | step 7 of [§7](#7-the-release-and-its-record) | opens the next milestone and moves the left-out items into it |
+
+The request carries the version, the release's range and, with `--emergency`,
+the range on `main`; the controller reads the earlier releases' records from
+the registry and passes them in, so `board-release.py` never touches the
+registry. Exit codes are the tool's: 0 passed, 1 refused, 70 a profile error
+(`profile.EXIT_PROFILE_ERROR`), never read as refused.
+
+**What changes in the rules.** `milestone.py`'s rule replaces this design's
+own: a parent's `Refs` is reported beside its work package as a fact, never
+counted for it (delphside/tile-lite-elite#375), so the exception for a parent
+with one package goes. The revert rule ([the milestone gate](#the-milestone-gate))
+moves into `repo.py`, so `board-check.py`'s pre-flight counts reverts as the
+gate does. The `ci-passed` gate, the retrospective issue and the GitHub Release
+stay in `deliver`: they are about the commit and the release, not the board.
 
 ### Which release production runs
 
