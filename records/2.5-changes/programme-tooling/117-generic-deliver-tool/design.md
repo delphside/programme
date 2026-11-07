@@ -241,7 +241,8 @@ so a renamed hook cannot pass silently; any other missing hook is a no-op. The
 | 75 | not yet (with `--wait`, try again; otherwise refuse) |
 | any other | refused, or the step failed |
 
-Each hook gets `DELIVER_APP`, `DELIVER_ENV`, `DELIVER_ROLE`, `DELIVER_SHA`,
+Each hook gets `DELIVER_APP`, `DELIVER_ENV`, `DELIVER_ROLE` (the environment's role, `controller` for
+the release step, `ephemeral` for an environment's create and destroy), `DELIVER_SHA`,
 `DELIVER_VERSION`, `DELIVER_STATE` (the state folder) and `DELIVER_IMAGE_<NAME>`
 (each image by digest). A hook that cannot judge refuses: it never passes for
 want of an answer.
@@ -522,8 +523,8 @@ creation date (`creatordate`).
   environment until 2026-11-07. The profile has no key with those names, but
   its values `on` and `copy_on` and an environment's `host` took
   `"control-node"`: the tool now writes `"controller"` and still accepts
-  `"control-node"`. The hooks' `H_ROLE` value `control-node` is a hook interface
-  and is kept.
+  `"control-node"`. A hook run for the release step gets `DELIVER_ROLE=controller`
+  (no application had hooks yet, so nothing depended on the old value).
 - `deliver release --commit REF` names the commit to release. It is needed
   when rehearsal has not deployed (`--skip-rehearsal`). Without it the commit
   is the one the rehearsal environment runs.
