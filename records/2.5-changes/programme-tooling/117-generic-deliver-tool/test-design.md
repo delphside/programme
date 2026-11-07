@@ -35,7 +35,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R6 | `deploy ENV REF` checks REF against the environment's role. For preview, test and rehearsal, REF is a full or short SHA or a version, resolved in candidates. A short SHA that matches more than one candidate refuses. For production it is a version with a record, pulled from releases. The deploy runs over ssh, or locally where `host = "controller"`, and then `settle` for production. Gates key on the role, never the name. | §2; §4 |
 | R7 | Every image is pulled by digest. Its revision label must equal the SHA, and the running containers' `RepoDigests` must match. | §6 |
 | R8 | The environment's lock (`flock`) must be free and is held to the end. `--wait[=MINUTES]` waits for the lock and for a hook's exit 75, checking each minute, for at most 60 minutes by default. At the limit it refuses, exit 1, naming what it waited for, with nothing changed. | §4; §6; §9 |
-| R9 | A deploy refuses unless the state file shows the last deploy finished. Exception: a state of `failed, no previous deploy` (a first deploy that failed and was restored) does not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `deliver rollback` or a fresh deploy of the previous REF. | §6; §9 |
+| R9 | A deploy refuses unless the state file shows the last deploy finished. Exception: a state of `failed, no previous deploy` (a first deploy that failed and was restored) does not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `deliver rollback`; a redeploy refuses until then. | §6; §9 |
 | R10 | `pre-deploy` is a gate. It can be set aside with `--set-aside`, where the profile marks it overridable. | §5; §6 |
 | R11 | A deploy runs these steps in order: lock, then state, then pull by digest, then payload, then `pre-deploy`, then the new deploy folder, then `save-state`, then `migrate`, then host files, then the `current` switch, then `compose up`, then `smoke`, then finished, then pruning host images. Compose runs with a fixed project name, `--project-directory` the deploy's own folder `deploys/N`, the host `.env` and then `deploys/N/deliver.env`, and `--no-build`. | §9 |
 | R12 | A failure after `save-state` runs `restore-state`, switches back to `previous` and reinstalls its host files, then exits 1. On a host's first `deliver` deploy there is no `previous`: the failure runs `restore-state`, stops the new containers, removes `current`, marks the state `failed, no previous deploy`, and exits 1 naming the application's fallback. | §6; §9 |
@@ -550,7 +550,7 @@ Everything else runs in CI.
 - X5 by S57 and the C11 × C12 matrix cell: `restore-state`, state `failed, no previous deploy`, exit 1 naming the fallback.
 - X6 by S12 and S53: `[release].overridable` names the gates, and `milestone` is the tool's own.
 - X7 by S54: the 60-minute limit is tested at `--wait=1`; the default of 60 is asserted only by review.
-- X8 by S29: `--unrecorded` takes a full SHA, and a copy already present is a no-op where the digests match; another digest refuses.
+- X8 by S29: `--unrecorded` takes a full SHA, and a copy already present is a no-op where the digests match. Not yet covered: another digest refuses (no test reaches it).
 - X9 by S26: a different record refuses (exit 1), and all steps done exits 0. The gate count (X9b) stays untestable from outside.
 - X10 by S55 and S56.
 - X11 by S43, which asserts the `created` label, the build's start time
