@@ -25,8 +25,8 @@ by a command, `deliver`, run by a person or a timer. It invokes another
 command, `deliver-host`, on the other machines involved, which this section
 describes.
 
-**Environments.** An **application environment** is one running copy of the
-application. Each has an **environment role**. Gates are defined for
+**Environments.** An *application environment* is one running copy of the
+application. Each has an *environment role*. Gates are defined for
 particular environment roles:
 
 | environment role | reads | gates that key on it |
@@ -36,27 +36,27 @@ particular environment roles:
 | `rehearsal` | candidates | the release step reads what it runs; a rehearsal starts from production's level |
 | `production` | releases only | a record is needed; settle follows |
 
-**Tool environments** run a component of the tool: the controller, the
+*Tool environments* run a component of the tool: the controller, the
 builder or the release copier. *Components* below says what each does and
 where it is for each application.
 
-A **host** is a machine that runs one or more environments.
+A *host* is a machine that runs one or more environments.
 
-**Components.** A component is a job a machine does for the tool. The tool
+**Components.** A *component* is a job a machine does for the tool. The tool
 names components, never machines or applications. For each application, its
 profile (`app-profile.toml`, §5) maps each component to a specific machine,
 and one machine may play several. A host's `.env` holds only what differs per
-environment: addresses, keys, limits. The **controller** is the machine a run is
+environment: addresses, keys, limits. The *controller* is the machine a run is
 started from; Ansible calls it the control node.
 
 | component | runs | holds | does |
 | --- | --- | --- | --- |
-| **controller** | `deliver release`, `deploy`, `settle`, `rollback`, `status`, `list`, `prune`, `host-install` | git with push rights to `main`, a GitHub credential | runs the release step's gates, tag and bump; starts deploys; settles the board from the record |
-| **builder** | `deliver build` | the repository, the candidates write credential | makes one image set per commit from a clean checkout, pushes it to candidates |
-| **release copier** | `deliver-host copy`, started by `deliver release` | the release credential: the registry login of the Oracle user allowed to read candidates and write releases | copies a rehearsed image set by digest from candidates to releases, and pushes the record |
-| **deployer** | `deliver-host deploy` and `rollback`, started by `deliver`; `deliver env create` and `destroy` | its own registry identity, its `.env`, its state folder | pulls by digest, takes the payload out of the image, runs the deploy steps, holding the environment's lock throughout |
+| *controller* | `deliver release`, `deploy`, `settle`, `rollback`, `status`, `list`, `prune`, `host-install` | git with push rights to `main`, a GitHub credential | runs the release step's gates, tag and bump; starts deploys; settles the board from the record |
+| *builder* | `deliver build` | the repository, the candidates write credential | makes one image set per commit from a clean checkout, pushes it to candidates |
+| *release copier* | `deliver-host copy`, started by `deliver release` | the release credential: the registry login of the Oracle user allowed to read candidates and write releases | copies a rehearsed image set by digest from candidates to releases, and pushes the record |
+| *deployer* | `deliver-host deploy` and `rollback`, started by `deliver`; `deliver env create` and `destroy` | its own registry identity, its `.env`, its state folder | pulls by digest, takes the payload out of the image, runs the deploy steps, holding the environment's lock throughout |
 
-The **payload** is not a component but what the hosts run: the deploy steps, the
+The *payload* is not a component but what the hosts run: the deploy steps, the
 application's hooks, the files joined at deploy and the host files, copied at
 build into one named image at `/deliver/`. It holds nothing secret.
 
