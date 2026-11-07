@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # deliver: build, release and deploy an application's image, from the control
-# node, the build environment or the release copier. The generic tool of
+# node, the builder or the release copier. The generic tool of
 # delphside/programme#117; its design is
 # records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md and
 # docs/1.1 has its row. It names no application and no machine: what differs
@@ -75,7 +75,7 @@ derive_gate_config() {
 # use_commit_profile SHA: what a gate asks of a commit (its required checks and
 # hooks, what may be set aside, its images) is read from that commit's profile,
 # as its hooks are, and not from the working tree. Which machine an environment
-# is, and its role, stay the control node's own.
+# is, and its role, stay the controller's own.
 use_commit_profile() {
   local sha="$1" rel text tmp cj
   case "$PROFILE_FILE" in "$REPO"/*) rel="${PROFILE_FILE#"$REPO"/}" ;; *) return 0 ;; esac
@@ -219,11 +219,15 @@ env_of_role() {    # ROLE -> first environment name with it
   jq -r --arg r "$1" '.environments | to_entries[] | select(.value.role == $r) | .key' <<< "$PJ" | head -1
 }
 
+# is_controller PLACE: the profile names the controller as "controller"; "control-node",
+# its name before the components were renamed, is still accepted.
+is_controller() { [[ "$1" == controller || "$1" == control-node ]]; }
+
 # run_deliver_host PLACE ARGS...: deliver-host on a machine, stdin passed through. PLACE
-# is control-node or an ssh alias.
+# is controller or an ssh alias.
 run_deliver_host() {
   local place="$1"; shift
-  if [[ "$place" == control-node || -z "$place" ]]; then
+  if is_controller "$place" || [[ -z "$place" ]]; then
     "${DELIVER_HOST_BIN:-$HERE/deliver-host}" "$@"
   else
     local cmd; cmd="$(printf '%q ' deliver-host "$@")"
@@ -244,7 +248,7 @@ host_files_conflict() {
     die "environments ${names[*]} share a machine and all install host files, so each would remove the other's: set host_files = false on all but one"
   fi
 }
-env_machine() { local h; h="$(env_q "$1" host)"; [[ "$h" == control-node ]] && printf 'control-node' || printf 'ssh:%s' "$(env_q "$1" ssh)"; }
+env_machine() { local h; h="$(env_q "$1" host)"; is_controller "$h" && printf 'controller' || printf 'ssh:%s' "$(env_q "$1" ssh)"; }
 env_installs_host_files() {
   case "$(env_q "$1" host_files)" in
     true) echo 1 ;; false) echo 0 ;;
@@ -257,9 +261,9 @@ run_on_host() {
   local env="$1"; shift
   local host ssh
   host="$(env_q "$env" host)"; ssh="$(env_q "$env" ssh)"
-  if [[ "$host" == control-node ]]; then run_deliver_host control-node "$@"
+  if is_controller "$host"; then run_deliver_host controller "$@"
   elif [[ -n "$ssh" ]]; then run_deliver_host "$ssh" "$@"
-  else die "environment $env has neither host = \"control-node\" nor ssh"; fi
+  else die "environment $env has neither host = \"controller\" nor ssh"; fi
 }
 
 # copier_run COPIES_JSON [RECORD_TAG RECORD_FILE]: the release copier does the
@@ -267,7 +271,7 @@ run_on_host() {
 # that machine's credential. Sets REG_ERR to its message on failure.
 copier_run() {
   local copies="$1" rtag="${2:-}" rfile="${3:-}" place req out code=0
-  place="$(pq .deliver.release.copy_on)"; place="${place:-control-node}"
+  place="$(pq .deliver.release.copy_on)"; place="${place:-controller}"
   req="$(jq -nc --arg login "$(pq .deliver.release.copy_login)" --arg c "$CANDIDATES" --arg r "$RELEASES" \
     --argjson copies "$copies" --arg rtag "$rtag" --slurpfile body "${rfile:-/dev/null}" \
     '{login:$login,candidates:$c,releases:$r,copies:$copies,record:(if $rtag == "" then null else {tag:$rtag,body:$body[0]} end)}')"
@@ -464,7 +468,7 @@ cmd_build() {
   fi
   use_commit_profile "$sha"
   local place; place="$(pq .deliver.build.on)"
-  if [[ -n "$place" && "$place" != control-node && -z "${DELIVER_ON_BUILD_HOST:-}" ]]; then
+  if [[ -n "$place" ]] && ! is_controller "$place" && [[ -z "${DELIVER_ON_BUILD_HOST:-}" ]]; then
     local fwd=(deliver build "$sha"); [[ $local_only -eq 1 ]] && fwd+=(--local)
     exec ssh "$place" "DELIVER_ON_BUILD_HOST=1 $(printf '%q ' "${fwd[@]}")"
   fi
@@ -586,7 +590,7 @@ cmd_deploy() {
 
   # resolve the REF to digests, checked against the role
   local local_build=0 local_images="{}"
-  if [[ "$role" == preview ]] && [[ "$(env_q "$env" host)" == control-node ]] && ! [[ "$ref" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  if [[ "$role" == preview ]] && is_controller "$(env_q "$env" host)" && ! [[ "$ref" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     local lsha; lsha="$(g rev-parse --verify -q "$ref^{commit}" 2>/dev/null || true)"
     [[ -z "$lsha" ]] || use_commit_profile "$lsha"
     if [[ -n "$lsha" ]] && docker image inspect "deliver-local/$APP-${IMAGES[0]}:$lsha" >/dev/null 2>&1; then
@@ -637,7 +641,7 @@ cmd_deploy() {
       wait:($wait|if .=="" then null else tonumber end),check:($check==1),local:($local==1),record:$record,
       set_aside:$set_aside,host_files:$host_files,env_join:$join}')"
 
-  # the hooks that run on the control node come from the commit, never the tree
+  # the hooks that run on the controller come from the commit, never the tree
   local errfile code=0
   errfile="$(mktemp)"
   run_on_host "$env" deploy "$APP" "$env" <<< "$request" 2>"$errfile" || code=$?
@@ -1270,11 +1274,11 @@ cmd_host_install() {
   if env_exists "$env"; then
     host_files_conflict "$env"
     ssh="$(env_q "$env" ssh)"; login="$(env_q "$env" login)"
-    [[ "$(env_q "$env" host)" == control-node ]] && target=local || target=ssh
+    is_controller "$(env_q "$env" host)" && target=local || target=ssh
   elif [[ -n "$copy_on" && "$env" == "$copy_on" ]]; then
     # the release copier, which may host no environment: the command and its libraries
     copier=1; ssh="$copy_on"; login="$(pq .deliver.release.copy_login)"
-    [[ "$copy_on" == control-node ]] && target=local || target=ssh
+    is_controller "$copy_on" && target=local || target=ssh
   else
     die "the profile has no environment $env and $env is not the release copier (copy_on)"
   fi

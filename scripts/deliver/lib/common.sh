@@ -65,7 +65,7 @@ run_log_event() {   # EVENT [key=value...]
 
 gates_expect() { GATES_EXPECTED=("$@"); }
 
-# On a host the control node reads the gate lines from stderr (GATE_EMIT=1).
+# On a host the controller reads the gate lines from stderr (GATE_EMIT=1).
 gate_emit() { [[ "${GATE_EMIT:-0}" != 1 ]] || printf '@gate %s %s\n' "$1" "$2" >&2; }
 
 gate_ok() {        # NAME [detail]

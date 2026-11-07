@@ -42,7 +42,7 @@ setup() {
 @test "only_the_release_copier_can_write_releases (S40, R33, R4)" {
   ref_commit "a feature" 12
   release_ready "12|Requirement||0|"
-  # the build environment's credential writes candidates only
+  # the builder's credential writes candidates only
   STUB_WRITE_ONLY='/candidates$' run d release --expect 0.10.2
   assert_failure 1
   assert_output --partial "the copy to releases failed"
@@ -59,7 +59,7 @@ setup() {
 }
 
 @test "no_secret_reaches_a_log_record_tag_or_screen (S44, R34)" {
-  # the credential goes through the real path: oci-api-key on the control node, the
+  # the credential goes through the real path: oci-api-key on the controller, the
   # copier and both hosts, the token command reading it from a file
   local canary="hunter2-canary" h
   printf '%s' "$canary" > "$W/token"; printf 'key' > "$W/key"
