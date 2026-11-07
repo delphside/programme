@@ -18,7 +18,7 @@ The owner's decisions (2026-10-27 and 28) are listed in #117's body.
 | configuration | Caddyfile baked into the web image; compose file copied from the commit; secrets in each host's `.env`; preview uses its own compose file and `Caddyfile.preview` from the working tree | designed in dark-portal#11 |
 | rollback | retags `:previous` and restores a snapshot; the earlier compose file is not restored | designed in dark-portal#11 |
 
-## 2. Roles
+## 2. Components
 
 This project introduces a new generic tool, called *deliver*. It is started
 by a command, `deliver`, run by a person or a timer. It invokes another
@@ -38,46 +38,47 @@ for. The gates key on it, never on the environment's name:
 | `rehearsal` | candidates | the release step reads what it runs; a rehearsal starts from production's level |
 | `production` | releases only | a record is needed; settle follows |
 
-**Tool roles.** A tool role is a job a machine does for the tool. The tool
-names tool roles, never machines or applications. For each application, its
-profile (`app-profile.toml`, §5) maps each tool role to a specific machine,
+**Components.** A component is a job a machine does for the tool. The tool
+names components, never machines or applications. For each application, its
+profile (`app-profile.toml`, §5) maps each component to a specific machine,
 and one machine may play several. A host's `.env` holds only what differs per
-environment: addresses, keys, limits. *Control node* is Ansible's name for the
-machine a run is started from.
+environment: addresses, keys, limits. The **controller** is the machine a run is
+started from; Ansible calls it the control node.
 
-| tool role | runs | holds | does |
+| component | runs | holds | does |
 | --- | --- | --- | --- |
-| **build environment** | `deliver build` | the repository, the candidates write credential | makes one image set per commit from a clean checkout, pushes it to candidates |
+| **controller** | `deliver release`, `deploy`, `settle`, `rollback`, `status`, `list`, `prune`, `host-install` | git with push rights to `main`, a GitHub credential | runs the release step's gates, tag and bump; starts deploys; settles the board from the record |
+| **builder** | `deliver build` | the repository, the candidates write credential | makes one image set per commit from a clean checkout, pushes it to candidates |
 | **release copier** | `deliver-host copy`, started by `deliver release` | the release credential: the registry login of the Oracle user allowed to read candidates and write releases | copies a rehearsed image set by digest from candidates to releases, and pushes the record |
-| **control node** | `deliver release`, `deploy`, `settle`, `rollback`, `status`, `list`, `prune`, `host-install` | git with push rights to `main`, a GitHub credential | runs the release step's gates, tag and bump; starts deploys; settles the board from the record |
-| **environment host** | `deliver-host deploy` and `rollback`, started by `deliver`; `deliver env create` and `destroy` | its own registry identity, its `.env`, its state folder | pulls by digest, takes the payload out of the image, runs the deploy steps, holding the environment's lock throughout |
+| **deployer** | `deliver-host deploy` and `rollback`, started by `deliver`; `deliver env create` and `destroy` | its own registry identity, its `.env`, its state folder | pulls by digest, takes the payload out of the image, runs the deploy steps, holding the environment's lock throughout |
 
-The **payload** is not a tool role but what the hosts run: the deploy steps, the
+The **payload** is not a component but what the hosts run: the deploy steps, the
 application's hooks, the files joined at deploy and the host files, copied at
 build into one named image at `/deliver/`. It holds nothing secret.
 
-| tool role | Tile Lite Elite | Dark Portal |
+| component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- |
-| build environment | the owner's laptop (WSL): production's 1 GB host cannot compile | the non-production VM's build environment (E2), on a timer |
-| release copier | the control node, logged in as Oracle user `tle-releaser` with an auth token (`docker-config`) | the non-production VM, as its Linux user `dp-release`, holding the API key of Oracle user `dp-releaser` (`oci-api-key`), which never leaves it |
-| control node | the owner's laptop (WSL) | the owner's machine |
-| environments | `preview` (role preview, on the control node itself), `rehearsal` VM, `production` VM | E3 to E5 (role test), E6 (role rehearsal) on the non-production VM; production VM |
+| controller | the owner's laptop (WSL) | the owner's machine |
+| builder | the owner's laptop (WSL): production's 1 GB host cannot compile | the non-production VM's builder (E2), on a timer |
+| release copier | the controller, logged in as Oracle user `tle-releaser` with an auth token (`docker-config`) | the non-production VM, as its Linux user `dp-release`, holding the API key of Oracle user `dp-releaser` (`oci-api-key`), which never leaves it |
+| deployer | the host of each environment: the controller for `preview`, the `rehearsal` VM, the `production` VM | the non-production VM for E3 to E6; the production VM |
+| environments | `preview` (role preview, on the controller itself), `rehearsal` VM, `production` VM | E3 to E5 (role test), E6 (role rehearsal) on the non-production VM; production VM |
 
 | who | registry access |
 | --- | --- |
-| build environment | writes candidates |
+| builder | writes candidates |
 | release copier | reads candidates, writes releases |
 | hosts of preview, test and rehearsal roles | read candidates |
 | production host | reads releases only |
 
 ```mermaid
 flowchart TB
-  BE["build environment<br>deliver build"]
-  CN["control node<br>deliver release, deploy, settle"]
+  CN["controller<br>deliver release, deploy, settle"]
+  BE["builder<br>deliver build"]
   RC["release copier<br>skopeo copy --all --preserve-digests"]
   C[("APP/candidates<br>SHA-IMAGE, immutable")]
   R[("APP/releases<br>by digest, VERSION-record, immutable")]
-  B["environment host<br>deliver-host, payload from the image"]
+  B["deployer<br>deliver-host, payload from the image"]
   BE -->|push| C
   CN -->|"release"| RC
   C --> RC
@@ -106,8 +107,8 @@ adapter; nothing else changes.
 
 ```mermaid
 sequenceDiagram
-  participant BE as build environment
-  participant CN as control node
+  participant CN as controller
+  participant BE as builder
   participant C as candidates
   participant H as rehearsal host
   participant RC as release copier
@@ -129,18 +130,18 @@ sequenceDiagram
 
 ## 4. Commands
 
-| command | role | what |
+| command | component | what |
 | --- | --- | --- |
-| `deliver build [REF]` | build environment | non-interactive. Refuses REF unless it is a commit on the remote. Builds from a clean worktree with the `build` hook (default `docker buildx bake`), labels each image `org.opencontainers.image.revision` (SHA) and `.version` (from the version file), pushes each as `SHA-IMAGE`, prints the digests (an index digest for a multi-arch build). Images already present are not rebuilt; a registry query error refuses. `--local` (preview role only) builds an unpushed commit into the local Docker and pushes nothing, as today's preview allows; such a build can reach no other environment, and a preview deploy of it is identified by local image id and revision label instead of `RepoDigests` |
-| `deliver deploy ENV REF` | control node | role preview, test or rehearsal: REF is a full or short SHA, or a version, resolved to digests in candidates. A short SHA that matches more than one candidate refuses. Role production: REF is a version with a record. Runs `deliver-host deploy` on ENV's host over ssh (or locally where the host is the control node), then `settle` for production |
-| `deliver release [--expect VERSION]` | control node; copy on the release copier | releases the commit the rehearsal environment runs (§6): reads its version from the version file at that commit, shows version, commit, digests and the last passing rehearsal deploy, and asks the owner to confirm by typing the version (`--expect` for a non-interactive run). Then record, copy, tag, GitHub Release, bump, milestone, in the order of §7 |
-| `deliver settle VERSION` | control node | §8; safe to rerun |
-| `deliver rollback ENV` | control node | `deliver-host rollback`: the environment's previous deploy (§9) |
-| `deliver status ENV` | control node | the digests ENV runs, matched by `RepoDigests`, the record they match, the deploy state, and whether the host files equal the payload's (a check) |
-| `deliver list ENV` | control node or host | records beside what ENV runs |
-| `deliver prune` | control node | removes candidates built before the newest release was made (by the image's `created` label), not released and not run by any environment's current or previous deploy; releases are never removed. Hosts keep their current and previous images |
+| `deliver build [REF]` | builder | non-interactive. Refuses REF unless it is a commit on the remote. Builds from a clean worktree with the `build` hook (default `docker buildx bake`), labels each image `org.opencontainers.image.revision` (SHA) and `.version` (from the version file), pushes each as `SHA-IMAGE`, prints the digests (an index digest for a multi-arch build). Images already present are not rebuilt; a registry query error refuses. `--local` (preview role only) builds an unpushed commit into the local Docker and pushes nothing, as today's preview allows; such a build can reach no other environment, and a preview deploy of it is identified by local image id and revision label instead of `RepoDigests` |
+| `deliver deploy ENV REF` | controller | role preview, test or rehearsal: REF is a full or short SHA, or a version, resolved to digests in candidates. A short SHA that matches more than one candidate refuses. Role production: REF is a version with a record. Runs `deliver-host deploy` on ENV's host over ssh (or locally where the host is the controller), then `settle` for production |
+| `deliver release [--expect VERSION]` | controller; copy on the release copier | releases the commit the rehearsal environment runs (§6): reads its version from the version file at that commit, shows version, commit, digests and the last passing rehearsal deploy, and asks the owner to confirm by typing the version (`--expect` for a non-interactive run). Then record, copy, tag, GitHub Release, bump, milestone, in the order of §7 |
+| `deliver settle VERSION` | controller | §8; safe to rerun |
+| `deliver rollback ENV` | controller | `deliver-host rollback`: the environment's previous deploy (§9) |
+| `deliver status ENV` | controller | the digests ENV runs, matched by `RepoDigests`, the record they match, the deploy state, and whether the host files equal the payload's (a check) |
+| `deliver list ENV` | controller or host | records beside what ENV runs |
+| `deliver prune` | controller | removes candidates built before the newest release was made (by the image's `created` label), not released and not run by any environment's current or previous deploy; releases are never removed. Hosts keep their current and previous images |
 | `deliver env create\|destroy NAME` | the environment's host | an ephemeral environment from the profile's template: user, state folder, `.env` (secrets at a hidden prompt), Compose project, `env-create` and `env-destroy` hooks |
-| `deliver host-install ENV` | control node | installs or updates `deliver-host` and its dependencies (`jq`, the login adapter's tools) on ENV's host |
+| `deliver host-install ENV` | controller | installs or updates `deliver-host` and its dependencies (`jq`, the login adapter's tools) on ENV's host |
 
 **Flags that set a gate aside** each take a reason, which goes into the record
 where there is one and always into the run log:
@@ -170,7 +171,7 @@ milestone) failed and is named.
 **Profile.** The application's `app-profile.toml` keeps its existing sections
 and gains keys in them; nothing is said twice. The registry address carries
 the tenancy's namespace and the application repositories on GitHub are public,
-so the address is never in the profile: each role reads `DELIVER_REGISTRY`
+so the address is never in the profile: each component reads `DELIVER_REGISTRY`
 from its own local configuration (`~/.config/deliver/APP.env`, or a host's
 `.env`). The registry repositories themselves are private.
 
@@ -192,11 +193,11 @@ payload_image = "server"
 join = ["docker-compose.yml", "Caddyfile"]
 
 [deliver.build]
-on    = "control-node"                     # dp: ssh alias of the non-production VM
+on    = "controller"                     # dp: ssh alias of the non-production VM
 login = "docker-config"                    # dp: "oci-instance-principal"
 
 [deliver.release]
-copy_on    = "control-node"                # dp: the non-production VM, user dp-release
+copy_on    = "controller"                # dp: the non-production VM, user dp-release
 copy_login = "docker-config"               # dp: "oci-api-key"
 
 [[deliver.host_files]]
@@ -212,7 +213,7 @@ enable = true
 
 [environments.preview]                     # existing keys stay
 role  = "preview"
-host  = "control-node"
+host  = "controller"
 join  = ["docker-compose.preview.yml", "Caddyfile.preview"]
 
 [environments.rehearsal]
@@ -245,17 +246,17 @@ Each hook gets `DELIVER_APP`, `DELIVER_ENV`, `DELIVER_ROLE`, `DELIVER_SHA`,
 (each image by digest). A hook that cannot judge refuses: it never passes for
 want of an answer.
 
-| hook | kind | role | Tile Lite Elite | Dark Portal |
+| hook | kind | component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- | --- | --- |
-| `build` | step | build environment | `docker compose build` with the build id | `docker buildx`, arm64 and amd64 |
-| `release-check` | gate | control node | refuses a patch carrying a `functional` change | none |
-| `pre-deploy` | gate | environment host | the database is not ahead of the build's schema | the window :40 to :10 (75 outside it) |
-| `save-state` | step | environment host | stop the server, snapshot the database, keep five | copy the DuckLake catalog aside |
-| `migrate` | step | environment host | `server --migrate-only` | catalog migrations |
-| `smoke` | gate | environment host | `/health` reports `VERSION+SHA` within 60 s | the release's own checks |
-| `restore-state` | step | environment host | restore the snapshot | restore the catalog copy; bronze is append-only and untouched |
-| `post-deploy` | check | control node | list open `Release Check` issues | the next collection, about :36, lands |
-| `env-create`, `env-destroy` | step | environment host | the preview slot's volume | the user and `/srv/dp/NAME` |
+| `build` | step | builder | `docker compose build` with the build id | `docker buildx`, arm64 and amd64 |
+| `release-check` | gate | controller | refuses a patch carrying a `functional` change | none |
+| `pre-deploy` | gate | deployer | the database is not ahead of the build's schema | the window :40 to :10 (75 outside it) |
+| `save-state` | step | deployer | stop the server, snapshot the database, keep five | copy the DuckLake catalog aside |
+| `migrate` | step | deployer | `server --migrate-only` | catalog migrations |
+| `smoke` | gate | deployer | `/health` reports `VERSION+SHA` within 60 s | the release's own checks |
+| `restore-state` | step | deployer | restore the snapshot | restore the catalog copy; bronze is append-only and untouched |
+| `post-deploy` | check | controller | list open `Release Check` issues | the next collection, about :36, lands |
+| `env-create`, `env-destroy` | step | deployer | the preview slot's volume | the user and `/srv/dp/NAME` |
 
 A check's non-zero exit is reported, changes nothing else, and leaves the exit code as it was.
 
@@ -295,10 +296,10 @@ rerun resumes rather than repeats:
 3. push the record as a scratch image `VERSION-record`;
 4. push the annotated tag `vVERSION`, whose message is the record. **The version is spent here**: from now on a rerun finds the tag, checks its record matches, and resumes at step 5;
 5. the GitHub Release, with notes from the previous release tag of any prefix;
-6. bump the version on `main` to the next patch above the released one and above `main`'s own, with the version-only change `[versions.bump]` allows and a subject built from `versions.stamp_form` and `versions.api`, and push; the control node's credential bypasses `main`'s ruleset, as the release has always needed. An emergency's release leaves `main` at a version above it, so `main` moves on: if `main` already held the emergency's number, it moves to the next patch, and the open issues of that milestone move with it;
+6. bump the version on `main` to the next patch above the released one and above `main`'s own, with the version-only change `[versions.bump]` allows and a subject built from `versions.stamp_form` and `versions.api`, and push; the controller's credential bypasses `main`'s ruleset, as the release has always needed. An emergency's release leaves `main` at a version above it, so `main` moves on: if `main` already held the emergency's number, it moves to the next patch, and the open issues of that milestone move with it;
 7. open the next milestone.
 
-The record is made once, at step 1, and kept in the control node's state for
+The record is made once, at step 1, and kept in the controller's state for
 the release. A failure before step 4 leaves nothing spent: a rerun reads the
 images and any `VERSION-record` already in releases and reuses them when their
 commit and digests match the record, and refuses when they do not. A failure after it is reported (exit 3) and
@@ -411,7 +412,7 @@ with a fixed project name (the volumes persist across deploys),
 `${DELIVER_IMAGE_SERVER:-tile-lite-elite-server}` and so on, the default
 keeping a developer's and CI's local builds working, with `pull_policy: never`: the images are
 pulled by digest before the switch, so compose never pulls by tag or builds.
-The build environment uses the same compose file with its `build:` blocks.
+The builder uses the same compose file with its `build:` blocks.
 
 A deploy's steps: take the lock; check the state (a deploy that did not reach
 `finished` and was not restored refuses, naming the step reached; `failed, no
@@ -423,7 +424,7 @@ never overwrite each other's. An application whose test environments need a
 schedule keeps it inside its Compose project, not as a host unit (copy with their modes, `systemctl daemon-reload`, enable and restart the
 units marked `enable`, as root through one `sudo` rule `deliver-host
 host-install` writes; a non-production host may run any branch's build, which
-is safe only because no build environment builds a fork); switch `current`; `compose up`; `smoke`; mark finished;
+is safe only because no builder builds a fork); switch `current`; `compose up`; `smoke`; mark finished;
 prune host images other than current and previous. Only registry images are considered, so a local image such as Tile Lite Elite's `deploy.sh` fallback images (`tile-lite-elite-server` and `-web` at `:latest` and `:previous`, kept until 0.10.3) is never touched and needs no profile key. A host file the previous deploy installed and this one does not carry is removed; a rollback restores the previous deploy's set the same way. A failure after
 `save-state` runs `restore-state`, switches back to `previous`, reinstalls its
 host files, and exits 1. On a host's first `deliver` deploy there is no
@@ -480,7 +481,7 @@ release made with `deliver` (owner, 2026-10-28), and the first with a record.
   the application's, such as Tile Lite Elite's 60-second smoke test.
 - **Secrets and access**: the tool reads credentials and holds none. Hosts log
   in with their own identity (owner, 2026-10-28); the release copier uses its
-  own credential; a role's credential cannot do another role's writes; nothing
+  own credential; a component's credential cannot do another component's writes; nothing
   secret is written to a profile, record, tag or log.
   Reading production's host state, or its `/health`, for rehearsal's level
   and the emergency gate is a scripted check, bounded and read-only, which each
@@ -493,7 +494,7 @@ daemon) and `jq` for the record. In the programme repository:
 
 | path | what |
 | --- | --- |
-| `scripts/deliver/deliver` | the control-node and build commands |
+| `scripts/deliver/deliver` | the controller and builder commands |
 | `scripts/deliver/deliver-host` | the host command, installed by `deliver host-install` |
 | `scripts/deliver/payload/` | the deploy and rollback steps copied into the payload image |
 | `scripts/deliver/lib/` | profile reading, run log, gate list, login adapters |
@@ -517,6 +518,12 @@ creation date (`creatordate`).
 
 ### Commands and payload
 
+- The components were named tool roles with a control node and a build
+  environment until 2026-11-07. The profile has no key with those names, but
+  its values `on` and `copy_on` and an environment's `host` took
+  `"control-node"`: the tool now writes `"controller"` and still accepts
+  `"control-node"`. The hooks' `H_ROLE` value `control-node` is a hook interface
+  and is kept.
 - `deliver release --commit REF` names the commit to release. It is needed
   when rehearsal has not deployed (`--skip-rehearsal`). Without it the commit
   is the one the rehearsal environment runs.
@@ -532,7 +539,7 @@ creation date (`creatordate`).
   `DELIVER_VERSION` set, for a lockfile refresh the version file's pattern
   cannot do.
 - The release copier runs `deliver-host copy APP` on the machine
-  `[deliver.release].copy_on` names (the control node or an `ssh` alias), with
+  `[deliver.release].copy_on` names (the controller or an `ssh` alias), with
   `copy_login`. It makes the copies and pushes the record image; the control
   node only reads.
 - `deliver host-install` takes an environment or the release copier. A copier
@@ -556,7 +563,7 @@ creation date (`creatordate`).
   `~/.config/deliver/APP.env` on its own machine.
 - The gates read the commit's profile (required checks and hooks, what may be
   set aside, images, payload image), as the hooks are read. Which machine an
-  environment is, and its role, stay the control node's working-tree profile.
+  environment is, and its role, stay the controller's working-tree profile.
 - There is no `keep_images` key. Pruning on a host considers only images under
   the registry address, so local fallback images (Tile Lite Elite's
   `deploy.sh` images, kept until 0.10.3) are never touched.
