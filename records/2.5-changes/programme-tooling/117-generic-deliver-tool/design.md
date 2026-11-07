@@ -67,12 +67,12 @@ are C4's: `deliver` and `deliver-host` are *containers*, environments
 ```mermaid
 flowchart TB
   subgraph DELIVER["deliver"]
-    CTL["controller<br>release, deploy, settle, rollback,<br>status, list, prune, host-install"]
-    BLD["builder<br>build"]
+    CTL["<i>controller</i><br>release, deploy, settle, rollback,<br>status, list, prune, host-install"]
+    BLD["<i>builder</i><br>build"]
   end
   subgraph HOST["deliver-host"]
-    COPY["release copier<br>copy"]
-    DEP["deployer<br>deploy, rollback, env"]
+    COPY["<i>release copier</i><br>copy"]
+    DEP["<i>deployer</i><br>deploy, rollback, env"]
   end
   subgraph OCIR["OCI Registry"]
     CAND[("APP/candidates")]
@@ -96,21 +96,21 @@ flowchart TB
 flowchart LR
   OWN(["owner"])
   TIMER(["timer<br>Dark Portal"])
-  BUILD["deliver build<br><i>builder</i>"]
-  REL["deliver release<br><i>controller</i>"]
-  DEP["deliver deploy<br><i>controller</i>"]
-  SET["deliver settle<br><i>controller</i>"]
-  RB["deliver rollback<br><i>controller</i>"]
-  READ["deliver status, list, prune<br><i>controller</i>"]
-  HI["deliver host-install<br><i>controller</i>"]
-  ENV["deliver env create, destroy<br><i>on the environment's host</i>"]
-  COPY["deliver-host copy<br><i>release copier</i>"]
-  HST["deliver-host status<br><i>deployer</i>"]
-  HDEP["deliver-host deploy<br><i>deployer</i>"]
-  HRB["deliver-host rollback<br><i>deployer</i>"]
-  AL["deliver-host allowlist<br><i>deployer</i>"]
-  HENV["deliver-host env<br><i>deployer</i>"]
-  ROOT["deliver-host root-ops<br>by sudo"]
+  BUILD["<i>builder</i><br>deliver build"]
+  REL["<i>controller</i><br>deliver release"]
+  DEP["<i>controller</i><br>deliver deploy"]
+  SET["<i>controller</i><br>deliver settle"]
+  RB["<i>controller</i><br>deliver rollback"]
+  READ["<i>controller</i><br>deliver status, list, prune"]
+  HI["<i>controller</i><br>deliver host-install"]
+  ENV["<i>deployer</i><br>deliver env create, destroy"]
+  COPY["<i>release copier</i><br>deliver-host copy"]
+  HST["<i>deployer</i><br>deliver-host status"]
+  HDEP["<i>deployer</i><br>deliver-host deploy"]
+  HRB["<i>deployer</i><br>deliver-host rollback"]
+  AL["<i>deployer</i><br>deliver-host allowlist"]
+  HENV["<i>deployer</i><br>deliver-host env"]
+  ROOT["<i>deployer</i><br>deliver-host root-ops, by sudo"]
   TIMER --> BUILD
   OWN --> BUILD
   OWN --> REL
@@ -141,22 +141,22 @@ flowchart LR
 flowchart TB
   subgraph LAPTOP["Owner's laptop (WSL)"]
     subgraph TOOLS["tool environments"]
-      CTL["controller"]
-      BLD["builder"]
-      COPY["release copier<br>Oracle user tle-releaser"]
+      CTL["<i>controller</i>"]
+      BLD["<i>builder</i>"]
+      COPY["<i>release copier</i><br>Oracle user tle-releaser"]
     end
     subgraph PREV["preview (role preview)"]
-      DEPP["deployer"]
+      DEPP["<i>deployer</i>"]
     end
   end
   subgraph REHVM["Oracle VM: rehearsal"]
     subgraph REH["rehearsal (role rehearsal)"]
-      DEPR["deployer"]
+      DEPR["<i>deployer</i>"]
     end
   end
   subgraph PRODVM["Oracle VM: production"]
     subgraph PROD["production (role production)"]
-      DEPX["deployer"]
+      DEPX["<i>deployer</i>"]
     end
   end
   subgraph OCIR["OCI Registry"]
@@ -178,23 +178,23 @@ flowchart TB
 ```mermaid
 flowchart TB
   subgraph OWNER["Owner's machine"]
-    CTL["controller"]
+    CTL["<i>controller</i>"]
   end
   subgraph NONPROD["Oracle VM: non-production"]
     subgraph TOOLS["tool environments"]
-      BLD["builder (E2), on a timer"]
-      COPY["release copier<br>Linux user dp-release"]
+      BLD["<i>builder</i><br>E2, on a timer"]
+      COPY["<i>release copier</i><br>Linux user dp-release"]
     end
     subgraph TEST["E3 to E5 (role test)"]
-      DEPT["deployer"]
+      DEPT["<i>deployer</i>"]
     end
     subgraph REH["E6 (role rehearsal)"]
-      DEPR["deployer"]
+      DEPR["<i>deployer</i>"]
     end
   end
   subgraph PRODVM["Oracle VM: production"]
     subgraph PROD["production (role production)"]
-      DEPX["deployer"]
+      DEPX["<i>deployer</i>"]
     end
   end
   subgraph OCIR["OCI Registry"]
