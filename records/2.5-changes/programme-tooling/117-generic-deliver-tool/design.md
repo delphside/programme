@@ -560,6 +560,7 @@ which exits 3 ([§8](#8-settling)).
 | release | what rehearsal passed | rehearsal runs this commit's digests, last deploy finished, `smoke` passed, owner confirms the version | gate | `--skip-rehearsal` |
 | release | ships `main` | commit on `origin/main` | gate | `--emergency` |
 | release | emergency ships nothing unreleased | with `--emergency`, commit descends from the tag of the release production runs ([Which release production runs](#which-release-production-runs)), none of its later commits on `main` | gate | — |
+| release | tests passed | every work package in milestone VERSION has its *Functional user tests* and *Technical tests* headings, every box under them ticked (`release.outstanding`); a package with neither heading refuses too | gate; a check with `--emergency` | `--emergency` |
 | release | CI passed | every `required_checks` check green on the commit | gate | — |
 | release | version spent once | no tag for it; a `VERSION-record` in releases is reused if it has this commit and digests; above the newest release tag of any prefix | gate | — |
 | release | shipping list | open issues in milestone VERSION evidenced by commits in the release; Production Release work packages the commits name in it or an undeployed release's ([The milestone gate](#the-milestone-gate)) | gate | `--set-aside milestone REASON` |
@@ -617,7 +618,7 @@ flowchart LR
 
 | Command | Replaces in `deliver` | Answers |
 | --- | --- | --- |
-| `board-release.py gate < request` | the milestone gate, `refs_in`, `refs_effective`, the work-package classification | passed or refused, with each finding; what the release carries (`work_packages`, `issues`, and `releases` with `dropped`), which goes into the record; with `--emergency`, the items left out |
+| `board-release.py gate < request` | the milestone gate, `refs_in`, `refs_effective`, the work-package classification; adds the tests-passed gate | passed or refused, with each finding; what the release carries (`work_packages`, `issues`, and `releases` with `dropped`), which goes into the record; with `--emergency`, the items left out |
 | `board-release.py settle < record` | `settle_version` | does [§8](#8-settling)'s table, skipping what is done; prints what is left; exit 3 if anything is |
 | `board-release.py next VERSION [--move N...]` | step 7 of [§7](#7-the-release-and-its-record) | opens the next milestone and moves the left-out items into it |
 
