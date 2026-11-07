@@ -47,7 +47,7 @@ environment: addresses, keys, limits.
 | --- | --- | --- | --- | --- |
 | *controller* | Decides what ships; only it changes `main`, tags, the board | all `deliver` commands but `build`, `env` | push rights to `main`; GitHub credential | gates, tag, bump, deploys, settle |
 | *builder* | Builds each commit once | `build` | repository; candidates write credential | image set to candidates |
-| *release copier* | Only writes releases | `deliver-host copy`, from `release` | login that reads candidates, writes releases | copy by digest; record |
+| *release copier* | Only writes releases | `deliver-host copy`, from `release` and `deploy --unrecorded` | login that reads candidates, writes releases | copy by digest; record |
 | *deployer* | Changes an environment by one locked, restorable path | `deliver-host deploy`, `rollback`, `status`, `allowlist`, `env`; `deliver env create`, `destroy` | registry identity, `.env`, [state folder](#9-on-the-host) | lock, pull by digest, deploy steps |
 
 | Component | Tile Lite Elite | Dark Portal |
@@ -121,6 +121,7 @@ flowchart LR
   OWN --> HI
   OWN --> ENV
   REL -->|"copy request"| COPY
+  DEP -->|"--unrecorded copy"| COPY
   REL -->|"rehearsal's state"| HST
   DEP -->|"what runs now"| HST
   DEP -->|"deploy request"| HDEP
@@ -462,12 +463,13 @@ the release step, `ephemeral` for create and destroy), `DELIVER_SHA`,
 
 The optional `bump` step (neither application has one) runs in the worktree that
 bumps `main`, with `DELIVER_VERSION`, for a lockfile refresh the version pattern
-cannot do. The `post-deploy` check's non-zero exit is reported and changes
-nothing, the exit code included.
+cannot do.
 
 ## 6. Gates and checks
 
-A gate refuses and work stops; a check reports and a person decides.
+A gate refuses and work stops; a check reports and a person decides. A check's
+failure leaves the exit code alone, except settle's after a production deploy,
+which exits 3 ([§8](#8-settling)).
 
 | Where | For | Criterion | Kind | Set aside by |
 | --- | --- | --- | --- | --- |
@@ -755,9 +757,10 @@ hook prints image references, which carry the address).
 | pull on a host | `docker pull` by digest | every deploy ([§9](#9-on-the-host)) |
 | push from the builder | the `build` hook | `SHA-IMAGE` to candidates |
 
-**Identities.** Each component has its own login, least access, except where it
-shares an environment, and the controller's own (open, #117). Tile Lite Elite's preview deployer, on the
-laptop, pulls candidates under the same open question.
+**Identities.** Each component has its own login, with least access. Two cases
+are open (#117): components sharing an environment, such as Tile Lite Elite's
+builder, release copier and preview deployer on the laptop, and the
+controller's own login.
 
 | Component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- |
