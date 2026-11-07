@@ -36,16 +36,14 @@ particular environment roles:
 | `rehearsal` | candidates | the release step reads what it runs; a rehearsal starts from production's level |
 | `production` | releases only | a record is needed; settle follows |
 
-*Tool environments* run a component of the tool: the controller, the
+*Tool environments* run a *component* of the tool: the controller, the
 builder or the release copier. *Components* below says what each does and
 where it is for each application.
 
 A *host* is a machine that runs one or more environments.
 
-**Components.** A *component* is a job a machine does for the tool. The tool
-names components, never machines or applications. For each application, its
-profile (`app-profile.toml`, §5) maps each component to a specific machine,
-and one machine may play several. A host's `.env` holds only what differs per
+**Components.** For each application, its profile (`app-profile.toml`, §5)
+maps each component to a specific machine, and one machine may play several. A host's `.env` holds only what differs per
 environment: addresses, keys, limits. The *controller* is the machine a run is
 started from; Ansible calls it the control node.
 
