@@ -66,13 +66,13 @@ What each component may do and what for. The registry's side of each login is
 [§10](#10-oci-integration)'s policy, GitHub's is [§11](#11-github-integration)'s
 credential; those sections keep the calls' detail, not the privileges.
 
-| Component | Privilege | Needed for | External API calls |
-| --- | --- | --- | --- |
-| *controller* | Registry: its own `skopeo` login, read candidates and releases. GitHub: the owner's `gh` login, with the scopes [§11](#11-github-integration) lists. Git: push to `main` and tags, by admin bypass. `ssh` to every environment's host, the release copier and the builder. No sudo | candidate and release digests, listing tags for `prune`; the release gates, tag, Release, bump, milestone and settle; running `deliver-host` on each machine | registry v2 reads through `skopeo inspect`, `list-tags`; GitHub REST and GraphQL ([§11](#11-github-integration)); `curl` of production's `/health` over HTTPS where the host has no `deliver` state |
-| *builder* | Registry: its own `skopeo` login (reads, deletes) and the machine user's `docker` login (pushes), write and delete candidates, read nothing of releases. Git: read the repository. `ssh` to nothing | pushing `SHA-IMAGE`; deleting the candidates `prune` chose; checking what is already stored | registry v2 `skopeo inspect`, `list-tags`, `delete`; `docker buildx bake --push`; the OCI CLI token call for `oci-*` logins; `git fetch` |
-| *release copier* | Registry: its own `skopeo` login, read candidates, write releases. No GitHub, no git push, no `ssh` | the release copy and the record; `deploy --unrecorded` | registry v2 `skopeo inspect`, `copy --all --preserve-digests` (candidates to releases), `copy` of the record from an OCI layout; the OCI CLI token call for `oci-*` logins |
-| *deployer* | Registry: the machine user's own `docker` login (instance principal, or the builder's on the laptop for preview), read candidates (preview, test, rehearsal) or releases (production). The deploy user runs the payload's steps and Docker; root only through root-ops. No GitHub, no `ssh` out | pulling by digest, running the payload's steps, state | registry v2 `docker pull` by digest; the OCI CLI token call for `oci-instance-principal` |
-| *root-ops* | The deployer's one `sudo` rule, for `deliver-host root-ops`: install a listed host file, remove one it installed, `systemctl` of one listed unit, create or remove an ephemeral user ([§9](#9-on-the-host)). Nothing it does touches a registry | host files, units, ephemeral users | none |
+| Component | Privilege | Needed for |
+| --- | --- | --- |
+| *controller* | Registry: its own `skopeo` login, read candidates and releases. GitHub: the owner's `gh` login, with the scopes [§11](#11-github-integration) lists. Git: push to `main` and tags, by admin bypass. `ssh` to every environment's host, the release copier and the builder. No sudo | candidate and release digests, listing tags for `prune`; the release gates, tag, Release, bump, milestone and settle; running `deliver-host` on each machine |
+| *builder* | Registry: its own `skopeo` login (reads, deletes) and the machine user's `docker` login (pushes), write and delete candidates, read nothing of releases. Git: read the repository. `ssh` to nothing | pushing `SHA-IMAGE`; deleting the candidates `prune` chose; checking what is already stored |
+| *release copier* | Registry: its own `skopeo` login, read candidates, write releases. No GitHub, no git push, no `ssh` | the release copy and the record; `deploy --unrecorded` |
+| *deployer* | Registry: the machine user's own `docker` login (instance principal, or the builder's on the laptop for preview), read candidates (preview, test, rehearsal) or releases (production). The deploy user runs the payload's steps and Docker; root only through root-ops. No GitHub, no `ssh` out | pulling by digest, running the payload's steps, state |
+| *root-ops* | The deployer's one `sudo` rule, for `deliver-host root-ops`: install a listed host file, remove one it installed, `systemctl` of one listed unit, create or remove an ephemeral user ([§9](#9-on-the-host)). Nothing it does touches a registry | host files, units, ephemeral users |
 
 Terms and
 [views](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md#which-view-a-diagram-takes-and-saying-so)
@@ -166,92 +166,106 @@ flowchart LR
   HENV -->|"user, folders"| ROOT
 ```
 
-**Deployment view, Tile Lite Elite**: which environments each host runs.
+**Deployment views** show each host's environments, the technology inside each
+component, and on each arrow what it carries, `[protocol]` and the credential
+used. The registry is Oracle's Container Registry; every registry arrow is the
+Docker Registry HTTP API v2 over HTTPS ([§10](#10-oci-integration)), and a
+`deliver-host` arrow sends its request as JSON on standard input
+([§4](#4-commands)).
+
+**Deployment view, Tile Lite Elite.**
 
 ```mermaid
 flowchart TB
-  subgraph LAPTOP["Owner's laptop (WSL)"]
+  GH["<i>GitHub</i><br>[Software System]<br>delphside/tile-lite-elite: repository,<br>issues, Releases; the board"]
+  subgraph LAPTOP["Owner's laptop: WSL"]
     subgraph TOOLS["tool environments"]
-      CTL["<i>controller</i><br>[Component]<br>Oracle user tle-controller"]
-      BLD["<i>builder</i><br>[Component]<br>Oracle user tle-builder"]
-      COPY["<i>release copier</i><br>[Component]<br>Oracle user tle-releaser"]
+      CTL["<i>controller</i><br>[Component: bash, jq, skopeo,<br>gh, git, ssh, curl]<br>controller.json"]
+      BLD["<i>builder</i><br>[Component: git, docker buildx,<br>skopeo]<br>builder.json, docker login"]
+      COPY["<i>release copier</i><br>[Component: skopeo]<br>copier.json"]
     end
     subgraph PREV["preview"]
-      DEPP["<i>deployer</i><br>[Component]"]
-    end
-  end
-  subgraph REHVM["Oracle VM: rehearsal"]
-    subgraph REH["rehearsal"]
-      DEPR["<i>deployer</i><br>[Component]"]
-    end
-  end
-  subgraph PRODVM["Oracle VM: production"]
-    subgraph PROD["production"]
-      DEPX["<i>deployer</i><br>[Component]"]
+      DEPP["<i>deployer</i><br>[Component: docker compose,<br>flock]<br>the builder's docker login"]
     end
   end
   subgraph OCIR["OCI Registry"]
     CAND[("<i>tile-lite-elite/candidates</i><br>[Container: OCI repository]")]
     REL[("<i>tile-lite-elite/releases</i><br>[Container: OCI repository]")]
   end
-  GH["<i>GitHub</i><br>[Software System]<br>delphside/tile-lite-elite: repository, issues, Releases; the board"]
-  GH -->|"fetch the commit"| BLD
-  CTL -->|"tag, bump, Release, settle"| GH
-  BLD -->|push| CAND
-  COPY -->|copy| REL
-  CAND -->|read| CTL
-  REL -->|read| CTL
-  CTL -->|local| DEPP
-  CTL -->|ssh| DEPR
-  CTL -->|ssh| DEPX
-  CAND -->|pull| DEPP
-  CAND -->|pull| DEPR
-  REL -->|pull| DEPX
+  subgraph REHVM["Oracle VM: rehearsal"]
+    DEPR["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal"]
+  end
+  subgraph PRODVM["Oracle VM: production"]
+    DEPX["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal"]
+  end
+  GH -->|"fetch the commit<br>[git, HTTPS]"| BLD
+  CTL -->|"checks, milestones, Release, settle<br>[REST and GraphQL, HTTPS] owner's gh token<br>tag, bump main<br>[git, SSH] owner's key, admin bypass"| GH
+  BLD -->|"push SHA-IMAGE, delete pruned<br>[registry v2]<br>tle-builder token"| CAND
+  CAND -->|"digests, tags<br>[registry v2]<br>tle-controller token"| CTL
+  REL -->|"digests, records<br>[registry v2]<br>tle-controller token"| CTL
+  CTL -->|"delete request<br>[local process]"| BLD
+  CTL -->|"copy request<br>[local process]"| COPY
+  CAND -->|"read by digest<br>[registry v2]<br>tle-releaser token"| COPY
+  COPY -->|"copy, VERSION-record<br>[registry v2]<br>tle-releaser token"| REL
+  CTL -->|"deploy request<br>[local process]"| DEPP
+  CTL -->|"deploy request<br>[ssh]<br>owner's ssh key"| DEPR
+  CTL -->|"deploy request<br>[ssh]<br>owner's ssh key"| DEPX
+  CTL -.->|"/health, a host with no deliver state<br>[HTTPS]"| DEPX
+  CAND -->|"pull by digest<br>[registry v2]<br>tle-builder token"| DEPP
+  CAND -->|"pull by digest<br>[registry v2]<br>dynamic group tle-nonprod"| DEPR
+  REL -->|"pull by digest<br>[registry v2]<br>dynamic group tle-prod"| DEPX
 ```
 
-**Deployment view, Dark Portal**: which environments each host runs.
+**Deployment view, Dark Portal.**
 
 ```mermaid
 flowchart TB
+  GH["<i>GitHub</i><br>[Software System]<br>delphside/dark-portal: repository,<br>issues, Releases; the board"]
   subgraph OWNER["Owner's machine"]
-    CTL["<i>controller</i><br>[Component]<br>Oracle user dp-controller"]
-  end
-  subgraph NONPROD["Oracle VM: non-production"]
-    subgraph TOOLS["tool environments"]
-      BLD["<i>builder</i><br>[Component]<br>E2, on a timer"]
-      COPY["<i>release copier</i><br>[Component]<br>Linux user dp-release"]
-    end
-    subgraph TEST["E3 to E5 (role test)"]
-      DEPT["<i>deployer</i><br>[Component]"]
-    end
-    subgraph REH["E6 (role rehearsal)"]
-      DEPR["<i>deployer</i><br>[Component]"]
-    end
-  end
-  subgraph PRODVM["Oracle VM: production"]
-    subgraph PROD["production"]
-      DEPX["<i>deployer</i><br>[Component]"]
-    end
+    CTL["<i>controller</i><br>[Component: bash, jq, skopeo,<br>gh, git, ssh]<br>controller.json"]
   end
   subgraph OCIR["OCI Registry"]
     CAND[("<i>dark-portal/candidates</i><br>[Container: OCI repository]")]
     REL[("<i>dark-portal/releases</i><br>[Container: OCI repository]")]
   end
-  GH["<i>GitHub</i><br>[Software System]<br>delphside/dark-portal: repository, issues, Releases; the board"]
-  GH -->|"fetch the commit"| BLD
-  CTL -->|"tag, bump, Release, settle"| GH
-  BLD -->|push| CAND
-  CAND -->|read| CTL
-  REL -->|read| CTL
-  CTL -->|ssh| COPY
-  COPY -->|copy| REL
-  CTL -->|ssh| DEPT
-  CTL -->|ssh| DEPR
-  CTL -->|ssh| DEPX
-  CAND -->|pull| DEPT
-  CAND -->|pull| DEPR
-  REL -->|pull| DEPX
+  subgraph NONPROD["Oracle VM: non-production"]
+    subgraph TOOLS["tool environments"]
+      BLD["<i>builder</i><br>[Component: git, docker buildx,<br>skopeo, oci CLI]<br>E2, on a timer; instance principal"]
+      COPY["<i>release copier</i><br>[Component: skopeo, oci CLI]<br>Linux user dp-release;<br>dp-releaser's API key"]
+    end
+    subgraph TEST["E3 to E5 (role test)"]
+      DEPT["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal"]
+    end
+    subgraph REH["E6 (role rehearsal)"]
+      DEPR["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal"]
+    end
+  end
+  subgraph PRODVM["Oracle VM: production"]
+    DEPX["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal"]
+  end
+  GH -->|"fetch the commit<br>[git, HTTPS]"| BLD
+  CTL -->|"checks, milestones, Release, settle<br>[REST and GraphQL, HTTPS] owner's gh token<br>tag, bump main<br>[git, SSH] owner's key, admin bypass"| GH
+  BLD -->|"push SHA-IMAGE, delete pruned<br>[registry v2]<br>the VM's instance principal"| CAND
+  CAND -->|"digests, tags<br>[registry v2]<br>dp-controller token"| CTL
+  REL -->|"digests, records<br>[registry v2]<br>dp-controller token"| CTL
+  CTL -->|"delete request<br>[ssh]<br>owner's ssh key"| BLD
+  CTL -->|"copy request<br>[ssh]<br>owner's ssh key"| COPY
+  CAND -->|"read by digest<br>[registry v2]<br>dp-releaser API key"| COPY
+  COPY -->|"copy, VERSION-record<br>[registry v2]<br>dp-releaser API key"| REL
+  CTL -->|"deploy request<br>[ssh]<br>owner's ssh key"| DEPT
+  CTL -->|"deploy request<br>[ssh]<br>owner's ssh key"| DEPR
+  CTL -->|"deploy request<br>[ssh]<br>owner's ssh key"| DEPX
+  CAND -->|"pull by digest<br>[registry v2]<br>the VM's instance principal"| DEPT
+  CAND -->|"pull by digest<br>[registry v2]<br>the VM's instance principal"| DEPR
+  REL -->|"pull by digest<br>[registry v2]<br>instance principal"| DEPX
 ```
+
+An instance principal's token comes from the `oci` CLI on the host; an
+auth token is typed once at `deliver login`; the API key never leaves its
+machine ([§10](#10-oci-integration)). On Tile Lite Elite's laptop the
+controller, builder and copier run as one Linux user with three registry
+logins, and the payload's deploy steps run on each host as its deploy user,
+reaching root only through `root-ops` ([§9](#9-on-the-host)).
 
 The *payload* ([§9](#9-on-the-host)) is what hosts run, not a component. It
 holds nothing secret: deploy steps, hooks, [joined files](#5-profile-and-hooks)
@@ -268,19 +282,19 @@ and host files.
   name its own (Tile Lite Elite's preview joins `docker-compose.preview.yml`,
   `Caddyfile.preview`).
 
-**Technologies.**
+**Technologies.** Where each runs is in the deployment views above.
 
-| Technology | Used for | Where |
+| Technology | What it is | Used for |
 | --- | --- | --- |
-| bash, `jq` | the tool; JSON | all |
-| `skopeo` | registry reads, copy, record, delete (§10) | controller, builder, copier |
-| `docker`, `compose`, `buildx` | pull by digest; run; build (`buildx`: default hook); login by the `oci-*` adapters | hosts, builder, controller, release copier |
-| `git` | worktrees, payload archive, tag, bump | controller, builder |
-| `gh` | every GitHub call (§11) | controller only |
-| `ssh`, `curl` | `deliver-host` calls, remote build; production `/health` (§6) | controller |
-| `flock`, `sudo`, `systemd` | the lock; `root-ops`, units (§9) | hosts |
-| `oci` | registry token for `oci-instance-principal` and `oci-api-key` (§10) | components with those logins |
-| `bats` | tests | development, CI |
+| [bash](https://www.gnu.org/software/bash/), [jq](https://jqlang.org/) | the shell the tool is written in; a command-line JSON processor | the tool; requests, state and records |
+| [skopeo](https://github.com/containers/skopeo) | a command-line tool that inspects, copies and deletes images in a registry without pulling them or running a Docker daemon | registry reads, the release copy, the record, deletes ([§10](#10-oci-integration)) |
+| [Docker](https://docs.docker.com/), [Compose](https://docs.docker.com/compose/), [Buildx](https://docs.docker.com/build/) | the container engine; its multi-container runner; its builder, which can build several architectures in one run | pull by digest and run; the default `build` hook |
+| [git](https://git-scm.com/) | version control | worktrees, the payload archive, tag, bump |
+| [GitHub CLI](https://cli.github.com/) (`gh`) | GitHub's command-line client, which also calls its REST and GraphQL APIs | every GitHub call ([§11](#11-github-integration)) |
+| [OpenSSH](https://www.openssh.com/), [curl](https://curl.se/) | remote commands; HTTP requests | `deliver-host` calls; production's `/health` ([§6](#6-gates-and-checks)) |
+| [flock](https://man7.org/linux/man-pages/man1/flock.1.html), [sudo](https://www.sudo.ws/), [systemd](https://systemd.io/) | a file lock; running one command as root; Linux's service manager | the deploy lock; `root-ops`; units ([§9](#9-on-the-host)) |
+| [OCI CLI](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/cliconcepts.htm) (`oci`) | Oracle Cloud's command-line client | the registry token for `oci-instance-principal` and `oci-api-key` ([§10](#10-oci-integration)) |
+| [Bats](https://github.com/bats-core/bats-core) | a test framework for bash | the tool's tests, in development and CI |
 
 **Layout.** In the programme repository:
 
