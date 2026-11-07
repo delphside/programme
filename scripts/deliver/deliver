@@ -1293,7 +1293,7 @@ cmd_host_install() {
   script+='command -v flock >/dev/null 2>&1 || { echo "flock (util-linux) is missing" >&2; exit 1; }'$'\n'
   local t; for t in $tools; do script+="command -v $t >/dev/null 2>&1 || { echo \"$t is missing (needed by the $login login)\" >&2; exit 1; }"$'\n'; done
   if [[ $copier -eq 0 ]]; then
-    # what root-ops may do is decided by files only root writes (design section 13):
+    # what root-ops may do is decided by files only root writes (design section 9):
     # the host-file destinations and the ephemeral user prefix, from the profile as
     # it is now, so a changed host_files list owes a rerun of this command
     local allow_dir="/etc/deliver/$APP" lines prefix

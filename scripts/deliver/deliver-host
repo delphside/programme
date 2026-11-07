@@ -53,7 +53,7 @@ host_registry() {
   DELIVER_REGISTRY="${v:-${DELIVER_REGISTRY:-}}"
   [[ -n "$DELIVER_REGISTRY" ]] || die "DELIVER_REGISTRY is not set in $f or the environment"
   export DELIVER_REGISTRY
-  # the login adapter's settings, from the same file (design section 5): these
+  # the login adapter's settings, from the same file (design section 10): these
   # lines only, read as text and never sourced
   if [[ -f "$f" ]]; then
     for k in DELIVER_OCI_TOKEN_CMD DELIVER_REGISTRY_USER OCI_CLI_AUTH OCI_CLI_KEY_FILE OCI_CLI_CONFIG_FILE; do

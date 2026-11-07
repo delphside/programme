@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# github.sh: every call `deliver` makes to GitHub, through `gh api` alone, so a
-# test can stub the one command. Reads are GETs or named GraphQL queries; the
-# writes are the milestone, the issues, the board's Project State, and the
-# Release. Needs GH_REPO (owner/name) set by the caller.
+# github.sh: every call `deliver` makes to GitHub, through `gh api` and
+# `gh release create`, so a test can stub the one command, `gh`. Reads are GETs
+# or named GraphQL queries; the writes are the milestone, the issues, the
+# board's Project State, and the Release. Needs GH_REPO (owner/name) set by the caller.
 
 Q_MILESTONE_ITEMS='query MilestoneItems($owner: String!, $name: String!, $title: String!) {
   repository(owner: $owner, name: $name) {
