@@ -16,5 +16,9 @@
 
   // Table pipe spacing — wants `| a | b |` where these docs write `|a|b|`.
   // Cosmetic only, invisible once rendered, and 253 occurrences deep.
-  "MD060": false
+  "MD060": false,
+
+  // Inline HTML. A list inside a table cell can only be written as HTML, so
+  // `ul` and `li` are allowed; everything else is still reported.
+  "MD033": { "allowed_elements": ["ul", "li"] }
 }
