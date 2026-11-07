@@ -63,8 +63,8 @@ build into one named image at `/deliver/`. It holds nothing secret.
 | controller | the owner's laptop (WSL) | the owner's machine |
 | builder | the owner's laptop (WSL): production's 1 GB host cannot compile | the non-production VM's builder (E2), on a timer |
 | release copier | the controller, logged in as Oracle user `tle-releaser` with an auth token (`docker-config`) | the non-production VM, as its Linux user `dp-release`, holding the API key of Oracle user `dp-releaser` (`oci-api-key`), which never leaves it |
-| deployer | the host of each environment: the controller for `preview`, the `rehearsal` VM, the `production` VM | the non-production VM for E3 to E6; the production VM |
-| environments | `preview` (role preview, on the controller itself), `rehearsal` VM, `production` VM | E3 to E5 (role test), E6 (role rehearsal) on the non-production VM; production VM |
+| deployer | each environment's host: the owner's laptop for `preview`, the rehearsal VM, the production VM | the non-production VM for E3 to E6; the production VM |
+| environments | `preview` (role preview) on the owner's laptop, `rehearsal` on the rehearsal VM, `production` on the production VM | E3 to E5 (role test), E6 (role rehearsal) on the non-production VM; production VM |
 
 | who | registry access |
 | --- | --- |
@@ -254,7 +254,7 @@ yet*, checking each minute, for at most 60 minutes by default: Dark Portal's
 longest wait outside its window is 50. At the limit it refuses, exit 1, naming
 what it waited for.
 
-Every command writes a run log on the machine it runs on, naming each gate it
+Every command writes a run log in the environment it runs in, naming each gate it
 ran. A command that ends without every gate in its list having run refuses, as
 `deploy.sh` does today. Exit codes: 0 done; 1 refused or failed, with the previous
 deploy restored where there is one; 3 live, but a later step (settle, GitHub Release,
@@ -633,14 +633,14 @@ creation date (`creatordate`).
 - An optional `bump` hook runs in the worktree that bumps `main`, with
   `DELIVER_VERSION` set, for a lockfile refresh the version file's pattern
   cannot do.
-- The release copier runs `deliver-host copy APP` on the machine
-  `[deliver.release].copy_on` names (the controller or an `ssh` alias), with
-  `copy_login`. It makes the copies and pushes the record image; the control
-  node only reads.
+- The release copier runs `deliver-host copy APP` in the tool
+  environment `[deliver.release].copy_on` names (the controller or an `ssh` alias), with
+  `copy_login`. It makes the copies and pushes the record image; the
+  controller only reads.
 - `deliver host-install` takes an environment or the release copier. A copier
   that hosts no environment gets `deliver-host` and its libraries, including
   `registry.sh`, and no allowlist or sudo rule. Deploy and `host-install`
-  refuse two environments of one application on one machine that both install
+  refuse two environments of one application on one host that both install
   host files, since each would remove the other's.
 
 ### Profile
@@ -655,10 +655,10 @@ creation date (`creatordate`).
   `OCI_CLI_KEY_FILE` and `OCI_CLI_CONFIG_FILE`, as text, never sourced. That is
   how `oci-instance-principal` works over a non-interactive `ssh`, which
   carries no environment. The release copier reads the same names from
-  `~/.config/deliver/APP.env` on its own machine.
+  `~/.config/deliver/APP.env` in its own tool environment.
 - The gates read the commit's profile (required checks and hooks, what may be
-  set aside, images, payload image), as the hooks are read. Which machine an
-  environment is, and its role, stay the controller's working-tree profile.
+  set aside, images, payload image), as the hooks are read. Which host runs an
+  environment, and its role, stay the controller's working-tree profile.
 - There is no `keep_images` key. Pruning on a host considers only images under
   the registry address, so local fallback images (Tile Lite Elite's
   `deploy.sh` images, kept until 0.10.3) are never touched.
