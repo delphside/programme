@@ -848,7 +848,10 @@ and each deployer's pull use that login as they always did. The tool sets
 Oracle user `tle-builder`'s. That is safe: it is one user's login on one
 machine, and the builder's access (read and write candidates) is a superset of
 preview's (read candidates). The VMs' deployers have users of their own, with
-instance principals.
+instance principals; on Dark Portal's non-production VM the builder and the
+test and rehearsal deployers share one too, the instance's own identity. An
+environment is on the builder's machine when its `ssh` alias is the builder's
+`on` value, matched by name.
 
 `deliver login COMPONENT` makes the login, on the component's machine and with
 the token on standard input only: `controller` and `copier` run `skopeo login
