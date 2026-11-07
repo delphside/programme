@@ -42,10 +42,11 @@ where it is for each application.
 
 A *host* is a machine that runs one or more environments.
 
-**Components.** For each application, its profile (`app-profile.toml`, §5)
-maps each component to a specific machine, and one machine may play several. A host's `.env` holds only what differs per
-environment: addresses, keys, limits. The *controller* is the machine a run is
-started from; Ansible calls it the control node.
+**Components.** For each application, its profile (`app-profile.toml`, §5) maps
+each component to a specific machine, and one machine may play several. A host's
+`.env` holds only what differs per environment: addresses, keys, limits. The
+*controller* is the machine a run is started from; Ansible calls it the control
+node.
 
 | component | runs | holds | does |
 | --- | --- | --- | --- |
