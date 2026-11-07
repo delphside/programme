@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # deliver-host: the host command (design §4, §9). `deliver host-install ENV`
-# installs it with its libraries. The control node calls it over ssh, or locally
-# where the environment's host is the control node:
+# installs it with its libraries. The controller calls it over ssh, or locally
+# where the environment's host is the controller:
 #
 #   deliver-host deploy APP ENV < request.json   pull by digest, take the payload
 #                                                out of the image, run its steps

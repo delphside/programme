@@ -17,7 +17,7 @@ setup() {
   : > "$W/logs/where.log"
   run d release --expect 0.10.2
   assert_success
-  # every registry write of the release ran on the copier, none on the control node
+  # every registry write of the release ran on the copier, none on the controller
   [ -s "$W/logs/where.log" ]
   run grep -vc '^copy copier$' "$W/logs/where.log"
   assert_output 0

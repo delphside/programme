@@ -6,7 +6,7 @@
 #     given and exit as each test sets, a second environment `join`, host files;
 #   - stubs on PATH for skopeo, docker, ssh, gh, sudo, systemctl, useradd,
 #     userdel and curl (scripts/tests/deliver-stubs/), answering from folders;
-#   - three "machines" as folders: the control node (`local`), `rehearsal` and
+#   - three "machines" as folders: the controller (`local`), `rehearsal` and
 #     `prod`, reached through the ssh stub, each with its own docker state.
 #
 # `load deliver_world`, then `world_new` in setup.
@@ -103,7 +103,7 @@ join = ["docker-compose.yml", "Caddyfile"]
 fallback = "stop the deliver project, restore the snapshot, run the old script"
 
 [deliver.build]
-on = "control-node"
+on = "controller"
 login = "docker-config"
 
 [deliver.release]

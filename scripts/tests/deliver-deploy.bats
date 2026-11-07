@@ -90,7 +90,7 @@ systemctl enable acme-backup.timer
 systemctl restart acme-backup.timer"
 }
 
-@test "preview_joins_its_own_files_from_the_payload, on the control node, with no ssh (S7, R5, R6)" {
+@test "preview_joins_its_own_files_from_the_payload, on the controller, with no ssh (S7, R5, R6)" {
   commit_change one; build_ok "$SHA"
   : > "$W/logs/ssh.log"
   run d deploy preview "$SHA"
