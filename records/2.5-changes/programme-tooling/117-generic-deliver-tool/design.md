@@ -77,7 +77,10 @@ credential; those sections keep the calls' detail, not the privileges.
 Terms and
 [views](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md#which-view-a-diagram-takes-and-saying-so)
 are C4's: `deliver` and `deliver-host` are *containers*, environments
-*deployment nodes*.
+*deployment nodes*. A C4 container is a separately run program, not a Docker
+container: both are bash scripts, run as ordinary processes by a Linux user on
+their machine. Only the application runs in Docker containers, which the
+deployer starts with `docker compose`.
 
 **Container view**: what each arrow carries.
 
