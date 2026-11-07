@@ -25,7 +25,7 @@ by a command, `deliver`, run by a person or a timer. It invokes another
 command, `deliver-host`, on the other machines involved, which this section
 describes.
 
-**Environments.** An application environment is one running copy of the
+**Environments.** An **application environment** is one running copy of the
 application. Each has an **environment role**. Gates are defined for
 particular environment roles:
 
@@ -36,9 +36,8 @@ particular environment roles:
 | `rehearsal` | candidates | the release step reads what it runs; a rehearsal starts from production's level |
 | `production` | releases only | a record is needed; settle follows |
 
-There are also **tool environments**, where the tool's own components run
-rather than the application: the controller, the builder and the release
-copier. *Components* below says what each does and where it is for each
+**Tool environments** run a component of the tool: the controller, the
+builder or the release copier. *Components* below says what each does and where it is for each
 application.
 
 A **host** is a machine that runs one or more environments.
