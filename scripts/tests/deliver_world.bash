@@ -30,8 +30,12 @@ world_new() {
   export HOOKLOG="$W/hook.log" HOOKCTL="$W/hookctl"
   export GIT_AUTHOR_NAME=Test GIT_AUTHOR_EMAIL=t@example.test GIT_COMMITTER_NAME=Test GIT_COMMITTER_EMAIL=t@example.test
   export DELIVER_REGISTRY_VALUE="reg.test/ns"
+  export STUB_AUTH_ENFORCE=1
   mkdir -p "$HOME/.config/deliver"
   printf 'DELIVER_REGISTRY=%s\n' "$DELIVER_REGISTRY_VALUE" > "$HOME/.config/deliver/acme.env"
+  # each skopeo component's own auth file, made once as the owner would
+  local c
+  for c in controller builder copier; do seed_login "$HOME/.config/deliver/auth/acme/$c.json" "$c"; done
   : > "$HOOKLOG"
   local h
   for h in local rehearsal prod; do
@@ -51,10 +55,20 @@ world_new() {
   for e in preview rehearsal production; do "$DELIVER" host-install "$e" >/dev/null 2>&1 || { echo "host-install $e failed" >&2; return 1; }; done
 }
 
+# seed_login FILE ROLE: a skopeo login already made into FILE; the stub registry reads ROLE from it.
+seed_login() {
+  mkdir -p "$(dirname "$1")"
+  jq -nc --arg h "${DELIVER_REGISTRY_VALUE%%/*}" --arg r "$2" '{auths:{($h):{auth:$r}}}' > "$1"
+}
+
 # host_env HOST ENVNAME: the machine's .env, holding its registry (and a canary secret).
+# The machine user's own docker login is the stub's <root>/.docker/login.json: the
+# laptop's is the builder's, which preview shares; the VMs' are the hosts' own.
 host_env() {
   local d="$W/hosts/$1/var/lib/deliver/acme/$2"
-  mkdir -p "$d"
+  mkdir -p "$d" "$W/hosts/$1/.docker"
+  local role=host; [[ "$1" == local ]] && role=builder
+  jq -nc --arg r "$role" '{role:$r}' > "$W/hosts/$1/.docker/login.json"
   printf 'DELIVER_REGISTRY=%s\nCANARY_SECRET=%s\n' "$DELIVER_REGISTRY_VALUE" "${CANARY:-hunter2-canary}" > "$d/.env"
 }
 

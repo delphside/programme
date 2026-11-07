@@ -9,7 +9,9 @@ S="${DELIVER_HOST_ROOT:-${STUB_LOCAL_ROOT:?}}/.docker"
 mkdir -p "$S/images" "$S/containers" "$S/compose"
 echo "docker $*" >> "$S/log"
 echo "docker $*" >> "${STUB_LOG_DIR:?}/docker.log"
+echo "${DOCKER_CONFIG:-}" >> "${STUB_LOG_DIR}/docker-config.log"
 
+. "$(dirname "$0")/stub-auth.sh"
 hex() { printf '%s' "$1" | sed 's/^.*@//; s/^sha256://'; }
 img_file_for() {   # REF -> the stored image JSON file
   local ref="$1" h f
@@ -25,12 +27,17 @@ img_file_for() {   # REF -> the stored image JSON file
 case "${1:-}" in
   login)
     # the credential arrives on stdin and is never written down: only that it did
-    tok="$(cat)"; printf 'login ok bytes=%s\n' "${#tok}" >> "${STUB_LOG_DIR}/login.log"; exit 0 ;;
+    tok="$(cat)"; printf 'login ok bytes=%s\n' "${#tok}" >> "${STUB_LOG_DIR}/login.log"
+    shift; user=""; while [[ $# -gt 0 ]]; do case "$1" in -u) user="$2"; shift 2 ;; --password-stdin) shift ;; *) shift ;; esac; done
+    jq -nc --arg r "$(stub_role_of_user "$user")" --arg u "$user" '{role:$r,user:$u}' > "$S/login.json"
+    echo "docker $user DOCKER_CONFIG=${DOCKER_CONFIG:-}" >> "${STUB_LOG_DIR}/login-dirs.log"
+    exit 0 ;;
   pull)
     # shellcheck disable=SC2124
     ref="${@: -1}"
     [[ "${STUB_PULL_SECONDS:-0}" == 0 ]] || sleep "$STUB_PULL_SECONDS"
     repo="${ref%@*}"; d="${ref#*@}"
+    stub_auth_check docker pull "${repo#*/}" read
     if [[ -n "${STUB_READ_DENY:-}" && "$repo" =~ $STUB_READ_DENY ]]; then echo "denied" >&2; exit 1; fi
     m="$R/$repo/meta/${d#sha256:}.json"; [[ -f "$m" ]] || { echo "manifest unknown" >&2; exit 1; }
     jq -c --arg ref "$ref" --arg id "sha256:$(printf 'id-%s' "$d" | sha256sum | cut -d' ' -f1)" \
@@ -130,6 +137,7 @@ case "${1:-}" in
         continue
       fi
       repo="${tags%:*}"; tag="${tags##*:}"
+      stub_auth_check docker push "$repo" write
       if [[ -n "${STUB_WRITE_ONLY:-}" ]] && ! [[ "/${repo#*/}" =~ $STUB_WRITE_ONLY ]]; then
         echo "denied: requested access to the resource is denied" >&2; exit 1
       fi

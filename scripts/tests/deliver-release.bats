@@ -288,7 +288,7 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   # a record for it is in releases from another commit
   mkdir -p "$W/registry/reg.test/ns/acme/releases"
   printf '{"record":1,"commit":"deadbeef","images":{}}\n' > "$W/rec.json"
-  ( cd "$W/work" && . "$DELIVER_SRC/lib/common.sh" && . "$DELIVER_SRC/lib/registry.sh" && DELIVER_REGISTRY=reg.test/ns && record_push acme/releases 0.10.2-record "$W/rec.json" )
+  ( cd "$W/work" && . "$DELIVER_SRC/lib/common.sh" && . "$DELIVER_SRC/lib/registry.sh" && export DELIVER_REGISTRY=reg.test/ns REGISTRY_AUTH_FILE="$HOME/.config/deliver/auth/acme/copier.json" && record_push acme/releases 0.10.2-record "$W/rec.json" )
   run d release --expect 0.10.2
   assert_failure 1
   assert_output --partial "another commit or other digests"

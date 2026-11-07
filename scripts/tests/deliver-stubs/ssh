@@ -14,4 +14,7 @@ host="$1"; shift
 echo "ssh $host: $*" >> "${STUB_LOG_DIR:?}/ssh.log"
 [[ "${STUB_SSH_FAIL:-}" != "$host" ]] || { echo "ssh: connect to host $host: refused" >&2; exit 255; }
 root="${STUB_HOSTS:?}/$host"; mkdir -p "$root"
-exec env DELIVER_HOST_ROOT="$root" bash -c "$*"
+# real ssh carries no environment, so neither the controller's auth file nor docker config reaches the machine
+# a machine with its own home folder has its own HOME
+home="$HOME"; [[ -d "$root/home" ]] && home="$root/home"
+exec env -u DOCKER_CONFIG -u REGISTRY_AUTH_FILE HOME="$home" DELIVER_HOST_ROOT="$root" bash -c "$*"

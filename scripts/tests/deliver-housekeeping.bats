@@ -211,6 +211,7 @@ oci-instance-principal"
   # another application: other names, other images, other registry repositories
   sed -i '/^src = /!s/acme/widget/g; s/"server", "web"/"api", "ui"/; s/payload_image = "server"/payload_image = "api"/' "$W/work/app-profile.toml"
   mv "$HOME/.config/deliver/acme.env" "$HOME/.config/deliver/widget.env"
+  mv "$HOME/.config/deliver/auth/acme" "$HOME/.config/deliver/auth/widget"
   local h
   for h in rehearsal prod local; do mv "$W/hosts/$h/var/lib/deliver/acme" "$W/hosts/$h/var/lib/deliver/widget"; done
   export DELIVER_GH_REPO=widget/widget

@@ -13,6 +13,7 @@
 #                   [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]
 #   deliver settle VERSION        deliver rollback ENV     deliver status ENV
 #   deliver list ENV              deliver prune [--dry-run]
+#   deliver login COMPONENT       (controller, builder, copier, or an ENV)
 #   deliver env create|destroy NAME    deliver host-install ENV
 #
 # Exit codes: 0 done; 1 refused or failed (the previous deploy restored where
@@ -219,6 +220,15 @@ env_of_role() {    # ROLE -> first environment name with it
   jq -r --arg r "$1" '.environments | to_entries[] | select(.value.role == $r) | .key' <<< "$PJ" | head -1
 }
 
+# controller_auth: the controller's own registry login (read-only: candidates and
+# releases) is its own auth file for every registry read this process makes; the
+# login itself is made on the first read, so a command that reads nothing needs none.
+controller_auth() {
+  auth_use "$(auth_file_of controller)" controller
+  REG_AUTH_HOOK=controller_login
+}
+controller_login() { login_run_skopeo "$(pq .deliver.login)"; }
+
 # is_controller PLACE: the profile names the controller as "controller"; "control-node",
 # its name before the components were renamed, is still accepted.
 is_controller() { [[ "$1" == controller || "$1" == control-node ]]; }
@@ -228,7 +238,8 @@ is_controller() { [[ "$1" == controller || "$1" == control-node ]]; }
 run_deliver_host() {
   local place="$1"; shift
   if is_controller "$place" || [[ -z "$place" ]]; then
-    "${DELIVER_HOST_BIN:-$HERE/deliver-host}" "$@"
+    # the child sets its own login: not the controller's auth file
+    env -u REGISTRY_AUTH_FILE "${DELIVER_HOST_BIN:-$HERE/deliver-host}" "$@"
   else
     local cmd; cmd="$(printf '%q ' deliver-host "$@")"
     ssh "$place" "$cmd"
@@ -248,6 +259,11 @@ host_files_conflict() {
     die "environments ${names[*]} share a machine and all install host files, so each would remove the other's: set host_files = false on all but one"
   fi
 }
+# builder_machine -> the builder's machine in env_machine's form
+builder_machine() { local on; on="$(pq .deliver.build.on)"; if [[ -z "$on" ]] || is_controller "$on"; then printf controller; else printf 'ssh:%s' "$on"; fi; }
+# login_component ENV -> the component whose docker login ENV's deployer uses: the
+# builder's where the environment is on the builder's machine, else the environment's
+login_component() { if [[ "$(env_machine "$1")" == "$(builder_machine)" ]]; then printf builder; else printf '%s' "$1"; fi; }
 env_machine() { local h; h="$(env_q "$1" host)"; is_controller "$h" && printf 'controller' || printf 'ssh:%s' "$(env_q "$1" ssh)"; }
 env_installs_host_files() {
   case "$(env_q "$1" host_files)" in
@@ -473,7 +489,9 @@ cmd_build() {
     exec ssh "$place" "DELIVER_ON_BUILD_HOST=1 $(printf '%q ' "${fwd[@]}")"
   fi
   if [[ $local_only -eq 0 ]]; then
-    login_run "$(pq .deliver.build.login)" || die "build login failed: $REG_ERR"
+    auth_use "$(auth_file_of builder)" builder
+    auth_login "builder" "$(pq .deliver.build.login)" docker
+    auth_login "builder" "$(pq .deliver.build.login)" skopeo
   fi
 
   # what is already stored is never rebuilt (design §6); a failed query refuses
@@ -570,7 +588,7 @@ cmd_deploy() {
   done
   [[ -n "$env" && -n "$ref" ]] || die "usage: deliver deploy ENV REF"
   DELIVER_SUBCOMMAND=deploy; load_profile
-  registry_require
+  registry_require; controller_auth
   env_exists "$env" || die "the profile has no environment $env"
   local role; role="$(env_role "$env")"
   case "$role" in preview|test|rehearsal|production) ;; *) die "environment $env has an unknown role $role" ;; esac
@@ -629,14 +647,14 @@ cmd_deploy() {
   local source_repo="$CANDIDATES"; [[ "$role" == production ]] && source_repo="$RELEASES"
   local request
   request="$(jq -nc --arg app "$APP" --arg env "$env" --arg role "$role" --arg sha "$SHA" --arg version "$VERSION" \
-    --argjson images "$IMAGES_JSON" --arg repo "$source_repo" --arg login "$(env_q "$env" login)" \
+    --argjson images "$IMAGES_JSON" --arg repo "$source_repo" --arg login "$(env_q "$env" login)" --arg lc "$(login_component "$env")" \
     --arg timeout "$(env_q "$env" pull_timeout)" --arg lock "$(env_q "$env" lock)" --arg payload "$PAYLOAD_IMAGE" \
     --arg project "$(env_q "$env" project)" --arg wait "$OPT_WAIT" --argjson check "$OPT_CHECK" \
     --argjson local "$local_build" --argjson record "${RECORD_JSON:-null}" \
     --argjson set_aside "$(printf '%s\n' "${SET_ASIDE[@]}" | jq -Rn '[inputs | select(length>0) | split("\t") | {gate: .[0], reason: .[1]}]')" \
     --argjson host_files "$(case "$(env_q "$env" host_files)" in true) echo true ;; false) echo false ;; *) echo null ;; esac)" \
     --argjson join "$(env_qa "$env" join | jq -Rn '[inputs]')" \
-    '{app:$app,env:$env,role:$role,sha:$sha,version:$version,images:$images,repo:$repo,login:$login,
+    '{app:$app,env:$env,role:$role,sha:$sha,version:$version,images:$images,repo:$repo,login:$login,login_component:$lc,
       pull_timeout:($timeout|if .=="" then null else tonumber end),lock:$lock,payload_image:$payload,project:$project,
       wait:($wait|if .=="" then null else tonumber end),check:($check==1),local:($local==1),record:$record,
       set_aside:$set_aside,host_files:$host_files,env_join:$join}')"
@@ -796,7 +814,7 @@ cmd_release() {
     esac
   done
   DELIVER_SUBCOMMAND=release; load_profile
-  registry_require
+  registry_require; controller_auth
   gh_repo_slug || die "cannot tell the GitHub repository (set DELIVER_GH_REPO=owner/name)"
   [[ -n "$OPT_EMERGENCY" ]] && run_log_event override "flag=emergency" "reason=$OPT_EMERGENCY"
   [[ -n "$OPT_SKIP" ]] && run_log_event override "flag=skip-rehearsal" "reason=$OPT_SKIP"
@@ -1226,7 +1244,7 @@ settle_comment() {   # N TEXT [ACCEPT]: once; ACCEPT is the plain announcement a
 cmd_prune() {
   local dry=0
   [[ "${1:-}" == --dry-run ]] && dry=1
-  DELIVER_SUBCOMMAND=prune; load_profile; registry_require
+  DELIVER_SUBCOMMAND=prune; load_profile; registry_require; controller_auth
   gates_expect
   g fetch -q --tags origin 2>/dev/null || true
   local newest_made=0 t made
@@ -1247,7 +1265,7 @@ cmd_prune() {
     st="$(host_status "$env")" || die "cannot read $env: refusing to prune without knowing what runs"
     keep+="$(jq -r '[.current.images, .previous.images] | map(select(. != null) | .[]) | .[]' <<< "$st")"$'\n'
   done
-  local tag img json created removed=0
+  local tag img json created removed=0 deletes="[]"
   while read -r tag; do
     [[ -n "$tag" ]] || continue
     json="$(reg_inspect "$CANDIDATES" "$tag")" || continue
@@ -1258,19 +1276,33 @@ cmd_prune() {
     created="$(date -u -d "$created" +%s 2>/dev/null)" || continue
     (( created < newest_made )) || continue
     if [[ $dry -eq 1 ]]; then say "would remove $tag"; else
-      skopeo delete "$(reg_ref "$CANDIDATES" "$tag")" >/dev/null 2>&1 && { say "removed $tag"; removed=$((removed + 1)); }
+      deletes="$(jq -c --arg t "$tag" --arg d "$d" '. + [{tag:$t,digest:$d}]' <<< "$deletes")"
     fi
   done < <(reg_list_tags "$CANDIDATES")
+  # the controller decides; the builder, whose login may delete candidates, does it
+  if [[ "$deletes" != "[]" ]]; then
+    local place req out code=0
+    place="$(pq .deliver.build.on)"; place="${place:-controller}"
+    req="$(jq -nc --arg login "$(pq .deliver.build.login)" --arg c "$CANDIDATES" --argjson deletes "$deletes" \
+      '{login:$login,candidates:$c,deletes:$deletes}')"
+    run_log_event step "name=delete" "where=$place"
+    out="$(run_deliver_host "$place" delete "$APP" <<< "$req" 2>&1)" || code=$?
+    removed="$(grep -c '^removed ' <<< "$out" || true)"
+    printf '%s\n' "$out" | sed 's/^deliver-host: /deliver: /'
+    run_log_event prune "removed=$removed"
+    [[ $code -eq 0 ]] || die "prune: the builder could not delete every candidate chosen"
+    return 0
+  fi
   run_log_event prune "removed=$removed"
 }
 
 cmd_host_install() {
-  [[ $# -eq 1 ]] || die "usage: deliver host-install ENV|COPIER"
+  [[ $# -eq 1 ]] || die "usage: deliver host-install ENV|COPIER|BUILDER"
   local env="$1" target="" ssh login tools="" script f dest mode copier=0
   # shellcheck disable=SC2100  # a name containing a hyphen, not arithmetic
   DELIVER_SUBCOMMAND=host-install; load_profile
   gates_expect
-  local copy_on; copy_on="$(pq .deliver.release.copy_on)"
+  local copy_on build_on; copy_on="$(pq .deliver.release.copy_on)"; build_on="$(pq .deliver.build.on)"
   if env_exists "$env"; then
     host_files_conflict "$env"
     ssh="$(env_q "$env" ssh)"; login="$(env_q "$env" login)"
@@ -1279,8 +1311,12 @@ cmd_host_install() {
     # the release copier, which may host no environment: the command and its libraries
     copier=1; ssh="$copy_on"; login="$(pq .deliver.release.copy_login)"
     is_controller "$copy_on" && target=local || target=ssh
+  elif [[ -n "$build_on" && "$env" == "$build_on" ]]; then
+    # the builder, which may host no environment: it deletes what prune chooses
+    copier=1; ssh="$build_on"; login="$(pq .deliver.build.login)"
+    is_controller "$build_on" && target=local || target=ssh
   else
-    die "the profile has no environment $env and $env is not the release copier (copy_on)"
+    die "the profile has no environment $env and $env is not the release copier (copy_on) or the builder (build.on)"
   fi
   [[ -n "$login" ]] && tools="$(login_tools "$login")"
   script="set -e"$'\n'
@@ -1312,11 +1348,41 @@ cmd_host_install() {
   if [[ "$target" == local ]]; then bash -c "$script"; else ssh "$ssh" "bash -s" <<< "$script"; fi
 }
 
+# deliver login COMPONENT: the owner's one login for a component's own directory.
+# The user is asked for, the token read at a hidden prompt and sent on standard
+# input to `deliver-host login` on the component's machine; it is never an
+# argument, never echoed and never logged.
+cmd_login() {
+  [[ $# -eq 1 ]] || die "usage: deliver login controller|builder|copier|ENV"
+  local comp="$1" user token place
+  DELIVER_SUBCOMMAND=login; load_profile; registry_require
+  gates_expect
+  case "$comp" in
+    controller) place=controller ;;
+    builder) place="$(pq .deliver.build.on)"; place="${place:-controller}" ;;
+    copier) place="$(pq .deliver.release.copy_on)"; place="${place:-controller}" ;;
+    *) env_exists "$comp" || die "$comp is not controller, builder, copier or an environment of the profile"
+       [[ "$(login_component "$comp")" != builder ]] \
+         || die "$comp shares the builder's docker login on this machine: run deliver login builder" ;;
+  esac
+  printf 'registry user for the %s: ' "$comp" >&2
+  IFS= read -r user || true
+  printf 'token (hidden): ' >&2
+  IFS= read -rs token || true; printf '\n' >&2
+  [[ -n "$user" && -n "$token" ]] || die "login needs a user and a token"
+  run_log_event step "name=login" "component=$comp"
+  case "$comp" in
+    controller|builder|copier)
+      printf '%s\n%s\n' "$user" "$token" | run_deliver_host "$place" login "$APP" "$comp" ;;
+    *) printf '%s\n%s\n' "$user" "$token" | run_on_host "$comp" login "$APP" deployer "$comp" ;;
+  esac
+}
+
 cmd_env() { exec "${DELIVER_HOST_BIN:-$HERE/deliver-host}" env "$@"; }
 
 # ------------------------------------------------------------------ main
 
-usage() { sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 DELIVER_SUBCOMMAND=""; DELIVER_ARGS=()
 main() {
@@ -1332,6 +1398,7 @@ main() {
     status) cmd_status "$@" ;;
     list) cmd_list "$@" ;;
     prune) cmd_prune "$@" ;;
+    login) cmd_login "$@" ;;
     host-install) cmd_host_install "$@" ;;
     env) cmd_env "$@" ;;
     -h|--help|help) usage ;;
