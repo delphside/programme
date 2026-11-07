@@ -28,9 +28,9 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | | rule | source |
 | --- | --- | --- |
 | R1 | The tool names no application and no machine. Anything that differs comes from `app-profile.toml` or a hook. | G1; §2 |
-| R2 | The registry address is never in the profile. Each component reads `DELIVER_REGISTRY` from its own local configuration. | §5 |
+| R2 | The registry address is never in the profile. Each component reads `DELIVER_REGISTRY` from its own local configuration. | §10 |
 | R3 | `build [REF]` is non-interactive and refuses a REF that is not a commit on the remote. It builds from a clean worktree with the `build` hook, or `docker buildx bake` by default. It labels each image `org.opencontainers.image.revision` = SHA and `.version` = the version file. It pushes each image as `SHA-IMAGE` and prints the digests, an index digest for a multi-arch build. | §4 |
-| R4 | An image whose `SHA-IMAGE` is already present is not rebuilt. A failed registry query refuses. Releases is immutable. | §4; §6 |
+| R4 | An image whose `SHA-IMAGE` is already present is not rebuilt. A failed registry query refuses. Releases is immutable. | §4; §6; §10 |
 | R5 | The payload goes into `payload_image` at `/deliver/`, from the pinned submodule and the app repository. It holds nothing secret. Joined files come from the payload and never from a working tree. An environment may name its own `join`. | §2; §5 |
 | R6 | `deploy ENV REF` checks REF against the environment's role. For preview, test and rehearsal, REF is a full or short SHA or a version, resolved in candidates. A short SHA that matches more than one candidate refuses. For production it is a version with a record, pulled from releases. The deploy runs over ssh, or locally where `host = "controller"`, and then `settle` for production. Gates key on the role, never the name. | §2; §4 |
 | R7 | Every image is pulled by digest. Its revision label must equal the SHA, and the running containers' `RepoDigests` must match. | §6 |
@@ -550,7 +550,7 @@ Everything else runs in CI.
 - X5 by S57 and the C11 × C12 matrix cell: `restore-state`, state `failed, no previous deploy`, exit 1 naming the fallback.
 - X6 by S12 and S53: `[release].overridable` names the gates, and `milestone` is the tool's own.
 - X7 by S54: the 60-minute limit is tested at `--wait=1`; the default of 60 is asserted only by review.
-- X8 by S29: `--unrecorded` takes a full SHA, and a copy already present is a no-op.
+- X8 by S29: `--unrecorded` takes a full SHA, and a copy already present is a no-op where the digests match; another digest refuses.
 - X9 by S26: a different record refuses (exit 1), and all steps done exits 0. The gate count (X9b) stays untestable from outside.
 - X10 by S55 and S56.
 - X11 by S43, which asserts the `created` label, the build's start time
