@@ -36,8 +36,13 @@ particular environment roles:
 | `rehearsal` | candidates | the release step reads what it runs; a rehearsal starts from production's level |
 | `production` | releases only | a record is needed; settle follows |
 
-A **host** is the machine an environment runs on; one host may run several
-environments.
+There are also **tool environments**, where the tool's own components run
+rather than the application: the controller, the builder and the release
+copier. *Components* below says what each does and where it is for each
+application.
+
+A **host** is a machine that runs environments of either kind; one host may
+run several.
 
 **Components.** A component is a job a machine does for the tool. The tool
 names components, never machines or applications. For each application, its
