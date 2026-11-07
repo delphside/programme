@@ -25,11 +25,9 @@ by a command, `deliver`, run by a person or a timer. It invokes another
 command, `deliver-host`, on the other machines involved, which this section
 describes.
 
-**Environments.** An environment is one running copy of an application, such
-as Tile Lite Elite's preview, rehearsal or production. A **host** is the
-machine an environment runs on; one host may run several environments. Each
-environment has an **environment role**, which says what the environment is
-for. The gates key on it, never on the environment's name:
+**Environments.** An application environment is one running copy of the
+application. Each has an **environment role**. Gates are defined for
+particular environment roles:
 
 | environment role | reads | gates that key on it |
 | --- | --- | --- |
@@ -37,6 +35,9 @@ for. The gates key on it, never on the environment's name:
 | `test` | candidates | none beyond every deploy's |
 | `rehearsal` | candidates | the release step reads what it runs; a rehearsal starts from production's level |
 | `production` | releases only | a record is needed; settle follows |
+
+A **host** is the machine an environment runs on; one host may run several
+environments.
 
 **Components.** A component is a job a machine does for the tool. The tool
 names components, never machines or applications. For each application, its
