@@ -313,7 +313,7 @@ host (`copy_on`).
 | --- | --- | --- |
 | `deliver build [REF] [--local]` | builder | builds REF (default `HEAD`) once, pushes to candidates; non-interactive. The `build` hook (default `docker buildx bake`); labels `org.opencontainers.image.revision` (SHA) and `.version` (from the version file); prints digests (an index digest for a multi-arch build). `--local` (preview only): local Docker, no push; identified by image id and revision label, not `RepoDigests` |
 | `deliver deploy ENV REF [--wait[=MIN]] [--check] [--set-aside GATE REASON] [--unrecorded REASON] [--off-level REASON]` | controller | preview, test, rehearsal: REF is a SHA (full or short; ambiguous refuses) or version, resolved to candidates' digests. Production: a version with a record |
-| `deliver release [--expect VERSION] [--commit REF] [--emergency REASON] [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]` | controller; copy on the copier | releases the commit rehearsal runs; `--commit REF` names the commit when rehearsal has not deployed it, as with `--skip-rehearsal`. Shows version (from the version file at that commit), commit, digests, last passing rehearsal deploy; the owner types the version to confirm (`--expect` if non-interactive). Gates [§6](#6-gates-and-checks), steps [§7](#7-the-release-and-its-record) |
+| `deliver release [--expect VERSION] [--commit REF] [--emergency REASON] [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]` | controller; copy on the copier | releases the commit rehearsal runs; `--commit REF` names another commit instead, as `--skip-rehearsal` needs. Shows version (from the version file at that commit), commit, digests, last passing rehearsal deploy; the owner types the version to confirm (`--expect` if non-interactive). Gates [§6](#6-gates-and-checks), steps [§7](#7-the-release-and-its-record) |
 | `deliver settle VERSION` | controller | the board to what the record says shipped ([§8](#8-settling)); safe to rerun |
 | `deliver rollback ENV` | controller | `deliver-host rollback`: ENV's previous deploy ([§9](#9-on-the-host)) |
 | `deliver status ENV`, `list ENV` | controller | digests ENV runs (`RepoDigests`), their record, deploy state, host files against the payload's (a check); `list`: the records beside what ENV runs |
@@ -328,7 +328,7 @@ image's `org.opencontainers.image.created` label, the time the build started
 costs a rebuild.
 
 **The `deliver-host` commands** are called by `deliver` (over `ssh`, or directly
-on the controller's host), or by `root-ops` from the payload steps through
+on the controller's host), or, as `root-ops`, by the payload steps through
 `sudo`; `deploy`, `rollback` and `copy` take a JSON request on standard input.
 
 | Command | Called by | What |
@@ -336,7 +336,7 @@ on the controller's host), or by `root-ops` from the payload steps through
 | `deliver-host deploy APP ENV < request` | `deliver deploy` | [§9](#9-on-the-host)'s steps |
 | `deliver-host rollback APP ENV < request` | `deliver rollback` | switch to `previous` |
 | `deliver-host status APP ENV --json` | `status`, `list`, `prune`, release, the rehearsal-level gate, production's version read | what runs, its record, state |
-| `deliver-host copy APP < request` | `deliver release`, on `[deliver.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads |
+| `deliver-host copy APP < request` | `deliver release` and `deliver deploy --unrecorded`, on `[deliver.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads |
 | `deliver-host allowlist APP < lines` | `host-install`, as root | the root-owned allowlist |
 | `deliver-host env create\|destroy NAME` | `deliver env` | an ephemeral environment |
 | `deliver-host root-ops ...` | payload steps and `env`, by one `sudo` rule | the deploy user's only root operations |
@@ -348,7 +348,7 @@ is one and always in the run log:
 | --- | --- |
 | `--emergency REASON` (release) | the commit being on `main` |
 | `--skip-rehearsal REASON` (release) | rehearsal having passed this commit; raises the retrospective issue ([§7](#7-the-release-and-its-record)) |
-| `--unrecorded REASON` (production deploy) | the need for a record: REF is a full SHA, copied to releases as `SHA-IMAGE` (no-op where the same digests are present; another digest refuses); no version spent, nothing to settle |
+| `--unrecorded REASON` (production deploy) | the need for a record: REF is a full SHA, copied to releases by the release copier as `SHA-IMAGE` (no-op where the same digests are present; another digest refuses); no version spent, nothing to settle |
 | `--off-level REASON` (rehearsal deploy) | a cycle starting from production's level |
 | `--set-aside GATE REASON` | a gate in `[release].overridable`: a hook's name, or `milestone` |
 
@@ -425,10 +425,13 @@ Also:
 - `on`, `copy_on` and `host` take `"controller"` (`"control-node"` still works);
   `on` and `copy_on` also take an `ssh` alias.
 
-Gates read these keys from the commit's profile (`required_checks`,
-`required_hooks`, `overridable`, `images`, `payload_image`), as hooks are read
-from it; which host runs an environment, and its role, are read from the
-controller's working-tree profile.
+Each key is read from one of two profiles:
+
+- the commit's: `required_checks`, `required_hooks`, `overridable`, `images`
+  and `payload_image`, read by the gates, and `join` and `[[deliver.host_files]]`,
+  carried in the payload with the hooks;
+- the controller's working tree: every other key, including each
+  environment's host, role, `login`, `host_files`, `pull_timeout` and `lock`.
 
 **Hooks** are executables in the application's `deliver/hooks/`, carried in the
 payload. A `required_hooks` hook missing or not executable refuses; any other
@@ -459,8 +462,8 @@ the release step, `ephemeral` for create and destroy), `DELIVER_SHA`,
 
 The optional `bump` step (neither application has one) runs in the worktree that
 bumps `main`, with `DELIVER_VERSION`, for a lockfile refresh the version pattern
-cannot do. A check's non-zero exit is reported and changes nothing, the exit
-code included.
+cannot do. The `post-deploy` check's non-zero exit is reported and changes
+nothing, the exit code included.
 
 ## 6. Gates and checks
 
@@ -471,10 +474,10 @@ A gate refuses and work stops; a check reports and a person decides.
 | build | nothing local | clean worktree of a remote commit | gate | `--local` (preview) |
 | build | no overwrite | existing `SHA-IMAGE` not rebuilt; failed registry query refuses; releases tags never overwritten | gate | — |
 | every deploy | exact bytes | pulled by digest; revision label is the SHA; running `RepoDigests` match (`--local`: image id and label) | gate | — |
-| every deploy | no overlap | lock free, held to the end | gate | `--wait` waits |
+| every deploy | no overlap | lock free, held to the end | gate | nothing (`--wait` waits) |
 | every deploy | *state gate* | state is finished, restored or `failed, no previous deploy`; else refuses, naming the step reached and `deliver rollback ENV`. A failed restore leaves `failed: the restore did not complete`, which refuses alike | gate | nothing: `deliver rollback` |
 | deploy, release | application's hooks | every `required_hooks` hook present and executable; `pre-deploy` (deploy) and `release-check` (release) pass | gate | the two hooks by `--set-aside`, where overridable |
-| every deploy | allowed host files | destination off the allowlist refuses: rerun `deliver host-install` ([§9](#9-on-the-host)) | gate | nothing: rerun `deliver host-install` |
+| every deploy | allowed host files | destination off the allowlist refuses ([§9](#9-on-the-host)) | gate | nothing: rerun `deliver host-install` |
 | deploy, host-install | no mutual removal | two environments of one application on one host both installing host files refuse | gate | nothing: `host_files = false` on all but one |
 | every deploy | failure keeps previous | `migrate` fails or `smoke` refuses: restore ([§9](#9-on-the-host)) | gate | — |
 | rehearsal deploy | production's level | a [cycle](#3-the-route)'s first deploy (first to a rehearsal-role environment since the last release was made: `deployed` in `meta.json` at or after, to the second, the newest release tag's creation date) is production's current record ([Which release production runs](#which-release-production-runs)), the same digests, pulled from candidates. Production running a build with no record refuses, as at the first cycle ([§13](#13-moving-tile-lite-elite-to-it)) | gate | `--off-level` |
@@ -632,6 +635,7 @@ with the items left, and the deploy exits 3.
   .env                  the host's own settings: registry address, login settings, keys, limits
   lock                  flock, held to the end of a deploy or rollback; `lock` may share a path across environments
   state                 the step reached, written at each step; "finished" at the end
+  host_files.installed  the host files the current deploy installed
   deploys/<n>/          per deploy:
     deliver.env           images by digest
     meta.json             the deploy's facts: SHA, version, images, role, joined files, host files or not, finish time, smoke result
@@ -659,10 +663,12 @@ builder uses it with its `build:` blocks.
 6. write the new deploy folder;
 7. run `save-state`, then `migrate`;
 8. install host files where `host_files` is true (default only for rehearsal and
-   production, so sharing environments never overwrite each other's): copy with
+   production, so environments sharing a host never overwrite each other's; an
+   application whose test environments need a schedule keeps it inside its
+   Compose project, not as a host unit): copy with
    modes, `systemctl daemon-reload`, enable and restart units marked `enable`,
-   as root through `root-ops`. A host file the previous deploy installed and
-   this one lacks is removed;
+   as root through `root-ops`. A host file the previous deploy installed (listed in
+   `host_files.installed`) and this one lacks is removed;
 9. switch `current`, run `compose up`, then `smoke`;
 10. mark the state `finished` and prune images under the registry address, and
     `deploys/<n>` folders, other than current and previous (local images are
@@ -750,7 +756,7 @@ hook prints image references, which carry the address).
 | push from the builder | the `build` hook | `SHA-IMAGE` to candidates |
 
 **Identities.** Each component has its own login, least access, except where it
-shares an environment (open, #117). Tile Lite Elite's preview deployer, on the
+shares an environment, and the controller's own (open, #117). Tile Lite Elite's preview deployer, on the
 laptop, pulls candidates under the same open question.
 
 | Component | Tile Lite Elite | Dark Portal |
@@ -772,8 +778,9 @@ Allow dynamic-group tle-prod to read repos in tenancy where target.repo.name = '
 ```
 
 The build credential cannot write releases, and production reads releases only.
-Two flags go round that ([§4](#4-commands)): `--unrecorded` deploys a SHA with
-no record; `--skip-rehearsal` releases a commit rehearsal has not passed.
+So production runs a release that was made from a rehearsed commit. Two flags
+go round that ([§4](#4-commands)): `--unrecorded` deploys a SHA with no
+record; `--skip-rehearsal` releases a commit rehearsal has not passed.
 
 Dark Portal's statements are `in compartment COMPARTMENT`; its non-production
 group manages candidates, as its builder runs there.
