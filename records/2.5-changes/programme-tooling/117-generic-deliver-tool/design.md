@@ -34,6 +34,11 @@ images between registries. They integrate with OCI Registry, which holds the
 images ([§10](#10-oci-integration)), and GitHub, which holds the code and
 tracks each delivery ([§11](#11-github-integration)).
 
+They reuse one existing programme tool, the **board model**
+(`scripts/board/`, Python, delphside/tile-lite-elite#383), which decides every
+question about issues, milestones and `Refs`, so a release is gated by the same
+code that checks the board ([the board model's part](#the-board-models-part)).
+
 **Environments.** An *application environment* is one running copy of the
 application, with an *environment role* that [gates](#6-gates-and-checks) key
 on. *Candidates* and *releases* are its two registry repositories
@@ -106,6 +111,9 @@ flowchart TB
     REL[("<i>APP/releases</i><br>[Container: OCI repository]")]
   end
   GH["<i>GitHub</i><br>[Software System]<br>tags, Releases, milestones, board"]
+  BM["<i>board model</i><br>[Container: Python, reused]<br>gate, carries, settle"]
+  CTL -->|"release, settle request (JSON)"| BM
+  BM -->|"milestones, issues, Project State"| GH
   BLD -->|"image set SHA-IMAGE, payload inside"| CAND
   CAND -->|"read: digests, tags"| CTL
   REL -->|"read: digests, records"| CTL
@@ -117,7 +125,7 @@ flowchart TB
   CTL -->|"deploy request (JSON)"| DEP
   CAND -->|"pull: preview, test, rehearsal"| DEP
   REL -->|"pull: production"| DEP
-  CTL -->|"tag, record, settle"| GH
+  CTL -->|"tag, Release"| GH
 ```
 
 **Component view, command flow**: who starts each command, what it is given
@@ -299,6 +307,7 @@ and host files.
 | [bash](https://www.gnu.org/software/bash/), [jq](https://jqlang.org/) | the shell the tool is written in; a command-line JSON processor | the tool; requests, state and records |
 | [skopeo](https://github.com/containers/skopeo) | a command-line tool that inspects, copies and deletes images in a registry without pulling them or running a Docker daemon | registry reads, the release copy, the record, deletes ([§10](#10-oci-integration)) |
 | [Docker](https://docs.docker.com/), [Compose](https://docs.docker.com/compose/), [Buildx](https://docs.docker.com/build/) | the container engine; its multi-container runner; its builder, which can build several architectures in one run | pull by digest and run; the default `build` hook |
+| [Python 3](https://www.python.org/) | the language of the reused board model | the release's board gates and settle, on the controller ([§6](#the-board-models-part)) |
 | [git](https://git-scm.com/) | version control | worktrees, the payload archive, tag, bump |
 | [GitHub CLI](https://cli.github.com/) (`gh`) | GitHub's command-line client, which also calls its REST and GraphQL APIs | every GitHub call ([§11](#11-github-integration)) |
 | [OpenSSH](https://www.openssh.com/), [curl](https://curl.se/) | remote commands; HTTP requests | `deliver-host` calls; production's `/health` ([§6](#6-gates-and-checks)) |
