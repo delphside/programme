@@ -22,8 +22,8 @@ The owner's decisions (2026-10-27 and 28) are listed in #117's body.
 
 This project introduces a new generic tool, called *deliver*. It is started
 by a command, `deliver`, run by a person or a timer. It invokes another
-command, `deliver-host`, on the other machines involved, which this section
-describes.
+command, `deliver-host`, in the other environments involved, which this
+section describes.
 
 **Environments.** An *application environment* is one running copy of the
 application. Each has an *environment role*. Gates are defined for
@@ -43,10 +43,10 @@ where it is for each application.
 A *host* is a machine that runs one or more environments.
 
 **Components.** For each application, its profile (`app-profile.toml`, §5) maps
-each component to a specific machine, and one machine may play several. A host's
-`.env` holds only what differs per environment: addresses, keys, limits. The
-*controller* is the machine a run is started from; Ansible calls it the control
-node.
+each component to a tool environment, and one host may run several of them. A
+host's `.env` holds only what differs per environment: addresses, keys, limits.
+The *controller* is the environment a run is started from; Ansible calls it the
+control node.
 
 | component | runs | holds | does |
 | --- | --- | --- | --- |
