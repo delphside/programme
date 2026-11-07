@@ -32,25 +32,25 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R3 | `build [REF]` is non-interactive and refuses a REF that is not a commit on the remote. It builds from a clean worktree with the `build` hook, or `docker buildx bake` by default. It labels each image `org.opencontainers.image.revision` = SHA and `.version` = the version file. It pushes each image as `SHA-IMAGE` and prints the digests, an index digest for a multi-arch build. | §4 |
 | R4 | An image whose `SHA-IMAGE` is already present is not rebuilt. A failed registry query refuses. Releases is immutable. | §4; §6 |
 | R5 | The payload goes into `payload_image` at `/deliver/`, from the pinned submodule and the app repository. It holds nothing secret. Joined files come from the payload and never from a working tree. An environment may name its own `join`. | §2; §5 |
-| R6 | `deploy ENV REF` checks REF against the environment's role. For preview, test and rehearsal, REF is a full or short SHA or a version, resolved in candidates. A short SHA that matches more than one candidate refuses. For production it is a version with a record, pulled from releases. The deploy runs over ssh, or locally where `host = "control-node"`, and then `settle` for production. Gates key on the role, never the name. | §2; §4 |
+| R6 | `deploy ENV REF` checks REF against the environment's role. For preview, test and rehearsal, REF is a full or short SHA or a version, resolved in candidates. A short SHA that matches more than one candidate refuses. For production it is a version with a record, pulled from releases. The deploy runs over ssh, or locally where `host = "controller"`, and then `settle` for production. Gates key on the role, never the name. | §2; §4 |
 | R7 | Every image is pulled by digest. Its revision label must equal the SHA, and the running containers' `RepoDigests` must match. | §6 |
 | R8 | The environment's lock (`flock`) must be free and is held to the end. `--wait[=MINUTES]` waits for the lock and for a hook's exit 75, checking each minute, for at most 60 minutes by default. At the limit it refuses, exit 1, naming what it waited for, with nothing changed. | §4; §6; §9 |
 | R9 | A deploy refuses unless the state file shows the last deploy finished. Exception: a state of `failed, no previous deploy` (a first deploy that failed and was restored) does not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `deliver rollback` or a fresh deploy of the previous REF. | §6; §9 |
 | R10 | `pre-deploy` is a gate. It can be set aside with `--set-aside`, where the profile marks it overridable. | §5; §6 |
-| R11 | A deploy runs these steps in order: lock, then state, then pull by digest, then payload, then `pre-deploy`, then the new deploy folder, then `save-state`, then `migrate`, then host files, then the `current` switch, then `compose up`, then `smoke`, then finished, then pruning host images. Compose runs with a fixed project name, `--project-directory current`, the host `.env` and then `current/deliver.env`, and `--no-build`. | §9 |
+| R11 | A deploy runs these steps in order: lock, then state, then pull by digest, then payload, then `pre-deploy`, then the new deploy folder, then `save-state`, then `migrate`, then host files, then the `current` switch, then `compose up`, then `smoke`, then finished, then pruning host images. Compose runs with a fixed project name, `--project-directory` the deploy's own folder `deploys/N`, the host `.env` and then `deploys/N/deliver.env`, and `--no-build`. | §9 |
 | R12 | A failure after `save-state` runs `restore-state`, switches back to `previous` and reinstalls its host files, then exits 1. On a host's first `deliver` deploy there is no `previous`: the failure runs `restore-state`, stops the new containers, removes `current`, marks the state `failed, no previous deploy`, and exits 1 naming the application's fallback. | §6; §9 |
 | R13 | Host files are installed with their modes, followed by `systemctl daemon-reload`. Units marked `enable` are enabled and restarted. A host file the previous deploy installed and this one does not carry is removed. `deliver status` compares the host's copies with the payload, as a check. | §6; §9 |
-| R14 | A host keeps only its current and previous image sets. | §9; §11 |
+| R14 | A host keeps only its current and previous image sets. | §9; §12 |
 | R15 † | A rehearsal cycle is the deploys to a rehearsal-role environment since the last release was made. Its first deploy must be production's current record, read from the production host's state over ssh and pulled from candidates by the same digests. Production running a build with no record refuses. `--off-level REASON` sets this aside. | §6 |
-| R16 | `release` releases the commit that the rehearsal-role environment runs. It refuses unless that environment's last deploy finished and its `smoke` passed. The owner confirms by typing the version, or with `--expect VERSION`. `--skip-rehearsal REASON` sets this aside, is recorded, and raises the retrospective issue. | §4; §6; §8 |
+| R16 | `release` releases the commit that the rehearsal-role environment runs. It refuses unless that environment's last deploy finished and its `smoke` passed. The owner confirms by typing the version, or with `--expect VERSION`. `--skip-rehearsal REASON` sets this aside, is recorded, and raises the retrospective issue. | §4; §6; §7 |
 | R17 † | The release commit must be on `origin/main`. With `--emergency REASON` it must instead descend from the tag of the release production runs (its record, read from production's host state; where production has no `deliver` state, the version its `/health` reports, whose tag is the release's), and none of its commits after that tag may be on `main`. The newest tag is not the test: a release made but not yet run in production does not count. | §6 |
 | R18 | Every check in `required_checks` must be green on the commit. | §6 |
 | R19 | The version is read from the version file at the commit. No tag or record may exist for it, and it must be higher than the newest release tag of any prefix. | §4; §6 |
-| R20 | Parents aside, every open issue in milestone VERSION must be evidenced by a `Refs #N` since the previous release tag. A parent's `Refs` counts for its work package where the parent has exactly one in the milestone. Every work package those commits name whose `Route` is Production Release must be in the milestone; work packages of other routes are left out. With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 6. Otherwise the release refuses. `--set-aside milestone REASON` sets the gate aside where the profile's `[release].overridable` lists `milestone`. | §6; docs/1.2 |
+| R20 | Parents aside, every open issue in milestone VERSION must be evidenced by a `Refs #N` since the release production runs. A parent's `Refs` counts for its work package where the parent has exactly one in the milestone. Every work package those commits name whose `Route` is Production Release must be in the milestone; work packages of other routes are left out. With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 7. Otherwise the release refuses. `--set-aside milestone REASON` sets the gate aside where the profile's `[release].overridable` lists `milestone`. | §6; docs/1.2 |
 | R21 | `release-check` is a gate. It can be set aside with `--set-aside` where overridable. | §6 |
 | R22 | The release runs in this order: gates and confirmation, then copy, then `VERSION-record`, then the annotated tag `vVERSION`, then the GitHub Release, then the bump, then the milestone. A copy already present with the same digest is a no-op. The version is spent at the tag. A rerun after the tag checks that the tag's record matches and resumes at the GitHub Release. A failure after the tag exits 3. | §7 |
 | R23 | The record has the §7 fields, `record: 1`, and the tag's message is the record. A reader refuses an unknown record version. A tag without JSON is history only. | §7 |
-| R24 | The bump goes to the next patch above both the released version and `main`'s own. An emergency that holds `main`'s number moves `main` on, and moves the open issues of that milestone with it. | §7 |
+| R24 | The bump goes to the next patch above both the released version and `main`'s own. An emergency that holds `main`'s number moves `main` on, and step 7 moves the open issues the gate left out into the next milestone. | §7 |
 | R25 | The GitHub Release notes run from the previous release tag of any prefix. The next milestone is opened. | §7 |
 | R26 | A production deploy needs a record for VERSION, with its digests pulled from releases. `--unrecorded REASON` instead copies `SHA-IMAGE` to releases with no record. No version is spent, and settle moves nothing. | §4; §6 |
 | R27 | `settle` acts only on what the record carries. A carried work package goes to Post-deployment with a comment. Only Production Release work packages are carried, because the milestone gate counts no other route. A carried non-project issue is closed as completed with a comment. The milestone is closed. Each action checks first, so settle is safe to rerun. If settle fails, it lists the items left, the deploy stands, and the exit is 3. | §8; §6 |
@@ -59,22 +59,22 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R30 | Every override takes a reason. The reason goes into the record where there is one, and always into the run log. | §4 |
 | R31 | Every command writes a run log on its own machine, naming each gate it ran. A command that ends with a gate unrun refuses. Exits are 0 done; 1 refused, failed with nothing changed, or rolled back; 3 live but a later step failed. | §4 |
 | R32 | `--check` runs every gate and changes nothing. | §4 |
-| R33 | Each component has its own registry access, and no component's credential can do another role's writes. | §2; §11 |
-| R34 | Nothing secret is written to a profile, record, tag or log. | §11 |
-| R35 | Every pull completes within the environment's `pull_timeout`, or the deploy refuses before any change. | §9; §11 |
+| R33 | Each component has its own registry access, and no component's credential can do another role's writes. | §10; §12 |
+| R34 | Nothing secret is written to a profile, record, tag or log. | §12 |
+| R35 | Every pull completes within the environment's `pull_timeout`, or the deploy refuses before any change. | §9; §12 |
 | R36 | `prune` removes candidates whose `created` label (the build's start) is before the newest release was made, not released, and not in any environment's current or previous deploy. It never removes releases. | §4 |
 | R37 | `env create\|destroy NAME` works from the profile's template: a user, a state folder, a `.env` with secrets at a hidden prompt, a Compose project, and the hooks. | §4 |
-| R38 | `host-install` installs or updates `deliver-host`, `jq`, the login adapter's tools and the single `sudo` rule. | §4; §9 |
-| R39 | The login adapters are `oci-instance-principal`, `oci-api-key` and `docker-config`. Hosts log in by instance principal. | §2; owner 2026-10-28 |
+| R38 | `host-install` installs or updates `deliver-host` and its libraries and the single `sudo` rule, installs `jq` where it is missing, and checks that `flock` and the login adapter's tools (`oci`) are present, refusing when one is not. | §4; §9 |
+| R39 | The login adapters are `oci-instance-principal`, `oci-api-key` and `docker-config`. Hosts log in by instance principal. | §10; owner 2026-10-28 |
 | R42 | The carried range starts at the release production runs, so a release made while an earlier one is undeployed carries both; an item named only by a commit a later commit in the range reverts is not carried, and a revert of a commit outside the range has no effect. | §6; §7 |
 | R43 | Settling a record settles the items of the earlier releases it carries (comment `..., deployed with vV`), closes their milestones, and takes a dropped item out of its milestone with a comment, leaving its state alone; a rerun changes nothing. | §8 |
 | R40 | `status ENV` shows the digests, the matching record, the deploy state and host-file equality. `list ENV` shows the records beside what ENV runs. | §4 |
-| R41 | Tile Lite Elite's move: the first `deliver` deploy to rehearsal takes `--off-level`. The fallback until 0.10.2 has run in production is the written procedure to 0.10.0: stop the `deliver` project, restore the snapshot, then `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason. 0.10.2 is the first release with a record. The board reads `v` as released and `prod-` as history. | §10; (H) |
+| R41 | Tile Lite Elite's move: the first `deliver` deploy to rehearsal takes `--off-level`. The fallback until 0.10.2 has run in production is the written procedure to 0.10.0: stop the `deliver` project, restore the snapshot, then `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason. 0.10.2 is the first release with a record. The board reads `v` as released and `prod-` as history. | §13; (H) |
 
 ### Checked for contradiction
 
 - R19 against R22 (a tag exists on a rerun) is reconciled by the resume, if the record matches. The design states both exits: a different record refuses (exit 1) and every step done says so (exit 0).
-- R17 against docs/1.2 §1.0 is closed: the design says "a commit on `main`" and corrects §1.0 (design §12).
+- R17 against docs/1.2 §1.0 is closed: the design says "a commit on `main`" and corrects §1.0 (design §2).
 - R17's release production runs against docs/1.2's "last released tag" is closed by the design's wording. S50 is the case where they differ.
 - R27 against docs/1.2 §2.5 is closed: a carried work package of any route advances.
 
@@ -545,7 +545,7 @@ Everything else runs in CI.
 **Status, 2026-10-28.** The design was revised after this list was drawn up, and the scenarios now assert its wording. Closed in the design, and by these scenarios:
 
 - X1 by S30 (a carried work package of another route is in the fixture) and the settle test `settle_advances_a_carried_work_package_of_any_route`.
-- X3 by S20: "on `main`" stands, and docs/1.2 §1.0 is corrected (design §12).
+- X3 by S20: "on `main`" stands, and docs/1.2 §1.0 is corrected (design §2).
 - X4 by S20 and S50: an emergency descends from the release production runs, not the newest tag.
 - X5 by S57 and the C11 × C12 matrix cell: `restore-state`, state `failed, no previous deploy`, exit 1 naming the fallback.
 - X6 by S12 and S53: `[release].overridable` names the gates, and `milestone` is the tool's own.
@@ -554,7 +554,7 @@ Everything else runs in CI.
 - X9 by S26: a different record refuses (exit 1), and all steps done exits 0. The gate count (X9b) stays untestable from outside.
 - X10 by S55 and S56.
 - X11 by S43, which asserts the `created` label, the build's start time
-  (design §13).
+  (design §4).
 - X12 by S58 and X13 by S59.
 - X17 (the next deploy after a failed first deploy proceeds) by S57, and X18 (`--wait` at its limit refuses, exit 1, naming what it waited for) by S54.
 - X16 no longer applies: #117's body now has a decisions list.

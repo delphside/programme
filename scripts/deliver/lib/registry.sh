@@ -2,7 +2,7 @@
 # registry.sh: the registry as `deliver` reads and writes it (skopeo; no Docker
 # daemon needed), and the login adapters. DELIVER_REGISTRY is the registry
 # address with the tenancy's namespace; it comes from the machine's own local
-# configuration and is never in a profile (design §5).
+# configuration and is never in a profile (design §10).
 
 REG_ERR=""; REG_DIGEST=""
 
@@ -70,7 +70,7 @@ reg_copy() {
 }
 
 # ---------------------------------------------------------------- login adapters
-# One adapter per vendor method, named for the vendor (design §2). Another
+# One adapter per vendor method, named for the vendor (design §10). Another
 # registry adds an adapter here and changes nothing else.
 
 login_adapters() { printf '%s\n' docker-config oci-api-key oci-instance-principal; }
