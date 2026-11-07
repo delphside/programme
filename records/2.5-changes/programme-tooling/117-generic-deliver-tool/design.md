@@ -20,21 +20,26 @@ The owner's decisions (2026-10-27 and 28) are listed in #117's body.
 
 ## 2. Roles
 
-The tool is `deliver`, two commands from the programme repository:
-`deliver`, which a person or a timer runs, and `deliver-host`, which `deliver`
-runs on a host over ssh. A **role** is a job a machine does for the tool. The
-tool names roles, never machines or applications, and each application's
-profile says which machine plays each role; one machine may play several.
-*Control node* is Ansible's name for the machine a run is started from.
+This project introduces a new generic tool, called *deliver*. It is started
+by a command, `deliver`, run by a person or a timer. It invokes another
+command, `deliver-host`, over an ssh connection to a host, or directly where
+the host is the machine `deliver` runs on.
 
-| role | runs | holds | does |
+A **tool role** is a job a machine does for the tool. The tool names tool
+roles, never machines or applications. For each application, its profile
+(`app-profile.toml`, §5) maps each generic tool role to a specific machine,
+and one machine may play several. A host's `.env` holds only what differs per
+environment: addresses, keys, limits. *Control node* is Ansible's name for the
+machine a run is started from.
+
+| tool role | runs | holds | does |
 | --- | --- | --- | --- |
 | **build environment** | `deliver build` | the repository, the candidates write credential | makes one image set per commit from a clean checkout, pushes it to candidates |
 | **release copier** | `deliver-host copy`, started by `deliver release` | the release credential: the registry login of the Oracle user allowed to read candidates and write releases | copies a rehearsed image set by digest from candidates to releases, and pushes the record |
 | **control node** | `deliver release`, `deploy`, `settle`, `rollback`, `status`, `list`, `prune`, `host-install` | git with push rights to `main`, a GitHub credential | runs the release step's gates, tag and bump; starts deploys; settles the board from the record |
 | **environment host** | `deliver-host deploy` and `rollback`, started by `deliver`; `deliver env create` and `destroy` | its own registry identity, its `.env`, its state folder | pulls by digest, takes the payload out of the image, runs the deploy steps, holding the environment's lock throughout |
 
-The **payload** is not a role but what the hosts run: the deploy steps, the
+The **payload** is not a tool role but what the hosts run: the deploy steps, the
 application's hooks, the files joined at deploy and the host files, copied at
 build into one named image at `/deliver/`. It holds nothing secret.
 
