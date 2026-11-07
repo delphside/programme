@@ -47,12 +47,12 @@ each component to a tool environment. A host's `.env` holds only what differs
 per environment: addresses, keys, limits. The *controller* is the environment a
 run is started from; Ansible calls it the control node.
 
-| component | runs | holds | does |
-| --- | --- | --- | --- |
-| *controller* | `deliver release`, `deploy`, `settle`, `rollback`, `status`, `list`, `prune`, `host-install` | git with push rights to `main`, a GitHub credential | runs the release step's gates, tag and bump; starts deploys; settles the board from the record |
-| *builder* | `deliver build` | the repository, the candidates write credential | makes one image set per commit from a clean checkout, pushes it to candidates |
-| *release copier* | `deliver-host copy`, started by `deliver release` | the release credential: the registry login of the Oracle user allowed to read candidates and write releases | copies a rehearsed image set by digest from candidates to releases, and pushes the record |
-| *deployer* | `deliver-host deploy` and `rollback`, started by `deliver`; `deliver env create` and `destroy` | its own registry identity, its `.env`, its state folder | pulls by digest, takes the payload out of the image, runs the deploy steps, holding the environment's lock throughout |
+| component | purpose | runs | holds | does |
+| --- | --- | --- | --- | --- |
+| *controller* | Decides what ships and keeps the record of it. The only component that changes `main`, tags or the board, so a release is made in one place and the board follows production. | `deliver release`, `deploy`, `settle`, `rollback`, `status`, `list`, `prune`, `host-install` | <ul><li>git with push rights to `main`</li><li>a GitHub credential</li></ul> | <ul><li>runs the release step's gates</li><li>tags the version and bumps `main`</li><li>starts deploys</li><li>settles the board from the record</li></ul> |
+| *builder* | Builds each commit once, from a clean checkout, so every environment runs the same images and none is rebuilt on the way to production. | `deliver build` | <ul><li>the repository</li><li>the candidates write credential</li></ul> | <ul><li>makes one image set per commit</li><li>pushes it to candidates</li></ul> |
+| *release copier* | Holds the only credential that writes releases, so production can run only what rehearsal ran and no other component can put an image there. | `deliver-host copy`, started by `deliver release` | <ul><li>the release credential: the registry login of the Oracle user allowed to read candidates and write releases</li></ul> | <ul><li>copies a rehearsed image set by digest from candidates to releases</li><li>pushes the record</li></ul> |
+| *deployer* | Changes an environment by one locked, logged path on its host, which can restore the previous deploy if a step fails. | `deliver-host deploy` and `rollback`, started by `deliver`; `deliver env create` and `destroy` | <ul><li>its own registry identity</li><li>its `.env`</li><li>its state folder</li></ul> | <ul><li>holds the environment's lock throughout</li><li>pulls by digest</li><li>takes the payload out of the image</li><li>runs the deploy steps</li></ul> |
 
 The *payload* is not a component but what the hosts run: the deploy steps, the
 application's hooks, the files joined at deploy and the host files, copied at
