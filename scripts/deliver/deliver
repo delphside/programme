@@ -910,7 +910,7 @@ cmd_release() {
     # the application's own rules
     local tmp; tmp="$(mktemp -d)"
     g archive "$SHA" deliver/hooks 2>/dev/null | tar -x -C "$tmp" 2>/dev/null || true
-    H_APP="$APP" H_ENV="release" H_ROLE="control-node" H_SHA="$SHA" H_VERSION="$VERSION" H_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/deliver/$APP"
+    H_APP="$APP" H_ENV="release" H_ROLE="controller" H_SHA="$SHA" H_VERSION="$VERSION" H_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/deliver/$APP"
     H_IMAGES="$(jq -r 'to_entries[] | "\(.key)=\(.value)"' <<< "$IMAGES_JSON")"
     HOOKS_DIR="$tmp/deliver/hooks"
     hook_gate release-check
