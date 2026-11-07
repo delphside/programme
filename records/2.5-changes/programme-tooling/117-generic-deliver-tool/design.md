@@ -66,19 +66,19 @@ are C4's: `deliver` and `deliver-host` are *containers*, environments
 
 ```mermaid
 flowchart TB
-  subgraph DELIVER["deliver"]
-    CTL["<i>controller</i><br>release, deploy, settle, rollback,<br>status, list, prune, host-install"]
-    BLD["<i>builder</i><br>build"]
+  subgraph DELIVER["Container: deliver"]
+    CTL["<i>controller</i><br>[component]<br>release, deploy, settle, rollback,<br>status, list, prune, host-install"]
+    BLD["<i>builder</i><br>[component]<br>build"]
   end
-  subgraph HOST["deliver-host"]
-    COPY["<i>release copier</i><br>copy"]
-    DEP["<i>deployer</i><br>deploy, rollback, env"]
+  subgraph HOST["Container: deliver-host"]
+    COPY["<i>release copier</i><br>[component]<br>copy"]
+    DEP["<i>deployer</i><br>[component]<br>deploy, rollback, env"]
   end
   subgraph OCIR["OCI Registry"]
-    CAND[("APP/candidates")]
-    REL[("APP/releases")]
+    CAND[("<i>APP/candidates</i><br>[store]")]
+    REL[("<i>APP/releases</i><br>[store]")]
   end
-  GH["GitHub<br>tags, Releases, milestones, board"]
+  GH["<i>GitHub</i><br>[external system]<br>tags, Releases, milestones, board"]
   BLD -->|"image set SHA-IMAGE, payload inside"| CAND
   CTL -->|"copy request (JSON)"| COPY
   CAND -->|"image set, by digest"| COPY
@@ -94,23 +94,23 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-  OWN(["owner"])
-  TIMER(["timer<br>Dark Portal"])
-  BUILD["<i>builder</i><br>deliver build"]
-  REL["<i>controller</i><br>deliver release"]
-  DEP["<i>controller</i><br>deliver deploy"]
-  SET["<i>controller</i><br>deliver settle"]
-  RB["<i>controller</i><br>deliver rollback"]
-  READ["<i>controller</i><br>deliver status, list, prune"]
-  HI["<i>controller</i><br>deliver host-install"]
-  ENV["<i>deployer</i><br>deliver env create, destroy"]
-  COPY["<i>release copier</i><br>deliver-host copy"]
-  HST["<i>deployer</i><br>deliver-host status"]
-  HDEP["<i>deployer</i><br>deliver-host deploy"]
-  HRB["<i>deployer</i><br>deliver-host rollback"]
-  AL["<i>deployer</i><br>deliver-host allowlist"]
-  HENV["<i>deployer</i><br>deliver-host env"]
-  ROOT["<i>deployer</i><br>deliver-host root-ops, by sudo"]
+  OWN(["<i>owner</i><br>[person]"])
+  TIMER(["<i>timer</i><br>[timer]<br>Dark Portal's"])
+  BUILD["<i>builder</i><br>[component]<br>deliver build"]
+  REL["<i>controller</i><br>[component]<br>deliver release"]
+  DEP["<i>controller</i><br>[component]<br>deliver deploy"]
+  SET["<i>controller</i><br>[component]<br>deliver settle"]
+  RB["<i>controller</i><br>[component]<br>deliver rollback"]
+  READ["<i>controller</i><br>[component]<br>deliver status, list, prune"]
+  HI["<i>controller</i><br>[component]<br>deliver host-install"]
+  ENV["<i>deployer</i><br>[component]<br>deliver env create, destroy"]
+  COPY["<i>release copier</i><br>[component]<br>deliver-host copy"]
+  HST["<i>deployer</i><br>[component]<br>deliver-host status"]
+  HDEP["<i>deployer</i><br>[component]<br>deliver-host deploy"]
+  HRB["<i>deployer</i><br>[component]<br>deliver-host rollback"]
+  AL["<i>deployer</i><br>[component]<br>deliver-host allowlist"]
+  HENV["<i>deployer</i><br>[component]<br>deliver-host env"]
+  ROOT["<i>deployer</i><br>[component]<br>deliver-host root-ops, by sudo"]
   TIMER --> BUILD
   OWN --> BUILD
   OWN --> REL
@@ -141,28 +141,31 @@ flowchart LR
 flowchart TB
   subgraph LAPTOP["Owner's laptop (WSL)"]
     subgraph TOOLS["tool environments"]
-      CTL["<i>controller</i>"]
-      BLD["<i>builder</i>"]
-      COPY["<i>release copier</i><br>Oracle user tle-releaser"]
+      CTL["<i>controller</i><br>[component]"]
+      BLD["<i>builder</i><br>[component]"]
+      COPY["<i>release copier</i><br>[component]<br>Oracle user tle-releaser"]
     end
     subgraph PREV["preview (role preview)"]
-      DEPP["<i>deployer</i>"]
+      DEPP["<i>deployer</i><br>[component]"]
     end
   end
   subgraph REHVM["Oracle VM: rehearsal"]
     subgraph REH["rehearsal (role rehearsal)"]
-      DEPR["<i>deployer</i>"]
+      DEPR["<i>deployer</i><br>[component]"]
     end
   end
   subgraph PRODVM["Oracle VM: production"]
     subgraph PROD["production (role production)"]
-      DEPX["<i>deployer</i>"]
+      DEPX["<i>deployer</i><br>[component]"]
     end
   end
   subgraph OCIR["OCI Registry"]
-    CAND[("tile-lite-elite/candidates")]
-    REL[("tile-lite-elite/releases")]
+    CAND[("<i>tile-lite-elite/candidates</i><br>[store]")]
+    REL[("<i>tile-lite-elite/releases</i><br>[store]")]
   end
+  GH["<i>GitHub</i><br>[external system]<br>delphside/tile-lite-elite: repository, issues, Releases; the board"]
+  GH -->|"fetch the commit"| BLD
+  CTL -->|"tag, bump, Release, settle"| GH
   BLD -->|push| CAND
   COPY -->|copy| REL
   CTL -->|local| DEPP
@@ -178,29 +181,32 @@ flowchart TB
 ```mermaid
 flowchart TB
   subgraph OWNER["Owner's machine"]
-    CTL["<i>controller</i>"]
+    CTL["<i>controller</i><br>[component]"]
   end
   subgraph NONPROD["Oracle VM: non-production"]
     subgraph TOOLS["tool environments"]
-      BLD["<i>builder</i><br>E2, on a timer"]
-      COPY["<i>release copier</i><br>Linux user dp-release"]
+      BLD["<i>builder</i><br>[component]<br>E2, on a timer"]
+      COPY["<i>release copier</i><br>[component]<br>Linux user dp-release"]
     end
     subgraph TEST["E3 to E5 (role test)"]
-      DEPT["<i>deployer</i>"]
+      DEPT["<i>deployer</i><br>[component]"]
     end
     subgraph REH["E6 (role rehearsal)"]
-      DEPR["<i>deployer</i>"]
+      DEPR["<i>deployer</i><br>[component]"]
     end
   end
   subgraph PRODVM["Oracle VM: production"]
     subgraph PROD["production (role production)"]
-      DEPX["<i>deployer</i>"]
+      DEPX["<i>deployer</i><br>[component]"]
     end
   end
   subgraph OCIR["OCI Registry"]
-    CAND[("dark-portal/candidates")]
-    REL[("dark-portal/releases")]
+    CAND[("<i>dark-portal/candidates</i><br>[store]")]
+    REL[("<i>dark-portal/releases</i><br>[store]")]
   end
+  GH["<i>GitHub</i><br>[external system]<br>delphside/dark-portal: repository, issues, Releases; the board"]
+  GH -->|"fetch the commit"| BLD
+  CTL -->|"tag, bump, Release, settle"| GH
   BLD -->|push| CAND
   CTL -->|ssh| COPY
   COPY -->|copy| REL
