@@ -37,8 +37,8 @@ particular environment roles:
 | `production` | releases only | a record is needed; settle follows |
 
 **Tool environments** run a component of the tool: the controller, the
-builder or the release copier. *Components* below says what each does and where it is for each
-application.
+builder or the release copier. *Components* below says what each does and
+where it is for each application.
 
 A **host** is a machine that runs one or more environments.
 
