@@ -925,6 +925,21 @@ the machine user's `docker` login, or the component's auth file.
 
 ## 11. GitHub integration
 
+**git, gh, REST and GraphQL.** GitHub is reached two ways, and one has two
+forms:
+
+- `git` speaks git's own protocol, over SSH here, to the repository itself:
+  commits, branches and tags. It knows nothing of issues or Releases.
+- Everything else (issues, milestones, Releases, check runs, the board) is
+  GitHub's web API, which comes in two forms. The REST API has one URL per
+  kind of thing (`repos/R/issues/N`) and suits single reads and writes. The
+  GraphQL API is one endpoint taking a query that names exactly the fields
+  wanted across linked objects, and is the only way to read or set a
+  project's fields, such as `Project State`.
+- `gh`, the GitHub CLI, is a client for both: `gh api` sends a REST or
+  GraphQL request with `gh`'s stored login, and `gh release create` wraps
+  REST calls. So the tool holds no GitHub token of its own.
+
 Only the controller calls GitHub; the builder, copier and hosts hold no GitHub
 credential ([privileges](#component-privileges)). Every call is in `lib/github.sh`, through `gh api` (and
 `gh release create`); the repository is `DELIVER_GH_REPO` or the origin URL's.
