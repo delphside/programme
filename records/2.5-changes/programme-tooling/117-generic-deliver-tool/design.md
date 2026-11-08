@@ -26,18 +26,17 @@ Its decisions are in #117's body.
 invokes `deliver-host` elsewhere.
 
 *deliver* and *deliver-host* are shell scripts, installed and run directly on
-their host by a Linux user; neither is a Docker container. Only the application
-runs in Docker containers, which the deployer starts with `docker compose`. The
-scripts are bash, with awk to read the profile, and copy images with
-[skopeo](https://github.com/containers/skopeo), a tool for copying container
-images between registries. They integrate with OCI Registry, which holds the
-images ([§10](#10-oci-integration)), and GitHub, which holds the code and
-tracks each delivery ([§11](#11-github-integration)).
+their host by a Linux user. Only the application runs in Docker containers,
+which the deployer starts with `docker compose`. The scripts are bash, with awk
+to read the profile, and copy images with `skopeo`. They integrate with OCI
+Registry, which holds the images ([§10](#10-oci-integration)), and GitHub,
+which holds the code and tracks each delivery
+([§11](#11-github-integration)).
 
-They reuse one existing programme tool, the **board model**
-(`scripts/board/`, Python, delphside/tile-lite-elite#383), which decides every
-question about issues, milestones and `Refs`, so a release is gated by the same
-code that checks the board ([the board model's part](#the-board-models-part)).
+They reuse one existing programme tool, the *board model* (`scripts/board/`,
+Python), which decides every question about issues, milestones and `Refs`, so a
+release is gated by the same code that checks the board
+([the board model's part](#the-board-models-part)).
 
 **Environments.** An *application environment* is one running copy of the
 application, with an *environment role* that [gates](#6-gates-and-checks) key
@@ -91,8 +90,8 @@ credential; those sections keep the calls' detail, not the privileges.
 Terms and
 [views](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md#which-view-a-diagram-takes-and-saying-so)
 are C4's: `deliver` and `deliver-host` are *containers*, environments
-*deployment nodes*. A C4 container is a separately run program, not a Docker
-container.
+*deployment nodes*. A C4 container is an application or a data store, here a
+program run directly on its host, not a Docker container.
 
 **Container view**: what each arrow carries.
 
@@ -111,9 +110,9 @@ flowchart TB
     REL[("<i>APP/releases</i><br>[Container: OCI repository]")]
   end
   GH["<i>GitHub</i><br>[Software System]<br>tags, Releases, milestones, board"]
-  BM["<i>board model</i><br>[Container: Python, reused]<br>gate, carries, settle"]
+  BM["<i>board model</i><br>[Container: Python]<br>GitHub adapter, reused"]
   CTL -->|"release, settle request (JSON)"| BM
-  BM -->|"milestones, issues, Project State"| GH
+  BM -->|"milestones, issues, Project State,<br>check runs, Release"| GH
   BLD -->|"image set SHA-IMAGE, payload inside"| CAND
   CAND -->|"read: digests, tags"| CTL
   REL -->|"read: digests, records"| CTL
@@ -125,7 +124,7 @@ flowchart TB
   CTL -->|"deploy request (JSON)"| DEP
   CAND -->|"pull: preview, test, rehearsal"| DEP
   REL -->|"pull: production"| DEP
-  CTL -->|"tag, Release"| GH
+  CTL -->|"tag, bump main (git)"| GH
 ```
 
 **Component view, command flow**: who starts each command, what it is given
@@ -198,10 +197,10 @@ flowchart TB
   GH["<i>GitHub</i><br>[Software System]<br>delphside/tile-lite-elite: repository,<br>issues, Releases; the board"]
   subgraph LAPTOP["Owner's laptop: WSL"]
     subgraph TOOLS["tool environments"]
-      CTL["<i>controller</i><br>[Component: bash, jq, skopeo,<br>git, ssh, curl]<br>controller.json"]
-      BM["<i>board model</i><br>[Component: Python, gh]<br>GitHub adapter"]
-      BLD["<i>builder</i><br>[Component: git, docker buildx,<br>skopeo]<br>builder.json, docker login"]
-      COPY["<i>release copier</i><br>[Component: skopeo]<br>copier.json"]
+      CTL["<i>controller</i><br>[Component: bash, jq, skopeo,<br>git, ssh, curl]<br>skopeo auth file controller.json"]
+      BM["<i>board model</i><br>[Container: Python]<br>GitHub adapter, reused"]
+      BLD["<i>builder</i><br>[Component: git, docker buildx,<br>skopeo]<br>skopeo auth file builder.json, docker login"]
+      COPY["<i>release copier</i><br>[Component: skopeo]<br>skopeo auth file copier.json"]
     end
     subgraph PREV["preview"]
       DEPP["<i>deployer</i><br>[Component: docker compose,<br>flock]<br>the builder's docker login"]
@@ -212,13 +211,13 @@ flowchart TB
     REL[("<i>tile-lite-elite/releases</i><br>[Container: OCI repository]")]
   end
   subgraph REHVM["Oracle VM: rehearsal"]
-    DEPR["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal"]
+    DEPR["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal (dynamic group tle-nonprod)"]
   end
   subgraph PRODVM["Oracle VM: production"]
-    DEPX["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal"]
+    DEPX["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal (dynamic group tle-prod)"]
   end
   GH -->|"fetch the commit<br>[git, HTTPS]"| BLD
-  CTL -->|"gate, settle, publish<br>[local process, JSON]"| BM
+  CTL -->|"gate, checks, next, settle, publish<br>[local process, JSON]"| BM
   BM -->|"checks, milestones, Release, settle<br>[GraphQL or REST, HTTPS]<br>owner's gh token"| GH
   CTL -->|"tag, bump main<br>[git, SSH]<br>owner's key, admin bypass"| GH
   BLD -->|"push SHA-IMAGE, delete pruned<br>[registry v2]<br>tle-builder token"| CAND
@@ -233,8 +232,8 @@ flowchart TB
   CTL -->|"deploy request<br>[ssh]<br>owner's ssh key"| DEPX
   CTL -.->|"/health, a host with no deliver state<br>[HTTPS]"| DEPX
   CAND -->|"pull by digest<br>[registry v2]<br>tle-builder token"| DEPP
-  CAND -->|"pull by digest<br>[registry v2]<br>dynamic group tle-nonprod"| DEPR
-  REL -->|"pull by digest<br>[registry v2]<br>dynamic group tle-prod"| DEPX
+  CAND -->|"pull by digest<br>[registry v2]<br>instance principal (dynamic group tle-nonprod)"| DEPR
+  REL -->|"pull by digest<br>[registry v2]<br>instance principal (dynamic group tle-prod)"| DEPX
 ```
 
 **Deployment view, Dark Portal.**
@@ -243,8 +242,8 @@ flowchart TB
 flowchart TB
   GH["<i>GitHub</i><br>[Software System]<br>delphside/dark-portal: repository,<br>issues, Releases; the board"]
   subgraph OWNER["Owner's machine"]
-    CTL["<i>controller</i><br>[Component: bash, jq, skopeo,<br>git, ssh]<br>controller.json"]
-    BM["<i>board model</i><br>[Component: Python, gh]<br>GitHub adapter"]
+    CTL["<i>controller</i><br>[Component: bash, jq, skopeo,<br>git, ssh]<br>skopeo auth file controller.json"]
+    BM["<i>board model</i><br>[Container: Python]<br>GitHub adapter, reused"]
   end
   subgraph OCIR["OCI Registry"]
     CAND[("<i>dark-portal/candidates</i><br>[Container: OCI repository]")]
@@ -252,21 +251,21 @@ flowchart TB
   end
   subgraph NONPROD["Oracle VM: non-production"]
     subgraph TOOLS["tool environments"]
-      BLD["<i>builder</i><br>[Component: git, docker buildx,<br>skopeo, oci CLI]<br>E2, on a timer; instance principal"]
+      BLD["<i>builder</i><br>[Component: git, docker buildx,<br>skopeo, oci CLI]<br>E2, on a timer; the VM's instance principal"]
       COPY["<i>release copier</i><br>[Component: skopeo, oci CLI]<br>Linux user dp-release;<br>dp-releaser's API key"]
     end
     subgraph TEST["E3 to E5 (role test)"]
-      DEPT["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal"]
+      DEPT["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>the VM's instance principal"]
     end
     subgraph REH["E6 (role rehearsal)"]
-      DEPR["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal"]
+      DEPR["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>the VM's instance principal"]
     end
   end
   subgraph PRODVM["Oracle VM: production"]
-    DEPX["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal"]
+    DEPX["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>the VM's instance principal"]
   end
   GH -->|"fetch the commit<br>[git, HTTPS]"| BLD
-  CTL -->|"gate, settle, publish<br>[local process, JSON]"| BM
+  CTL -->|"gate, checks, next, settle, publish<br>[local process, JSON]"| BM
   BM -->|"checks, milestones, Release, settle<br>[GraphQL or REST, HTTPS]<br>owner's gh token"| GH
   CTL -->|"tag, bump main<br>[git, SSH]<br>owner's key, admin bypass"| GH
   BLD -->|"push SHA-IMAGE, delete pruned<br>[registry v2]<br>the VM's instance principal"| CAND
@@ -281,15 +280,25 @@ flowchart TB
   CTL -->|"deploy request<br>[ssh]<br>owner's ssh key"| DEPX
   CAND -->|"pull by digest<br>[registry v2]<br>the VM's instance principal"| DEPT
   CAND -->|"pull by digest<br>[registry v2]<br>the VM's instance principal"| DEPR
-  REL -->|"pull by digest<br>[registry v2]<br>instance principal"| DEPX
+  REL -->|"pull by digest<br>[registry v2]<br>the VM's instance principal"| DEPX
 ```
 
-An instance principal's token comes from the `oci` CLI on the host; an
-auth token is typed once at `deliver login`; the API key never leaves its
-machine ([§10](#10-oci-integration)). On Tile Lite Elite's laptop the
-controller, builder and copier run as one Linux user with three registry
-logins, and the payload's deploy steps run on each host as its deploy user,
-reaching root only through `root-ops` ([§9](#9-on-the-host)).
+The credential on an arrow is one of these:
+
+| Label | What it is |
+| --- | --- |
+| instance principal (dynamic group X), the VM's instance principal | the VM's own identity, where a dynamic group exists and where none is named; its token comes from the `oci` CLI on the host ([§10](#10-oci-integration)) |
+| `NAME token` | the auth token of Oracle user NAME, typed once at `deliver login` ([§10](#10-oci-integration)) |
+| API key | Oracle user dp-releaser's key, which never leaves its machine ([§10](#10-oci-integration)) |
+| skopeo auth file, docker login | the logins `deliver login` makes: a file per component, and the machine user's `docker` login ([§10](#10-oci-integration)) |
+| owner's gh token | the controller's `gh` login ([§11](#11-github-integration)) |
+| owner's key, admin bypass | the owner's git credential, which bypasses `main`'s ruleset ([§11](#11-github-integration)) |
+| owner's ssh key | the owner's key for `ssh` to a host |
+
+On Tile Lite Elite's laptop the controller, builder and copier run as one Linux
+user with four logins (three skopeo auth files and the `docker` login), and the
+payload's deploy steps run on each host as its deploy user, reaching root only
+through `root-ops` ([§9](#9-on-the-host)).
 
 The *payload* ([§9](#9-on-the-host)) is what hosts run, not a component. It
 holds nothing secret: deploy steps, hooks, [joined files](#5-profile-and-hooks)
@@ -306,11 +315,12 @@ and host files.
   name its own (Tile Lite Elite's preview joins `docker-compose.preview.yml`,
   `Caddyfile.preview`).
 
-**Technologies.** Where each runs is in the deployment views above.
+**Technologies.** Where each runs is in the two deployment views.
 
 | Technology | What it is | Used for |
 | --- | --- | --- |
 | [bash](https://www.gnu.org/software/bash/), [jq](https://jqlang.org/) | the shell the tool is written in; a command-line JSON processor | the tool; requests, state and records |
+| [awk](https://www.gnu.org/software/gawk/manual/) | a text-processing language | reading the profile (`toml.awk`) |
 | [skopeo](https://github.com/containers/skopeo) | a command-line tool that inspects, copies and deletes images in a registry without pulling them or running a Docker daemon | registry reads, the release copy, the record, deletes ([§10](#10-oci-integration)) |
 | [Docker](https://docs.docker.com/), [Compose](https://docs.docker.com/compose/), [Buildx](https://docs.docker.com/build/) | the container engine; its multi-container runner; its builder, which can build several architectures in one run | pull by digest and run; the default `build` hook |
 | [Python 3](https://www.python.org/) | the language of the reused board model | the release's board gates and settle, on the controller ([§6](#the-board-models-part)) |
@@ -329,7 +339,7 @@ and host files.
 | `scripts/deliver/payload/` | deploy and rollback steps for the payload image |
 | `scripts/deliver/lib/` | profile, run log, gate list, registry and login adapters |
 | `scripts/tests/deliver-*.bats` | tests |
-| `scripts/board/` | the board model, reused: `board-release.py`, and the GitHub adapter; the board reads tags with `tag_prefix` as releases and `history_prefixes` as history |
+| `scripts/board/` | the board model, reused, which is the GitHub adapter: `board-release.py` its entry point, `sources.py` its GitHub calls; the board reads tags with `tag_prefix` as releases and `history_prefixes` as history |
 | docs/1.1, 1.2 | 1.1: the tool's row. 1.2: *Making a release, then deploying it*, and §1.0, which states that a release is "a commit on `main`" (delphside/tile-lite-elite#545 R5) |
 
 ## 3. The route
@@ -575,7 +585,7 @@ which exits 3 ([§8](#8-settling)).
 | release | what rehearsal passed | rehearsal runs this commit's digests, last deploy finished, `smoke` passed, owner confirms the version | gate | `--skip-rehearsal` |
 | release | ships `main` | commit on `origin/main` | gate | `--emergency` |
 | release | emergency ships nothing unreleased | with `--emergency`, commit descends from the tag of the release production runs ([Which release production runs](#which-release-production-runs)), none of its later commits on `main` | gate | — |
-| release | tests passed | every work package in milestone VERSION has its *Functional user tests* and *Technical tests* headings, every box under them ticked (`release.outstanding`); a package with neither heading refuses too | gate; a check with `--emergency` | `--emergency` |
+| release | tests passed | every work package in milestone VERSION has a *Functional user tests* or a *Technical tests* heading, and every box under the headings it has is ticked (`release.outstanding`); a package with neither heading refuses | gate; a check with `--emergency` | `--emergency` |
 | release | CI passed | every `required_checks` check green on the commit | gate | — |
 | release | version spent once | no tag for it; a `VERSION-record` in releases is reused if it has this commit and digests; above the newest release tag of any prefix | gate | — |
 | release | shipping list | open issues in milestone VERSION evidenced by commits in the release; Production Release work packages the commits name in it or an undeployed release's ([The milestone gate](#the-milestone-gate)) | gate | `--set-aside milestone REASON` |
@@ -609,49 +619,55 @@ Every rule about issues, milestones and `Refs` is the board model's, in
 logic: `board-check.py` before a release, this tool's gates at it, `settle`
 after it. The controller calls one command, `board-release.py`, and keeps only
 what is about images, hosts and git. Python 3 is therefore a controller
-prerequisite; the builder, copier and hosts need bash only.
+prerequisite; the builder, copier and hosts need no Python.
 
 ```mermaid
 flowchart LR
   CTL["<i>controller</i><br>[Component: bash]<br>deliver release, deploy, settle"]
-  BR["<i>board-release.py</i><br>[Component: Python]<br>gate, settle, next, checks, publish"]
   subgraph MODEL["Container: board model"]
+    BR["<i>board-release.py</i><br>[Component: Python]<br>entry point: gate, settle, next, checks, publish"]
+    RL["<i>release.py</i><br>[Component]<br>gate, settle, publish logic"]
     M["<i>model.py</i><br>[Component]<br>classify: work package, parent, ..."]
     MS["<i>milestone.py</i><br>[Component]<br>carried, unbuilt"]
     RF["<i>refs.py, repo.py</i><br>[Component]<br>Refs in a range, reverts"]
     SRC["<i>sources.py</i><br>[Component]<br>GitHub reads and writes"]
   end
   GH["<i>GitHub</i><br>[Software System]<br>issues, milestones, the board"]
-  CTL -->|"VERSION, range, earlier records<br>[JSON on standard input]"| BR
+  CTL -->|"VERSION, commit, ranges, tag prefixes<br>[JSON on standard input]"| BR
   BR -->|"verdict, carries, findings<br>[JSON on standard output, exit code]"| CTL
-  BR --> M
-  BR --> MS
-  BR --> RF
-  BR --> SRC
+  BR --> RL
+  RL --> M
+  RL --> MS
+  RL --> RF
+  RL --> SRC
   SRC -->|"[GraphQL and REST, through gh]"| GH
 ```
 
-| Command | Replaces in `deliver` | Answers |
+| Command | Rule it holds | Answers |
 | --- | --- | --- |
-| `board-release.py gate < request` | the milestone gate, `refs_in`, `refs_effective`, the work-package classification; adds the tests-passed gate | passed or refused, with each finding; what the release carries (`work_packages`, `issues`, and `releases` with `dropped`), which goes into the record; with `--emergency`, the items left out |
-| `board-release.py settle < record` | `settle_version` | does [§8](#8-settling)'s table, skipping what is done; prints what is left; exit 3 if anything is |
+| `board-release.py gate < request` | the tests-passed and milestone gates: `Refs` in the range, reverts, the work-package classification | passed or refused, with each finding; what the release carries (`work_packages`, `issues`, and `releases` with `dropped`), which goes into the record; with `--emergency`, the items left out |
+| `board-release.py settle --announcement TEXT --tag TAG < record` | [§8](#8-settling)'s table | does the table, skipping what is done; prints what is left; exit 3 if anything is, with a reason where the issues could not be read |
 | `board-release.py next VERSION [--move N...]` | step 7 of [§7](#7-the-release-and-its-record) | opens the next milestone and moves the left-out items into it |
-| `board-release.py checks SHA` | the `ci-passed` gate's read | each `required_checks` check's conclusion on the commit |
-| `board-release.py publish TAG [--retrospective REASON]` | step 5 of [§7](#7-the-release-and-its-record), and `--skip-rehearsal`'s issue | the GitHub Release, and the retrospective issue, each skipped where it exists |
+| `board-release.py checks SHA --require NAME...` | the `ci-passed` gate's read | each `required_checks` check's conclusion on the commit |
+| `board-release.py publish TAG [--notes-start-tag PREV] [--retrospective REASON --version V --commit SHA]` | step 5 of [§7](#7-the-release-and-its-record), and `--skip-rehearsal`'s issue | the GitHub Release, and the retrospective issue, each skipped where it exists; `--notes-start-tag` is left out for a first release |
 
-The request carries the version, the commit, the release's range, the range on
-`main` (for `--emergency`), where the carried range starts and the tag prefixes;
-`board-release.py` reads the earlier releases' records from their tags' messages
-in git, so it never touches the registry. Exit codes are the tool's: 0 passed, 1 refused, 70 a profile error
+The gate's request carries the version, the commit, the release's range, the
+range on `main` (for `--emergency`), where the carried range starts and the tag
+prefixes; it holds no records. `settle` takes this release's own record.
+`board-release.py` reads the earlier releases' records from their tags'
+messages in git, so it never touches the registry. Only `gate` and `settle` read
+standard input.
+
+Exit codes are the tool's: 0 passed or done; 1 refused, or the board or git
+could not be read; 2 usage (an unknown command); 3 partly done (`settle`,
+`next`, `publish`), with what is left named; 70 a profile error or a crash
 (`profile.EXIT_PROFILE_ERROR`), never read as refused.
 
-**What changes in the rules.** `milestone.py`'s rule replaces this design's
-own: a parent's `Refs` is reported beside its work package as a fact, never
-counted for it (delphside/tile-lite-elite#375), so the exception for a parent
-with one package goes. The revert rule ([the milestone gate](#the-milestone-gate))
-moves into `repo.py`, so `board-check.py`'s pre-flight counts reverts as the
-gate does. `deliver` keeps no GitHub code: the board model is its GitHub adapter
-([§11](#11-github-integration)), so `lib/github.sh` goes.
+**The rules.** A parent's `Refs` is reported beside its work package as a fact,
+never counted for it. The revert rule
+([the milestone gate](#the-milestone-gate)) is in `repo.py`, so
+`board-check.py`'s pre-flight counts reverts as the gate does. `deliver` keeps no GitHub code: the board model is its GitHub adapter
+([§11](#11-github-integration)).
 
 ### Which release production runs
 
@@ -759,7 +775,7 @@ docs/1.2 §2.5 says, parents aside:
 | a carried work package (a release milestone holds only Production Release ones) | `Project State` Post-deployment, with a comment starting with `[release].announcement` and the version, so the board recognises it |
 | a carried non-project issue | closed as completed, same comment |
 | milestone VERSION, and each release's in `carries.releases` | closed |
-| an item of a release in `carries.releases` | as above, comment `<announcement><its version>, deployed with v<VERSION>`, unless it has that release's own |
+| an item of a release in `carries.releases` | the same as a carried item of its kind, with the comment `<announcement><its version>, deployed with v<VERSION>`, unless it has that release's own |
 | a `dropped` item still in its release's milestone | comment `<announcement><VERSION> without this (not shipped): ...` then removed from that milestone; state and openness left alone |
 
 **Worked example.** Production runs 0.10.1. 0.10.2 is made with #1 #2 #3 and
@@ -909,7 +925,7 @@ deletes candidates; the copier alone writes releases.
 | controller | Oracle user `tle-controller`, group `tle-controllers`, auth token; `docker-config` | Oracle user `dp-controller`, group `dp-controllers`, auth token; `docker-config` |
 | builder | Oracle user `tle-builder`, group `tle-builders`, auth token; `docker-config` | the non-production VM, instance principal |
 | release copier | Oracle user `tle-releaser`, group `tle-releasers`, auth token; `docker-config` | Linux user `dp-release` on the non-production VM, holding Oracle user `dp-releaser`'s API key (never leaves it); `oci-api-key` |
-| preview deployer | the laptop's `preview` environment, which uses the builder's `docker` login (below); `docker-config` | none |
+| preview deployer | the laptop's `preview` environment, which uses the builder's `docker` login ([§10](#10-oci-integration)); `docker-config` | none |
 | rehearsal, production hosts | instance principal, dynamic groups `tle-nonprod` (rehearsal) and `tle-prod` (production) | instance principal |
 
 The Oracle users have no console password.
@@ -997,8 +1013,9 @@ A host's `.env` is read as text, never sourced, for `DELIVER_REGISTRY`,
 `OCI_CLI_KEY_FILE` and `OCI_CLI_CONFIG_FILE`, so `oci-instance-principal` works
 over non-interactive `ssh`, which carries no environment.
 `~/.config/deliver/APP.env` is sourced as shell. The `oci-*` adapters write a
-short-lived token into the login the component uses ([above](#10-oci-integration)):
-the machine user's `docker` login, or the component's auth file.
+short-lived token into the login the component uses
+([one login per component](#10-oci-integration)): the machine user's `docker`
+login, or the component's auth file.
 
 ## 11. GitHub integration
 
@@ -1021,23 +1038,24 @@ Only the controller calls GitHub; the builder, copier and hosts hold no GitHub
 credential ([privileges](#component-privileges)). **The board model is the
 GitHub adapter**: every call goes through it, by `board-release.py`
 ([the board model's part](#the-board-models-part)), and `deliver` keeps no
-GitHub code of its own. The adapter chooses the API by where it runs: GraphQL
-where the token allows it, and REST where GraphQL is refused, as it is to a
-cloud session's token. A read that neither answers refuses, never reads as
-empty. The one write with no REST route is `Project State`, so settle needs a
-GraphQL-capable token; where GraphQL is refused it leaves that step, and the
-comment after it, undone and exits 3. The repository is `DELIVER_GH_REPO` or the
-origin URL's.
+GitHub code of its own. The issue reads (`fetch`, `issues_in_full`) take
+GraphQL where the token allows it and fall back to REST where GraphQL is
+refused, as it is to a cloud session's token. Check runs, milestones, comments,
+issue search and Releases are REST always, and the `Project State` write is
+GraphQL only (`setIssueFieldValue`), so settle needs a GraphQL-capable token:
+where GraphQL is refused it leaves that step, and the comment after it, undone
+and exits 3. A read that neither answers refuses, never reads as empty. The
+repository is `DELIVER_GH_REPO` or the origin URL's.
 
-| Call | Used for |
-| --- | --- |
-| a milestone's issues, with type, parent, sub-issues, `Route` and `Project State` | the milestone and tests-passed gates, carries |
-| check runs on a commit | the `required_checks` gate |
-| milestones: find, open, close; an issue's milestone set or cleared | step 7, settle |
-| an issue's comments: read, add; close as completed | settle |
-| `Project State` set to Post-deployment | settle |
-| an issue found by title, raised | the retrospective issue |
-| a Release found by tag, created with notes from the previous release tag | the GitHub Release |
+| Call | Through | Used for |
+| --- | --- | --- |
+| every open issue, with type, parent, sub-issues, `Route` and `Project State`, plus the issues the commits name, open or closed | GraphQL; REST where refused | the milestone and tests-passed gates, carries |
+| check runs on a commit | REST | the `required_checks` gate |
+| milestones: find, open, close; an issue's milestone set or cleared | REST | step 7, settle |
+| an issue's comments: read, add; close as completed | REST | settle |
+| `Project State` set to Post-deployment | GraphQL only | settle |
+| an issue found by title, raised | REST | the retrospective issue |
+| a Release found by tag, created with notes from the previous release tag | REST | the GitHub Release |
 
 **git, not the API.** The tag `vVERSION` and the bump to `main` are pushed with
 the controller's git credential, which bypasses `main`'s ruleset (admin bypass).
@@ -1045,7 +1063,7 @@ the controller's git credential, which bypasses `main`'s ruleset (admin bypass).
 **Credential.** The controller's `gh` login; the tool keeps none. Fine-grained
 scopes: Contents read and write (the Release; tag and bump go by git), Issues
 read and write (milestones, comments, close), Checks read, Metadata read,
-organisation Projects read and write (`Project State`).
+organisation issue fields read and write (`Project State`).
 
 **The board.** Release and settle assume the programme's board: issue types
 (projects, with sub-issues as work packages), the `Route` and `Project State`
@@ -1105,9 +1123,10 @@ made with `deliver` (owner, 2026-10-28), and the first with a record.
   (`history_prefixes`); "running in production" comes from settle and `/health`,
   not from the tag.
 - **What changes in Tile Lite Elite** is delphside/tile-lite-elite#555's and
-  delphside/tile-lite-elite#556's: the profile keys above; the hooks, which wrap
-  today's schema, snapshot, migrate and smoke steps and refuse where today's
-  pass for want of an answer; the compose files' `image:` lines; the payload in
+  delphside/tile-lite-elite#556's: the profile keys
+  ([§5](#5-profile-and-hooks)); the hooks, which wrap today's schema,
+  snapshot, migrate and smoke steps and refuse where today's pass for want of
+  an answer; the compose files' `image:` lines; the payload in
   the server image; `Caddyfile` mounted, not copied; `[ships].non_shipping` no
   longer listing what the payload carries; `verify.sh` using `deliver status`
   and `--check`; the `sa` alias as an `/etc/profile.d` host file naming the

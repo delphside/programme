@@ -47,7 +47,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R18 | Every check in `required_checks` must be green on the commit. | §6 |
 | R19 | The version is read from the version file at the commit. No tag or record may exist for it, and it must be higher than the newest release tag of any prefix. | §4; §6 |
 | R20 | Parents aside, every open issue in milestone VERSION must be evidenced by a `Refs #N` since the release production runs. A parent's `Refs` is reported beside its work package and never counted for it (delphside/tile-lite-elite#375). A commit a later commit in the range reverts, and that revert, name nothing. Every work package those commits name whose `Route` is Production Release must be in the milestone; work packages of other routes are left out. With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 7. Otherwise the release refuses. `--set-aside milestone REASON` sets the gate aside where the profile's `[release].overridable` lists `milestone`. | §6; docs/1.2 |
-| R20a | Every work package in milestone VERSION has its *Functional user tests* and *Technical tests* headings with every box under them ticked (`release.outstanding`); a package with neither heading refuses too. With `--emergency` it is a check: reported, not refused. | §6 |
+| R20a | Every work package in milestone VERSION has a *Functional user tests* or a *Technical tests* heading, and every box under the headings it has is ticked (`release.outstanding`); a package with neither heading refuses. With `--emergency` it is a check: reported, not refused. | §6 |
 | R21 | `release-check` is a gate. It can be set aside with `--set-aside` where overridable. | §6 |
 | R22 | The release runs in this order: gates and confirmation, then copy, then `VERSION-record`, then the annotated tag `vVERSION`, then the GitHub Release, then the bump, then the milestone. A copy already present with the same digest is a no-op. The version is spent at the tag. A rerun after the tag checks that the tag's record matches and resumes at the GitHub Release. A failure after the tag exits 3. | §7 |
 | R23 | The record has the §7 fields, `record: 1`, and the tag's message is the record. A reader refuses an unknown record version. A tag without JSON is history only. | §7 |
@@ -117,6 +117,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 - **C29 the version on `main` at an emergency** (complete): above the emergency · equal to it
 - **C30 post-deploy check** (complete): exit 0 · non-zero, with the deploy otherwise exit 0 · non-zero, with the deploy otherwise exit 3
 - **C31 source of production's level** (complete, †): host state over ssh, agreeing with the last settled record · host state over ssh, differing from it
+- **C32 test boxes of a work package in the milestone** (complete): all ticked · one unticked · neither heading · one unticked, with `--emergency`
 
 ## 3. Outcomes
 
@@ -234,7 +235,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S51 | A parent whose `Refs` is the only evidence: with one work package in the milestone; then with two. | C19 | O1 for both (the work packages are unevidenced), the first naming the parent's count beside it; then each work package referenced, O10 | CI |
 | S52 | An emergency (C29 = equal to the emergency's number) where an open issue in the milestone is evidenced by no commit; then where it is evidenced only by a commit on `main` after the tag. | C19, C29 | O1 naming the milestone gate; then O10 + O12, step 6 moves the issue to the next milestone, and `carries` excludes it | CI |
 | S53a | The release's commits reference an Application Tooling work package that is in a date milestone, not in milestone VERSION; then a Production Release work package that is not in milestone VERSION. | C19 | O10, the tooling work package neither counted nor carried; then O1 naming the milestone gate | CI |
-| S53b | A work package in milestone VERSION with an unticked test box; one with neither heading; all ticked; then `--emergency` with an unticked box. | C19, C29 | O1 naming the tests-passed gate; O1; O10; O10 with the unticked box reported | CI |
+| S53b | A work package in milestone VERSION with an unticked test box; one with neither heading; all ticked; then `--emergency` with an unticked box. | C32 | O1 naming the tests-passed gate; O1; O10; O10 with the unticked box reported | CI |
 | S53 | `--set-aside milestone R`, five cases: (1) the milestone disagrees, no flag; (2) the flag without a reason; (3) the flag where the profile does not list `milestone` in `overridable`; (4) the flag with a reason where it is overridable; (5) the milestone agreeing, no flag. | C22, C19 | O1; O1; O1; O10 + O12, with the record's `set_aside` = `[{"gate":"milestone","reason":R}]` and `carries` the milestone's open items; O10 with `set_aside` empty | CI |
 | S54 | `--wait=1` with the lock held beyond the limit; with a hook returning 75 beyond it; with the lock freed within it. | C7, C9, C22 | O1 (refuses, exit 1, naming the lock) and nothing changed; O1 (the same, naming the hook); O16 then O4 | CI |
 | S55 | A host file the previous deploy installed and this one drops; then `status`. | C28 | O25 (the dropped file is gone, the others have the payload's mode); `status` is quiet | CI; REH half of S34 |
@@ -274,7 +275,8 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | release: emergency ships nothing unreleased | holds a post-tag `main` commit, or does not descend from the release production runs → O1 (S20, S50) | clean cut from that tag → O10 | CI |
 | release: CI passed | a check failing or missing → O1 (S21) | green → O10 | CI |
 | release: version spent once and forward | tag, record, or not higher → O1 (S22) | new and higher → O10 | CI |
-| release: milestone shipping list | uncarried issue, or work package outside → O1 (S23); a parent's `Refs` with two work packages → O1 (S51) | moved, then rerun → O10; a parent's `Refs` with one → O1, shown beside it; emergency with an issue evidenced on `main` → O10 (S52); `--set-aside milestone R` → O10 (S53) | CI |
+| release: tests passed | a work package with an unticked box, or with neither heading → O1 (S53b) | all ticked → O10; `--emergency` with an unticked box → O10, the box reported (S53b) | CI |
+| release: milestone shipping list | uncarried issue, or work package outside → O1 (S23); a parent's `Refs` with one or two work packages → O1 (S51), the first naming the parent's count beside it | moved, then rerun → O10; each work package referenced → O10 (S51); emergency with an issue evidenced on `main` → O10 (S52); `--set-aside milestone R` → O10 (S53) | CI |
 | release: `release-check` | exit 1 → O1 (S24) | exit 0 → O10; `--set-aside` → O10 + O12 | CI |
 | release: the owner's confirmation (§4) | wrong version typed → O1 (S25) | right → O10 | CI |
 | production deploy: a record exists | no record → O1 (S29) | recorded version → O4; `--unrecorded` → O4 + O12 | CI only; real: the owner's `--check` runs and 0.10.2's first production deploy (part 8) |
@@ -506,7 +508,8 @@ Everything else runs in CI.
 - `release_refuses_a_milestone_that_disagrees_with_the_commits`
 - `a parent's Refs is shown beside its only work package and never counted for it`
 - `parent_refs_does_not_count_with_two_work_packages`
-- `a work package with an unticked test box refuses the release; an emergency reports it`
+- `an unticked test box refuses the release; an emergency reports it; ticked, it is made`
+- `the tests-passed gate is a check under --emergency: the release is made and says what was not ticked`
 - `emergency_leaves_out_issues_evidenced_only_on_main_and_moves_them`
 - `set_aside_milestone_needs_a_reason_and_an_overridable_profile`
 - `release_check_refusal_stops_the_release`
