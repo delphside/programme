@@ -98,6 +98,8 @@ program run directly on its host, not a Docker container.
 
 ```mermaid
 flowchart TB
+  OWN(["<i>owner</i><br>[Person]"])
+  TIMER(["<i>timer</i><br>[Software System: systemd timer]<br>Dark Portal's"])
   subgraph DELIVER["Container: deliver"]
     CTL["<i>controller</i><br>[Component]<br>release, deploy, settle, rollback,<br>status, list, prune, host-install"]
     BLD["<i>builder</i><br>[Component]<br>build, delete"]
@@ -126,6 +128,9 @@ flowchart TB
   CAND -->|"pull: preview, test, rehearsal"| DEP
   REL -->|"pull: production"| DEP
   CTL -->|"tag, bump main (git)"| GH
+  OWN -->|"deliver release, deploy, settle, rollback,<br>status, list, prune, login, host-install<br>[shell]"| CTL
+  OWN -->|"deliver build REF<br>[shell]"| BLD
+  TIMER -->|"deliver build<br>[systemd unit]"| BLD
 ```
 
 **Component view, command flow**: who starts each command, what it is given
