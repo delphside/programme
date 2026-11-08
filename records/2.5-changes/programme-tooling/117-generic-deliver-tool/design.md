@@ -296,7 +296,7 @@ The credential on an arrow or in a box is one of these:
 | owner's gh token | the controller's `gh` login ([§11](#11-github-integration)) |
 | owner's key, admin bypass | the owner's git credential, which bypasses `main`'s ruleset ([§11](#11-github-integration)) |
 | owner's ssh key | the owner's key for `ssh` to a host |
-| the machine's git login | whatever credential the machine's `git` uses for `origin`; none for a public repository over HTTPS |
+| the machine's git login | the credential the machine's `git` uses to fetch `origin`: none, as both applications' repositories are public; a private one needs a read-only fetch credential |
 
 On Tile Lite Elite's laptop the controller, builder and copier run as one Linux
 user with four logins (three skopeo auth files and the `docker` login), and the
@@ -662,8 +662,8 @@ messages in git, so it never touches the registry. Only `gate` and `settle` read
 standard input.
 
 Exit codes are the tool's: 0 passed or done; 1 refused, or for `gate` and
-`checks` the board or git could not be read; 2 usage (an unknown command); 3 partly done (`settle`,
-`next`, `publish`), with what is left named; 70 a profile error or a crash
+`checks` the board or git could not be read; 2 usage (an unknown command);
+3 partly done (`settle`, `next`, `publish`), with what is left named; 70 a profile error or a crash
 (`profile.EXIT_PROFILE_ERROR`), never read as refused.
 
 **The revert rule** ([the milestone gate](#the-milestone-gate)) is in
@@ -1036,15 +1036,15 @@ forms:
 
 Only the board model calls GitHub's API, beside the controller and under the
 owner's `gh` login; the builder fetches the commit by git, and it, the copier
-and the hosts hold no GitHub credential
+and the hosts hold no GitHub API credential
 ([privileges](#component-privileges)). **The board model is the GitHub
 adapter**: every call goes through it, by `board-release.py`
 ([the board model's part](#the-board-models-part)), and `deliver` keeps no
 GitHub code of its own. The issue reads (`fetch`, `issues_in_full`) take
 GraphQL where the token allows it and fall back to REST where GraphQL is
-refused, as it is to a cloud session's token. Check runs, milestones, comments,
-an issue found by title and Releases are REST always, and the `Project State` write is
-GraphQL only (`setIssueFieldValue`), so settle needs a GraphQL-capable token:
+refused, as it is to a cloud session's token. Check runs, milestones,
+comments, an issue found by title and Releases are REST always, and the
+`Project State` write is GraphQL only (`setIssueFieldValue`), so settle needs a GraphQL-capable token:
 where GraphQL is refused it leaves that step, and the comment after it, undone
 and exits 3. A read that neither answers refuses, never reads as empty. The
 repository is `DELIVER_GH_REPO` or the origin URL's.
