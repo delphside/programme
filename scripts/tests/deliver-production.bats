@@ -77,8 +77,8 @@ released() {
   # a record is in the host's deploy folder, and production reads releases only
   assert_equal "$(jq -r .record.version "$(host_state_dir prod production)/deploys/1/meta.json")" 0.10.2
   # O14
-  assert_regex "$(gh_log)" "GRAPHQL SetProjectState item=PVTI_555"
-  refute_regex "$(gh_log)" "PVTI_570"
+  assert_regex "$(gh_log)" "GRAPHQL setIssueFieldValue issue=I_555 option=opt-post"
+  refute_regex "$(gh_log)" "I_570"
   refute_regex "$(gh_log)" "issues/570"
   assert_regex "$(gh_log)" "POST repos/acme/acme/issues/555/comments body=Released in v0.10.2"
   assert_regex "$(gh_log)" "POST repos/acme/acme/issues/12/comments body=Released in v0.10.2"
@@ -98,7 +98,7 @@ released() {
   assert_equal "$(jq -c .carries.work_packages <<< "$(tag_record v0.10.2)")" '[590]'
   run d settle 0.10.2
   assert_success
-  assert_regex "$(gh_log)" "GRAPHQL SetProjectState item=PVTI_590"
+  assert_regex "$(gh_log)" "GRAPHQL setIssueFieldValue issue=I_590 option=opt-post"
 }
 
 @test "settle_failure_exits_3_and_the_deploy_stands; settle_rerun_changes_nothing (S30, R27)" {
@@ -116,7 +116,7 @@ released() {
   assert_regex "$(gh_log)" "PATCH repos/acme/acme/milestones/7 state=closed"
   refute_regex "$(gh_log)" "570"
   # nothing is done twice
-  assert_equal "$(grep -c 'SetProjectState' "$W/gh/log")" 1
+  assert_equal "$(grep -c 'setIssueFieldValue' "$W/gh/log")" 1
   assert_equal "$(grep -c 'issues/555/comments' "$W/gh/log")" 1
   # and again: no new mutation
   local before; before="$(gh_log)"

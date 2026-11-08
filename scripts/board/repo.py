@@ -20,9 +20,11 @@ import shlex
 import subprocess
 import urllib.error
 import urllib.request
+from collections import Counter
 from dataclasses import dataclass, field
 
 from . import profile, refs
+from .sources import Unavailable
 
 # **`Refs #N` does not imply anything specific; `Closes #N` does.** Owner,
 # 2026-09-18. The convention (CLAUDE.md, docs/4.3.3 §393, the programme's docs/1.2 §1132) is that
@@ -226,7 +228,7 @@ def _delivers(paths: list[str]) -> bool:
 
 
 def _scope(rev: list[str], no_merges: bool = True,
-           notes_count: bool = True) -> Scope:
+           notes_count: bool = True, effective: bool = False) -> Scope:
     """What the commits in `rev` say about each issue.
 
     `no_merges` is a caller's decision rather than this function's, because the
@@ -242,16 +244,22 @@ def _scope(rev: list[str], no_merges: bool = True,
     must, because that is the question `issue-mentions.sh` answers for
     `deploy.sh`'s gate and the two disagreeing is worse than either being
     wrong.
+
+    `effective` leaves out the commits `reverted_in` finds, as the release gate
+    does (`named_in_range`), so a `Refs` that was reverted reads as unbuilt in
+    the pre-flight exactly as it does at the gate.
     """
     scope = Scope()
     args = ["log", "--format=%x1e%H%x1f%B%x1f", "--name-only"]
     if no_merges:
         args.insert(1, "--no-merges")
     text = _git(*args, *rev)
-    for entry in text.split("\x1e"):
-        if entry.count("\x1f") < 2:
+    entries = [e.split("\x1f", 2) for e in text.split("\x1e") if e.count("\x1f") >= 2]
+    skip = (reverted_in([(sha.strip(), body) for sha, body, _ in entries])
+            if effective else frozenset())
+    for sha, body, names in entries:
+        if sha.strip() in skip:
             continue
-        sha, body, names = entry.split("\x1f", 2)
         if not notes_count:
             paths = [line for line in names.splitlines() if line.strip()]
             if not _delivers(paths):
@@ -320,12 +328,15 @@ def mentions_on(ref: str = "origin/main") -> Scope:
     is worse than either being wrong on its own -- the pre-flight would pass
     and the deploy would then refuse, with nothing saying why.
 
+    **Reverts count as the gate counts them** (`reverted_in`): a commit a later
+    one reverts, and the revert, name nothing.
+
     **`origin/main`, where `verify.sh` asked `HEAD`.** Built means built on
     main; a commit sitting on a branch is `in progress`, which is a different
     row of the same report. `verify.sh` asserts the two are equal anyway, one
     check earlier.
     """
-    return _scope([ref], no_merges=False)
+    return _scope([ref], no_merges=False, effective=True)
 
 
 def commits(main: str = "origin/main") -> Commits:
@@ -476,3 +487,140 @@ def live_version(url: str, timeout: float = 5.0) -> str | None:
             return (json.loads(response.read().decode()) or {}).get(field_name)
     except (urllib.error.URLError, OSError, ValueError, json.JSONDecodeError):
         return None
+
+
+# --------------------------------------------------------------------------
+# a release's range: which commits name which issue, and which tags lie in it
+# --------------------------------------------------------------------------
+#
+# Moved from `scripts/deliver/deliver` (`refs_in`, `refs_effective`,
+# `local_tags_in_range`), which kept the board's Refs rule and the revert rule in
+# bash. A release gate that cannot read git must refuse, so these raise
+# `Unavailable` where `_git` would return nothing: an unreadable range read as
+# "no commit names anything" refuses by accident, and read as "nothing is
+# reverted" it would pass by accident.
+
+_REVERT = re.compile(r"This reverts commit ([0-9a-f]{7,40})")
+
+
+def _git_must(*args: str) -> str:
+    try:
+        out = subprocess.run(["git", *args], capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise Unavailable(f"git {args[0]} did not answer: {exc}") from exc
+    if out.returncode != 0:
+        raise Unavailable(f"git {' '.join(args)} failed: {out.stderr.strip()[:200]}")
+    return out.stdout
+
+
+def range_messages(rev: str) -> list[tuple[str, str]]:
+    """(sha, message) of every commit in `rev` (a ref or `A..B`), newest first,
+    merges included. Raises `Unavailable` if git cannot list it."""
+    text = _git_must("log", "--format=%x1e%H%x1f%B", rev)
+    out = []
+    for entry in text.split("\x1e"):
+        if "\x1f" in entry:
+            sha, body = entry.split("\x1f", 1)
+            out.append((sha.strip(), body))
+    return out
+
+
+def reverted_in(commits: list[tuple[str, str]]) -> frozenset[str]:
+    """The commits of a range that count for nothing: those a later commit in
+    the range reverts, and the reverting commits themselves.
+
+    A revert says `This reverts commit <sha>.` (a short sha too). Reverts count
+    by parity: a revert that is itself reverted is undone, so a revert of a
+    revert keeps the change and a third leaves it out. A revert of a commit
+    outside the range has no effect. The sha, or a prefix of it, is matched against
+    the range's own shas. A cherry-picked revert names the
+    original's sha, which is not in the range, so it is not matched (design
+    §7's stated limit). `commits` is newest first.
+    """
+    in_range = {sha for sha, _ in commits}
+    revert_of: dict[str, str] = {}
+    for sha, body in commits:
+        m = _REVERT.search(body)
+        if not m:
+            continue
+        named = m.group(1)
+        # The sha a revert names, or a prefix of it, against the range's own
+        # shas: no question to git, and a commit outside the range matches
+        # nothing. A prefix that fits two commits cannot be told apart, so the
+        # range is refused rather than read as not-a-revert.
+        hits = [c for c in in_range if c.startswith(named)]
+        if len(hits) > 1:
+            raise Unavailable(f"a revert names {named}, which is the start of {len(hits)} commits "
+                              f"in the range ({', '.join(sorted(h[:12] for h in hits))}); "
+                              "cannot tell which it reverts")
+        if hits:
+            revert_of[sha] = hits[0]
+    # Newest first, so every reverting commit is decided before what it reverts.
+    undone: dict[str, bool] = {}
+    for sha, _ in commits:
+        undone[sha] = any(not undone.get(r, False) for r, t in revert_of.items() if t == sha)
+    skip = {sha for sha, _ in commits
+            if undone[sha] or (sha in revert_of and not undone[sha])}
+    return frozenset(skip)
+
+
+def named_in_range(rev: str, effective: bool = True) -> Counter:
+    """How many commits in `rev` name each issue (`Refs #N` or `Closes #N`).
+
+    `effective` leaves out the commits `reverted_in` finds, so a change that was
+    undone is not evidence. Merges are counted: a trailer on a merge is one
+    somebody wrote.
+    """
+    commits = range_messages(rev)
+    skip = reverted_in(commits) if effective else frozenset()
+    count: Counter = Counter()
+    for sha, body in commits:
+        if sha in skip:
+            continue
+        count.update(refs.named(body))
+    return count
+
+
+def tags_in_range(rev: str, prefixes: list[str]) -> list[str]:
+    """Release tags, of any prefix, whose commit lies in `rev`."""
+    inside = set(_git_must("rev-list", rev).split())
+    found = []
+    for prefix in prefixes:
+        for tag in _git_must("tag", "--list", f"{prefix}*").split():
+            if _git_must("rev-parse", f"{tag}^{{commit}}").strip() in inside:
+                found.append(tag)
+    return found
+
+
+def tag_version(tag: str, prefixes: list[str]) -> str:
+    """The bare version a release tag names, under whichever prefix it has."""
+    for prefix in prefixes:
+        if tag.startswith(prefix):
+            return tag.removeprefix(prefix)
+    return tag
+
+
+def tag_record(tag: str) -> dict | None:
+    """The record an annotated release tag carries as its message, or None for a
+    release made before the tool (no JSON message: history only). A record of a
+    version this tool does not know raises `Unavailable`: a reader refuses it."""
+    message = _git_must("tag", "--list", tag, "--format=%(contents)")
+    try:
+        record = json.loads(message)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(record, dict) or "record" not in record:
+        return None
+    if record["record"] != 1:
+        raise Unavailable(f"tag {tag} holds record version {record['record']}, "
+                          f"which this tool does not read")
+    return record
+
+
+def origin_slug() -> str | None:
+    """`owner/name` from the origin remote, or None if it is not a GitHub URL."""
+    url = _git("remote", "get-url", "origin").strip()
+    if "github.com" not in url:
+        return None
+    slug = re.sub(r"^.*github\.com[:/]", "", url)
+    return slug.removesuffix(".git") or None

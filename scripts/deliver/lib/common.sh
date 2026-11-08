@@ -74,6 +74,15 @@ gate_ok() {        # NAME [detail]
   gate_emit "$1" passed
 }
 
+# A check that passes and has something to say (an emergency's unticked tests):
+# shown to the person and recorded as `reported`, not as plain `passed`.
+gate_report() {    # NAME message
+  GATES_RAN+=("$1")
+  run_log_event gate "name=$1" "result=reported" "detail=$2"
+  gate_emit "$1" passed
+  say "check $1: $2"
+}
+
 gate_fail() {      # NAME message
   GATES_RAN+=("$1")
   run_log_event gate "name=$1" "result=refused" "detail=$2"

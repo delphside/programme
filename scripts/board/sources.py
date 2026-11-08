@@ -659,8 +659,36 @@ def issues_in_full(numbers: Sequence[int]) -> dict[int, RawIssue]:
     parts = " ".join(f"i{n}: issue(number:{n}) {{ {_FULL_FIELDS} }}"
                      for n in sorted(set(numbers)))
     query = _repository_query(parts)
-    repo = (_gh_graphql(query, partial=True).get("data") or {}).get("repository") or {}
+    try:
+        payload = _gh_graphql(query, partial=True)
+    except Refused:
+        return _rest_issues_in_full(numbers)
+    # A number that is not an issue answers NOT_FOUND and is absent. Any other
+    # error on an alias (a timeout, a rate limit, a permission) is an issue that
+    # could not be read, and must not read as one that does not exist.
+    unread = [e for e in payload.get("errors") or [] if e.get("type") != "NOT_FOUND"]
+    if unread:
+        raise Unavailable("GitHub could not read some issues: "
+                          + "; ".join(str(e.get("message") or e.get("type") or e)[:120] for e in unread[:3]))
+    repo = (payload.get("data") or {}).get("repository") or {}
     return {node["number"]: _to_raw(node) for node in repo.values() if node}
+
+
+def _rest_issues_in_full(numbers: Sequence[int]) -> dict[int, RawIssue]:
+    """`issues_in_full` over REST, one issue a call, where GraphQL is refused.
+
+    A number that is not an issue, or a pull request, is absent, as it is from
+    the GraphQL answer; any other failure raises `Unavailable`.
+    """
+    owner, repo = _repository()
+    rest = _Rest()
+    out: dict[int, RawIssue] = {}
+    for n in sorted(set(numbers)):
+        node = rest_get(f"repos/{owner}/{repo}/issues/{n}")
+        if node is None or "pull_request" in node:
+            continue
+        out[n] = _rest_to_raw(rest, owner, repo, node)
+    return out
 
 
 def pull_request_for(branch: str) -> tuple[int, str, str] | None:
@@ -1178,3 +1206,129 @@ def fetch(states: str = "OPEN", with_bodies: bool = True,
         pages=pages,
         with_bodies=with_bodies,
     )
+
+
+# --------------------------------------------------------------------------
+# a release's reads and writes (moved from `scripts/deliver/lib/github.sh`)
+# --------------------------------------------------------------------------
+#
+# Every call `deliver` makes to GitHub is here, so the tool keeps no GitHub
+# code and its tests stub the one command, `gh`. Reads take GraphQL where it is
+# allowed and REST where it is refused; a write is REST (the milestone, the
+# issue, the Release) except a field, which only GraphQL sets (`set_field`).
+# **No read returns a default**: one that could not be made raises
+# `Unavailable`, so a gate that cannot see refuses.
+
+
+def rest_get(path: str):
+    """One REST GET as JSON. None only when GitHub answers 404; any other
+    failure raises `Unavailable`, so *absent* and *unreadable* are never merged."""
+    try:
+        run = subprocess.run(["gh", "api", path], capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise Unavailable(f"GitHub did not answer: {exc}") from exc
+    if run.returncode != 0:
+        if "HTTP 404" in run.stderr or "Not Found" in run.stderr:
+            return None
+        raise Unavailable(f"GitHub refused {path}: {run.stderr.strip()[:300]}")
+    try:
+        return json.loads(run.stdout) if run.stdout.strip() else {}
+    except json.JSONDecodeError as exc:
+        raise Unavailable(f"GitHub returned no JSON for {path}: {exc}") from exc
+
+
+def _rest_write(method: str, path: str, **fields) -> None:
+    """A REST write. A string field goes as text (`-f`), a number or null as
+    typed (`-F`), in the order given."""
+    args = ["gh", "api", "-X", method, path]
+    for key, value in fields.items():
+        if value is None or isinstance(value, (int, bool)):
+            args += ["-F", f"{key}={'null' if value is None else value}"]
+        else:
+            args += ["-f", f"{key}={value}"]
+    try:
+        run = subprocess.run(args, capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise Unavailable(f"GitHub did not answer: {exc}") from exc
+    if run.returncode != 0:
+        raise Unavailable(f"GitHub refused {method} {path}: {run.stderr.strip()[:300]}")
+
+
+def _repo_path(tail: str) -> str:
+    owner, name = _repository()
+    return f"repos/{owner}/{name}/{tail}"
+
+
+def check_conclusions(sha: str) -> dict[str, str]:
+    """{check name: conclusion} of the check runs on a commit; a run that has not
+    concluded is `pending`. The first run of a name is the one read."""
+    data = rest_get(_repo_path(f"commits/{sha}/check-runs?per_page=100"))
+    if data is None:
+        raise Unavailable(f"no commit {sha[:12]} to read checks on")
+    out: dict[str, str] = {}
+    for run in data.get("check_runs", []):
+        out.setdefault(run["name"], run.get("conclusion") or "pending")
+    return out
+
+
+def milestones() -> list[dict]:
+    """Every milestone, open and closed: {number, title, state}."""
+    return _Rest().list(_repo_path("milestones?state=all"))
+
+
+def create_milestone(title: str) -> None:
+    _rest_write("POST", _repo_path("milestones"), title=title)
+
+
+def close_milestone(number: int) -> None:
+    _rest_write("PATCH", _repo_path(f"milestones/{number}"), state="closed")
+
+
+def set_milestone(issue: int, milestone: int | None) -> None:
+    """Put an issue in a milestone (by its number), or take it out (None)."""
+    _rest_write("PATCH", _repo_path(f"issues/{issue}"), milestone=milestone)
+
+
+def comment_bodies(issue: int) -> list[str]:
+    """The full text of every comment on an issue, whenever written."""
+    return [c.get("body") or "" for c in _Rest().list(_repo_path(f"issues/{issue}/comments"))]
+
+
+def add_comment(issue: int, body: str) -> None:
+    _rest_write("POST", _repo_path(f"issues/{issue}/comments"), body=body)
+
+
+def close_issue(issue: int) -> None:
+    """Close as completed."""
+    _rest_write("PATCH", _repo_path(f"issues/{issue}"), state="closed", state_reason="completed")
+
+
+def issue_titled(title: str) -> bool:
+    """Is there an issue, open or closed, with exactly this title? Every page is
+    read; a pull request is listed with the issues and is not one."""
+    return any(i.get("title") == title and i.get("pull_request") is None
+               for i in _Rest().items(_repo_path("issues?state=all")))
+
+
+def create_issue(title: str, body: str) -> None:
+    _rest_write("POST", _repo_path("issues"), title=title, body=body)
+
+
+def release_exists(tag: str) -> bool:
+    return rest_get(_repo_path(f"releases/tags/{tag}")) is not None
+
+
+def create_release(tag: str, notes_start_tag: str | None) -> None:
+    """The GitHub Release for a pushed tag, its notes generated from the
+    previous release tag."""
+    owner, name = _repository()
+    args = ["gh", "release", "create", tag, "--repo", f"{owner}/{name}", "--verify-tag",
+            "--title", tag, "--generate-notes"]
+    if notes_start_tag:
+        args += ["--notes-start-tag", notes_start_tag]
+    try:
+        run = subprocess.run(args, capture_output=True, text=True, timeout=180)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise Unavailable(f"GitHub did not answer: {exc}") from exc
+    if run.returncode != 0:
+        raise Unavailable(f"GitHub refused the Release {tag}: {run.stderr.strip()[:300]}")

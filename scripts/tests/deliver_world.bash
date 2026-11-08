@@ -264,32 +264,61 @@ gh_checks() {   # SHA name=conclusion...
   for kv in "$@"; do json="$(jq -c --arg n "${kv%%=*}" --arg c "${kv#*=}" '.check_runs += [{name:$n,conclusion:$c}]' <<< "$json")"; done
   gh_fixture "repos_acme_acme_commits_${sha}_check-runs" "$json"
 }
-# gh_milestone VERSION "number|type|parent|subs|route" ...
+# The issues are one fixture, an array in REST's shape, which the gh stub serves and
+# overlays; the helpers below put an issue in it.
+gh_issues_file() { printf '%s/gh/fix/repos_acme_acme_issues.json' "$W"; }
+
+# a work package's test approach, every box ticked (the tests-passed gate reads it)
+TESTS_TICKED='## Test approach
+
+### Functional user tests — Preview
+
+- [x] **Claude** — looked at it
+
+### Technical tests — Rehearsal
+
+- [x] **Claude** — ran it
+'
+
+# gh_issue N type parent milestone subs route [state]: an issue as GitHub holds it. A
+# project's body ticks its tests; its sub-issues are projects, so subs > 0 makes it a
+# parent. An existing issue's Project State is kept.
+gh_issue() {
+  local n="$1" t="$2" p="$3" m="$4" s="$5" r="$6" st="${7:-OPEN}" f body=""
+  f="$(gh_issues_file)"; [[ -f "$f" ]] || echo '[]' > "$f"
+  [[ "$t" != Project ]] || body="$TESTS_TICKED"
+  jq -c --argjson n "$n" --arg t "$t" --arg p "$p" --arg m "$m" --argjson s "$s" --arg r "$r" --arg st "$st" --arg b "$body" '
+    ([.[] | select(.number == $n)][0].issue_field_values // [] | map(select(.issue_field_name == "Project State"))) as $kept
+    | [.[] | select(.number != $n)] + [{number:$n, title:("issue \($n)"), state:($st | ascii_downcase), body:$b,
+        type:(if $t == "" then null else {name:$t} end), milestone:(if $m == "" then null else {title:$m} end),
+        parent_issue_url:(if $p == "" then null else "https://api.github.com/repos/acme/acme/issues/\($p)" end),
+        sub_issues_summary:{total:$s}, issue_dependencies_summary:{}, labels:[],
+        issue_field_values:($kept + (if $r == "" then [] else [{issue_field_name:"Route", single_select_option:{name:$r}}] end))}]' \
+    "$f" > "$f.new" && mv "$f.new" "$f"
+  jq -nc --argjson n "$n" --argjson s "$s" '[range($s) | {number:($n * 1000 + .), type:{name:"Project"}}]' > "$W/gh/fix/repos_acme_acme_issues_${n}_sub_issues.json"
+}
+# gh_issue_extra JSON: any other item of the issues listing (a pull request, a filler)
+gh_issue_extra() {
+  local f; f="$(gh_issues_file)"; [[ -f "$f" ]] || echo '[]' > "$f"
+  jq -c --argjson x "$1" '. + [$x]' "$f" > "$f.new" && mv "$f.new" "$f"
+}
+# gh_milestone VERSION "number|type|parent|subs|route" ...: the open issues of the milestone are these
 gh_milestone() {
   local version="$1"; shift
-  local nodes='[]' row n t p s r
+  local f row n t p s r; f="$(gh_issues_file)"; [[ -f "$f" ]] || echo '[]' > "$f"
+  jq -c --arg v "$version" 'map(select(.milestone.title != $v or .state != "open"))' "$f" > "$f.new" && mv "$f.new" "$f"
   for row in "$@"; do
     IFS='|' read -r n t p s r <<< "$row"
-    nodes="$(jq -c --argjson n "$n" --arg t "$t" --arg p "$p" --argjson s "$s" --arg r "$r" '. + [{number:$n,
-      issueType:(if $t=="" then null else {name:$t} end), parent:(if $p=="" then null else {number:($p|tonumber)} end),
-      subIssues:{totalCount:$s}, projectItems:{nodes:[{fieldValueByName:(if $r=="" then null else {name:$r} end)}]}}]' <<< "$nodes")"
+    gh_issue "$n" "$t" "$p" "$version" "$s" "$r"
   done
-  jq -nc --arg v "$version" --argjson nodes "$nodes" '{data:{repository:{milestones:{nodes:[{number:7,title:$v,state:"OPEN",issues:{nodes:$nodes}}]}}}}' > "$W/gh/fix/graphql_MilestoneItems.json"
   jq -nc --arg v "$version" '[{number:7,title:$v,state:"open"}]' > "$W/gh/fix/repos_acme_acme_milestones.json"
 }
-# gh_issue N type parent milestone subs route [state]
-gh_issue() {
-  local n="$1" t="$2" p="$3" m="$4" s="$5" r="$6" st="${7:-OPEN}"
-  jq -nc --argjson n "$n" --arg t "$t" --arg p "$p" --arg m "$m" --argjson s "$s" --arg r "$r" --arg st "$st" '{data:{repository:{issue:{number:$n,state:$st,
-    issueType:(if $t=="" then null else {name:$t} end), parent:(if $p=="" then null else {number:($p|tonumber)} end),
-    milestone:(if $m=="" then null else {title:$m} end), subIssues:{totalCount:$s},
-    projectItems:{nodes:[{fieldValueByName:(if $r=="" then null else {name:$r} end)}]}}}}}' > "$W/gh/fix/graphql_IssueInfo-$n.json"
-}
-# gh_project N: the board item for a work package, currently in STATE
+# gh_project N [STATE]: a work package whose Project State is STATE
 gh_project() {
-  jq -nc --argjson n "$1" --arg s "${2:-Development}" '{data:{repository:{issue:{projectItems:{nodes:[{id:("PVTI_"+($n|tostring)),
-    project:{id:"PVT_1",field:{id:"FLD_1",options:[{id:"opt-dev",name:"Development"},{id:"opt-post",name:"Post-deployment"}]}},
-    fieldValueByName:{name:$s}}]}}}}}' > "$W/gh/fix/graphql_ProjectState-$1.json"
+  local f; f="$(gh_issues_file)"
+  jq -c --argjson n "$1" --arg s "${2:-Development}" 'map(if .number == $n then
+    .issue_field_values = ((.issue_field_values // []) | map(select(.issue_field_name != "Project State"))
+      + [{issue_field_name:"Project State", single_select_option:{name:$s}}]) else . end)' "$f" > "$f.new" && mv "$f.new" "$f"
 }
 
 # ---- more helpers

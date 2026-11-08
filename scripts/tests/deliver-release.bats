@@ -331,10 +331,16 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   assert_equal "$(jq -c .carries <<< "$(tag_record v0.10.2)")" '{"work_packages":[40],"issues":[12],"releases":[]}'
 }
 
-@test "parent_refs_counts_for_its_only_work_package (S51, R20)" {
+@test "a parent's Refs is shown beside its only work package and never counted for it (S51, R20, delphside/tile-lite-elite#375)" {
   ref_commit "work under a parent" 70
   gh_issue 70 Project "" 0.10.2 1 ""
   release_ready "70|Project||1|" "71|Project|70|0|Production Release"
+  run d release --expect 0.10.2
+  assert_failure 1
+  assert_output --partial "refused at gate milestone"
+  assert_output --partial "#71 (parent #70 has 1)"
+  ref_commit "work for the package" 71
+  build_ok "$SHA"; deploy_rehearsal "$SHA"; gh_checks "$SHA" e2e=success
   run d release --expect 0.10.2
   assert_success
   assert_equal "$(jq -c .carries <<< "$(tag_record v0.10.2)")" '{"work_packages":[71],"issues":[],"releases":[]}'

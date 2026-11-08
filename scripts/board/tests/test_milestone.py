@@ -153,6 +153,10 @@ class WhatCountsAsAMention(Cases):
         git("checkout", "-q", "-b", "unmerged")
         commit("work in progress\n\nRefs #500")
         git("checkout", "-q", "main")
+        commit("to be undone\n\nRefs #700")
+        undone = subprocess.run(["git", "rev-parse", "HEAD"], check=True, capture_output=True,
+                                text=True).stdout.strip()
+        commit(f"Revert the undone one\n\nThis reverts commit {undone}.")
         cls.scope = mentions_on("HEAD")
 
     @classmethod
@@ -175,10 +179,13 @@ class WhatCountsAsAMention(Cases):
         self.expect("a merged branch's own commit counts too", 1, self.scope.count(501))
         self.expect("a branch not merged here is not counted", 0, self.scope.count(500))
 
-    # The model's count and the gate's, `issue-mentions.sh`'s `commits_mentioning`,
-    # were compared here on this history. The gate is the application's (Tile Lite
-    # Elite's `scripts/deliver/issue-mentions.sh`), so the comparison is its
-    # repository's: `scripts/tests/test_issue_mentions_gate.py` there.
+    def test_a_reverted_trailer_counts_for_nothing(self):
+        # The gate counts reverts (repo.reverted_in); a pre-flight that did not
+        # would pass #700 as built where the release then refuses it.
+        self.expect("a trailer on a commit that was reverted is not evidence", 0, self.scope.count(700))
+
+    # The gate is `release.milestone_gate`, which counts through the same
+    # `repo` functions; the revert case above is the one the two once disagreed on.
 
 
 if __name__ == "__main__":
