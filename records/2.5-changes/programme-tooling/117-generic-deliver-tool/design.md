@@ -71,6 +71,7 @@ never replace one another's ([§10](#10-oci-integration)).
 | controller | the owner's laptop (WSL) | the owner's machine |
 | builder | the laptop: production's 1 GB host cannot compile | the non-production VM (E2), on a timer |
 | release copier | the controller, as Oracle user `tle-releaser` | the non-production VM, as Linux user `dp-release` ([§10](#10-oci-integration)) |
+| board model | beside the controller, under its `gh` login | beside the controller, under its `gh` login |
 | deployer, environments | `preview` on the laptop; `rehearsal`, `production` on their VMs | E3 to E5 (test), E6 (rehearsal) on the non-production VM; production |
 
 ### Component privileges
@@ -111,7 +112,7 @@ flowchart TB
   end
   GH["<i>GitHub</i><br>[Software System]<br>tags, Releases, milestones, board"]
   BM["<i>board model</i><br>[Container: Python]<br>GitHub adapter, reused"]
-  CTL -->|"release, settle request (JSON)"| BM
+  CTL -->|"gate, checks, next, settle, publish"| BM
   BM -->|"milestones, issues, Project State,<br>check runs, Release"| GH
   BLD -->|"image set SHA-IMAGE, payload inside"| CAND
   CAND -->|"read: digests, tags"| CTL
@@ -216,8 +217,8 @@ flowchart TB
   subgraph PRODVM["Oracle VM: production"]
     DEPX["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal (dynamic group tle-prod)"]
   end
-  GH -->|"fetch the commit<br>[git, HTTPS]"| BLD
-  CTL -->|"gate, checks, next, settle, publish<br>[local process, JSON]"| BM
+  GH -->|"fetch the commit<br>[git]<br>the machine's git login"| BLD
+  CTL -->|"gate, checks, next, settle, publish<br>[local process; JSON in<br>for gate, settle]"| BM
   BM -->|"checks, milestones, Release, settle<br>[GraphQL or REST, HTTPS]<br>owner's gh token"| GH
   CTL -->|"tag, bump main<br>[git, SSH]<br>owner's key, admin bypass"| GH
   BLD -->|"push SHA-IMAGE, delete pruned<br>[registry v2]<br>tle-builder token"| CAND
@@ -264,8 +265,8 @@ flowchart TB
   subgraph PRODVM["Oracle VM: production"]
     DEPX["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>the VM's instance principal"]
   end
-  GH -->|"fetch the commit<br>[git, HTTPS]"| BLD
-  CTL -->|"gate, checks, next, settle, publish<br>[local process, JSON]"| BM
+  GH -->|"fetch the commit<br>[git]<br>the machine's git login"| BLD
+  CTL -->|"gate, checks, next, settle, publish<br>[local process; JSON in<br>for gate, settle]"| BM
   BM -->|"checks, milestones, Release, settle<br>[GraphQL or REST, HTTPS]<br>owner's gh token"| GH
   CTL -->|"tag, bump main<br>[git, SSH]<br>owner's key, admin bypass"| GH
   BLD -->|"push SHA-IMAGE, delete pruned<br>[registry v2]<br>the VM's instance principal"| CAND
@@ -283,17 +284,19 @@ flowchart TB
   REL -->|"pull by digest<br>[registry v2]<br>the VM's instance principal"| DEPX
 ```
 
-The credential on an arrow is one of these:
+The credential on an arrow or in a box is one of these:
 
 | Label | What it is |
 | --- | --- |
-| instance principal (dynamic group X), the VM's instance principal | the VM's own identity, where a dynamic group exists and where none is named; its token comes from the `oci` CLI on the host ([§10](#10-oci-integration)) |
+| instance principal (dynamic group X) | the VM's own identity, which the policy grants by the named dynamic group; its token comes from the `oci` CLI on the host ([§10](#10-oci-integration)) |
+| the VM's instance principal | the same, with the group not shown |
 | `NAME token` | the auth token of Oracle user NAME, typed once at `deliver login` ([§10](#10-oci-integration)) |
 | API key | Oracle user dp-releaser's key, which never leaves its machine ([§10](#10-oci-integration)) |
 | skopeo auth file, docker login | the logins `deliver login` makes: a file per component, and the machine user's `docker` login ([§10](#10-oci-integration)) |
 | owner's gh token | the controller's `gh` login ([§11](#11-github-integration)) |
 | owner's key, admin bypass | the owner's git credential, which bypasses `main`'s ruleset ([§11](#11-github-integration)) |
 | owner's ssh key | the owner's key for `ssh` to a host |
+| the machine's git login | whatever credential the machine's `git` uses for `origin`; none for a public repository over HTTPS |
 
 On Tile Lite Elite's laptop the controller, builder and copier run as one Linux
 user with four logins (three skopeo auth files and the `docker` login), and the
@@ -323,7 +326,7 @@ and host files.
 | [awk](https://www.gnu.org/software/gawk/manual/) | a text-processing language | reading the profile (`toml.awk`) |
 | [skopeo](https://github.com/containers/skopeo) | a command-line tool that inspects, copies and deletes images in a registry without pulling them or running a Docker daemon | registry reads, the release copy, the record, deletes ([§10](#10-oci-integration)) |
 | [Docker](https://docs.docker.com/), [Compose](https://docs.docker.com/compose/), [Buildx](https://docs.docker.com/build/) | the container engine; its multi-container runner; its builder, which can build several architectures in one run | pull by digest and run; the default `build` hook |
-| [Python 3](https://www.python.org/) | the language of the reused board model | the release's board gates and settle, on the controller ([§6](#the-board-models-part)) |
+| [Python 3](https://www.python.org/) | the language of the reused board model | `board-release.py`'s gate, checks, next, settle and publish, on the controller ([§6](#the-board-models-part)) |
 | [git](https://git-scm.com/) | version control | worktrees, the payload archive, tag, bump |
 | [GitHub CLI](https://cli.github.com/) (`gh`) | GitHub's command-line client, which also calls its REST and GraphQL APIs | every GitHub call, made through the board model ([§11](#11-github-integration)) |
 | [OpenSSH](https://www.openssh.com/), [curl](https://curl.se/) | remote commands; HTTP requests | `deliver-host` calls; production's `/health` ([§6](#6-gates-and-checks)) |
@@ -658,16 +661,13 @@ prefixes; it holds no records. `settle` takes this release's own record.
 messages in git, so it never touches the registry. Only `gate` and `settle` read
 standard input.
 
-Exit codes are the tool's: 0 passed or done; 1 refused, or the board or git
-could not be read; 2 usage (an unknown command); 3 partly done (`settle`,
+Exit codes are the tool's: 0 passed or done; 1 refused, or for `gate` and
+`checks` the board or git could not be read; 2 usage (an unknown command); 3 partly done (`settle`,
 `next`, `publish`), with what is left named; 70 a profile error or a crash
 (`profile.EXIT_PROFILE_ERROR`), never read as refused.
 
-**The rules.** A parent's `Refs` is reported beside its work package as a fact,
-never counted for it. The revert rule
-([the milestone gate](#the-milestone-gate)) is in `repo.py`, so
-`board-check.py`'s pre-flight counts reverts as the gate does. `deliver` keeps no GitHub code: the board model is its GitHub adapter
-([§11](#11-github-integration)).
+**The revert rule** ([the milestone gate](#the-milestone-gate)) is in
+`repo.py`, so `board-check.py`'s pre-flight counts reverts as the gate does.
 
 ### Which release production runs
 
@@ -1034,14 +1034,16 @@ forms:
   GraphQL request with `gh`'s stored login, and `gh release create` wraps
   REST calls. So the tool holds no GitHub token of its own.
 
-Only the controller calls GitHub; the builder, copier and hosts hold no GitHub
-credential ([privileges](#component-privileges)). **The board model is the
-GitHub adapter**: every call goes through it, by `board-release.py`
+Only the board model calls GitHub's API, beside the controller and under the
+owner's `gh` login; the builder fetches the commit by git, and it, the copier
+and the hosts hold no GitHub credential
+([privileges](#component-privileges)). **The board model is the GitHub
+adapter**: every call goes through it, by `board-release.py`
 ([the board model's part](#the-board-models-part)), and `deliver` keeps no
 GitHub code of its own. The issue reads (`fetch`, `issues_in_full`) take
 GraphQL where the token allows it and fall back to REST where GraphQL is
 refused, as it is to a cloud session's token. Check runs, milestones, comments,
-issue search and Releases are REST always, and the `Project State` write is
+an issue found by title and Releases are REST always, and the `Project State` write is
 GraphQL only (`setIssueFieldValue`), so settle needs a GraphQL-capable token:
 where GraphQL is refused it leaves that step, and the comment after it, undone
 and exits 3. A read that neither answers refuses, never reads as empty. The
