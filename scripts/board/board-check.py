@@ -132,14 +132,18 @@ def main(argv=None) -> int:
             # **The one section here that joins the board to git**, so it is
             # the one whose answer can be wrong without looking wrong: an
             # issue with no commit reads exactly like an issue whose commits
-            # were not counted. `repo.mentions_on` therefore counts what
-            # `issue-mentions.sh` counts for `deploy.sh`'s gate, down to the
-            # case of the trailer and the merge commits -- checked number by
-            # number across the whole history on 2026-09-21, not by reading
-            # the two regexes and agreeing they look alike.
-            rows = carried(typed, version, mentions_on().count)
-            text += "\n\n" + render_milestone(rows, version)
-            failing = failing or bool(unbuilt(rows))
+            # were not counted. `repo.mentions_on` therefore counts as the
+            # release gate does (`release.milestone_gate`): the same trailers,
+            # merges included, and reverts through `repo.reverted_in`.
+            # Over the whole of `main`, where the gate counts from the release
+            # production runs. A revert naming an ambiguous prefix cannot be
+            # read, so the section says it cannot say.
+            try:
+                rows = carried(typed, version, mentions_on().count)
+                text += "\n\n" + render_milestone(rows, version)
+                failing = failing or bool(unbuilt(rows))
+            except Unavailable as exc:
+                text += f"\n\n  milestone: cannot say — {exc}"
 
         # R10 and R11: the generated header, and the dependencies it shows.
         # Titles outside the open board are fetched only for the numbers a

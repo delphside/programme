@@ -31,7 +31,7 @@ setup() {
   hook_clear release-check
   run d release --expect 0.10.2; assert_success
   gates="$(run_log_gates release)"
-  for g in rehearsal-passed on-main emergency-descent ci-passed version-spent-once milestone release-check; do
+  for g in rehearsal-passed on-main emergency-descent ci-passed version-spent-once tests-passed milestone release-check; do
     assert_regex "$gates" "(^| )$g( |$)"
   done
   # the exit is in the log, and so are the arguments
@@ -226,8 +226,8 @@ oci-instance-principal"
   assert_success
   [ -L "$W/hosts/rehearsal/var/lib/deliver/widget/rehearsal/current" ]
   gh_fixture "repos_widget_widget_commits_${SHA}_check-runs" '{"check_runs":[{"name":"e2e","conclusion":"success"}]}'
-  jq -nc '{data:{repository:{milestones:{nodes:[{number:7,title:"0.10.2",state:"OPEN",issues:{nodes:[
-    {number:12,issueType:{name:"Requirement"},parent:null,subIssues:{totalCount:0},projectItems:{nodes:[]}}]}}]}}}}' > "$W/gh/fix/graphql_MilestoneItems.json"
+  jq -nc '[{number:12,title:"issue 12",state:"open",type:{name:"Requirement"},milestone:{title:"0.10.2"},
+    sub_issues_summary:{total:0},issue_dependencies_summary:{},labels:[]}]' > "$W/gh/fix/repos_widget_widget_issues.json"
   run d release --expect 0.10.2
   assert_success
   [ -f "$W/registry/reg.test/ns/widget/releases/tags/0.10.2-api" ]

@@ -21,9 +21,12 @@ to, so claiming is a guess, and the guess exonerates the very case the check
 exists for. So the package stays unbuilt and the reader is given the one fact
 that settles it in a second. #375.
 
-**Gate-adjacent, so it matches the gate deliberately.** `deploy.sh` refuses;
-this is the pre-flight that says so first, and `repo.mentions_on` is written to
-count exactly what `issue-mentions.sh` counts for it. A pre-flight that passes
+**Gate-adjacent, so it matches the gate deliberately.** The release gate
+(`release.milestone_gate`) refuses; this is the pre-flight that says so first,
+and `repo.mentions_on` counts as the gate does: the same trailers, merges
+included, and with reverts counted by `repo.reverted_in`, so a `Refs` that was
+reverted reads as unbuilt in both. It counts the whole of `main`, where the gate
+counts from the release production runs. A pre-flight that passes
 where the gate refuses is worse than no pre-flight: the release stops anyway,
 at the point where stopping costs most.
 

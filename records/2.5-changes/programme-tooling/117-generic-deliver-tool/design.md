@@ -639,10 +639,10 @@ flowchart LR
 | `board-release.py checks SHA` | the `ci-passed` gate's read | each `required_checks` check's conclusion on the commit |
 | `board-release.py publish TAG [--retrospective REASON]` | step 5 of [§7](#7-the-release-and-its-record), and `--skip-rehearsal`'s issue | the GitHub Release, and the retrospective issue, each skipped where it exists |
 
-The request carries the version, the release's range and, with `--emergency`,
-the range on `main`; the controller reads the earlier releases' records from
-the registry and passes them in, so `board-release.py` never touches the
-registry. Exit codes are the tool's: 0 passed, 1 refused, 70 a profile error
+The request carries the version, the commit, the release's range, the range on
+`main` (for `--emergency`), where the carried range starts and the tag prefixes;
+`board-release.py` reads the earlier releases' records from their tags' messages
+in git, so it never touches the registry. Exit codes are the tool's: 0 passed, 1 refused, 70 a profile error
 (`profile.EXIT_PROFILE_ERROR`), never read as refused.
 
 **What changes in the rules.** `milestone.py`'s rule replaces this design's
@@ -1011,8 +1011,8 @@ forms:
   GitHub's web API, which comes in two forms. The REST API has one URL per
   kind of thing (`repos/R/issues/N`) and suits single reads and writes. The
   GraphQL API is one endpoint taking a query that names exactly the fields
-  wanted across linked objects, and is the only way to read or set a
-  project's fields, such as `Project State`.
+  wanted across linked objects. `Project State` is an issue field: REST
+  reads it (`issue_field_values`), but only GraphQL sets it.
 - `gh`, the GitHub CLI, is a client for both: `gh api` sends a REST or
   GraphQL request with `gh`'s stored login, and `gh release create` wraps
   REST calls. So the tool holds no GitHub token of its own.
@@ -1024,7 +1024,10 @@ GitHub adapter**: every call goes through it, by `board-release.py`
 GitHub code of its own. The adapter chooses the API by where it runs: GraphQL
 where the token allows it, and REST where GraphQL is refused, as it is to a
 cloud session's token. A read that neither answers refuses, never reads as
-empty. The repository is `DELIVER_GH_REPO` or the origin URL's.
+empty. The one write with no REST route is `Project State`, so settle needs a
+GraphQL-capable token; where GraphQL is refused it leaves that step, and the
+comment after it, undone and exits 3. The repository is `DELIVER_GH_REPO` or the
+origin URL's.
 
 | Call | Used for |
 | --- | --- |

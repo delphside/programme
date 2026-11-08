@@ -301,7 +301,7 @@ setup() {
   ref_commit "a feature" 12
   build_ok "$SHA"; gh_checks "$SHA" e2e=success; gh_milestone 0.10.2 "12|Requirement||0|"
   local title="Retrospective: 0.10.2 released with rehearsal skipped"
-  gh_fixture repos_acme_acme_issues "[{\"title\":\"$title\",\"pull_request\":{}}]"
+  gh_issue_extra "{\"number\":900,\"title\":\"$title\",\"state\":\"open\",\"pull_request\":{}}"
   run d release --expect 0.10.2 --commit "$SHA" --skip-rehearsal "host down"
   assert_success
   assert_equal "$(grep -c 'POST repos/acme/acme/issues title=Retrospective' "$W/gh/log")" 1
@@ -310,8 +310,9 @@ setup() {
   fake_production 0.10.2 "$(git -C "$W/work" rev-parse v0.10.2)"
   ref_commit two 12; build_ok "$SHA"; gh_checks "$SHA" e2e=success; gh_milestone 0.10.3 "12|Requirement||0|"
   rm -f "$W/gh/state/issues-new"
-  gh_fixture repos_acme_acme_issues '[{"title":"filler"}]'
-  gh_fixture repos_acme_acme_issues_page2 '[{"title":"Retrospective: 0.10.3 released with rehearsal skipped"}]'
+  gh_issue_extra '{"number":901,"title":"filler","state":"closed"}'
+  jq -c '. + [range(100) | {number:(2000 + .), title:"filler", state:"closed"}]' "$(gh_issues_file)" > "$W/i.json" && mv "$W/i.json" "$(gh_issues_file)"
+  gh_fixture repos_acme_acme_issues_page2 '[{"number":3000,"title":"Retrospective: 0.10.3 released with rehearsal skipped","state":"closed"}]'
   : > "$W/gh/log"
   run d release --expect 0.10.3 --commit "$SHA" --skip-rehearsal "host down"
   assert_success

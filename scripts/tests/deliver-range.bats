@@ -213,10 +213,7 @@ issues_fixtures() {
   set_version 0.10.1; file_commit eight 8; text_tag v0.10.1 "$SHA"
   set_version 0.10.2; file_commit four 4
   release_ready "4|Requirement||0|"
-  local two; two="$(jq -c '.data.repository.milestones.nodes[0]' "$W/gh/fix/graphql_MilestoneItems.json")"
   gh_milestone 0.10.1 "8|Requirement||0|" "9|Requirement||0|"
-  jq -c --argjson two "$two" '.data.repository.milestones.nodes += [$two]' "$W/gh/fix/graphql_MilestoneItems.json" > "$W/m.json"
-  mv "$W/m.json" "$W/gh/fix/graphql_MilestoneItems.json"
   gh_fixture repos_acme_acme_milestones '[{"number":6,"title":"0.10.1","state":"open"},{"number":7,"title":"0.10.2","state":"open"}]'
   run d release --expect 0.10.2
   assert_success
