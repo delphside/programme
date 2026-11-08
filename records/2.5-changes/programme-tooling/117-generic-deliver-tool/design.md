@@ -198,7 +198,8 @@ flowchart TB
   GH["<i>GitHub</i><br>[Software System]<br>delphside/tile-lite-elite: repository,<br>issues, Releases; the board"]
   subgraph LAPTOP["Owner's laptop: WSL"]
     subgraph TOOLS["tool environments"]
-      CTL["<i>controller</i><br>[Component: bash, jq, skopeo,<br>gh, git, ssh, curl]<br>controller.json"]
+      CTL["<i>controller</i><br>[Component: bash, jq, skopeo,<br>git, ssh, curl]<br>controller.json"]
+      BM["<i>board model</i><br>[Component: Python, gh]<br>GitHub adapter"]
       BLD["<i>builder</i><br>[Component: git, docker buildx,<br>skopeo]<br>builder.json, docker login"]
       COPY["<i>release copier</i><br>[Component: skopeo]<br>copier.json"]
     end
@@ -217,7 +218,9 @@ flowchart TB
     DEPX["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal"]
   end
   GH -->|"fetch the commit<br>[git, HTTPS]"| BLD
-  CTL -->|"checks, milestones, Release, settle<br>[REST and GraphQL, HTTPS] owner's gh token<br>tag, bump main<br>[git, SSH] owner's key, admin bypass"| GH
+  CTL -->|"gate, settle, publish<br>[local process, JSON]"| BM
+  BM -->|"checks, milestones, Release, settle<br>[GraphQL or REST, HTTPS]<br>owner's gh token"| GH
+  CTL -->|"tag, bump main<br>[git, SSH]<br>owner's key, admin bypass"| GH
   BLD -->|"push SHA-IMAGE, delete pruned<br>[registry v2]<br>tle-builder token"| CAND
   CAND -->|"digests, tags<br>[registry v2]<br>tle-controller token"| CTL
   REL -->|"digests, records<br>[registry v2]<br>tle-controller token"| CTL
@@ -240,7 +243,8 @@ flowchart TB
 flowchart TB
   GH["<i>GitHub</i><br>[Software System]<br>delphside/dark-portal: repository,<br>issues, Releases; the board"]
   subgraph OWNER["Owner's machine"]
-    CTL["<i>controller</i><br>[Component: bash, jq, skopeo,<br>gh, git, ssh]<br>controller.json"]
+    CTL["<i>controller</i><br>[Component: bash, jq, skopeo,<br>git, ssh]<br>controller.json"]
+    BM["<i>board model</i><br>[Component: Python, gh]<br>GitHub adapter"]
   end
   subgraph OCIR["OCI Registry"]
     CAND[("<i>dark-portal/candidates</i><br>[Container: OCI repository]")]
@@ -262,7 +266,9 @@ flowchart TB
     DEPX["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal"]
   end
   GH -->|"fetch the commit<br>[git, HTTPS]"| BLD
-  CTL -->|"checks, milestones, Release, settle<br>[REST and GraphQL, HTTPS] owner's gh token<br>tag, bump main<br>[git, SSH] owner's key, admin bypass"| GH
+  CTL -->|"gate, settle, publish<br>[local process, JSON]"| BM
+  BM -->|"checks, milestones, Release, settle<br>[GraphQL or REST, HTTPS]<br>owner's gh token"| GH
+  CTL -->|"tag, bump main<br>[git, SSH]<br>owner's key, admin bypass"| GH
   BLD -->|"push SHA-IMAGE, delete pruned<br>[registry v2]<br>the VM's instance principal"| CAND
   CAND -->|"digests, tags<br>[registry v2]<br>dp-controller token"| CTL
   REL -->|"digests, records<br>[registry v2]<br>dp-controller token"| CTL
