@@ -707,6 +707,67 @@ image's `org.opencontainers.image.created` label, the time the build started
 (skopeo gives no push time); a build begun before a release and pushed after
 costs a rebuild.
 
+### Examples
+
+Typed by the owner, in a checkout of Tile Lite Elite, taking one commit through
+to production:
+
+```sh
+deliver build                      # build HEAD once, push to candidates
+deliver deploy rehearsal 3f2a9c1   # deploy that commit's candidates
+deliver release --expect 0.10.2    # release what rehearsal runs
+deliver deploy production 0.10.2   # deploy the release
+deliver settle 0.10.2              # rerun only if the deploy's settle failed
+```
+
+Others typed by the owner:
+
+```sh
+deliver deploy rehearsal 3f2a9c1 --check   # run every gate, change nothing
+deliver status production                  # what production runs
+deliver rollback rehearsal                 # back to rehearsal's previous deploy
+deliver prune --dry-run                    # list the candidates prune would delete
+deliver login builder                      # the builder's registry login
+deliver host-install rehearsal             # install deliver-host on rehearsal's VM
+```
+
+Sent by one script to another, as the scripts run them. Each `ssh` is one
+non-interactive call: the command runs, its exit status and error output come
+back, and the connection closes. On the same machine the call is the same
+without `ssh`. The aliases are the profile's, defined in `~/.ssh/config`.
+
+```sh
+# deliver deploy, to the environment's host: the request on standard input
+ssh tle-rehearsal "deliver-host deploy tile-lite-elite rehearsal" <<< "$request"
+
+# deliver status, list, prune and the gates, reading an environment's state
+ssh tle-production "deliver-host status tile-lite-elite production --json"
+
+# deliver release, to the copier's host: the image set and record to releases
+ssh "$copy_on" "deliver-host copy tile-lite-elite" <<< "$request"
+
+# deliver build, typed on the controller's host, passing itself to the builder's
+ssh "$build_on" "DELIVER_ON_BUILD_HOST=1 deliver build 3f2a9c1"
+
+# a payload step on the host, reaching root through the one sudo rule
+sudo -n deliver-host root-ops ...
+```
+
+A request is one JSON object, with the fields the table lists for its command.
+For a deploy, in part:
+
+```json
+{"app": "tile-lite-elite", "env": "rehearsal", "role": "rehearsal",
+ "sha": "3f2a9c1…", "version": "0.10.2",
+ "images": {"server": "sha256:…", "web": "sha256:…"}, "...": "…"}
+```
+
+Started by a timer on Dark Portal's builder host:
+
+```sh
+DELIVER_ON_BUILD_HOST=1 deliver build
+```
+
 ### Privileges
 
 Each component holds least access, apart from the deployer's root (the *Root*
