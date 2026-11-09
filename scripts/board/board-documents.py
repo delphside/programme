@@ -3,11 +3,13 @@
 
     board-documents.py programme < path-list    # print the programme's documents among them
     board-documents.py application < path-list  # print the application's documents among them
+    board-documents.py branch < path-list       # print those a commit on a branch may not carry
     board-documents.py kind PATH...              # print each path's kind, or `none`
 
 The rule is `programme/scripts/board/documents.py`'s. The pre-commit hook asks this
-before committing a programme document on a project branch, which it refuses,
-or an application document on `main`, which it warns about (#421 R5).
+before committing a programme document on a branch, which it refuses (`branch`:
+all of them but a pin move made on its own), or an application document on
+`main`, which it warns about (#421 R5).
 """
 
 from __future__ import annotations
@@ -26,6 +28,10 @@ def main(argv: list[str]) -> int:
         return 0
     if argv in (["programme"], ["application"]):
         for path in documents.of_kind(argv[0], (line.strip() for line in sys.stdin)):
+            print(path)
+        return 0
+    if argv == ["branch"]:
+        for path in documents.refused_on_branch(line.strip() for line in sys.stdin):
             print(path)
         return 0
     if argv[0] == "kind" and len(argv) > 1:

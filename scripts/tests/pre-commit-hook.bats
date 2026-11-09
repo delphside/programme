@@ -354,8 +354,21 @@ fmt_case() {   # <cargo-fmt-exit> <file>
   assert_equal "$status" 1
 }
 
-@test "branch: so is the pin of the programme submodule" {
-  commit_on 399-x programme
+@test "branch: a pin move on its own is allowed, carried in a pull request" {
+  # docs/1.1: a web session cannot push to main, so it moves the pin by a
+  # pull request, and refusing it here left that session no way to.
+  commit_on claude/x programme
+  assert_success
+}
+
+@test "branch: but the pin staged with anything else is refused, and named" {
+  commit_on 399-x programme docs/9.4.3-api-schema.md
+  assert_equal "$status" 1
+  assert_output --partial "  programme"
+}
+
+@test "branch: and so is the pin with another programme document" {
+  commit_on 399-x programme CLAUDE.md
   assert_equal "$status" 1
 }
 

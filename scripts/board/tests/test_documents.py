@@ -52,6 +52,26 @@ class ProgrammeDocuments(unittest.TestCase):
         self.assertEqual([], of("programme", "docs/4.1.4-roadmap.md"))
 
 
+class RefusedOnBranch(unittest.TestCase):
+    """What a commit on a branch may not carry: the programme's documents, except a
+    pin move made on its own, which a web session carries in a pull request
+    because it cannot push to main (the programme's docs/1.1)."""
+
+    def test_a_pin_move_on_its_own_is_not_refused(self):
+        self.assertEqual([], of("branch", "programme"))
+
+    def test_the_pin_with_anything_else_is(self):
+        self.assertEqual(["programme"], of("branch", "programme", "docs/9.4.3-api-schema.md"))
+        self.assertEqual(["programme", "CLAUDE.md"], of("branch", "programme", "CLAUDE.md"))
+
+    def test_every_other_programme_document_still_is(self):
+        paths = ("CLAUDE.md", "docs/9.1.4-roadmap.md", "programme/docs/1.2-change-lifecycle.md")
+        self.assertEqual(list(paths), of("branch", *paths))
+
+    def test_an_application_document_is_not(self):
+        self.assertEqual([], of("branch", "docs/9.4.3-api-schema.md"))
+
+
 class ApplicationDocuments(unittest.TestCase):
     def test_the_1x_overviews_of_the_application_and_the_2x_3x_4x_groups(self):
         paths = ("docs/9.1.0-rules.md", "docs/9.1.1-architecture.md", "docs/9.2.7-authentication-and-invitations.md",

@@ -21,6 +21,8 @@ from __future__ import annotations
 import re
 
 _TRAILER = re.compile(r"\b(Refs|Closes) #(\d+)\b")
+# docs/1.4's register ids are lower-case words joined by hyphens.
+_ACTIVITY = re.compile(r"^Activity: ([a-z0-9]+(?:-[a-z0-9]+)*)\.?[ \t]*$", re.MULTILINE)
 _TITLE_LEAD = re.compile(r"^#(\d+)\b")
 _BRANCH = re.compile(r"^(?:issue-)?(\d+)-")
 
@@ -33,6 +35,17 @@ def closes(text: str) -> set[int]:
 def named(text: str) -> set[int]:
     """Issues a message names at all: `Refs #N` or `Closes #N`."""
     return {int(n) for _, n in _TRAILER.findall(text)}
+
+
+def activity(text: str) -> str | None:
+    """The BAU activity a message serves, from its `Activity: <id>` line, or None.
+
+    Programme BAU work needs no issue: its commits and pull requests say
+    `Activity: <id>` from the programme's docs/1.4 register instead of `Refs #N`
+    (CLAUDE.md, *Changes*). Whether the id is in the register is not checked here.
+    """
+    m = _ACTIVITY.search(text)
+    return m.group(1) if m else None
 
 
 def pull_request_names(title: str, body: str) -> set[int]:

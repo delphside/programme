@@ -59,3 +59,20 @@ def kind(path: str) -> str | None:
 def of_kind(which: str, paths: Iterable[str]) -> list[str]:
     """The paths, of these, that are documents of that kind, in the order given."""
     return [p for p in paths if p and kind(p) == which]
+
+
+def refused_on_branch(paths: Iterable[str]) -> list[str]:
+    """The programme's documents among these that a commit on a branch may not carry.
+
+    Every one of them, except the submodule's pin when it is the whole commit.
+    A pin move on its own is a commit that belongs on `main`, and a web session,
+    which cannot push to `main`, carries it in a pull request instead (the
+    programme's docs/1.1, *Two kinds of tooling*); refusing it on a branch left
+    that session no way to move the pin. Staged with anything else, it is still
+    refused: a project branch takes a pin move by rebase.
+    """
+    paths = [p for p in paths if p]
+    found = of_kind(PROGRAMME, paths)
+    if paths == [profile.programme_file().string("programme.submodule")]:
+        return []
+    return found
