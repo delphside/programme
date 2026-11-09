@@ -94,7 +94,10 @@ per delivery, a table per subsection".*
 | **Docs and Programme Tooling** | yes/no | | | |
 | **Other** | yes/no | | | |
 
-*Steps: the runbook, in order, after the table.*
+*Steps: the runbook, in order, after the table. A Docs and Programme Tooling
+delivery says whether each application's pin moves, and where one does, ends
+with the move (`docs/1.2`, "Deliveries: one subsection per delivery, a table
+per subsection").*
 
 ## Post-deployment checks against requirements
 
