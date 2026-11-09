@@ -128,6 +128,9 @@ class RawIssue:
     # bare number there named the wrong issue.
     blocked_by_elsewhere: frozenset[tuple[str, int, str]] = frozenset()
     blocks_elsewhere: frozenset[tuple[str, int, str]] = frozenset()
+    # A pull request a bot opened (Dependabot's), which can carry no `Refs`:
+    # GitHub's author type, `Bot`. False for an issue.
+    bot: bool = False
 
 
 @dataclass(frozen=True)

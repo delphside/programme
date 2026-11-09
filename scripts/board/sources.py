@@ -67,6 +67,7 @@ query($owner:String!, $repo:String!, $cursor:String) {
       pageInfo { hasNextPage endCursor }
       nodes {
         number title state body createdAt updatedAt headRefName
+        author { __typename }
         isDraft reviewDecision
         reviewRequests(first:1) { totalCount }
         milestone { title }
@@ -279,6 +280,7 @@ def _pr_to_raw(node: dict) -> RawIssue:
         updated_at=node.get("updatedAt"),
         closed_at=node.get("closedAt"),
         head_ref=node.get("headRefName"),
+        bot=(node.get("author") or {}).get("__typename") == "Bot",
     )
 
 
@@ -1115,7 +1117,8 @@ def _rest_pull_requests(rest: _Rest, owner: str, repo: str, pr_states: str) -> l
             labels=frozenset(label["name"] for label in p.get("labels") or []),
             created_at=p.get("created_at"), updated_at=p.get("updated_at"),
             closed_at=p.get("closed_at") or p.get("merged_at"),
-            head_ref=(p.get("head") or {}).get("ref")))
+            head_ref=(p.get("head") or {}).get("ref"),
+            bot=(p.get("user") or {}).get("type") == "Bot"))
     return out
 
 
