@@ -709,27 +709,8 @@ costs a rebuild.
 
 ### Examples
 
-Typed by the owner, in a checkout of Tile Lite Elite, taking one commit through
-to production:
-
-```sh
-deliver build                      # build HEAD once, push to candidates
-deliver deploy rehearsal 3f2a9c1   # deploy that commit's candidates
-deliver release --expect 0.10.2    # release what rehearsal runs
-deliver deploy production 0.10.2   # deploy the release
-deliver settle 0.10.2              # rerun only if the deploy's settle failed
-```
-
-Others typed by the owner:
-
-```sh
-deliver deploy rehearsal 3f2a9c1 --check   # run every gate, change nothing
-deliver status production                  # what production runs
-deliver rollback rehearsal                 # back to rehearsal's previous deploy
-deliver prune --dry-run                    # list the candidates prune would delete
-deliver login builder                      # the builder's registry login
-deliver host-install rehearsal             # install deliver-host on rehearsal's VM
-```
+What the owner types at each step is
+[docs/1.1's quick reference](../../../../docs/1.1-programme-tooling.md#the-deliver-tool-quick-reference).
 
 Sent by one script to another, as the scripts run them. Each `ssh` is one
 non-interactive call: the command runs, its exit status and error output come
