@@ -1,20 +1,22 @@
 <!-- markdownlint-disable-file MD013 -->
 # The deliver tool: design
 
-Design for delphside/programme#117, the build, release and deploy tool every
-application in the programme uses. Its customers are
-delphside/tile-lite-elite#545 (work packages delphside/tile-lite-elite#555 and
-delphside/tile-lite-elite#556) and delphside/dark-portal#11
-(delphside/dark-portal#15). The generic rule it implements is
+Design for delphside/programme#117 which introduces Turpin, a generic tool to build and deliver applications images.
+The tool implements the generic rules for releasing application images described within
 [docs/1.2 *Making a release, then deploying it*](../../../../docs/1.2-change-lifecycle.md#making-a-release-then-deploying-it).
 Its decisions are in #117's body.
 
-At delivery the generic design becomes a programme document, and each
-application's implementation moves to that application's own design documents:
-its deployment view ([§2](#2-the-tool-and-its-components)), its profile and hooks
-([§5](#5-profile-and-hooks)) and its registry policies and logins
-([§10](#10-oci-integration)). Until then both applications' parts stay here,
-marked by application name.
+Two applications are building implementations, and those projects follow on after this project:
+
+- Tile Lite Elite delphside/tile-lite-elite#545 (work packages delphside/tile-lite-elite#555 and
+delphside/tile-lite-elite#556)
+- Dark Portal delphside/dark-portal#11 (delphside/dark-portal#15).
+
+Once the projects are delivered this design project document will be moved into permenant design documents.  Application implementation details will be split out into application specific documents:
+
+- deployment view ([§2](#2-the-tool-and-its-components))
+- profile and hooks ([§5](#5-profile-and-hooks))
+- registry policies and logins ([§10](#10-oci-integration))
 
 ## 1. As-is
 
@@ -31,22 +33,29 @@ marked by application name.
 
 ### The tool
 
-*deliver* is the programme's generic tool for building, releasing and
-deploying an application. Three terms describe it:
+*Turpin* is the programme's generic tool for building, releasing and
+deploying application images.
 
-- The two *programs* are shell scripts. `deliver` is the front end a person or
-  timer types, run from a checkout of the application and reading its profile;
-  `deliver-host` carries out one action on its machine from a request on
-  standard input, from a person or as an internal call, needing no checkout,
-  and is installed by `host-install`. The two programs may be deployed to
-  several machines.
-- A *command* is a program and a subcommand, such as `deliver build` or
-  `deliver-host copy`, typed by a person or sent by another component.
-- A *component* is a logical collection of commands with one responsibility
-  and common credentials. Its commands may be implemented in both programs.
-  Where its commands run is the [deployment model](#deployment-model)'s: the
-  deployer's on each application environment's host, every other component's
-  on one machine.
+Builds are stored in two repositories: 'candidates' and 'releases'.
+
+The process in short is:
+
+1. a commit is built and stored in the candidates repository (key is commit SHA);
+2. from the candidates repository it is deployed to non-production environments for testing;
+3. after testing the build is promoted to a release and stored in the releases repository;
+4. from the releases repository it is deployed into the production environment.
+
+The repositories contain generic payloads.  Environment specific information is stored in .env files, including secrets.  A deployment requires a repositary payload and a .env file.
+
+Turpin is made of CLI *programs*, implemented as shell scripts. `turpin` is the Turpin client.  It is run from a checkout of the application and can be close to the user.
+  `turpin-host` is deployed on the machine where it carries out it's action.  Mainly it is invoked from turpin, but can also be invoked directly.  It is installed by `host-install`. The deployment model is flexible and many copies of the programs can be deployed
+  to fit where particular commands need to run.  A configuration file defines where each command runs.
+
+Turpin exposes CLI *commands* which consist of a program and a subcommand, such as `turpin build` or
+  `turpin-host copy`, typed by a person or sent by another component.
+
+A *component* is a logical collection of related commands with a common responsibility
+  and shared credentials. The commands in a component may be implemented across both programs but all run on the same machine, with the exception of 'deployer' which runs on all machines.  This is specified in the [deployment model](#deployment-model).
 
 There are four components:
 
