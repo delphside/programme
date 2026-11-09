@@ -710,7 +710,7 @@ costs a rebuild.
 ### Examples
 
 What the owner types at each step is
-[docs/1.1's quick reference](../../../../docs/1.1-programme-tooling.md#the-deliver-tool-quick-reference).
+in [docs/1.2 *Making a release, then deploying it*](../../../../docs/1.2-change-lifecycle.md#making-a-release-then-deploying-it).
 
 Sent by one script to another, as the scripts run them. Each `ssh` is one
 non-interactive call: the command runs, its exit status and error output come
