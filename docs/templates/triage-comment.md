@@ -1,27 +1,26 @@
 # Triage comment
 
 The comment triage leaves on an issue. The rule is
-[1.2 §2.17](../1.2-change-lifecycle.md#217-triage-what-happens-to-an-issue-when-it-is-raised).
-Copy it into a GitHub saved reply (Settings → Saved replies) to paste it.
+[1.2 *What triage asks*](../1.2-change-lifecycle.md#what-triage-asks).
+Save the block's contents, without its fence, as a GitHub saved reply
+(Settings → Saved replies).
 
 ````markdown
-## Triage
+<!-- Type of change, Effort, Priority, Workstream and Requirement State are set in the sidebar. Delete this comment. -->
 
-*`Type of change`, `Effort`, `Priority`, `Workstream` and `Requirement State` are set in the
-sidebar, not here.*
+## Triage
 
 ### Impacted artefacts
 
-| artefact | new, modified or reuse, and why | route |
+| Artefact | New, modified or reuse, and why | Route |
 | --- | --- | --- |
-| | new · modified · reuse | Production Release · Application Tooling · Docs and Programme Tooling · Other |
+| | *new · modified · reuse*: *why* | *Production Release · Application Tooling · Docs and Programme Tooling · Other* |
 
 ### Context
 
-*What else this relates to, what it overlaps, and whether it should be planned
-on its own at all.*
+*Never blank: dependencies, overlaps and whether to plan it alone.*
 
-### What we know now that the raiser did not
+### What triage found that the raiser did not know
 
-*The point of the exercise. If there is nothing here, triage found nothing.*
+*Never blank: where triage found nothing new, say so.*
 ````

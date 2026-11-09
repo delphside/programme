@@ -1,42 +1,37 @@
 # Test design specification: *change*
 
 <!--
-Delete these comments as you go.
+The guide is docs/1.9, *How a test design specification is built*.
 
-Copy it into the project's folder, named for the project number —
-  e.g. 174-test-design.md — before completing it.
+1. Copy it to where docs/1.9 says, with its change, as
+   `test-design.md`, for example `<issue>-<name>/test-design.md`.
+2. Fill in the header: replace `Project` with `Issue` where there is no
+   project.
+3. Keep all ten headings, in order.
+4. Delete these comments.
 
-Guide to completion:  `docs/1.9`'s "How a test design specification is built"
+Placeholders: `N` is the project's or issue's number; `<issue>` is the parent
+project's number and `<name>` its short name; `X.Y.Z` is the release's
+semver. The values of type of change and route are in docs/1.2 §2.15.
 
-Each of these ten parts is required.  Together they ensure the tests have good
-coverage.  
+Worked example in the ten-part form:
+records/2.5-changes/programme-tooling/117-generic-deliver-tool/test-design.md
 
-Worked examples:
-
-  applications/tile-lite-elite/3.1.7-changes/41-user-deletion-test-design.md
-      functional, user-testable
-  applications/tile-lite-elite/3.1.7-changes/25-rate-limiting-test-design.md
-      non-functional, judged by a script on the rehearsal host
-
-These are at the level of Project, if there is one, otherwise issue.
-
-This is NOT a test plan in the standards' sense — that is a management document
-of scope, schedule and resources, which the programme does not write.  See docs/1.9.
+This holds no test plan (scope, schedule, resources and risks): Claude writes
+none (docs/1.9).
 -->
 
-Issue: #N · type of change: `functional` / … · route: `Production Release` / …
-<!-- or 
-Project: #N · type of change: `functional` / … · route: `Production Release` / …
--->
+Project: `#N` · type of change: *`functional`, or the change's own* · route: *`Production Release`, or the change's own* · release: *`X.Y.Z`, or `not applicable`*
 
 ## 1. Rules
 
-<!-- Intent, before anything derives from it. Written from what the system is
-supposed to do — Tile Lite Elite's docs/4.1.0-rules.md, the issue, the design note — not from the
-code, or the plan inherits the code's mistakes. Number them; everything below
+<!-- Intent, before anything derives from it. Write each rule from what the
+system is supposed to do — the application's rules document (Tile Lite Elite's
+docs/4.1.0-rules.md), the issue or the design note — and not from the code.
+Claude checks the rules before section 2. Number them; everything below
 refers back. -->
 
-| | Rule |
+| ID | Rule |
 | --- | --- |
 | R1 | |
 | R2 | |
@@ -44,47 +39,54 @@ refers back. -->
 ## 2. Conditions, grouped into dimensions
 
 <!-- Each dimension is one axis the behaviour varies along. Mark a dimension
-**complete** where its values exhaust the possibilities, so a reader can see
-which are and are not. -->
+**complete** where its values exhaust the possibilities. Give each value an ID;
+the scenarios cite them. -->
 
-**D1 — *name*** (complete / not complete)
+**D1 — *name*** *complete · not complete*
 
-- |
-- |
+- **D1.1** *value*
+- **D1.2** *value*
 
 ## 3. Outcomes
 
-<!-- Separately from conditions, and each phrased as something observable. "The
-request is refused with 400 and the body names the seat" — not "it works". If
-you cannot see it, a test cannot assert it. -->
+<!-- Kept apart from the conditions, and each phrased as something observable:
+Tile Lite Elite's "the request is refused with 400 and the body names the seat"
+and not "it works". -->
 
-| | Outcome |
+| ID | Outcome |
 | --- | --- |
 | O1 | |
 
 ## 4. Matrix
 
-<!-- Where two dimensions cross, a table with a symbol for combinations that
-cannot occur, so impossible is distinguishable from untested. -->
+<!-- Where two dimensions cross (D1 and a second, D2, defined in section 2), a
+table with a symbol for combinations that cannot occur, so impossible is
+distinguishable from untested. -->
+
+| | *D2.1* | *D2.2* |
+| --- | --- | --- |
+| *D1.1* | | |
 
 ## 5. Scenarios
 
 <!-- Lifecycle walks, each covering several conditions. Number them for
-navigation while writing; the tests they produce are named for behaviour. -->
+navigation while writing. -->
 
-| | Scenario | Conditions | Outcomes |
+| ID | Scenario | Conditions | Outcomes |
 | --- | --- | --- | --- |
 | S1 | | | |
 
 ## 6. Refusals and successes
 
-<!-- Every refusal followed by a success. A test that only watches something be
-refused passes against a system that refuses everything. -->
+<!-- Follow every refusal with a success. Cite scenario IDs. -->
+
+| Refused | Then succeeds |
+| --- | --- |
+| | |
 
 ## 7. Coverage, both ways
 
-<!-- Every rule to a scenario, and every scenario to a rule. Both directions:
-one finds untested rules, the other finds scenarios testing nothing. -->
+<!-- Every rule to a scenario, and every scenario to a rule. -->
 
 | Rule | Scenarios |
 | --- | --- |
@@ -96,22 +98,20 @@ one finds untested rules, the other finds scenarios testing nothing. -->
 
 ## 8. Approach
 
-<!-- What runs and where: unit, integration, e2e, or a script on rehearsal.
-What is real and what is stubbed. How time is manipulated. What state each test
-starts from. -->
+<!-- Answer four questions:
+- What runs, and where: component, integration, system or a script on a
+  deployed environment?
+- What is real, and what is stubbed?
+- How is time manipulated?
+- What state does each test start from? -->
 
 ## 9. Test names
 
-<!-- Named for the behaviour, never for a scenario number.
-`delete_refused_while_a_game_is_waiting`, not `s1`. Six months later a failing
-`s1` sends the reader to a document to find out what broke. -->
+<!-- Name each test for the behaviour and never for a scenario number: Tile
+Lite Elite's `delete_refused_while_a_game_is_waiting`, not `s1`. -->
 
 ## 10. Gaps
 
-<!-- Each saying what would make the test fail if the gap matters. A gap written
-down is a decision with a name on it; a gap left out is indistinguishable from
-coverage. -->
-
-| Gap | What it would take to close it | Why it is acceptable for now |
-| --- | --- | --- |
-| | | |
+| Gap | What would make the missing test fail | What it would take to close it | Why it is acceptable for now |
+| --- | --- | --- | --- |
+| | | | |
