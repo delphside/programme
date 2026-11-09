@@ -51,7 +51,8 @@ weekly_digest_code = "PRG_WD"
 
 [programme_documents]
 # The programme's documents that an application's repository holds, which change
-# on main and never on a project's branch. The tooling adds the submodule (the
+# on main and never on a project's branch, except a pin move committed on its own
+# (`documents.refused_on_branch`). The tooling adds the submodule (the
 # pin) and everything inside it; an application adds its own in its technical
 # profile (`documents.programme_exact`, `documents.programme_prefixes`).
 exact = ["CLAUDE.md", "AGENTS.md", "docs/README.md"]

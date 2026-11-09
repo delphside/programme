@@ -174,6 +174,24 @@ class TheRestFallback(Cases):
         self.expect("a pull request in the issues list is not an issue", [10, 12, 20],
                     [i.number for i in got])
 
+    def test_a_bots_pull_request_is_read_as_one_on_both_routes(self):
+        # pr-linked excuses a bot's pull request (Dependabot's, TLE #564), so both
+        # routes must read the author's type: GraphQL `author.__typename`, REST
+        # `user.type`. A person's, and a deleted user's null author, are not bots.
+        bot = dict(G_PR, number=21, headRefName="branch-21", author={"__typename": "Bot"})
+        person = dict(G_PR, author={"__typename": "User"})
+        ghost = dict(G_PR, number=22, headRefName="branch-22", author=None)
+        graphql = {i.number: i.bot for i in self.fetch(
+            Gh(graphql=graphql_for([], [person, bot, ghost]))).issues}
+        self.expect("GraphQL: a bot's is a bot's, a person's and a ghost's are not",
+                    {20: False, 21: True, 22: False}, graphql)
+        table = rest_table()
+        table[f"{REST_BASE}/pulls?state=open"] = [
+            open_pr(20), open_pr(21, user={"type": "Bot"}), open_pr(22, user=None)]
+        rest = {i.number: i.bot for i in self.fetch(Gh(rest=table)).issues
+                if i.issue_type == "PullRequest"}
+        self.expect("REST: the same", {20: False, 21: True, 22: False}, rest)
+
     def test_a_pull_requests_state_is_the_ladders_over_rest(self):
         table = rest_table()
         table[f"{REST_BASE}/pulls?state=open"] = [
