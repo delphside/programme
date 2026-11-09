@@ -1,20 +1,26 @@
 <!-- markdownlint-disable-file MD013 -->
 # The deliver tool: design
 
-Design for delphside/programme#117, the build, release and deploy tool every
-application in the programme uses. Its customers are
-delphside/tile-lite-elite#545 (work packages delphside/tile-lite-elite#555 and
-delphside/tile-lite-elite#556) and delphside/dark-portal#11
-(delphside/dark-portal#15). The generic rule it implements is
+Design for delphside/programme#117, which introduces Turpin, a generic tool to
+build and deliver application images. The tool implements the generic rules for
+releasing application images described in
 [docs/1.2 *Making a release, then deploying it*](../../../../docs/1.2-change-lifecycle.md#making-a-release-then-deploying-it).
 Its decisions are in #117's body.
 
-At delivery the generic design becomes a programme document, and each
-application's implementation moves to that application's own design documents:
-its deployment view ([§2](#2-the-tool-and-its-components)), its profile and hooks
-([§5](#5-profile-and-hooks)) and its registry policies and logins
-([§10](#10-oci-integration)). Until then both applications' parts stay here,
-marked by application name.
+Two applications are building implementations alongside it, and they ship with
+it in the same release:
+
+- Tile Lite Elite: delphside/tile-lite-elite#545 (work packages
+  delphside/tile-lite-elite#555 and delphside/tile-lite-elite#556).
+- Dark Portal: delphside/dark-portal#11 (delphside/dark-portal#15).
+
+Once the projects are delivered, this project document will be moved into
+permanent design documents. Application implementation details will be split
+out into application-specific documents:
+
+- deployment view ([§2](#2-the-tool-and-its-components))
+- profile and hooks ([§5](#5-profile-and-hooks))
+- registry policies and logins ([§10](#10-oci-integration))
 
 ## 1. As-is
 
@@ -31,22 +37,44 @@ marked by application name.
 
 ### The tool
 
-*deliver* is the programme's generic tool for building, releasing and
-deploying an application. Three terms describe it:
+*Turpin* is the programme's generic tool for building, releasing and
+deploying application images.
 
-- The two *programs* are shell scripts. `deliver` is the front end a person or
-  timer types, run from a checkout of the application and reading its profile;
-  `deliver-host` carries out one action on its machine from a request on
-  standard input, from a person or as an internal call, needing no checkout,
-  and is installed by `host-install`. The two programs may be deployed to
-  several machines.
-- A *command* is a program and a subcommand, such as `deliver build` or
-  `deliver-host copy`, typed by a person or sent by another component.
-- A *component* is a logical collection of commands with one responsibility
-  and common credentials. Its commands may be implemented in both programs.
-  Where its commands run is the [deployment model](#deployment-model)'s: the
-  deployer's on each application environment's host, every other component's
-  on one machine.
+Builds are stored in two repositories: `candidates` and `releases`.
+
+The process in short is:
+
+1. A commit is built and stored in the candidates repository (the key is the
+   commit's SHA).
+2. From the candidates repository it is deployed to non-production
+   environments for testing.
+3. After testing, the build is promoted to a release and stored in the releases
+   repository.
+4. From the releases repository it is deployed into the production environment.
+
+The repositories contain *image sets*, which are the same for every
+environment. Environment-specific information, secrets included, is stored in
+each environment's `.env` file. A deployment needs an image set from a
+repository and an environment's `.env` file.
+
+Turpin is made of CLI *programs*, implemented as shell scripts. `turpin` is the
+Turpin client. It is run from a checkout of the application and can be close to
+the user. `turpin-host` is deployed on the machine where it carries out its
+action. Mainly it is invoked from `turpin`, but it can also be invoked
+directly. It is installed by `host-install`. The deployment model is flexible,
+and many copies of the programs can be deployed to wherever particular commands
+need to run. The application's profile, `app-profile.toml`, defines where each
+command runs.
+
+Turpin exposes CLI *commands*, each of which is a program and a subcommand,
+such as `turpin build` or `turpin-host copy`, typed by a person or sent by
+another component.
+
+A *component* is a logical collection of related commands with a common
+responsibility and shared credentials. The commands in a component may be
+implemented across both programs, but all run on the same machine, with the
+exception of the deployer, which runs beside each application environment it
+changes. This is specified in the [deployment model](#deployment-model).
 
 There are four components:
 
@@ -678,6 +706,67 @@ not released, and not run by any current or previous deploy. "Built" is the
 image's `org.opencontainers.image.created` label, the time the build started
 (skopeo gives no push time); a build begun before a release and pushed after
 costs a rebuild.
+
+### Examples
+
+Typed by the owner, in a checkout of Tile Lite Elite, taking one commit through
+to production:
+
+```sh
+deliver build                      # build HEAD once, push to candidates
+deliver deploy rehearsal 3f2a9c1   # deploy that commit's candidates
+deliver release --expect 0.10.2    # release what rehearsal runs
+deliver deploy production 0.10.2   # deploy the release
+deliver settle 0.10.2              # rerun only if the deploy's settle failed
+```
+
+Others typed by the owner:
+
+```sh
+deliver deploy rehearsal 3f2a9c1 --check   # run every gate, change nothing
+deliver status production                  # what production runs
+deliver rollback rehearsal                 # back to rehearsal's previous deploy
+deliver prune --dry-run                    # list the candidates prune would delete
+deliver login builder                      # the builder's registry login
+deliver host-install rehearsal             # install deliver-host on rehearsal's VM
+```
+
+Sent by one script to another, as the scripts run them. Each `ssh` is one
+non-interactive call: the command runs, its exit status and error output come
+back, and the connection closes. On the same machine the call is the same
+without `ssh`. The aliases are the profile's, defined in `~/.ssh/config`.
+
+```sh
+# deliver deploy, to the environment's host: the request on standard input
+ssh tle-rehearsal "deliver-host deploy tile-lite-elite rehearsal" <<< "$request"
+
+# deliver status, list, prune and the gates, reading an environment's state
+ssh tle-production "deliver-host status tile-lite-elite production --json"
+
+# deliver release, to the copier's host: the image set and record to releases
+ssh "$copy_on" "deliver-host copy tile-lite-elite" <<< "$request"
+
+# deliver build, typed on the controller's host, passing itself to the builder's
+ssh "$build_on" "DELIVER_ON_BUILD_HOST=1 deliver build 3f2a9c1"
+
+# a payload step on the host, reaching root through the one sudo rule
+sudo -n deliver-host root-ops ...
+```
+
+A request is one JSON object, with the fields the table lists for its command.
+For a deploy, in part:
+
+```json
+{"app": "tile-lite-elite", "env": "rehearsal", "role": "rehearsal",
+ "sha": "3f2a9c1…", "version": "0.10.2",
+ "images": {"server": "sha256:…", "web": "sha256:…"}, "...": "…"}
+```
+
+Started by a timer on Dark Portal's builder host:
+
+```sh
+DELIVER_ON_BUILD_HOST=1 deliver build
+```
 
 ### Privileges
 

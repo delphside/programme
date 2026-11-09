@@ -57,6 +57,25 @@ Google's guide. Write to it; the two document reviewers apply it.
 - **Every string the tooling matches literally** is in
   [1.6](../../../docs/1.6-github-project-board.md).
 
+## When two rules disagree
+
+**Find where each came from before changing either.** Each was written for
+a situation, and the fix keeps both intents only once both are known.
+
+1. Find the commit that added each rule's wording, searching for a phrase
+   that sits on one line, since `-S` matches literal text:
+
+   ```sh
+   git log --format='%h %ad %s' --date=short -S'<a phrase from the rule>' -- CLAUDE.md docs
+   ```
+
+   The programme repository carries the history from its first commit,
+   including the rules' time in Tile Lite Elite under older names.
+2. Read each commit's message (`git show -s <sha>`) and diff: what situation
+   the rule was written for, and who decided it.
+3. Write the fix from both intents, and say in the commit message where each
+   side came from.
+
 ## Traps
 
 **Renumbering breaks anchors, and the link checker only catches the linked

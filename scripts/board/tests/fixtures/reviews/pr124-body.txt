@@ -1,0 +1,277 @@
+<!-- claude-projects-attribution: {"github_login":"SteveStyle"} -->
+_Requested by **Stephen** · [project thread](https://claude.ai/code/project/chan_0199Ma9ePuAg2ThPhKYs1zkS?thread=cmsg_0199Ma9ePuAg2ThPhKYs1zkSStRCVq4pg39iGtiycmJ12s)_
+
+## What this asks for
+
+The weekly `document-review` activity (docs/1.4), week 2 of 4. Corrections from both document reviewers to 23 documents:
+
+- docs/1.0 to 1.9;
+- the six templates and the templates README, and `.claude/agents/document-reviewer-reader.md`;
+- Tile Lite Elite's 3.1.1, 3.1.4 to 3.1.7, its README, the 3.1.7 READMEs and the benchmark runbook;
+- Dark Portal's 3.2.6.
+
+Most changes make a claim true against the code (scripts, workflows, the board), bring text to 1.5's house style, or turn packed prose into lists and tables. No rule changes meaning except where a question below says so.
+
+## What is left out
+
+- Anything that needs your answer: the questions below. Where I had to write something to keep a document true, the question says what I wrote.
+- Defects found outside these documents, listed at the end; I will leave a note for the local session on delphside/tile-lite-elite#441.
+- Round 2 ran fresh reviewers in six groups of documents rather than a pair per document, to keep its cost down. This is a deviation from 1.1's one-document-per-run rule.
+
+## Your answers, applied
+
+Applied in c47a96e, 263fb49, f38b96d and 5f8bef6. The records under `records/2.7` ride on this pull request because a cloud session pushes one branch.
+
+| Q | What changed |
+| --- | --- |
+| 1, 2, 3 | 1.5 *Sentence case*: a table header's first word is capitalised, *ID* in capitals, italics at a term's definition. Headers capitalised throughout; the digest now reads register headers case-insensitively. |
+| 4, 21 | 1.5 *Issue numbers* gains a third case, a temporary note deleted when its issue lands; `CLAUDE.md` takes the form Claude follows best and cites issues by the same three cases. |
+| 5 | Kept. |
+| 6 | The registers move to `records/2.7-improvement-registers.md`; 1.4 keeps the rules. |
+| 7, 10 | 1.5 *One fact, one home*: the numbered documents are complete; `CLAUDE.md`, skills, agents and READMEs only help. The service desk README is now an introduction; 1.8 gains *Running the desk*. |
+| 11 | 1.9 links the test manager in 1.7. |
+| 13 | 1.2 §1.4 and §2.12: a branch is deleted once its change is live (tested and merged into `main`), kept while it feeds a release branch, until a multi-delivery project's last delivery, or while testing or development continues. Rework takes a new branch. |
+| 14 | 1.2's release-record note says it is deleted when delphside/tile-lite-elite#545 lands. |
+| 15 | 3.1.4 *Move enumeration is Engine Player's*, to move in #71's separation work package without slowing the search. |
+| 16 | Unchanged: #71's thread owns the workstream. |
+| 18 | A reply reopens a closed Ticket so the board shows it (delphside/service-desk#15). |
+| 19 | The testing record goes in `3.n.7-changes/releases/<version>/user-testing.md`. |
+| 22 | 1.2 §2.10: a project may span workstreams; each work package has one. |
+| 23 | 1.5 points at the templates README's new *How a template is filled in*. |
+| 24 | 3.1.5: the demand manager makes an on-call authority permanent. Confirmed. |
+| 26, 27 | 1.6 names the five repositories, and the machine account carries two-factor authentication. |
+
+Answered on 2026-11-02 with no document change: 8 (the rows stay in 1.1), 9 (1.1 already lists them), 12 (requirement delphside/programme#125 for a development standard), 25 (data flow design added to delphside/tile-lite-elite#383). 20: you add the ruleset, and 1.2 is updated once it exists. You confirmed 24 (the demand manager) and that a reply reopens a Ticket closed as not planned too, to review with experience.
+
+## Questions for you (week 2's, kept for reference)
+
+Each is something the documents cannot settle. A one-word answer is enough; I will apply it.
+
+**House style (1.5)**
+
+1. Table headers: sentence case ("Kind") or lower case ("kind")? 1.5 itself mixes them, so I left every table as it was.
+2. "id" or "ID"? The 1.x documents use "id" throughout; Google uses "ID".
+3. Bold or italics for a term at its definition?
+4. Is `CLAUDE.md` exempt from *Issue numbers, rarely*? It cites many issues and dated quotations.
+5. Your own text in 1.2's opening and its term table: I brought the opening to the house style (wrapped, no hedges, a typo fixed). Keep that, or restore your wording?
+
+**Where things live**
+
+6. Should the problem and continual improvement registers stay in 1.4, or move to a 2.x record linked from it?
+7. When `CLAUDE.md` and a numbered document both state a rule in full (the fix-or-improvement rule, the report rule), which is the home?
+8. Should Tile Lite Elite's application-held rows (`.claude/settings.json`, `cloud-setup.sh`, `docs/diagrams/`) stay in 1.1 with labels, or move to its 4.3.0?
+9. Which register lists the programme-owned files in an application's `.github/` (the issue forms, the pull request template)?
+10. The desk's rules: 1.8 or the service desk's README? Both now hold them.
+11. The test manager's duties: 1.7 or 1.9?
+12. Where an application's settings rule lives: 1.5 or a development document?
+
+**Process**
+
+13. 1.2 disagrees with itself on when a branch is deleted: §1.4 says once merged ("live"), §2.12 says once the project is live and closed. Which?
+14. 1.2 describes the release-record model (make release, then deploy a version). No application runs it yet; I added a line saying so. Keep it described as the target, or move it out until delphside/tile-lite-elite#545 lands?
+15. Who settles whether move enumeration belongs to Game Rules or Engine Player (3.1.4)? No issue does yet; I wrote that the rules & engine authority settles it with you.
+16. Who reviews 3.1.4's Engine Player shape if delphside/tile-lite-elite#71 is dropped? I wrote "this workstream's design authority".
+17. The benchmark runbook against Tile Lite Elite's 4.3.10 *Production's run*: 4.3.10 has Claude save production's `MOVES` rows, the runbook has you do it. Which?
+18. A reply on a closed Ticket: I wrote that you set `Closed` again afterwards (the desk sets `Waiting on sender` and leaves the issue closed). Right?
+
+**Raised in round 2**
+
+19. Where does a release's testing record go? 1.2 §2.4 and the 3.1.7 README say `3.n.7-changes/<version>-user-testing.md`; `check-docs.sh` reports that as STRAY and asks for `releases/<version>/`. Change the documents, or the gate?
+20. Should the programme repository get a ruleset that requires CI's `check` (planned in delphside/tile-lite-elite#485's design)? 1.2 now says no ruleset requires it.
+21. May a 1.x document cite an issue that holds an open question? 1.5 allows only a design note and a change document; 1.4 cites delphside/tile-lite-elite#291 and delphside/tile-lite-elite#405 that way.
+22. Does a requirement spanning two workstreams always take one project? 1.2 §2.10 says "one project or two"; `CLAUDE.md` says one where deciding one constrains the other. I took the line out of 1.3 and left it to 1.2.
+23. Should 1.5 or the templates README say how a template marks what to replace? Italic, backticked and plain placeholders are all used.
+24. Who makes an on-call authority permanent when "its area gets busy" (3.1.5)?
+25. Must 1.6's *What the tooling reads* list every label and option name the tooling matches, or only those whose rename fails silently? I added `Release Check` and the `Decision State` options.
+
+**For you to confirm (only you can see these)**
+
+26. The Claude GitHub app's repository list, and that the machine account has two-factor authentication.
+27. That Auto-close is off in dark-portal, service-desk and infrastructure.
+
+## Found outside these documents, not fixed here
+
+- Tile Lite Elite's `app-profile.toml` leaves its design map, 4.2.0, out of `documents.generated`, so the tooling treats a generated document as editable, and 1.2 repeats the two-document list.
+- `board/model.py` matches the deprecated route by the prefix `Repository Change`, which misses the live option `DEPRECATED Repository Change`; harmless while all 22 issues carrying it are closed.
+- Tile Lite Elite's 4.3.10 links `3.1.4-workstreams.md#capacity-planning`, which no longer exists (now `#capacity--performance`).
+- `app-profile.toml` names a nonexistent key, `records.grandfathered_changes`.
+- Tile Lite Elite's 4.2.4 *Where the sweep runs* names neither the hourly move-time reminders nor the size measurement; 3.1.4 now states both.
+- Tile Lite Elite's profile sets `review_stamp = 'Reviewed whole at ...'`, but its stamped documents say "*Verified against the code at ...*".
+
+## Review rounds
+
+Each round's material findings, by document and lens. Round 1 was resumed on each fix until nothing material was left; round 2 then reviewed the whole change.
+
+#### docs/1.0
+- R1 reader — 1.5 *Every section has an audience and a use case* — who decides left ambiguous where Claude's areas meet production
+- R1 truth — 1.5 *What is true now* — the BAU list named four of the seven activities, and Tile Lite Elite's benchmark unlabelled
+- R1 cost: reader 85k, 80%; truth 111k, 90%
+
+#### docs/1.1
+- R1 reader — 1.5 *Every section has an audience and a use case* — `check.mjs` row says "Local only", contradicting the rows saying CI runs it on every push (also truth)
+- R1 reader — 1.5 *Every section has an audience and a use case* — "Paths are from this repository's root, except `.github/` files" is false in three places (also truth)
+- R1 reader — 1.5 *Every section has an audience and a use case* — `project.yml` described as "six headings"; the form, CLAUDE.md and 1.1 itself say seven (also truth)
+- R1 reader — 1.5 *Every section has an audience and a use case* — `actions.py` named as running beside the sweep tool but exists nowhere and is undefined (also truth)
+- R1 truth — 1.5 *What is true now* — `docs.yml` also fails when the body has no review heading, not only on unticked boxes
+- R1 truth — 1.5 *What is true now* — "Versioned, unlike the rest of `.claude/`": the programme tracks every skill, agent and hook
+- R1 truth — 1.5 *What is true now* — `requirement.yml` described with fields it lacks; it has two fields, type and milestone set in sidebar
+- R1 cost: reader 112k, 75%; truth 195k, 75%
+
+#### docs/1.2
+- R1 reader — 1.5 *Wrap prose at 80 characters* — opening paragraphs have 356-character lines, a garbled sentence, hedges, and a misleading "pre-approved route" claim
+- R1 reader — 1.5 *Every section has an audience and a use case* — rule summary table (L515–533) has drifted from the sections it summarises
+- R1 reader — 1.5 *Document numbers as link text* — bare section numbers as link text collide with document and record numbers
+- R1 reader — 1.5 *Prose for reasons, structure for facts* — make-release and deploy steps packed into table cells
+- R1 truth — 1.5 *What is true now* — claims the only pre-commit refusals concern the image; it refuses three other things
+- R1 truth — 1.5 *What is true now* — release-record mechanism described in present tense; no application has it yet
+- R1 truth — 1.5 *What is true now* — pull-request triggers section says "nothing else" yet says `e2e` runs on pull requests
+- R1 truth — 1.5 *One fact, one home* — branch-deletion moment differs between §1.4 (merged) and §2.12 (live and closed)
+- R1 truth — 1.5 *What is true now* — "when the records move to the programme repository": they have already moved
+- R1 truth — 1.5 *What is true now* — claims settling a milestone closes a parent; `deploy.sh` moves projects to Post-deployment instead
+- R1 cost: reader 144k, 65%; truth 170k, 70%
+- R1 reader (on resume) — 1.5 *Every section has an audience and a use case* — make-release step 1 lost the emergency exception (from a fix to R1 reader) (also truth, minor)
+- R1 reader (on resume) — 1.5 *Say what is* — "the tooling means to read" the deprecated route, which it does not (from a fix to R1 truth) (also truth)
+- R1 truth (on resume) — 1.5 *What is true now* — §3.5 "a merge is made locally" contradicted §2.2's web-session merge (from a fix to R1 truth)
+
+#### docs/1.3
+- R1 reader — 1.5 *Every section has an audience and a use case* — "the owning workstream triages it": unnamed actor; a workstream cannot triage or accept
+- R1 reader — 1.5 *Every section has an audience and a use case* — "Authentication" and "client distribution" used as workstream names but defined nowhere
+- R1 truth — 1.5 *What is true now* — "the profile's list of what ships": the 3.n.6 profile holds no such list
+- R1 truth — 1.5 *What is true now* — application assets change "through a project and its branch"; two kinds of asset do not
+- R1 truth — 1.5 *What is true now* — "A deploy is the release" contradicts 1.2 *Making a release, then deploying it*
+- R1 cost: reader 85k, 85%; truth 126k, 80%
+
+#### docs/1.4
+- R1 reader — 1.5 *What is true now, with at most a line of reason* — *Why a log and not a date derived from an artefact* is a rejected design with a quotation
+- R1 reader — 1.5 *Every section has an audience and a use case* — "three with nothing behind them" but the table's first row reads "covered"
+- R1 truth — 1.5 *What is true now* — "session-start hook, every session": the hook does not run in every session
+- R1 truth — 1.5 *What is true now* — workflow said to be in each application; only Tile Lite Elite has `programme-activities.yml`
+- R1 truth — 1.5 *What is true now* — "`benchmark-run` is run by hand until #400 ships a scheduler": #400 has shipped
+- R1 cost: reader 100k, 80%; truth 138k, 80%
+- R1 reader and R1 truth (on resume) — 1.5 *What is true now* — "Two of ITIL's 34 practices have no activity" untrue; most have none (from a fix to R1 reader and R1 truth) (also truth)
+
+#### docs/1.5
+- R1 reader: no material finding
+- R1 truth — 1.5 *What is true now* — "Two numbered documents are generated" omits Tile Lite Elite's profile and 1.2 listing the same pair
+- R1 truth — 1.5 *What is true now* — comment inventory and "dated ones are its regression list" claim is not true of the tooling
+- R1 cost: reader 90k, 80%; truth 103k, 80%
+- R1 truth (on resume) — 1.5 *What is true now* — cutting "(4.4.7 has none yet)" made "each reference document carries a stamp" untrue (from a fix to R1 reader)
+
+#### docs/1.6
+- R1 reader — 1.5 *Every section has an audience and a use case* — "Which level carries which field" table omits Decision and Ticket columns and several fields
+- R1 truth — 1.5 *What is true now* — names Tile Lite Elite's `verify.sh` as a reader of `Project State`, `Post-deployment` and `IssueFieldChangedEvent`
+- R1 truth — 1.5 *What is true now* — "two labels, everything else is a field" is not true
+- R1 truth — 1.5 *What is true now* — app "installed on the organisation for `tile-lite-elite` only" (inferred, not verified)
+- R1 cost: reader 89k, 80%; truth 131k, 80%
+- R1 reader (on resume) — 1.5 *Every section has an audience* — a Decision's fields listed without Workstream and Parent (from a fix to R1 reader)
+
+#### docs/1.7
+- R1 reader — 1.5 *Every section has an audience and a use case* — "Claude alone" row for tooling and documentation has no production or irreversible-change exception
+- R1 reader — 1.5 *Every section has an audience and a use case* — "area's owner" undefined and collides with the Owner role
+- R1 reader — 1.5 *Every section has an audience and a use case* — "the brake": nothing says what applying it does or who acts
+- R1 reader — 1.5 *Prose for reasons, structure for facts* — the 60% handover sequence is prose and names nobody who starts the fresh thread
+- R1 reader — 1.5 *Application specifics only as a labelled example* — 3.1.1 reading-list row is Tile Lite Elite's, unlabelled
+- R1 truth: no material finding
+- R1 cost: reader 89k, 80%; truth 114k, 80%
+
+#### docs/1.8
+- R1 reader: no material finding
+- R1 truth — 1.5 *What is true now* — "collects new mail every 30 minutes" and its rationale are stale; the schedule is no longer the only trigger
+- R1 cost: reader 88k, 80%; truth 122k, 85%
+
+#### docs/1.9
+- R1 reader — 1.5 *Every section has an audience and a use case* — no case for an application with no environment for a test level
+- R1 truth — 1.5 *What is true now* — "Documentation and tooling reach users at the merge to `main`, with no environment between" is wrong
+- R1 cost: reader 89k, 75%; truth 104k, 70%
+
+#### applications/tile-lite-elite/3.1.4
+- R1 reader — 1.5 *Every section has an audience and a use case* — rate limits given to Security & Access and routed to Capacity & Performance, with no stated reason (also truth)
+- R1 reader — 1.5 *Every section has an audience and a use case* — "scheduler that runs every sweep" disagrees with retention and size running lazily
+- R1 truth — 1.5 *What is true now* — "#71 will settle it" for move enumeration; delphside/tile-lite-elite#71 does not touch it
+- R1 truth — 1.5 *What is true now* — "enumerates all legal moves" is wrong; it returns a subset (anchored moves only)
+- R1 truth — 1.5 *What is true now* — `run_engine_turns` located in `app.rs`; it is in `app/games.rs`, which both workstreams list
+- R1 truth — 1.5 *One fact, one home* — bot-versioning rule copied from 4.2.3 without its greylist exception
+- R1 cost: reader 100k, 80%; truth 138k, 80%
+
+#### applications/tile-lite-elite/3.1.5
+- R1 reader — 1.5 *Prose for reasons, structure for facts* — one sentence maps each on-call authority to its document sections (also truth)
+- R1 reader — 1.5 *Every section has an audience and a use case* — "#71 package" unexplained (also truth)
+- R1 cost: reader 86k, 85%; truth 95k, 90%
+
+#### applications/tile-lite-elite/3.1.6
+- R1: no material finding
+- R1 cost: reader 85k, 85%; truth 114k, 85%
+
+#### applications/tile-lite-elite/3.1.7-changes/README.md
+- R1 reader — 1.5 *Every section has an audience and a use case* — "Named for the issue, `NN-short-name.md`" disagrees with 1.2 §2.4 folder rule and `check-docs.sh` (also truth)
+- R1 reader — 1.5 *Every section has an audience and a use case* — "A change note is deleted when its change ships": unnamed actor, contradicted by other rules (also truth)
+- R1 truth — 1.5 *What is true now* — "Working documents for one change each, agreed before the code" omits release records, runbook, reviews, briefs
+- R1 cost: reader 86k, 85%; truth 97k, 85%
+
+#### applications/tile-lite-elite/3.1.7-changes/workstreams/README.md
+- R1 reader — 1.5 *Every section has an audience and a use case* — "workstream" column never names workstreams; names do not match folders (also truth)
+- R1 reader — 1.5 *Every section has an audience and a use case* — "folder per issue or project" contradicts 1.2 §2.4 naming for the parent project
+- R1 truth — 1.5 *What is true now* — "same principle as the issue form asking for type and route": the form asks for neither
+- R1 cost: reader 81k, 85%; truth 91k, 85%
+
+#### benchmark-run runbook (3.1.7-changes/workstreams/capacity-planning/benchmark-run-runbook.md)
+- R1 reader — 1.5 *Every section has an audience and a use case* — step 2 never adds `-dirty`, contradicting line 26 and the rehearsal tooling
+- R1 truth — 1.5 *What is true now* — "until #400 ships a scheduler": #400 shipped in 0.9.0
+- R1 truth — 1.5 *One fact, one home* — whole runbook duplicates `docs/4.3.10-benchmarking.md` *Production's run*
+- R1 cost: reader 91k, 75%; truth 91k, 85%
+
+#### applications/tile-lite-elite/README.md
+- R1: no material finding
+- R1 cost: reader 79k, 90%; truth 90k, 90%
+
+#### docs/templates/README.md
+- R1 reader — 1.5 *Application specifics only as a labelled example* — Tile Lite Elite's `.github/` files stated as the general rule for templates
+- R1 reader — 1.5 *Every section has an audience and a use case* — "A new template owes that row": actor and required action unclear
+- R1 truth — 1.5 *What is true now* — "none yet, the first project to finish writes it": three post-deployment reviews exist
+- R1 cost: reader 86k, 85%; truth 105k, 85%
+
+#### templates/agent-handover.md
+- R1 reader — 1.5 *Every section has an audience and a use case* — "the outside-review brief is the same shape" leaves the document unnamed (also truth)
+- R1 cost: reader 81k, 80%; truth 95k, 85%
+
+#### templates/application-profile.md
+- R1 reader — 1.5 *Every section has an audience and a use case* — backticks-for-script rule disagrees with its `https://…` or "not fixed" example
+- R1 truth: no material finding
+- R1 cost: reader 87k, 85%; truth 109k, 80%
+
+#### templates/artefact-register.md
+- R1 reader — 1.5 *Every section has an audience and a use case* — exit-status table contradicts its own "list only what a script adds" rule
+- R1 truth: no material finding
+- R1 cost: reader 88k, 85%; truth 99k, 85%
+
+#### templates/capacity-plan.md
+- R1 reader — 1.5 *What is true now* — "same number of rows rather than months" swaps rows and columns (also truth)
+- R1 cost: reader 101k, 85%; truth 113k, 85%
+
+#### templates/delivery-log.md
+- R1: reports not kept
+- R1 cost: reader 92k, 85%; truth 106k, 85%
+
+#### Round 2
+Fresh reviewers over the whole change (`ddae7f6..a75f241`), in six groups of documents rather than one pair per document, to keep the round affordable. Fixes in 0081205, resumed checks, then 4f72abe.
+
+| group | documents | material, reader | material, truth | resumed check |
+| --- | --- | --- | --- | --- |
+| g1 | 1.0, 1.3, 1.7, 1.9 | none | 1: 1.9's gate rule narrowed to the programme's tooling | fixes right; minors from the fix fixed |
+| g2 | 1.1, 1.6 | 1: no 1.6 row for `Release Check` | 1 (pre-existing): no rows for `Release Check` or the `Decision State` options | fixes right; one untrue service-desk label claim from the fix, fixed |
+| g3 | 1.2 | 2: retired-names lead against its body; living-documents row against §2.3 | 3: #329's route; incomplete pre-commit refusals; no required check exists | truth: all right. Reader: the living-documents row still open, fixed in 4f72abe and 261a136 |
+| g4 | 1.4, 1.5, 1.8, the reader agent | none | 2: 1.4 calls delphside/tile-lite-elite#291's settled question open; 1.8's design note gives an unsourced reason | fixes right; minors fixed |
+| g5 | the six templates and README | 1: the profile step leaves non-italic placeholders | none | 2 material from the fix (step 3 against step 2; the post-deployment review's two homes), fixed in 4f72abe and 261a136 |
+| g6 | nine application files | 1: user-testing placement against `check-docs.sh` (owner question 19) | 2: the same placement; 3.1.4's sweep sentence dropped two facts | fixes right; one minor from the fix |
+
+- R2 cost: twelve agents on Opus at medium effort, about 1.6M tokens across the first pass (roughly 110k-170k each, 13-52 tool calls), and about 3 tool calls each on resume.
+
+#### Answers round
+Reader, truth and change reviewers on the answers (`f649f03..263fb49`, service desk 170b19a). Round 1 material: branch deletion broke release-branch rebuilds; 1.8's desk section garbled and missing three README facts; a failed reopen after the send stopped the field being set (fixed, with tests shown red). Round 2 material: 1.8 left a failed reopen with no actor; a failed reactions read also named `/reactions`. Round 3: nothing material from either document reviewer; the change reviewer's round 2 found nothing material.
+
+Activity: document-review. Week 1's open questions are delphside/programme#101.
+
+https://claude.ai/code/session_014C8pMASQmXg36K3PRME2ra
+
+---
+_Generated by [Claude Code](https://claude.ai/code)_
