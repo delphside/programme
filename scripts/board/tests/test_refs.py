@@ -50,6 +50,10 @@ class AnActivity(unittest.TestCase):
         # TLE #565 wrote it at the end of a paragraph's line.
         self.assertEqual("reference-review", refs.activity("x\n\nActivity: reference-review.\n"))
 
+    def test_a_body_saved_by_the_browser_with_crlf(self):
+        # GitHub's web form saves a body with CRLF line endings.
+        self.assertEqual("document-review", refs.activity("Activity: document-review\r\n\r\n## x"))
+
     def test_in_prose_it_is_not_one(self):
         self.assertIsNone(refs.activity("the Activity: document-review line"))
 

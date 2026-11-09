@@ -22,7 +22,7 @@ import re
 
 _TRAILER = re.compile(r"\b(Refs|Closes) #(\d+)\b")
 # docs/1.4's register ids are lower-case words joined by hyphens.
-_ACTIVITY = re.compile(r"^Activity: ([a-z0-9]+(?:-[a-z0-9]+)*)\.?[ \t]*$", re.MULTILINE)
+_ACTIVITY = re.compile(r"^Activity: ([a-z0-9]+(?:-[a-z0-9]+)*)\.?[ \t\r]*$", re.MULTILINE)
 _TITLE_LEAD = re.compile(r"^#(\d+)\b")
 _BRANCH = re.compile(r"^(?:issue-)?(\d+)-")
 

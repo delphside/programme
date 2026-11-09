@@ -16,7 +16,11 @@ from .cli import run
 
 
 def of(which: str, *paths: str) -> list[str]:
-    return run("board/board-documents.py", which, stdin="".join(p + "\n" for p in paths)).stdout.split()
+    # The status is asserted, so a command that crashed or printed its usage is
+    # never read as the empty answer "nothing here".
+    out = run("board/board-documents.py", which, stdin="".join(p + "\n" for p in paths))
+    assert out.returncode == 0, out.stderr
+    return out.stdout.split()
 
 
 class ProgrammeDocuments(unittest.TestCase):
