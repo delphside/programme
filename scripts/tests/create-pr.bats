@@ -74,3 +74,16 @@ created() { cat "$STUB_DIR/CREATED" 2>/dev/null || true; }
   assert_output --partial "$BATS_TEST_TMPDIR/nowhere.toml"
   assert_equal "$(created)" ""
 }
+
+@test "--no-review requests nobody, and the board is still corrected" {
+  run "$SCRIPT" --base main --head x --title t --body-file /dev/null --no-review
+  assert_success
+  assert_equal "$(grep -c -- '--reviewer' <<< "$(created)")" 0
+  assert [ -f "$STUB_DIR/SYNCED" ]
+}
+
+@test "--no-review with --reviewer is a usage error, and nothing is created" {
+  run "$SCRIPT" --base main --head x --title t --body-file /dev/null --no-review --reviewer other
+  assert_equal "$status" 2
+  assert_equal "$(created)" ""
+}

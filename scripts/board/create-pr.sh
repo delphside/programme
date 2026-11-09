@@ -25,6 +25,8 @@ set -euo pipefail
 # names that trap: `gh pr create --reviewer` accepts a login it cannot use,
 # prints the failure on stderr, and creates the pull request anyway,
 # requesting nobody. Passing `--reviewer` explicitly overrides the default.
+# `--no-review` requests nobody, for a pull request that owes no owner review
+# (docs/1.2 §2.2); with `--reviewer` too it is a usage error, exit 2.
 #
 # Exits 2 on a usage error, 1 if `gh pr create` itself fails. The board
 # correction after a successful create is non-fatal, the same shape as
@@ -35,12 +37,14 @@ set -euo pipefail
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   cat <<'USAGE'
 usage: create-pr.sh --base <branch> --head <branch> --title <title>
-                     --body-file <path> [--reviewer <login>] [gh pr create args...]
+                     --body-file <path> [--reviewer <login> | --no-review]
+                     [gh pr create args...]
 
 Wraps `gh pr create` and corrects the board's PR State afterward, which
 creation otherwise leaves unset until something else happens to run
 board-pr-state.py. --reviewer defaults to the owner's account, the
-programme file's accounts.owner.
+programme file's accounts.owner. --no-review requests nobody, for a pull
+request that owes no owner review (docs/1.2 §2.2).
 
 Any additional arguments are passed through to `gh pr create` unchanged.
 
@@ -52,6 +56,7 @@ fi
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REVIEWER=""
+NO_REVIEW=0
 ARGS=()
 BASE="" HEAD="" TITLE="" BODY_FILE=""
 
@@ -62,22 +67,31 @@ while (( $# > 0 )); do
     --title) TITLE="$2"; ARGS+=("$1" "$2"); shift 2 ;;
     --body-file) BODY_FILE="$2"; ARGS+=("$1" "$2"); shift 2 ;;
     --reviewer) REVIEWER="$2"; shift 2 ;;
+    --no-review) NO_REVIEW=1; shift ;;
     *) ARGS+=("$1"); shift ;;
   esac
 done
 
 if [[ -z "$BASE" || -z "$HEAD" || -z "$TITLE" || -z "$BODY_FILE" ]]; then
-  echo "usage: create-pr.sh --base <branch> --head <branch> --title <title> --body-file <path> [--reviewer <login>]" >&2
+  echo "usage: create-pr.sh --base <branch> --head <branch> --title <title> --body-file <path> [--reviewer <login> | --no-review]" >&2
   exit 2
 fi
 
 # The owner's account is the programme file's, asked rather than held here.
-if [[ -z "$REVIEWER" ]]; then
+if (( NO_REVIEW )) && [[ -n "$REVIEWER" ]]; then
+  echo "create-pr.sh: --reviewer and --no-review together" >&2
+  exit 2
+fi
+if (( ! NO_REVIEW )) && [[ -z "$REVIEWER" ]]; then
   REVIEWER="$(python3 "$HERE/board-profile.py" get accounts.owner)" || exit 1
 fi
 
 echo "==> Opening pull request: $HEAD -> $BASE"
-gh pr create "${ARGS[@]}" --reviewer "$REVIEWER"
+if (( NO_REVIEW )); then
+  gh pr create "${ARGS[@]}"
+else
+  gh pr create "${ARGS[@]}" --reviewer "$REVIEWER"
+fi
 
 SYNC_PR_STATE="${SYNC_PR_STATE:-$HERE/board-pr-state.py}"
 if [[ -x "$SYNC_PR_STATE" ]]; then

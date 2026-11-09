@@ -2,15 +2,19 @@
 
 This page owns the rules. The numbered documents own the procedures and the
 reasons, and issues own the arguments. If this page and a document disagree,
-one of them has a defect: fix it, don't work around it.
+one of them has a defect: fix it, don't work around it. Read each rule's
+commit history first, to learn what it was written for (owner, 2026-11-09;
+the change-a-document skill).
 
 **A Claude Code session on the web** (claude.ai/code) works without the local
 session's memory and outside its git hooks. It answers questions and comments
 on issues freely, makes changes only on a branch with a pull request, never by
-pushing to `main`. Programme records and change documents go through a pull
-request it merges itself once the required checks pass; everything else waits
-for the owner's review (docs/1.2 §2.2). Before it finishes it leaves a note for
-the local session: a comment on the issue the work concerns, or on the
+pushing to `main`. Records, change documents, and other documents, process
+and tooling go through a pull request it merges itself once the required
+checks pass and its review rounds find nothing material; a new or changed
+rule is agreed with the owner in the chat first, and the application waits
+for his review (docs/1.2 §2.2). Before it finishes it leaves a note for the
+local session: a comment on the issue the work concerns, or on the
 application's own notes issue, named in its CLAUDE.md, if there is none. The local session reads new comments at its next start.
 docs/1.6 records the app it works through.
 
@@ -56,6 +60,14 @@ docs/1.6 records the app it works through.
   works better, and waits for him to pick it at the monthly
   `improvement-review` (docs/1.4). A mistake is left to review the first time;
   once it recurs it is a candidate for an automatic check.
+- **Documentation, process and tooling changes go on without the owner**
+  (owner, 2026-11-09). They merge without his review, and only these come to
+  him, in the chat, never left in a document, pull request or issue for him to
+  find (docs/1.2 §2.2, docs/1.4):
+  - a new or changed rule, for his agreement before it lands;
+  - an action or a question that blocks the work.
+
+  A change to the application still takes his review.
 - Claude sweeps, the owner reacts. Claude looks across every open item and
   identifies what can be progressed; the owner should not have to scan the
   board to find work waiting on him. So anything genuinely needing him is
@@ -173,7 +185,8 @@ docs/1.6 records the app it works through.
   owner, 2026-09-17. It does not duplicate the project body or the documents:
   the argument, the measurements and the design live on the issue, and a body
   that restates them makes the reviewer read the same thing twice to find the
-  one paragraph that is new. Add the owner as reviewer at creation. He ticks and
+  one paragraph that is new. Where the owner's review is owed (docs/1.2
+  §2.2), add him as reviewer at creation and ask for it in the chat. He
   approves, Claude merges by rebase and fast-forward.
 - A review comes back two ways and they return differently. **Approved with
   comments** stays approved: make the changes and merge. **Changes requested**
@@ -206,6 +219,12 @@ docs/1.6 records the app it works through.
   asset, documents included. **Every change has one**, because it has to reach
   main. A **release** is a new version of the application, delivered to
   production with a new semver.
+- **A programme change reaches an application when its pin moves** (owner,
+  2026-11-09). A Docs and Programme Tooling delivery that changes anything
+  outside `records/` and `applications/` plans each application's pin move in
+  its steps (docs/1.2). Whoever runs a programme tool from an application
+  checks its pin first and moves it where the programme changed, except on a
+  release branch under test or an emergency cut from a tag (docs/1.1).
 - **Not every delivery has a milestone.** A change applied straight to main is
   not assumed to be a single point in time, so it has no place in the sequence
   the milestones are: no branch, no pull request, no milestone, no
