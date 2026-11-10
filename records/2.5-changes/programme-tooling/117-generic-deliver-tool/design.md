@@ -1643,9 +1643,9 @@ with the items left, and the deploy exits 3.
   login needs the OCI CLI (delphside/tile-lite-elite#554 installs it). Hosts
   keep two image sets; the registry every release and the candidates `prune`
   leaves. A release copy moves each layer releases lacks, usually only those
-  changed since the last release,
-  through the copier's machine ([operations](#operations)): Tile Lite Elite's
-  laptop, Dark Portal's non-production VM.
+  changed since the last release, through the copier's machine
+  ([operations](#operations)): Tile Lite Elite's laptop, Dark Portal's
+  non-production VM.
 - **Failure.** Gates refuse before a host changes ([§9](#9-gates-and-checks)); a
   failed deploy restores ([§11](#11-on-the-host)); a release resumes
   ([§10](#10-the-release-and-its-record)).
