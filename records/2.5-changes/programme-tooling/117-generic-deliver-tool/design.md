@@ -52,13 +52,13 @@ The process in short is:
    repository.
 4. From the releases repository it is deployed into the production environment.
 
-The repositories contain image sets, which are the same for every environment:
-one image per name the application gives, tagged by commit in candidates and
-by version in releases. One image of each set also carries the *payload*, the
-files a host runs to deploy the set ([§3](#3-oci-registry-integration)). Environment-specific
-information, secrets included, is stored in each environment's `.env` file. A
-deployment needs an image set from a repository and an environment's `.env`
-file.
+The repositories contain image sets
+([§3](#3-oci-registry-integration)), which are the same for every environment
+and are tagged by commit in candidates and by version in releases (by commit
+for an unrecorded deploy). One image of each set also carries the payload, the
+files a host runs to deploy the set. Environment-specific information, secrets
+included, is stored in each environment's `.env` file. A deployment needs an
+image set from a repository and an environment's `.env` file.
 
 Turpin is made of CLI *programs*, implemented as shell scripts. `turpin` is the
 Turpin client. It is run from a checkout of the application and can be close to
@@ -406,8 +406,8 @@ image built, unchanged.
 For each commit the image set is built once: one image for each name in the
 profile's `images` (Tile Lite Elite's `server` and `web`, Dark Portal's `dp`).
 An image set is the images whose tags share a prefix; the registry stores each
-image on its own. The prefix is `SHA-IMAGE` in candidates (the commit's SHA, then the image's
-name), `VERSION-IMAGE` in releases.
+image on its own. The prefix is `SHA-IMAGE` in candidates (the commit's SHA,
+then the image's name), `VERSION-IMAGE` in releases.
 
 The release *record* ([§10](#10-the-release-and-its-record)) is what ties a
 release's images together: the version, the commit and each image's digest,
@@ -710,9 +710,7 @@ read that neither answers refuses, never reads as empty. The repository is
 - **API**: the controller's `gh` login, the owner's; the tool keeps none.
   Fine-grained permissions: Contents read and write (the Release), Issues read
   and write (milestones, comments, close), Checks read, Metadata read,
-  organisation issue fields read and write (`Project State`). The builder, the
-  copier and the hosts hold no GitHub API credential
-  ([privileges](#privileges)).
+  organisation issue fields read and write (`Project State`).
 - **git**: the tag `vVERSION` and the bump to `main` go by git, with the
   controller's git credential, the owner's, which bypasses `main`'s ruleset
   (admin bypass) for the bump. The builder's fetch uses the machine's git
@@ -1066,10 +1064,11 @@ its builder, release copier and test deployers on the non-production VM. The
 
 ### Deployment views
 
-The deployment views show each host's environments, the technology inside each component, and on
-each arrow what it carries, `[protocol]` and the credential used. Every registry
-arrow, `[registry v2]`, is OCIR's [protocol](#the-protocol), and a `turpin-host`
-arrow sends its request as JSON on standard input ([§6](#6-commands)).
+The deployment views show each host's environments, the technology inside
+each component, and on each arrow what it carries, `[protocol]` and the
+credential used. Every registry arrow, `[registry v2]`, is OCIR's
+[protocol](#the-protocol), and a `turpin-host` arrow sends its request as JSON
+on standard input ([§6](#6-commands)).
 
 #### Tile Lite Elite
 
@@ -1190,7 +1189,7 @@ The credential on an arrow or in a box is one of these:
 | API key | Oracle user dp-releaser's key, which never leaves its machine ([§3](#3-oci-registry-integration)) |
 | skopeo auth file, docker login | the logins `turpin login` makes: a file per component, and the machine user's `docker` login ([§3](#3-oci-registry-integration)) |
 | owner's gh token | the controller's `gh` login ([§4](#4-github-integration)) |
-| owner's git login, admin bypass | the owner's git credential, which bypasses `main`'s ruleset for the bump ([§4](#4-github-integration)) |
+| owner's git login, admin bypass | the owner's git credential, which bypasses `main`'s ruleset for the bump, where `main` has one ([§4](#4-github-integration)) |
 | owner's ssh key | the owner's key for `ssh` to a host |
 | the machine's git login | the credential the machine's `git` uses to fetch `origin`: none, as both applications' repositories are public; a private one needs a read-only fetch credential |
 
