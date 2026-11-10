@@ -159,6 +159,7 @@ flowchart TB
   CAND -->|"pull: preview, test, rehearsal"| DEP
   REL -->|"pull: production"| DEP
   CTL -->|"tag, bump main (git)"| GH
+  GH -->|"read: the record (tag message)"| CTL
   OWN -->|"turpin release, deploy, settle, rollback,<br>status, list, prune, login, host-install<br>[shell]"| CTL
   OWN -->|"turpin build REF<br>[shell]"| BLD
   TIMER -->|"turpin build<br>[systemd unit]"| BLD
@@ -250,7 +251,7 @@ tag and pushes the tag and the bump to GitHub.
 ```mermaid
 %%{init: {"themeVariables": {"noteBkgColor": "#ddf4ff", "noteBorderColor": "#54aeff", "noteTextColor": "#0a3069"}}}%%
 sequenceDiagram
-  participant DEV as development environment<br>[Deployment node]
+  participant DEV as development environment<br>[Deployment Node]
   participant GH as GitHub<br>[Software System]
   participant CN as controller<br>[Component]
   participant BE as builder<br>[Component]
@@ -267,12 +268,12 @@ sequenceDiagram
   Note over DEV,P: 1. Develop
   Note over DEV: code, unit tests
   DEV-->>GH: the branch's commits (git push)
-  Note over GH: CI: unit and end-to-end tests
+  Note over GH: CI: the required checks
   Note over DEV,P: 2. Build
   CN->>BE: turpin build SHA
   GH-->>BE: the commit (git fetch)
   BE-->>C: image set SHA-IMAGE, payload inside (once)
-  Note over DEV,P: 3. Try and test the branch
+  Note over DEV,P: 3. Try and test
   CN->>PV: turpin deploy preview SHA, or test
   C-->>PV: image set, by digest
   Note over PV: user functional testing
@@ -311,8 +312,8 @@ sequenceDiagram
 5. **Release.** `turpin release` runs the release gates
    ([§9](#9-gates-and-checks)), asks the owner to confirm the version and makes
    the release ([§10](#10-the-release-and-its-record)). The copier copies each
-   image by digest, through the copier unless the registry mounts the blob
-   ([the protocol](#the-protocol), step 3).
+   image by digest from candidates to releases. The blobs pass through it
+   unless the registry mounts them ([the protocol](#the-protocol), step 3).
 6. **Deploy.** The controller reads the record from the tag, checks each digest
    against releases and sends the record to production's deployer, which pulls
    the images from releases by digest and runs the same steps.
