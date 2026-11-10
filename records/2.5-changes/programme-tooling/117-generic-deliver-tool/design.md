@@ -312,8 +312,8 @@ sequenceDiagram
 5. **Release.** `turpin release` runs the release gates
    ([§9](#9-gates-and-checks)), asks the owner to confirm the version and makes
    the release ([§10](#10-the-release-and-its-record)). The copier copies each
-   image by digest from candidates to releases. The blobs pass through it
-   unless the registry mounts them ([the protocol](#the-protocol), step 3).
+   image by digest from candidates to releases, and each blob releases lacks
+   passes through the copier ([operations](#operations)).
 6. **Deploy.** The controller reads the record from the tag, checks each digest
    against releases and sends the record to production's deployer, which pulls
    the images from releases by digest and runs the same steps.
@@ -513,6 +513,12 @@ Turpin calls the registry through `skopeo` and `docker`:
 | delete a candidate | `skopeo delete` | `prune`, run by the builder |
 | pull on a host | `docker pull` by digest | every deploy ([§11](#11-on-the-host)) |
 | push from the builder | the `build` hook | `SHA-IMAGE` to candidates |
+
+The release copy skips each blob releases already holds, and downloads and
+uploads the rest through the copier's machine. `skopeo` mounts a blob only from
+a repository its own cache records holding it, which it records only after
+pushing there or reusing a blob there; the copier only reads candidates, so it
+never mounts.
 
 A `skopeo` failure is summarised (`reg_summarise`) to *refused*, *not found*,
 *unreachable* or *failed*, keeping the address and repository off screen and
@@ -1636,7 +1642,10 @@ with the items left, and the deploy exits 3.
 - **Capacity.** On Tile Lite Elite's 1 GB production host the instance-principal
   login needs the OCI CLI (delphside/tile-lite-elite#554 installs it). Hosts
   keep two image sets; the registry every release and the candidates `prune`
-  leaves.
+  leaves. A release copy moves each layer releases lacks, usually only those
+  changed since the last release,
+  through the copier's machine ([operations](#operations)): Tile Lite Elite's
+  laptop, Dark Portal's non-production VM.
 - **Failure.** Gates refuse before a host changes ([§9](#9-gates-and-checks)); a
   failed deploy restores ([§11](#11-on-the-host)); a release resumes
   ([§10](#10-the-release-and-its-record)).
