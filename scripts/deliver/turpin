@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# deliver: build, release and deploy an application's image, from the control
+# turpin: build, release and deploy an application's image, from the control
 # node, the builder or the release copier. The generic tool of
 # delphside/programme#117; its design is
 # records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md and
 # docs/1.1 has its row. It names no application and no machine: what differs
 # comes from the application's `app-profile.toml` and its hooks.
 #
-#   deliver build [REF] [--local]
-#   deliver deploy ENV REF [--wait[=MIN]] [--check] [--set-aside GATE REASON]
+#   turpin build [REF] [--local]
+#   turpin deploy ENV REF [--wait[=MIN]] [--check] [--set-aside GATE REASON]
 #                          [--unrecorded REASON] [--off-level REASON]
-#   deliver release [--expect VERSION] [--commit REF] [--emergency REASON]
+#   turpin release [--expect VERSION] [--commit REF] [--emergency REASON]
 #                   [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]
-#   deliver settle VERSION        deliver rollback ENV     deliver status ENV
-#   deliver list ENV              deliver prune [--dry-run]
-#   deliver login COMPONENT       (controller, builder, copier, or an ENV)
-#   deliver env create|destroy NAME    deliver host-install ENV
+#   turpin settle VERSION        turpin rollback ENV     turpin status ENV
+#   turpin list ENV              turpin prune [--dry-run]
+#   turpin login COMPONENT       (controller, builder, copier, or an ENV)
+#   turpin env create|destroy NAME    turpin host-install ENV
 #
 # Exit codes: 0 done; 1 refused or failed (the previous deploy restored where
 # there is one); 3 live, but a later step failed and is named.
@@ -26,16 +26,16 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DELIVER_LIB="${DELIVER_LIB:-$HERE/lib}"
-export DELIVER_LIB
+TURPIN_LIB="${TURPIN_LIB:-$HERE/lib}"
+export TURPIN_LIB
 # shellcheck source=lib/common.sh
-. "$DELIVER_LIB/common.sh"
+. "$TURPIN_LIB/common.sh"
 # shellcheck source=lib/toml.sh
-. "$DELIVER_LIB/toml.sh"
+. "$TURPIN_LIB/toml.sh"
 # shellcheck source=lib/registry.sh
-. "$DELIVER_LIB/registry.sh"
+. "$TURPIN_LIB/registry.sh"
 
-DELIVER_CMD="deliver"
+TURPIN_CMD="turpin"
 need_jq
 
 # ------------------------------------------------------------------ profile
@@ -48,22 +48,22 @@ env_qa() { jq -r --arg e "$1" --arg k "$2" '(.environments[$e][$k] // [])[]' <<<
 g() { git -C "$REPO" "$@"; }
 
 load_profile() {
-  REPO="${DELIVER_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
-  [[ -n "$REPO" ]] || die "not in a git repository (set DELIVER_REPO)"
-  PROFILE_FILE="${DELIVER_PROFILE:-$REPO/app-profile.toml}"
+  REPO="${TURPIN_REPO:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+  [[ -n "$REPO" ]] || die "not in a git repository (set TURPIN_REPO)"
+  PROFILE_FILE="${TURPIN_PROFILE:-$REPO/app-profile.toml}"
   [[ -f "$PROFILE_FILE" ]] || die "no profile at $PROFILE_FILE"
   PJ="$(toml_to_json "$PROFILE_FILE")" || die "cannot read $PROFILE_FILE"
   APP="$(pq .application)"
   [[ -n "$APP" ]] || die "$PROFILE_FILE has no top-level \`application\`"
-  local conf="${DELIVER_CONFIG_DIR:-$HOME/.config/deliver}/$APP.env"
+  local conf="${TURPIN_CONFIG_DIR:-$HOME/.config/turpin}/$APP.env"
   if [[ -f "$conf" ]]; then set -a; . "$conf"; set +a; fi
   TAG_PREFIX="$(pq .release.tag_prefix)"; [[ -n "$TAG_PREFIX" ]] || die "$PROFILE_FILE has no release.tag_prefix"
   mapfile -t HIST_PREFIXES < <(pqa .release.history_prefixes)
   ANNOUNCEMENT="$(pq .release.announcement)"
-  CANDIDATES="$(pq .deliver.candidates)"; RELEASES="$(pq .deliver.releases)"
+  CANDIDATES="$(pq .turpin.candidates)"; RELEASES="$(pq .turpin.releases)"
   derive_gate_config
-  [[ -n "$CANDIDATES" && -n "$RELEASES" && ${#IMAGES[@]} -gt 0 ]] || die "$PROFILE_FILE needs [deliver] candidates, releases and images"
-  run_log_start "$APP" "$DELIVER_SUBCOMMAND" "${DELIVER_ARGS[@]}"
+  [[ -n "$CANDIDATES" && -n "$RELEASES" && ${#IMAGES[@]} -gt 0 ]] || die "$PROFILE_FILE needs [turpin] candidates, releases and images"
+  run_log_start "$APP" "$TURPIN_SUBCOMMAND" "${TURPIN_ARGS[@]}"
 }
 
 # derive_gate_config: the settings a gate reads, from PJ.
@@ -71,8 +71,8 @@ derive_gate_config() {
   mapfile -t REQUIRED_CHECKS_A < <(pqa .release.required_checks)
   REQUIRED_HOOKS="$(pqa .release.required_hooks | tr '\n' ' ')"
   OVERRIDABLE="$(pqa .release.overridable | tr '\n' ' ')"
-  mapfile -t IMAGES < <(pqa .deliver.images)
-  PAYLOAD_IMAGE="$(pq .deliver.payload_image)"
+  mapfile -t IMAGES < <(pqa .turpin.images)
+  PAYLOAD_IMAGE="$(pq .turpin.payload_image)"
 }
 
 # use_commit_profile SHA: what a gate asks of a commit (its required checks and
@@ -92,10 +92,10 @@ use_commit_profile() {
     .release.required_checks = ($c.release.required_checks // [])
     | .release.required_hooks = ($c.release.required_hooks // [])
     | .release.overridable = ($c.release.overridable // [])
-    | .deliver.images = ($c.deliver.images // [])
-    | .deliver.payload_image = ($c.deliver.payload_image // null)' <<< "$PJ")"
+    | .turpin.images = ($c.turpin.images // [])
+    | .turpin.payload_image = ($c.turpin.payload_image // null)' <<< "$PJ")"
   derive_gate_config
-  [[ ${#IMAGES[@]} -gt 0 ]] || die "$rel at ${sha:0:12} lists no [deliver] images"
+  [[ ${#IMAGES[@]} -gt 0 ]] || die "$rel at ${sha:0:12} lists no [turpin] images"
   run_log_event profile "source=commit" "sha=$sha"
 }
 
@@ -200,21 +200,21 @@ controller_auth() {
   auth_use "$(auth_file_of controller)" controller
   REG_AUTH_HOOK=controller_login
 }
-controller_login() { login_run_skopeo "$(pq .deliver.login)"; }
+controller_login() { login_run_skopeo "$(pq .turpin.login)"; }
 
 # is_controller PLACE: the profile names the controller as "controller"; "control-node",
 # its name before the components were renamed, is still accepted.
 is_controller() { [[ "$1" == controller || "$1" == control-node ]]; }
 
-# run_deliver_host PLACE ARGS...: deliver-host on a machine, stdin passed through. PLACE
+# run_turpin_host PLACE ARGS...: turpin-host on a machine, stdin passed through. PLACE
 # is controller or an ssh alias.
-run_deliver_host() {
+run_turpin_host() {
   local place="$1"; shift
   if is_controller "$place" || [[ -z "$place" ]]; then
     # the child sets its own login: not the controller's auth file
-    env -u REGISTRY_AUTH_FILE "${DELIVER_HOST_BIN:-$HERE/deliver-host}" "$@"
+    env -u REGISTRY_AUTH_FILE "${TURPIN_HOST_BIN:-$HERE/turpin-host}" "$@"
   else
-    local cmd; cmd="$(printf '%q ' deliver-host "$@")"
+    local cmd; cmd="$(printf '%q ' turpin-host "$@")"
     ssh "$place" "$cmd"
   fi
 }
@@ -233,7 +233,7 @@ host_files_conflict() {
   fi
 }
 # builder_machine -> the builder's machine in env_machine's form
-builder_machine() { local on; on="$(pq .deliver.build.on)"; if [[ -z "$on" ]] || is_controller "$on"; then printf controller; else printf 'ssh:%s' "$on"; fi; }
+builder_machine() { local on; on="$(pq .turpin.build.on)"; if [[ -z "$on" ]] || is_controller "$on"; then printf controller; else printf 'ssh:%s' "$on"; fi; }
 # login_component ENV -> the component whose docker login ENV's deployer uses: the
 # builder's where the environment is on the builder's machine, else the environment's
 login_component() { if [[ "$(env_machine "$1")" == "$(builder_machine)" ]]; then printf builder; else printf '%s' "$1"; fi; }
@@ -245,13 +245,13 @@ env_installs_host_files() {
   esac
 }
 
-# run_on_host ENV ARGS...: deliver-host on ENV's machine.
+# run_on_host ENV ARGS...: turpin-host on ENV's machine.
 run_on_host() {
   local env="$1"; shift
   local host ssh
   host="$(env_q "$env" host)"; ssh="$(env_q "$env" ssh)"
-  if is_controller "$host"; then run_deliver_host controller "$@"
-  elif [[ -n "$ssh" ]]; then run_deliver_host "$ssh" "$@"
+  if is_controller "$host"; then run_turpin_host controller "$@"
+  elif [[ -n "$ssh" ]]; then run_turpin_host "$ssh" "$@"
   else die "environment $env has neither host = \"controller\" nor ssh"; fi
 }
 
@@ -260,16 +260,16 @@ run_on_host() {
 # that machine's credential. Sets REG_ERR to its message on failure.
 copier_run() {
   local copies="$1" rtag="${2:-}" rfile="${3:-}" place req out code=0
-  place="$(pq .deliver.release.copy_on)"; place="${place:-controller}"
-  req="$(jq -nc --arg login "$(pq .deliver.release.copy_login)" --arg c "$CANDIDATES" --arg r "$RELEASES" \
+  place="$(pq .turpin.release.copy_on)"; place="${place:-controller}"
+  req="$(jq -nc --arg login "$(pq .turpin.release.copy_login)" --arg c "$CANDIDATES" --arg r "$RELEASES" \
     --argjson copies "$copies" --arg rtag "$rtag" --slurpfile body "${rfile:-/dev/null}" \
     '{login:$login,candidates:$c,releases:$r,copies:$copies,record:(if $rtag == "" then null else {tag:$rtag,body:$body[0]} end)}')"
   run_log_event step "name=copier" "where=$place"
-  out="$(run_deliver_host "$place" copy "$APP" <<< "$req" 2>&1)" || code=$?
-  if [[ $code -ne 0 ]]; then REG_ERR="$(sed 's/^deliver-host: //' <<< "$out" | tail -1)"; return 1; fi
+  out="$(run_turpin_host "$place" copy "$APP" <<< "$req" 2>&1)" || code=$?
+  if [[ $code -ne 0 ]]; then REG_ERR="$(sed 's/^turpin-host: //' <<< "$out" | tail -1)"; return 1; fi
 }
 
-host_status() {    # ENV -> status JSON (the host's `deliver-host status --json`)
+host_status() {    # ENV -> status JSON (the host's `turpin-host status --json`)
   run_log_event ssh-read "env=$1" "what=host state"
   local out
   out="$(run_on_host "$1" status "$APP" "$1" --json)" || die "cannot read the state of $1"
@@ -292,7 +292,7 @@ production_version() {
   v="$(jq -r '.current.record.version // empty' <<< "$st")"
   if [[ -z "$v" && "$(jq -r '.current // empty' <<< "$st")" == "" ]]; then
     url="$(env_url "$env")"; path="$(pq .versions.deployed.path)"; field="$(pq .versions.deployed.field)"
-    [[ -n "$url" && -n "$path" && -n "$field" ]] || die "production has no deliver state and no health URL to read its version from"
+    [[ -n "$url" && -n "$path" && -n "$field" ]] || die "production has no turpin state and no health URL to read its version from"
     run_log_event health-read "env=$env"
     v="$(curl -fsS "$url$path" | jq -r --arg f "$field" '.[$f] // empty')" || die "cannot read production's health"
     v="${v%%+*}"
@@ -317,7 +317,7 @@ candidate_digests() {   # SHA -> IMAGES_JSON; refuses on none, some, or a failed
       *) gate_fail "store-query" "the registry could not be queried: ${REG_ERR:-unknown error}" ;;
     esac
   done
-  [[ ${#missing[@]} -eq 0 ]] || gate_fail "build-exists" "no build in candidates for ${1:0:12} (missing ${missing[*]}): run deliver build"
+  [[ ${#missing[@]} -eq 0 ]] || gate_fail "build-exists" "no build in candidates for ${1:0:12} (missing ${missing[*]}): run turpin build"
   IMAGES_JSON="$out"
 }
 
@@ -334,7 +334,7 @@ resolve_sha() {         # SHORT-or-full hex -> SHA (full) refuses if ambiguous o
   done <<< "$tags"
   mapfile -t found < <(printf '%s\n' "${found[@]}" | sort -u | sed '/^$/d')
   case ${#found[@]} in
-    0) gate_fail "build-exists" "no candidate matches $ref: run deliver build" ;;
+    0) gate_fail "build-exists" "no candidate matches $ref: run turpin build" ;;
     1) SHA="${found[0]}" ;;
     *) gate_fail "ref-unambiguous" "$ref matches ${#found[@]} candidates: $(printf '%s ' "${found[@]}" | sed 's/ $//')" ;;
   esac
@@ -358,7 +358,7 @@ resolve_ref() {
       return
     fi
     if [[ "$role" == production ]]; then
-      gate_fail "production-record" "no record for version $VERSION: production deploys only rehearsed releases (deliver release makes the record); --unrecorded takes a full SHA"
+      gate_fail "production-record" "no record for version $VERSION: production deploys only rehearsed releases (turpin release makes the record); --unrecorded takes a full SHA"
     fi
     [[ -n "$tag" ]] || gate_fail "ref" "no tag or record for version $VERSION"
     SHA="$(g rev-parse "$tag^{commit}")"      # a release made before the tool: by its commit's build
@@ -386,7 +386,7 @@ OPT_UNRECORDED=""
 # ------------------------------------------------------------------ payload
 
 # assemble_payload TREE DIR: the deploy steps, hooks and joined files the image
-# carries at /deliver/. Nothing secret.
+# carries at /turpin/. Nothing secret.
 assemble_payload() {
   local tree="$1" dir="$2" sha="$3" f tooldir toollib pinned toolwork=""
   # the steps and libraries are the programme's, at the commit the application
@@ -400,16 +400,16 @@ assemble_payload() {
       || { rm -rf "$toolwork"; die "cannot read the tool from the programme at ${pinned:0:12}"; }
     tooldir="$toolwork/scripts/deliver"; toollib="$tooldir/lib"
   else
-    tooldir="$HERE"; toollib="$DELIVER_LIB"
+    tooldir="$HERE"; toollib="$TURPIN_LIB"
   fi
   rm -rf "$dir"; mkdir -p "$dir/lib" "$dir/join" "$dir/host_files" "$dir/hooks"
   cp -R "$tooldir/payload/." "$dir/"
   cp "$toollib/common.sh" "$toollib/toml.sh" "$toollib/toml.awk" "$dir/lib/"
   [[ -z "$toolwork" ]] || rm -rf "$toolwork"
-  [[ -d "$tree/deliver/hooks" ]] && cp -R "$tree/deliver/hooks/." "$dir/hooks/"
+  [[ -d "$tree/turpin/hooks" ]] && cp -R "$tree/turpin/hooks/." "$dir/hooks/"
   toml_to_json "$tree/app-profile.toml" > "$dir/profile.json" || die "cannot read the profile at the commit"
   local joins
-  joins="$(jq -r '[(.deliver.join // [])[], (.environments[]? | (.join // [])[])] | unique[]' "$dir/profile.json")"
+  joins="$(jq -r '[(.turpin.join // [])[], (.environments[]? | (.join // [])[])] | unique[]' "$dir/profile.json")"
   while read -r f; do [[ -n "$f" ]] || continue
     [[ -e "$tree/$f" ]] || die "profile joins $f, which the commit does not have"
     (cd "$tree" && cp --parents "$f" "$dir/join/")
@@ -417,7 +417,7 @@ assemble_payload() {
   while read -r f; do [[ -n "$f" ]] || continue
     [[ -e "$tree/$f" ]] || die "profile lists host file $f, which the commit does not have"
     (cd "$tree" && cp --parents "$f" "$dir/host_files/")
-  done < <(jq -r '(.deliver.host_files // [])[].src' "$dir/profile.json")
+  done < <(jq -r '(.turpin.host_files // [])[].src' "$dir/profile.json")
 }
 
 # tool_programme SHA: the programme commit the application pins at SHA (its
@@ -440,7 +440,7 @@ cmd_build() {
       *) ref="$1"; shift ;;
     esac
   done
-  DELIVER_SUBCOMMAND=build; load_profile
+  TURPIN_SUBCOMMAND=build; load_profile
   gates_expect build-commit store-query store-immutable build-labels
   registry_require
   local sha version tree img d code
@@ -456,15 +456,15 @@ cmd_build() {
     gate_ok build-commit "on the remote"
   fi
   use_commit_profile "$sha"
-  local place; place="$(pq .deliver.build.on)"
-  if [[ -n "$place" ]] && ! is_controller "$place" && [[ -z "${DELIVER_ON_BUILD_HOST:-}" ]]; then
-    local fwd=(deliver build "$sha"); [[ $local_only -eq 1 ]] && fwd+=(--local)
-    exec ssh "$place" "DELIVER_ON_BUILD_HOST=1 $(printf '%q ' "${fwd[@]}")"
+  local place; place="$(pq .turpin.build.on)"
+  if [[ -n "$place" ]] && ! is_controller "$place" && [[ -z "${TURPIN_ON_BUILD_HOST:-}" ]]; then
+    local fwd=(turpin build "$sha"); [[ $local_only -eq 1 ]] && fwd+=(--local)
+    exec ssh "$place" "TURPIN_ON_BUILD_HOST=1 $(printf '%q ' "${fwd[@]}")"
   fi
   if [[ $local_only -eq 0 ]]; then
     auth_use "$(auth_file_of builder)" builder
-    auth_login "builder" "$(pq .deliver.build.login)" docker
-    auth_login "builder" "$(pq .deliver.build.login)" skopeo
+    auth_login "builder" "$(pq .turpin.build.login)" docker
+    auth_login "builder" "$(pq .turpin.build.login)" skopeo
   fi
 
   # what is already stored is never rebuilt (design §6); a failed query refuses
@@ -490,28 +490,28 @@ cmd_build() {
     # shellcheck disable=SC2064
     trap "g worktree remove --force '$tree' >/dev/null 2>&1; rm -rf '$tree'; _run_log_exit \$?" EXIT
     version="$(version_in_tree "$tree")"
-    assemble_payload "$tree" "$tree/.deliver-payload" "$sha"
-    export DELIVER_SHA="$sha" DELIVER_VERSION="$version" DELIVER_BUILD_IMAGES="${tobuild[*]}"
-    DELIVER_LABEL_CREATED="$(now_utc)"
-    export DELIVER_LABEL_REVISION="$sha" DELIVER_LABEL_VERSION="$version" DELIVER_LABEL_CREATED
-    export DELIVER_PAYLOAD_DIR="$tree/.deliver-payload" DELIVER_BUILD_LOCAL="$local_only"
+    assemble_payload "$tree" "$tree/.turpin-payload" "$sha"
+    export TURPIN_SHA="$sha" TURPIN_VERSION="$version" TURPIN_BUILD_IMAGES="${tobuild[*]}"
+    TURPIN_LABEL_CREATED="$(now_utc)"
+    export TURPIN_LABEL_REVISION="$sha" TURPIN_LABEL_VERSION="$version" TURPIN_LABEL_CREATED
+    export TURPIN_PAYLOAD_DIR="$tree/.turpin-payload" TURPIN_BUILD_LOCAL="$local_only"
     for img in "${tobuild[@]}"; do
       if [[ $local_only -eq 1 ]]; then
-        export "$(image_var "$img" | sed 's/DELIVER_IMAGE/DELIVER_BUILD_TAG/')=deliver-local/$APP-$img:$sha"
+        export "$(image_var "$img" | sed 's/TURPIN_IMAGE/TURPIN_BUILD_TAG/')=turpin-local/$APP-$img:$sha"
       else
-        export "$(image_var "$img" | sed 's/DELIVER_IMAGE/DELIVER_BUILD_TAG/')=$DELIVER_REGISTRY/$CANDIDATES:$sha-$img"
+        export "$(image_var "$img" | sed 's/TURPIN_IMAGE/TURPIN_BUILD_TAG/')=$TURPIN_REGISTRY/$CANDIDATES:$sha-$img"
       fi
     done
     run_log_event build-start "sha=$sha" "images=${tobuild[*]}"
-    if [[ -x "$tree/deliver/hooks/build" ]]; then
-      (cd "$tree" && ./deliver/hooks/build) || die "the build hook failed"
+    if [[ -x "$tree/turpin/hooks/build" ]]; then
+      (cd "$tree" && ./turpin/hooks/build) || die "the build hook failed"
     else
       local args=(buildx bake) set_args=()
       for img in "${tobuild[@]}"; do
-        local tagvar; tagvar="$(image_var "$img" | sed 's/DELIVER_IMAGE/DELIVER_BUILD_TAG/')"
+        local tagvar; tagvar="$(image_var "$img" | sed 's/TURPIN_IMAGE/TURPIN_BUILD_TAG/')"
         set_args+=(--set "$img.tags=${!tagvar}" --set "$img.labels.org.opencontainers.image.revision=$sha"
                    --set "$img.labels.org.opencontainers.image.version=$version"
-                   --set "$img.labels.org.opencontainers.image.created=$DELIVER_LABEL_CREATED")
+                   --set "$img.labels.org.opencontainers.image.created=$TURPIN_LABEL_CREATED")
       done
       [[ $local_only -eq 1 ]] && args+=(--load) || args+=(--push)
       (cd "$tree" && docker "${args[@]}" "${tobuild[@]}" "${set_args[@]}") || die "docker buildx bake failed"
@@ -520,7 +520,7 @@ cmd_build() {
 
   if [[ $local_only -eq 1 ]]; then
     for img in "${tobuild[@]}"; do
-      local id; id="$(docker image inspect "deliver-local/$APP-$img:$sha" --format '{{.Id}}' 2>/dev/null)" || die "the build left no local image $img"
+      local id; id="$(docker image inspect "turpin-local/$APP-$img:$sha" --format '{{.Id}}' 2>/dev/null)" || die "the build left no local image $img"
       printf '%s %s\n' "$img" "$id"
     done
     gate_ok build-labels "local build, labels not read"
@@ -559,8 +559,8 @@ cmd_deploy() {
       *) if [[ -z "$env" ]]; then env="$1"; elif [[ -z "$ref" ]]; then ref="$1"; else die "deploy: too many arguments"; fi; shift ;;
     esac
   done
-  [[ -n "$env" && -n "$ref" ]] || die "usage: deliver deploy ENV REF"
-  DELIVER_SUBCOMMAND=deploy; load_profile
+  [[ -n "$env" && -n "$ref" ]] || die "usage: turpin deploy ENV REF"
+  TURPIN_SUBCOMMAND=deploy; load_profile
   registry_require; controller_auth
   env_exists "$env" || die "the profile has no environment $env"
   local role; role="$(env_role "$env")"
@@ -584,10 +584,10 @@ cmd_deploy() {
   if [[ "$role" == preview ]] && is_controller "$(env_q "$env" host)" && ! [[ "$ref" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     local lsha; lsha="$(g rev-parse --verify -q "$ref^{commit}" 2>/dev/null || true)"
     [[ -z "$lsha" ]] || use_commit_profile "$lsha"
-    if [[ -n "$lsha" ]] && docker image inspect "deliver-local/$APP-${IMAGES[0]}:$lsha" >/dev/null 2>&1; then
+    if [[ -n "$lsha" ]] && docker image inspect "turpin-local/$APP-${IMAGES[0]}:$lsha" >/dev/null 2>&1; then
       local_build=1; SHA="$lsha"; VERSION="$(version_at "$SHA" 2>/dev/null || true)"; RECORD_JSON=""
       local img; for img in "${IMAGES[@]}"; do
-        local_images="$(jq -c --arg i "$img" --arg d "$(docker image inspect "deliver-local/$APP-$img:$SHA" --format '{{.Id}}')" '. + {($i): $d}' <<< "$local_images")"
+        local_images="$(jq -c --arg i "$img" --arg d "$(docker image inspect "turpin-local/$APP-$img:$SHA" --format '{{.Id}}')" '. + {($i): $d}' <<< "$local_images")"
       done
       IMAGES_JSON="$local_images"
     fi
@@ -667,10 +667,10 @@ replay_host_stderr() {
 
 run_post_deploy() {   # ENV ROLE: the check hook, from the commit; its failure is reported only
   local tmp; tmp="$(mktemp -d)"
-  if g cat-file -e "$SHA^{commit}" 2>/dev/null && g archive "$SHA" deliver/hooks 2>/dev/null | tar -x -C "$tmp" 2>/dev/null; then
-    H_APP="$APP" H_ENV="$1" H_ROLE="$2" H_SHA="$SHA" H_VERSION="$VERSION" H_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/deliver/$APP" \
+  if g cat-file -e "$SHA^{commit}" 2>/dev/null && g archive "$SHA" turpin/hooks 2>/dev/null | tar -x -C "$tmp" 2>/dev/null; then
+    H_APP="$APP" H_ENV="$1" H_ROLE="$2" H_SHA="$SHA" H_VERSION="$VERSION" H_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/turpin/$APP" \
       H_IMAGES="$(jq -r 'to_entries[] | "\(.key)=\(.value)"' <<< "$IMAGES_JSON")"
-    HOOKS_DIR="$tmp/deliver/hooks"
+    HOOKS_DIR="$tmp/turpin/hooks"
     local code=0; hook_run post-deploy || code=$?
     if [[ $code -ne 0 ]]; then warn "check post-deploy reported exit $code (the deploy stands)"; run_log_event check-failed "name=post-deploy" "code=$code"; fi
   fi
@@ -696,7 +696,7 @@ rehearsal_level_gate() {
   if [[ -n "$off" ]]; then gate_ok rehearsal-level "off level: $off"; run_log_event override "flag=off-level" "reason=$off"; return; fi
   prod_env="$(env_of_role production)"; [[ -n "$prod_env" ]] || gate_fail rehearsal-level "the profile has no production environment to start from"
   pst="$(host_status "$prod_env")"
-  [[ "$(jq -r '.current // empty' <<< "$pst")" != "" ]] || gate_fail rehearsal-level "production has no deliver state; a first cycle needs --off-level REASON"
+  [[ "$(jq -r '.current // empty' <<< "$pst")" != "" ]] || gate_fail rehearsal-level "production has no turpin state; a first cycle needs --off-level REASON"
   rec="$(jq -c '.current.record // empty' <<< "$pst")"
   [[ -n "$rec" ]] || gate_fail rehearsal-level "production runs a build with no record (deployed before the tool); needs --off-level REASON"
   if jq -e --argjson want "$(jq -c .images <<< "$rec")" --argjson have "$IMAGES_JSON" '$want == $have' >/dev/null <<< "null"; then
@@ -709,8 +709,8 @@ rehearsal_level_gate() {
 # ------------------------------------------------------------------ rollback, status, list
 
 cmd_rollback() {
-  [[ $# -eq 1 ]] || die "usage: deliver rollback ENV"
-  local env="$1"; DELIVER_SUBCOMMAND=rollback; load_profile
+  [[ $# -eq 1 ]] || die "usage: turpin rollback ENV"
+  local env="$1"; TURPIN_SUBCOMMAND=rollback; load_profile
   registry_require
   env_exists "$env" || die "the profile has no environment $env"
   local role; role="$(env_role "$env")"
@@ -728,14 +728,14 @@ cmd_rollback() {
 }
 
 cmd_status() {
-  [[ $# -eq 1 ]] || die "usage: deliver status ENV"
-  local env="$1"; DELIVER_SUBCOMMAND=status; load_profile
+  [[ $# -eq 1 ]] || die "usage: turpin status ENV"
+  local env="$1"; TURPIN_SUBCOMMAND=status; load_profile
   env_exists "$env" || die "the profile has no environment $env"
   gates_expect
   g fetch -q --tags origin 2>/dev/null || true
   local st; st="$(host_status "$env")"
   say "environment: $env ($(env_role "$env"))"
-  say "state: $(jq -r '.state // "none (no deliver deploy yet)"' <<< "$st")"
+  say "state: $(jq -r '.state // "none (no turpin deploy yet)"' <<< "$st")"
   if [[ "$(jq -r '.current // empty' <<< "$st")" == "" ]]; then say "current: none"; return 0; fi
   say "current: deploy $(jq -r .current.n <<< "$st") commit $(jq -r .current.sha <<< "$st") version $(jq -r '.current.version // "-"' <<< "$st")"
   jq -r '.current.images | to_entries[] | "image \(.key) \(.value)"' <<< "$st"
@@ -753,8 +753,8 @@ cmd_status() {
 }
 
 cmd_list() {
-  [[ $# -eq 1 ]] || die "usage: deliver list ENV"
-  local env="$1"; DELIVER_SUBCOMMAND=list; load_profile
+  [[ $# -eq 1 ]] || die "usage: turpin list ENV"
+  local env="$1"; TURPIN_SUBCOMMAND=list; load_profile
   env_exists "$env" || die "the profile has no environment $env"
   gates_expect
   g fetch -q --tags origin 2>/dev/null || true
@@ -786,7 +786,7 @@ cmd_release() {
       *) die "release: unknown argument $1" ;;
     esac
   done
-  DELIVER_SUBCOMMAND=release; load_profile
+  TURPIN_SUBCOMMAND=release; load_profile
   registry_require; controller_auth
   [[ -n "$OPT_EMERGENCY" ]] && run_log_event override "flag=emergency" "reason=$OPT_EMERGENCY"
   [[ -n "$OPT_SKIP" ]] && run_log_event override "flag=skip-rehearsal" "reason=$OPT_SKIP"
@@ -902,10 +902,10 @@ cmd_release() {
     milestone_gate "$VERSION" "${range_arg[*]}" "${main_range[*]}"
     # the application's own rules
     local tmp; tmp="$(mktemp -d)"
-    g archive "$SHA" deliver/hooks 2>/dev/null | tar -x -C "$tmp" 2>/dev/null || true
-    H_APP="$APP" H_ENV="release" H_ROLE="controller" H_SHA="$SHA" H_VERSION="$VERSION" H_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/deliver/$APP"
+    g archive "$SHA" turpin/hooks 2>/dev/null | tar -x -C "$tmp" 2>/dev/null || true
+    H_APP="$APP" H_ENV="release" H_ROLE="controller" H_SHA="$SHA" H_VERSION="$VERSION" H_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/turpin/$APP"
     H_IMAGES="$(jq -r 'to_entries[] | "\(.key)=\(.value)"' <<< "$IMAGES_JSON")"
-    HOOKS_DIR="$tmp/deliver/hooks"
+    HOOKS_DIR="$tmp/turpin/hooks"
     hook_gate release-check
     rm -rf "$tmp"
   fi
@@ -913,7 +913,7 @@ cmd_release() {
   gates_finish
   local made rehearsal_json emergency_json skipped_json
   made="$(now_utc)"
-  local rfile="${XDG_STATE_HOME:-$HOME/.local/state}/deliver/$APP/release-$VERSION.json"
+  local rfile="${XDG_STATE_HOME:-$HOME/.local/state}/turpin/$APP/release-$VERSION.json"
   if [[ -f "$rfile" ]] && [[ "$(jq -r .commit "$rfile")" == "$SHA" ]]; then made="$(jq -r .made "$rfile")"; fi
   # the rehearsal block describes this commit's rehearsal only: a release made with
   # --skip-rehearsal --commit must not carry another commit's deploy and smoke result
@@ -1015,7 +1015,7 @@ release_steps() {
   case $pcode in
     0|3) [[ "$(jq -r .release <<< "$pout")" != created ]] || done_all=0
          while IFS= read -r f; do [[ -z "$f" ]] || failed+=("$f"); done < <(jq -r '.failed[]' <<< "$pout") ;;
-    70) die "board-release.py hit a profile error (exit 70) after $tag was pushed; rerun deliver release to resume" ;;
+    70) die "board-release.py hit a profile error (exit 70) after $tag was pushed; rerun turpin release to resume" ;;
     *) failed+=("GitHub Release ($(jq -r '.refused // "board-release.py failed"' <<< "$pout" 2>/dev/null))") ;;
   esac
   # 6. bump main
@@ -1029,11 +1029,11 @@ release_steps() {
   case $ncode in
     0|3) [[ "$(jq -r .created <<< "$nout")" != true ]] || done_all=0
          while IFS= read -r f; do [[ -z "$f" ]] || failed+=("$f"); done < <(jq -r '.failed[]' <<< "$nout") ;;
-    70) die "board-release.py hit a profile error (exit 70) after $tag was pushed; rerun deliver release to resume" ;;
+    70) die "board-release.py hit a profile error (exit 70) after $tag was pushed; rerun turpin release to resume" ;;
     *) failed+=("next milestone") ;;
   esac
   if [[ ${#failed[@]} -gt 0 ]]; then
-    warn "$tag is made and pushed, but these steps failed: ${failed[*]}; rerun deliver release to resume"
+    warn "$tag is made and pushed, but these steps failed: ${failed[*]}; rerun turpin release to resume"
     exit "$EXIT_PARTIAL"
   fi
   if [[ $done_all -eq 1 && "${BUMPED:-0}" -eq 0 ]]; then say "every step of $VERSION is already done"; else say "released $VERSION"; fi
@@ -1063,7 +1063,7 @@ bump_main() {
       (match($p) ) as $m | .[0:($m.captures[0].offset)] + $new + .[($m.captures[0].offset + ($m.captures[0].length)):]' \
       < "$tree/$f" > "$tree/$f.new" 2>/dev/null && mv "$tree/$f.new" "$tree/$f" || { g worktree remove --force "$tree" >/dev/null 2>&1; return 1; }
   done
-  if [[ -x "$tree/deliver/hooks/bump" ]]; then (cd "$tree" && DELIVER_VERSION="$new" ./deliver/hooks/bump) || { g worktree remove --force "$tree" >/dev/null 2>&1; return 1; }; fi
+  if [[ -x "$tree/turpin/hooks/bump" ]]; then (cd "$tree" && TURPIN_VERSION="$new" ./turpin/hooks/bump) || { g worktree remove --force "$tree" >/dev/null 2>&1; return 1; }; fi
   form="$(pq .versions.stamp_form)"; api=""
   if [[ -n "$(pq .versions.api.file)" && -z "$(pq .versions.api.command)" && -n "$(pq .versions.api.pattern)" ]]; then
     api="$(jq -Rrs --arg p "$(pq .versions.api.pattern)" 'try (match($p).captures[0].string) catch empty' < "$tree/$(pq .versions.api.file)")"
@@ -1084,8 +1084,8 @@ bump_main() {
 # ------------------------------------------------------------------ settle
 
 cmd_settle() {
-  [[ $# -eq 1 ]] || die "usage: deliver settle VERSION"
-  DELIVER_SUBCOMMAND=settle; load_profile
+  [[ $# -eq 1 ]] || die "usage: turpin settle VERSION"
+  TURPIN_SUBCOMMAND=settle; load_profile
   gates_expect
   g fetch -q --tags origin 2>/dev/null || true
   settle_version "${1#v}" || exit "$EXIT_PARTIAL"
@@ -1103,7 +1103,7 @@ settle_version() {
   out="$(board_release settle --announcement "$ANNOUNCEMENT" --tag "$tag" <<< "$rec")" || code=$?
   case $code in
     0) say "settled $version" ;;
-    3) warn "settle of $version failed; left to do: $(jq -r '.left | join(" ")' <<< "$out"); rerun deliver settle $version"
+    3) warn "settle of $version failed; left to do: $(jq -r '.left | join(" ")' <<< "$out"); rerun turpin settle $version"
        jq -r '.why // empty' <<< "$out" | sed 's/^/  because: /' >&2
        return 1 ;;
     70) die "settle: board-release.py hit a profile error (exit 70); see above" ;;
@@ -1116,7 +1116,7 @@ settle_version() {
 cmd_prune() {
   local dry=0
   [[ "${1:-}" == --dry-run ]] && dry=1
-  DELIVER_SUBCOMMAND=prune; load_profile; registry_require; controller_auth
+  TURPIN_SUBCOMMAND=prune; load_profile; registry_require; controller_auth
   gates_expect
   g fetch -q --tags origin 2>/dev/null || true
   local newest_made=0 t made
@@ -1154,13 +1154,13 @@ cmd_prune() {
   # the controller decides; the builder, whose login may delete candidates, does it
   if [[ "$deletes" != "[]" ]]; then
     local place req out code=0
-    place="$(pq .deliver.build.on)"; place="${place:-controller}"
-    req="$(jq -nc --arg login "$(pq .deliver.build.login)" --arg c "$CANDIDATES" --argjson deletes "$deletes" \
+    place="$(pq .turpin.build.on)"; place="${place:-controller}"
+    req="$(jq -nc --arg login "$(pq .turpin.build.login)" --arg c "$CANDIDATES" --argjson deletes "$deletes" \
       '{login:$login,candidates:$c,deletes:$deletes}')"
     run_log_event step "name=delete" "where=$place"
-    out="$(run_deliver_host "$place" delete "$APP" <<< "$req" 2>&1)" || code=$?
+    out="$(run_turpin_host "$place" delete "$APP" <<< "$req" 2>&1)" || code=$?
     removed="$(grep -c '^removed ' <<< "$out" || true)"
-    printf '%s\n' "$out" | sed 's/^deliver-host: /deliver: /'
+    printf '%s\n' "$out" | sed 's/^turpin-host: /turpin: /'
     run_log_event prune "removed=$removed"
     [[ $code -eq 0 ]] || die "prune: the builder could not delete every candidate chosen"
     return 0
@@ -1169,32 +1169,32 @@ cmd_prune() {
 }
 
 cmd_host_install() {
-  [[ $# -eq 1 ]] || die "usage: deliver host-install ENV|COPIER|BUILDER"
+  [[ $# -eq 1 ]] || die "usage: turpin host-install ENV|COPIER|BUILDER"
   local env="$1" target="" ssh login tools="" script f dest mode copier=0
   # shellcheck disable=SC2100  # a name containing a hyphen, not arithmetic
-  DELIVER_SUBCOMMAND=host-install; load_profile
+  TURPIN_SUBCOMMAND=host-install; load_profile
   gates_expect
-  local copy_on build_on; copy_on="$(pq .deliver.release.copy_on)"; build_on="$(pq .deliver.build.on)"
+  local copy_on build_on; copy_on="$(pq .turpin.release.copy_on)"; build_on="$(pq .turpin.build.on)"
   if env_exists "$env"; then
     host_files_conflict "$env"
     ssh="$(env_q "$env" ssh)"; login="$(env_q "$env" login)"
     is_controller "$(env_q "$env" host)" && target=local || target=ssh
   elif [[ -n "$copy_on" && "$env" == "$copy_on" ]]; then
     # the release copier, which may host no environment: the command and its libraries
-    copier=1; ssh="$copy_on"; login="$(pq .deliver.release.copy_login)"
+    copier=1; ssh="$copy_on"; login="$(pq .turpin.release.copy_login)"
     is_controller "$copy_on" && target=local || target=ssh
   elif [[ -n "$build_on" && "$env" == "$build_on" ]]; then
     # the builder, which may host no environment: it deletes what prune chooses
-    copier=1; ssh="$build_on"; login="$(pq .deliver.build.login)"
+    copier=1; ssh="$build_on"; login="$(pq .turpin.build.login)"
     is_controller "$build_on" && target=local || target=ssh
   else
     die "the profile has no environment $env and $env is not the release copier (copy_on) or the builder (build.on)"
   fi
   [[ -n "$login" ]] && tools="$(login_tools "$login")"
   script="set -e"$'\n'
-  script+='R="${DELIVER_HOST_ROOT:-}"'$'\n'
-  for f in deliver-host lib/common.sh lib/toml.sh lib/toml.awk lib/registry.sh; do
-    case "$f" in deliver-host) dest='/usr/local/bin/deliver-host'; mode=0755 ;; *) dest="/usr/local/lib/deliver/$(basename "$f")"; mode=0644 ;; esac
+  script+='R="${TURPIN_HOST_ROOT:-}"'$'\n'
+  for f in turpin-host lib/common.sh lib/toml.sh lib/toml.awk lib/registry.sh; do
+    case "$f" in turpin-host) dest='/usr/local/bin/turpin-host'; mode=0755 ;; *) dest="/usr/local/lib/turpin/$(basename "$f")"; mode=0644 ;; esac
     script+="printf '%s' '$(base64 -w0 < "$HERE/$f")' | base64 -d | sudo install -D -m $mode /dev/stdin \"\$R$dest\""$'\n'
   done
   script+='command -v jq >/dev/null 2>&1 || sudo apt-get install -y jq >/dev/null'$'\n'
@@ -1204,38 +1204,38 @@ cmd_host_install() {
     # what root-ops may do is decided by files only root writes (design section 9):
     # the host-file destinations and the ephemeral user prefix, from the profile as
     # it is now, so a changed host_files list owes a rerun of this command
-    local allow_dir="/etc/deliver/$APP" lines prefix
+    local allow_dir="/etc/turpin/$APP" lines prefix
     # one line per host file: destination, source within the payload, mode, enable (tab-separated);
     # carried base64 so a path with a space or a quote stays what it is
-    lines="$(jq -r '(.deliver.host_files // [])[] | [.dest, .src, (.mode // "0644"), ((.enable // false) | tostring)] | @tsv' <<< "$PJ")"
-    prefix="$(pq .deliver.ephemeral.user_prefix)"
-    script+="sudo install -d -m 0755 \"\$R/etc/deliver\" \"\$R$allow_dir\""$'\n'
-    # merged with what is still in use, never replaced (see deliver-host allowlist)
-    script+="printf '%s' '$(printf '%s' "$lines" | base64 -w0)' | base64 -d | sudo env DELIVER_LIB=\"\$R/usr/local/lib/deliver\" \"\$R/usr/local/bin/deliver-host\" allowlist $APP"$'\n'
+    lines="$(jq -r '(.turpin.host_files // [])[] | [.dest, .src, (.mode // "0644"), ((.enable // false) | tostring)] | @tsv' <<< "$PJ")"
+    prefix="$(pq .turpin.ephemeral.user_prefix)"
+    script+="sudo install -d -m 0755 \"\$R/etc/turpin\" \"\$R$allow_dir\""$'\n'
+    # merged with what is still in use, never replaced (see turpin-host allowlist)
+    script+="printf '%s' '$(printf '%s' "$lines" | base64 -w0)' | base64 -d | sudo env TURPIN_LIB=\"\$R/usr/local/lib/turpin\" \"\$R/usr/local/bin/turpin-host\" allowlist $APP"$'\n'
     script+="printf '%s\\n' '$(printf '%s' "$prefix" | base64 -w0)' | base64 -d | { cat; echo; } | sed '/^\$/d' | sudo install -m 0644 /dev/stdin \"\$R$allow_dir/ephemeral.prefix\""$'\n'
     script+='U="$(id -un)"'$'\n'
-    script+='printf "%s ALL=(root) NOPASSWD: /usr/local/bin/deliver-host root-ops *\n" "$U" | sudo install -D -m 0440 /dev/stdin "$R/etc/sudoers.d/deliver-host"'$'\n'
+    script+='printf "%s ALL=(root) NOPASSWD: /usr/local/bin/turpin-host root-ops *\n" "$U" | sudo install -D -m 0440 /dev/stdin "$R/etc/sudoers.d/turpin-host"'$'\n'
   fi
-  script+='echo "deliver-host installed"'$'\n'
+  script+='echo "turpin-host installed"'$'\n'
   if [[ "$target" == local ]]; then bash -c "$script"; else ssh "$ssh" "bash -s" <<< "$script"; fi
 }
 
-# deliver login COMPONENT: the owner's one login for a component's own directory.
+# turpin login COMPONENT: the owner's one login for a component's own directory.
 # The user is asked for, the token read at a hidden prompt and sent on standard
-# input to `deliver-host login` on the component's machine; it is never an
+# input to `turpin-host login` on the component's machine; it is never an
 # argument, never echoed and never logged.
 cmd_login() {
-  [[ $# -eq 1 ]] || die "usage: deliver login controller|builder|copier|ENV"
+  [[ $# -eq 1 ]] || die "usage: turpin login controller|builder|copier|ENV"
   local comp="$1" user token place
-  DELIVER_SUBCOMMAND=login; load_profile; registry_require
+  TURPIN_SUBCOMMAND=login; load_profile; registry_require
   gates_expect
   case "$comp" in
     controller) place=controller ;;
-    builder) place="$(pq .deliver.build.on)"; place="${place:-controller}" ;;
-    copier) place="$(pq .deliver.release.copy_on)"; place="${place:-controller}" ;;
+    builder) place="$(pq .turpin.build.on)"; place="${place:-controller}" ;;
+    copier) place="$(pq .turpin.release.copy_on)"; place="${place:-controller}" ;;
     *) env_exists "$comp" || die "$comp is not controller, builder, copier or an environment of the profile"
        [[ "$(login_component "$comp")" != builder ]] \
-         || die "$comp shares the builder's docker login on this machine: run deliver login builder" ;;
+         || die "$comp shares the builder's docker login on this machine: run turpin login builder" ;;
   esac
   printf 'registry user for the %s: ' "$comp" >&2
   IFS= read -r user || true
@@ -1245,22 +1245,22 @@ cmd_login() {
   run_log_event step "name=login" "component=$comp"
   case "$comp" in
     controller|builder|copier)
-      printf '%s\n%s\n' "$user" "$token" | run_deliver_host "$place" login "$APP" "$comp" ;;
+      printf '%s\n%s\n' "$user" "$token" | run_turpin_host "$place" login "$APP" "$comp" ;;
     *) printf '%s\n%s\n' "$user" "$token" | run_on_host "$comp" login "$APP" deployer "$comp" ;;
   esac
 }
 
-cmd_env() { exec "${DELIVER_HOST_BIN:-$HERE/deliver-host}" env "$@"; }
+cmd_env() { exec "${TURPIN_HOST_BIN:-$HERE/turpin-host}" env "$@"; }
 
 # ------------------------------------------------------------------ main
 
 usage() { sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
-DELIVER_SUBCOMMAND=""; DELIVER_ARGS=()
+TURPIN_SUBCOMMAND=""; TURPIN_ARGS=()
 main() {
   [[ $# -ge 1 ]] || { usage; exit 1; }
   local sub="$1"; shift
-  DELIVER_SUBCOMMAND="$sub"; DELIVER_ARGS=("$@")
+  TURPIN_SUBCOMMAND="$sub"; TURPIN_ARGS=("$@")
   case "$sub" in
     build) cmd_build "$@" ;;
     deploy) cmd_deploy "$@" ;;
@@ -1274,7 +1274,7 @@ main() {
     host-install) cmd_host_install "$@" ;;
     env) cmd_env "$@" ;;
     -h|--help|help) usage ;;
-    *) die "unknown command $sub (deliver --help)" ;;
+    *) die "unknown command $sub (turpin --help)" ;;
   esac
 }
 main "$@"

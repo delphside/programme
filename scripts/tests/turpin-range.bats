@@ -7,7 +7,7 @@
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert
-  load deliver_world
+  load turpin_world
   world_new
 }
 
@@ -204,7 +204,7 @@ issues_fixtures() {
   run d release --expect 0.10.3
   assert_success
   assert_equal "$(jq -c '[.carries.releases[].version]' <<< "$(tag_record v0.10.3)")" '["0.10.2"]'
-  assert_equal "$(jq -c '[.carries.releases[].version]' "${XDG_STATE_HOME:-$HOME/.local/state}/deliver/acme/release-0.10.3.json")" '["0.10.2"]'
+  assert_equal "$(jq -c '[.carries.releases[].version]' "${XDG_STATE_HOME:-$HOME/.local/state}/turpin/acme/release-0.10.3.json")" '["0.10.2"]'
 }
 
 @test "a release made before the tool, in the range, has its milestone's open items gated, settled and closed" {

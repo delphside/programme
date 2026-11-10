@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# common.sh: what `deliver`, `deliver-host` and the payload's steps share.
+# common.sh: what `turpin`, `turpin-host` and the payload's steps share.
 # Sourced, never executed. Design: records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md
 #
 # It holds: messages and exits, the run log, the gate list (a gate is named when
@@ -10,7 +10,7 @@
 EXIT_REFUSED=1
 EXIT_PARTIAL=3
 
-DELIVER_CMD="${DELIVER_CMD:-deliver}"
+TURPIN_CMD="${TURPIN_CMD:-turpin}"
 RUN_LOG="${RUN_LOG:-}"
 GATES_EXPECTED=()
 GATES_RAN=()
@@ -18,7 +18,7 @@ SET_ASIDE=()        # "gate<TAB>reason"
 OVERRIDES=()        # "flag<TAB>reason", for the run log
 
 say()  { printf '%s\n' "$*"; }
-warn() { printf '%s: %s\n' "$DELIVER_CMD" "$*" >&2; }
+warn() { printf '%s: %s\n' "$TURPIN_CMD" "$*" >&2; }
 die()  { warn "$*"; exit "$EXIT_REFUSED"; }
 
 need_jq() { command -v jq >/dev/null 2>&1 || die "jq is required"; }
@@ -31,7 +31,7 @@ now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 # last, the last 20 per command kept. Identifiers only: never a secret.
 run_log_start() {
   local app="$1" cmd="$2"; shift 2
-  local dir="${DELIVER_LOG_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/deliver}/$app"
+  local dir="${TURPIN_LOG_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/turpin}/$app"
   mkdir -p "$dir" 2>/dev/null || { RUN_LOG=""; return 0; }
   RUN_LOG="$dir/$cmd-$(date -u +%Y%m%dT%H%M%S).$$.log"
   : > "$RUN_LOG"
@@ -170,13 +170,13 @@ HOOK_NOT_YET=75
 # hook_env_export: the variables a hook receives (design §5). The caller sets
 # H_APP H_ENV H_ROLE H_SHA H_VERSION H_STATE and H_IMAGES (name=ref lines).
 hook_env_export() {
-  export DELIVER_APP="$H_APP" DELIVER_ENV="$H_ENV" DELIVER_ROLE="$H_ROLE"
-  export DELIVER_SHA="$H_SHA" DELIVER_VERSION="$H_VERSION" DELIVER_STATE="$H_STATE"
+  export TURPIN_APP="$H_APP" TURPIN_ENV="$H_ENV" TURPIN_ROLE="$H_ROLE"
+  export TURPIN_SHA="$H_SHA" TURPIN_VERSION="$H_VERSION" TURPIN_STATE="$H_STATE"
   local line name
   while IFS='=' read -r name line; do
     [[ -n "$name" ]] || continue
     name="$(printf '%s' "$name" | tr 'a-z-' 'A-Z_')"
-    export "DELIVER_IMAGE_$name=$line"
+    export "TURPIN_IMAGE_$name=$line"
   done <<< "${H_IMAGES:-}"
 }
 
@@ -211,8 +211,8 @@ HOOK_REFUSAL=""
 # A set-aside hook (profile-overridable, named by --set-aside) is passed on.
 hook_gate() {
   # one --wait budget covers the lock and this hook: what the lock used is spent
-  local name="$1" code=0 waited="${DELIVER_WAIT_USED:-0}" limit="${OPT_WAIT:-}"
-  local unit="${DELIVER_WAIT_UNIT:-60}"
+  local name="$1" code=0 waited="${TURPIN_WAIT_USED:-0}" limit="${OPT_WAIT:-}"
+  local unit="${TURPIN_WAIT_UNIT:-60}"
   while :; do
     code=0; hook_run "$name" || code=$?
     [[ $code -eq 0 ]] && { gate_ok "$name"; return 0; }
@@ -246,11 +246,11 @@ hook_step() {
 
 sha256_of() { sha256sum | cut -d' ' -f1; }
 
-# image_var NAME: DELIVER_IMAGE_<NAME> for the compose file's ${...}.
-image_var() { printf 'DELIVER_IMAGE_%s' "$(printf '%s' "$1" | tr 'a-z-' 'A-Z_')"; }
+# image_var NAME: TURPIN_IMAGE_<NAME> for the compose file's ${...}.
+image_var() { printf 'TURPIN_IMAGE_%s' "$(printf '%s' "$1" | tr 'a-z-' 'A-Z_')"; }
 
 semver_gt() {      # A B: is A strictly greater than B
   [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" == "$1" ]]
 }
 
-host_root() { printf '%s' "${DELIVER_HOST_ROOT:-}"; }
+host_root() { printf '%s' "${TURPIN_HOST_ROOT:-}"; }

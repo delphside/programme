@@ -1,12 +1,12 @@
 #!/usr/bin/env bats
 
-# Review round 1 of the deliver tool: each finding has a test that fails without
+# Review round 1 of the turpin tool: each finding has a test that fails without
 # its fix. The number in each name is the finding's.
 
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert
-  load deliver_world
+  load turpin_world
   world_new
 }
 
@@ -21,7 +21,7 @@ setup() {
   [ -s "$W/logs/where.log" ]
   run grep -vc '^copy copier$' "$W/logs/where.log"
   assert_output 0
-  assert_regex "$(cat "$W/logs/ssh.log")" "ssh copier: .*deliver-host copy acme"
+  assert_regex "$(cat "$W/logs/ssh.log")" "ssh copier: .*turpin-host copy acme"
   # and --unrecorded is the copier's copy too
   git -C "$W/work" pull -q --ff-only origin main
   commit_change two; build_ok "$SHA"
@@ -64,7 +64,7 @@ setup() {
   run d deploy rehearsal "$SHA"
   assert_failure 1
   assert_output --partial "refused at gate state"
-  assert_output --partial "deliver rollback"
+  assert_output --partial "turpin rollback"
   refute_output --partial "redeploy the previous version"
   # the rollback is the way out, and it works once the restore can
   run d rollback rehearsal
@@ -112,7 +112,7 @@ setup() {
 # F6 --------------------------------------------------------------------------
 @test "F6 the payload's steps come from the programme the commit pins, and the record names it" {
   mkdir -p "$W/work/programme/scripts"
-  cp -R "$DELIVER_SRC" "$W/work/programme/scripts/deliver"
+  cp -R "$TURPIN_SRC" "$W/work/programme/scripts/deliver"
   echo '# PINNED-MARKER' >> "$W/work/programme/scripts/deliver/payload/deploy"
   git -C "$W/work/programme" init -q -b main
   git -C "$W/work/programme" add -A && git -C "$W/work/programme" commit -q -m pinned
@@ -121,7 +121,7 @@ setup() {
   release_ready "12|Requirement||0|"
   local payload="$W/registry/reg.test/ns/acme/candidates/payload/$(cand "$RSHA-server" | sed 's/^sha256://')"
   grep -q PINNED-MARKER "$payload/deploy"
-  ! grep -q PINNED-MARKER "$DELIVER_SRC/payload/deploy"
+  ! grep -q PINNED-MARKER "$TURPIN_SRC/payload/deploy"
   run d release --expect 0.10.2
   assert_success
   assert_equal "$(jq -r .tool.programme <<< "$(tag_record v0.10.2)")" "$pinned"
@@ -132,27 +132,27 @@ setup() {
   printf '#!/bin/sh\nexit 0\n' > "$W/bin/oci"; chmod +x "$W/bin/oci"
   printf 'the-token' > "$W/token"
   awk '/^\[environments.rehearsal\]/{r=1} r&&/^login = /{sub(/docker-config/,"oci-instance-principal"); r=0} {print}' "$W/work/app-profile.toml" > "$W/p.new" && mv "$W/p.new" "$W/work/app-profile.toml"
-  printf 'DELIVER_OCI_TOKEN_CMD=cat %s\nDELIVER_REGISTRY_USER=tenancy/user\nOCI_CLI_AUTH=instance_principal\n' "$W/token" >> "$(host_state_dir rehearsal rehearsal)/.env"
+  printf 'TURPIN_OCI_TOKEN_CMD=cat %s\nTURPIN_REGISTRY_USER=tenancy/user\nOCI_CLI_AUTH=instance_principal\n' "$W/token" >> "$(host_state_dir rehearsal rehearsal)/.env"
   commit_change a; build_ok "$SHA"
   : > "$W/logs/login.log"
   deploy_rehearsal "$SHA"
   assert_success
   assert_regex "$(cat "$W/logs/login.log")" "login ok bytes=9"
   # without the lines the adapter says what it lacks
-  sed -i '/^DELIVER_OCI_TOKEN_CMD=/d' "$(host_state_dir rehearsal rehearsal)/.env"
+  sed -i '/^TURPIN_OCI_TOKEN_CMD=/d' "$(host_state_dir rehearsal rehearsal)/.env"
   commit_change b; build_ok "$SHA"
   run d deploy rehearsal "$SHA"
   assert_failure 1
-  assert_output --partial "needs DELIVER_OCI_TOKEN_CMD"
+  assert_output --partial "needs TURPIN_OCI_TOKEN_CMD"
 }
 
 # F8 --------------------------------------------------------------------------
 @test "F8 --expect and --commit with no value refuse and do not loop" {
   cd "$W/work"
-  run timeout 10 "$DELIVER" release --expect
+  run timeout 10 "$TURPIN" release --expect
   assert_failure 1
   assert_output --partial "--expect needs a version"
-  run timeout 10 "$DELIVER" release --commit
+  run timeout 10 "$TURPIN" release --commit
   assert_failure 1
   assert_output --partial "--commit needs a commit"
 }
@@ -166,7 +166,7 @@ setup() {
   # the new destination is not on the host's root-owned allowlist until host-install is rerun
   run d deploy rehearsal "$SHA"
   assert_failure 1
-  assert_output --partial "rerun deliver host-install"
+  assert_output --partial "rerun turpin host-install"
   run d host-install rehearsal
   assert_success
   run d deploy rehearsal "$SHA"
@@ -190,7 +190,7 @@ setup() {
   assert_output --partial "the registry refused access"
   refute_output --partial "requested access"
   refute_output --partial "reg.test"
-  run grep -rl "reg.test\|dial tcp\|requested access" "$XDG_STATE_HOME/deliver/acme"
+  run grep -rl "reg.test\|dial tcp\|requested access" "$XDG_STATE_HOME/turpin/acme"
   [ "$status" -ne 0 ] || { echo "the run log holds: $output" >&2; false; }
 }
 
@@ -204,7 +204,7 @@ setup() {
   assert_failure 1
   assert_output --partial "still not yet after waiting 4 minute(s)"
   # the minutes the lock took are the hook's too: it is asked 4 - used + 1 times
-  local used; used="$(sed -n 's/^DELIVER_WAIT_USED=//p' "$HOOKLOG" | head -1)"
+  local used; used="$(sed -n 's/^TURPIN_WAIT_USED=//p' "$HOOKLOG" | head -1)"
   [ "$used" -ge 1 ]
   assert_equal "$(grep -c '^== pre-deploy' "$HOOKLOG")" "$((5 - used))"
   hook_clear pre-deploy
@@ -221,7 +221,7 @@ setup() {
   assert_output --partial "cannot push tag"
   [ -n "$(rel 0.10.2-record)" ]
   rm "$W/remote.git/hooks/pre-receive"
-  rm -f "$XDG_STATE_HOME/deliver/acme/release-0.10.2.json"
+  rm -f "$XDG_STATE_HOME/turpin/acme/release-0.10.2.json"
   sleep 1.2
   run d release --expect 0.10.2
   assert_success
@@ -251,47 +251,47 @@ setup() {
 # sudo rule -------------------------------------------------------------------
 @test "root-ops trusts only what root wrote: forged files under the state folder change nothing" {
   commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
-  local root="$W/hosts/rehearsal" st="$W/hosts/rehearsal/var/lib/deliver/acme/rehearsal"
+  local root="$W/hosts/rehearsal" st="$W/hosts/rehearsal/var/lib/turpin/acme/rehearsal"
   local src="$st/deploys/1/payload/host_files/ops/backup.sh"
   # the real allowlist permits the real destination, and root-ops records it in its own file
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$src" /opt/acme/backup.sh 0755
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops install "$src" /opt/acme/backup.sh 0755
   assert_success
-  grep -qx /opt/acme/backup.sh "$root/etc/deliver/acme/installed"
-  [ "$(stat -c %a "$root/etc/deliver/acme")" = 755 ]
+  grep -qx /opt/acme/backup.sh "$root/etc/turpin/acme/installed"
+  [ "$(stat -c %a "$root/etc/turpin/acme")" = 755 ]
   # attack 1: a hand-written profile.json in the payload names a destination of its own
-  jq '.deliver.host_files += [{src:"ops/backup.sh",dest:"/etc/sudoers.d/x",mode:"0440"}]' "$st/deploys/1/payload/profile.json" > "$W/pj" && cp "$W/pj" "$st/deploys/1/payload/profile.json"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$src" /etc/sudoers.d/x 0440
+  jq '.turpin.host_files += [{src:"ops/backup.sh",dest:"/etc/sudoers.d/x",mode:"0440"}]' "$st/deploys/1/payload/profile.json" > "$W/pj" && cp "$W/pj" "$st/deploys/1/payload/profile.json"
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops install "$src" /etc/sudoers.d/x 0440
   assert_failure 1
   assert_output --partial "not on the host's allowlist"
   [ ! -e "$root/etc/sudoers.d/x" ]
   # attack 2: a hand-written installed list in the state folder names a file that is not ours
   mkdir -p "$root/etc"; echo secret > "$root/etc/shadow"
   printf '/etc/shadow\t\n' > "$st/host_files.installed"; printf '/etc/shadow\n' > "$st/installed"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops rm /etc/shadow
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops rm /etc/shadow
   assert_failure 1
   assert_output --partial "not a file root-ops installed"
   [ -f "$root/etc/shadow" ]
   # attack 3: a hand-written prefix in the state folder makes any user "ours"
-  printf '\n' > /dev/null; printf 'ro\n' > "$st/ephemeral.prefix"; printf 'ro\n' > "$root/var/lib/deliver/acme/ephemeral.prefix"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops userdel root
+  printf '\n' > /dev/null; printf 'ro\n' > "$st/ephemeral.prefix"; printf 'ro\n' > "$root/var/lib/turpin/acme/ephemeral.prefix"
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops userdel root
   assert_failure 1
   assert_output --partial "ephemeral user_prefix"
   # what it installed it may remove, and then it forgets it
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops rm /opt/acme/backup.sh
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops rm /opt/acme/backup.sh
   assert_success
-  ! grep -qx /opt/acme/backup.sh "$root/etc/deliver/acme/installed"
+  ! grep -qx /opt/acme/backup.sh "$root/etc/turpin/acme/installed"
 }
 
 @test "an ephemeral environment's user is created and removed only under the installed prefix" {
-  mkdir -p "$W/payload"; cp -a "$W/work/deliver/hooks" "$W/payload/hooks"
-  export DELIVER_PROFILE="$W/work/app-profile.toml" DELIVER_PAYLOAD="$W/payload"
-  run bash -c "printf 's\n' | '$DELIVER' env create e9"
+  mkdir -p "$W/payload"; cp -a "$W/work/turpin/hooks" "$W/payload/hooks"
+  export TURPIN_PROFILE="$W/work/app-profile.toml" TURPIN_PAYLOAD="$W/payload"
+  run bash -c "printf 's\n' | '$TURPIN' env create e9"
   assert_success
-  run "$DELIVER" env destroy e9
+  run "$TURPIN" env destroy e9
   assert_success
   assert_equal "$(cat "$W/hosts/local/.users")" ""
-  rm -rf "$W/hosts/local/etc/deliver"
-  run bash -c "printf 's\n' | '$DELIVER' env create e8"
+  rm -rf "$W/hosts/local/etc/turpin"
+  run bash -c "printf 's\n' | '$TURPIN' env create e8"
   assert_failure 1
   assert_output --partial "ephemeral user_prefix"
 }
@@ -330,10 +330,10 @@ setup() {
   run d host-install copier
   assert_success
   local root="$W/hosts/copier"
-  [ -x "$root/usr/local/bin/deliver-host" ]
-  [ -f "$root/usr/local/lib/deliver/registry.sh" ]
-  [ ! -e "$root/etc/sudoers.d/deliver-host" ]
-  [ ! -e "$root/etc/deliver" ]
+  [ -x "$root/usr/local/bin/turpin-host" ]
+  [ -f "$root/usr/local/lib/turpin/registry.sh" ]
+  [ ! -e "$root/etc/sudoers.d/turpin-host" ]
+  [ ! -e "$root/etc/turpin" ]
   run d host-install nowhere
   assert_failure 1
   assert_output --partial "not the release copier"
@@ -342,60 +342,60 @@ setup() {
 # round 3: the guards against mistakes -----------------------------------------
 @test "R3 root-ops install: a link or another file is refused, and the mode is the allowlist's" {
   commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
-  local root="$W/hosts/rehearsal" hf="$W/hosts/rehearsal/var/lib/deliver/acme/rehearsal/deploys/1/payload/host_files/ops"
+  local root="$W/hosts/rehearsal" hf="$W/hosts/rehearsal/var/lib/turpin/acme/rehearsal/deploys/1/payload/host_files/ops"
   ln -s /etc/passwd "$hf/link.sh"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/link.sh" /opt/acme/backup.sh 0755
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops install "$hf/link.sh" /opt/acme/backup.sh 0755
   assert_failure 1
   assert_output --partial "not a regular file"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/acme-backup.timer" /opt/acme/backup.sh 0755
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops install "$hf/acme-backup.timer" /opt/acme/backup.sh 0755
   assert_failure 1
   assert_output --partial "not on the host's allowlist"
   # the caller can only name the mode the allowlist has for that destination and source
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 4777
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 4777
   assert_failure 1
   assert_output --partial "not on the host's allowlist"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 0755
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 0755
   assert_success
   assert_equal "$(stat -c %a "$root/opt/acme/backup.sh")" 755
   # an allowlisted mode with setuid, or writable by others, is refused
-  local allow="$root/etc/deliver/acme/host_files.allow"
+  local allow="$root/etc/turpin/acme/host_files.allow"
   sed -i 's|^\(/opt/acme/backup.sh\t[^\t]*\t\)0755|\14755|' "$allow"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 4755
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 4755
   assert_failure 1
   assert_output --partial "is not allowed"
   sed -i 's|\t4755\t|\t0666\t|' "$allow"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 0666
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops install "$hf/backup.sh" /opt/acme/backup.sh 0666
   assert_failure 1
 }
 
 @test "R3 root-ops systemctl: daemon-reload, and one allowlisted unit with no extra arguments" {
   commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
   local root="$W/hosts/rehearsal"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops systemctl daemon-reload
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops systemctl daemon-reload
   assert_success
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops systemctl restart acme-backup.timer
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops systemctl restart acme-backup.timer
   assert_success
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops systemctl enable evil.service
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops systemctl enable evil.service
   assert_failure 1
   assert_output --partial "not a unit the allowlist derives"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops systemctl restart acme-backup.timer --now
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops systemctl restart acme-backup.timer --now
   assert_failure 1
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops systemctl disable --now acme-backup.timer
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops systemctl disable --now acme-backup.timer
   assert_failure 1
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops systemctl restart ssh.service
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops systemctl restart ssh.service
   assert_failure 1
 }
 
 @test "R3 host-install keeps a destination with a space in it as one field" {
   cat >> "$W/work/app-profile.toml" <<'EOF'
 
-[[deliver.host_files]]
+[[turpin.host_files]]
 src = "ops/backup.sh"
 dest = "/opt/acme/two words.sh"
 EOF
   run d host-install rehearsal
   assert_success
-  run awk -F'\t' '$1 == "/opt/acme/two words.sh" && $2 == "ops/backup.sh" && $3 == "0644" {print "ok"}' "$W/hosts/rehearsal/etc/deliver/acme/host_files.allow"
+  run awk -F'\t' '$1 == "/opt/acme/two words.sh" && $2 == "ops/backup.sh" && $3 == "0644" {print "ok"}' "$W/hosts/rehearsal/etc/turpin/acme/host_files.allow"
   assert_output ok
 }
 
@@ -420,7 +420,7 @@ EOF
   drop_timer_from_profile
   commit_change b; build_ok "$SHA"
   run d host-install rehearsal; assert_success
-  grep -q acme-backup.timer "$W/hosts/rehearsal/etc/deliver/acme/host_files.allow"      # still in use until the deploy has run
+  grep -q acme-backup.timer "$W/hosts/rehearsal/etc/turpin/acme/host_files.allow"      # still in use until the deploy has run
   run d deploy rehearsal "$SHA"; assert_success
   run cat "$W/hosts/rehearsal/.systemctl.log"
   assert_regex "$output" "systemctl stop acme-backup.timer"
@@ -429,7 +429,7 @@ EOF
   # and once nothing uses it, the next install drops the entry
   commit_change c; build_ok "$SHA"; run d deploy rehearsal "$SHA"; assert_success
   run d host-install rehearsal; assert_success
-  ! grep -q acme-backup.timer "$W/hosts/rehearsal/etc/deliver/acme/host_files.allow"
+  ! grep -q acme-backup.timer "$W/hosts/rehearsal/etc/turpin/acme/host_files.allow"
 }
 
 @test "R4 a refused stop of a dropped unit fails the deploy and names the unit" {
@@ -508,13 +508,13 @@ echo backup"
   commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
   sed -i 's/^role = "rehearsal"/role = "rehearsal"\nhost_files = false/' "$W/work/app-profile.toml"
   # and the application no longer lists host files at all
-  awk '/^\[\[deliver.host_files\]\]/{skip=1; next} /^\[/{skip=0} !skip{print}' "$W/work/app-profile.toml" > "$W/p.new" && mv "$W/p.new" "$W/work/app-profile.toml"
+  awk '/^\[\[turpin.host_files\]\]/{skip=1; next} /^\[/{skip=0} !skip{print}' "$W/work/app-profile.toml" > "$W/p.new" && mv "$W/p.new" "$W/work/app-profile.toml"
   local i; for i in b c; do commit_change $i; build_ok "$SHA"; run d deploy rehearsal "$SHA"; assert_success; done
   [ -f "$W/hosts/rehearsal/opt/acme/backup.sh" ]          # never removed: the environment runs no host-file step
   run d host-install rehearsal; assert_success
   [ ! -e "$W/hosts/rehearsal/opt/acme/backup.sh" ]
-  [ ! -s "$W/hosts/rehearsal/etc/deliver/acme/host_files.allow" ] || ! grep -q "/opt/acme/backup.sh" "$W/hosts/rehearsal/etc/deliver/acme/host_files.allow"
-  ! grep -q "/opt/acme/backup.sh" "$W/hosts/rehearsal/etc/deliver/acme/installed"
+  [ ! -s "$W/hosts/rehearsal/etc/turpin/acme/host_files.allow" ] || ! grep -q "/opt/acme/backup.sh" "$W/hosts/rehearsal/etc/turpin/acme/host_files.allow"
+  ! grep -q "/opt/acme/backup.sh" "$W/hosts/rehearsal/etc/turpin/acme/installed"
   run cat "$W/hosts/rehearsal/.systemctl.log"
   assert_output --partial "systemctl disable acme-backup.timer"
 }
@@ -536,25 +536,25 @@ echo backup"
 
 @test "R7 root-ops rm clears the destination from the installing application's record only" {
   local root="$W/hosts/rehearsal"
-  mkdir -p "$root/etc/deliver/acme" "$root/etc/deliver/other" "$root/opt/acme"
-  printf '/opt/acme/backup.sh\n' > "$root/etc/deliver/acme/installed"
-  printf '/opt/acme/backup.sh\n' > "$root/etc/deliver/other/installed"
+  mkdir -p "$root/etc/turpin/acme" "$root/etc/turpin/other" "$root/opt/acme"
+  printf '/opt/acme/backup.sh\n' > "$root/etc/turpin/acme/installed"
+  printf '/opt/acme/backup.sh\n' > "$root/etc/turpin/other/installed"
   : > "$root/opt/acme/backup.sh"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops rm /opt/acme/backup.sh
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops rm /opt/acme/backup.sh
   assert_success
-  [ ! -s "$root/etc/deliver/acme/installed" ]
-  grep -qx /opt/acme/backup.sh "$root/etc/deliver/other/installed"
+  [ ! -s "$root/etc/turpin/acme/installed" ]
+  grep -qx /opt/acme/backup.sh "$root/etc/turpin/other/installed"
 }
 
 # round 8 ---------------------------------------------------------------------
 @test "R8 an ephemeral user is accepted only under the calling application's own prefix" {
   local root="$W/hosts/local"
-  mkdir -p "$root/etc/deliver/other"; printf 'zz-\n' > "$root/etc/deliver/other/ephemeral.prefix"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops userdel zz-x acme
+  mkdir -p "$root/etc/turpin/other"; printf 'zz-\n' > "$root/etc/turpin/other/ephemeral.prefix"
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops userdel zz-x acme
   assert_failure 1
   assert_output --partial "ephemeral user_prefix of acme"
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops userdel zz-x other
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops userdel zz-x other
   assert_success
-  run env DELIVER_HOST_ROOT="$root" "$DELIVER_HOST" root-ops userdel acme-x
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops userdel acme-x
   assert_failure 1
 }

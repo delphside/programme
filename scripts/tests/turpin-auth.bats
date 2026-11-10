@@ -10,9 +10,9 @@
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert
-  load deliver_world
+  load turpin_world
   world_new
-  AUTH="$HOME/.config/deliver/auth/acme"
+  AUTH="$HOME/.config/turpin/auth/acme"
 }
 
 # an old, unreferenced candidate A, and a release r made after it
@@ -54,12 +54,12 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
 }
 
 @test "the copier's login is not replaced by the builder's, however they are made (R44, S66)" {
-  rm -rf "$HOME/.config/deliver/auth"
-  run bash -c "cd '$W/work'; printf 'tle-releaser\ntok-copier\n' | '$DELIVER' login copier"
+  rm -rf "$HOME/.config/turpin/auth"
+  run bash -c "cd '$W/work'; printf 'tle-releaser\ntok-copier\n' | '$TURPIN' login copier"
   assert_success
-  run bash -c "cd '$W/work'; printf 'tle-builder\ntok-builder\n' | '$DELIVER' login builder"
+  run bash -c "cd '$W/work'; printf 'tle-builder\ntok-builder\n' | '$TURPIN' login builder"
   assert_success
-  run bash -c "cd '$W/work'; printf 'tle-controller\ntok-controller\n' | '$DELIVER' login controller"
+  run bash -c "cd '$W/work'; printf 'tle-controller\ntok-controller\n' | '$TURPIN' login controller"
   assert_success
   assert_equal "$(jq -r '.auths[].user' "$AUTH/copier.json")" tle-releaser
   assert_equal "$(jq -r '.auths[].user' "$AUTH/builder.json")" tle-builder
@@ -83,7 +83,7 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   run d release --expect 0.10.2
   assert_failure 1
   assert_output --partial "no registry login for the controller"
-  assert_output --partial "deliver login controller"
+  assert_output --partial "turpin login controller"
   [ -z "$(git -C "$W/remote.git" tag -l v0.10.2)" ]
   mv "$AUTH/controller.away" "$AUTH/controller.json"
   # a login made for another role does not read for it: releases are the copier's and the hosts'
@@ -98,7 +98,7 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   prunable_world
   : > "$W/logs/auth.log"; : > "$W/logs/where.log"; : > "$W/logs/ssh.log"
   # the builder is another machine
-  sed -i '/^\[deliver.build\]/,/^login/ s/^on = .*/on = "rehearsal"/' "$W/work/app-profile.toml"
+  sed -i '/^\[turpin.build\]/,/^login/ s/^on = .*/on = "rehearsal"/' "$W/work/app-profile.toml"
   run d prune
   assert_success
   assert_output --partial "removed $PA-server"
@@ -107,7 +107,7 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   assert_equal "$(roles_of skopeo delete)" "builder "
   run cat "$W/logs/where.log"; assert_output --partial "delete rehearsal"
   refute_output --partial "delete local"
-  run grep -c 'deliver-host delete' "$W/logs/ssh.log"; assert_output 1
+  run grep -c 'turpin-host delete' "$W/logs/ssh.log"; assert_output 1
   # the controller's own calls were reads
   run grep -E '^skopeo (inspect|list-tags) .* controller$' "$W/logs/auth.log"; assert_success
   run grep -E '^skopeo delete .* controller$' "$W/logs/auth.log"; assert_failure
@@ -138,12 +138,12 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   local d; d="$(cand "$PA-server")"
   local req
   req="$(jq -nc --arg d "sha256:$(printf 'other' | sha256sum | cut -d' ' -f1)" '{login:"docker-config",candidates:"acme/candidates",deletes:[{tag:"'"$PA"'-server",digest:$d}]}')"
-  run bash -c "printf '%s' '$req' | '$DELIVER_HOST' delete acme"
+  run bash -c "printf '%s' '$req' | '$TURPIN_HOST' delete acme"
   assert_failure
   assert_output --partial "no longer points at the digest"
   assert_equal "$(cand "$PA-server")" "$d"
   req="$(jq -nc --arg d "$d" '{login:"docker-config",candidates:"acme/candidates",deletes:[{tag:"'"$PA"'-server",digest:$d},{tag:"gone-tag",digest:$d}]}')"
-  run bash -c "printf '%s' '$req' | '$DELIVER_HOST' delete acme"
+  run bash -c "printf '%s' '$req' | '$TURPIN_HOST' delete acme"
   assert_success
   [ -z "$(cand "$PA-server")" ]
 }
@@ -155,10 +155,10 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   [ -n "$(cand "$PA-server")" ]
 }
 
-@test "deliver login reads the token at a hidden prompt and never prints, logs or passes it as an argument (R47, S70, X23)" {
-  rm -rf "$HOME/.config/deliver/auth"
+@test "turpin login reads the token at a hidden prompt and never prints, logs or passes it as an argument (R47, S70, X23)" {
+  rm -rf "$HOME/.config/turpin/auth"
   local canary="hunter2-canary-token"
-  run bash -c "cd '$W/work'; printf 'tle-builder\n%s\n' '$canary' | '$DELIVER' login builder 2>&1"
+  run bash -c "cd '$W/work'; printf 'tle-builder\n%s\n' '$canary' | '$TURPIN' login builder 2>&1"
   assert_success
   refute_output --partial "$canary"
   assert_output --partial "logged in: builder"
@@ -170,61 +170,61 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   assert_equal "$(stat -c %a "$AUTH")" 700
   assert_equal "$(stat -c %a "$AUTH/builder.json")" 600
   # an empty token is refused
-  run bash -c "cd '$W/work'; printf 'tle-releaser\n\n' | '$DELIVER' login copier 2>&1"
+  run bash -c "cd '$W/work'; printf 'tle-releaser\n\n' | '$TURPIN' login copier 2>&1"
   assert_failure 1
   [ ! -f "$AUTH/copier.json" ]
   # preview is on the builder's machine, so it shares the builder's docker login: it is not made twice
-  run bash -c "cd '$W/work'; printf 'tle-prev\n%s\n' '$canary' | '$DELIVER' login preview 2>&1"
+  run bash -c "cd '$W/work'; printf 'tle-prev\n%s\n' '$canary' | '$TURPIN' login preview 2>&1"
   assert_failure 1
-  assert_output --partial "preview shares the builder's docker login on this machine: run deliver login builder"
+  assert_output --partial "preview shares the builder's docker login on this machine: run turpin login builder"
   assert_equal "$(jq -r .user "$W/hosts/local/.docker/login.json")" tle-builder
   run grep -rl "$canary" "$W"
   assert_failure
 }
 
-@test "deliver login reaches a builder or a deployer on another machine over ssh, the token on standard input only (R47, S70)" {
-  rm -f "$HOME/.config/deliver/auth/acme/builder.json"
+@test "turpin login reaches a builder or a deployer on another machine over ssh, the token on standard input only (R47, S70)" {
+  rm -f "$HOME/.config/turpin/auth/acme/builder.json"
   # the remote machine has a home of its own, with its own local configuration
-  mkdir -p "$W/hosts/rehearsal/home/.config/deliver"
-  cp "$HOME/.config/deliver/acme.env" "$W/hosts/rehearsal/home/.config/deliver/"
-  sed -i '/^\[deliver.build\]/,/^login/ s/^on = .*/on = "rehearsal"/' "$W/work/app-profile.toml"
+  mkdir -p "$W/hosts/rehearsal/home/.config/turpin"
+  cp "$HOME/.config/turpin/acme.env" "$W/hosts/rehearsal/home/.config/turpin/"
+  sed -i '/^\[turpin.build\]/,/^login/ s/^on = .*/on = "rehearsal"/' "$W/work/app-profile.toml"
   local canary="hunter2-canary-token"
   : > "$W/logs/ssh.log"
-  run bash -c "cd '$W/work'; printf 'tle-builder\n%s\n' '$canary' | '$DELIVER' login builder 2>&1"
+  run bash -c "cd '$W/work'; printf 'tle-builder\n%s\n' '$canary' | '$TURPIN' login builder 2>&1"
   assert_success
   assert_equal "$(jq -r .user "$W/hosts/rehearsal/.docker/login.json")" tle-builder
-  [ -f "$W/hosts/rehearsal/home/.config/deliver/auth/acme/builder.json" ]
+  [ -f "$W/hosts/rehearsal/home/.config/turpin/auth/acme/builder.json" ]
   [ ! -e "$AUTH/builder.json" ]
-  run bash -c "cd '$W/work'; printf 'host-user\n%s\n' '$canary' | '$DELIVER' login production 2>&1"
+  run bash -c "cd '$W/work'; printf 'host-user\n%s\n' '$canary' | '$TURPIN' login production 2>&1"
   assert_success
   assert_equal "$(jq -r .user "$W/hosts/prod/.docker/login.json")" host-user
-  run grep -c "deliver-host login" "$W/logs/ssh.log"; assert_output 2
+  run grep -c "turpin-host login" "$W/logs/ssh.log"; assert_output 2
   run grep -c "$canary" "$W/logs/ssh.log"; assert_output 0
 }
 
-@test "an unknown component is refused by deliver login (R47)" {
-  run bash -c "cd '$W/work'; printf 'u\nt\n' | '$DELIVER' login nonsense 2>&1"
+@test "an unknown component is refused by turpin login (R47)" {
+  run bash -c "cd '$W/work'; printf 'u\nt\n' | '$TURPIN' login nonsense 2>&1"
   assert_failure 1
   assert_output --partial "nonsense is not controller, builder, copier"
 }
 
-@test "a docker-config login is checked before use: none made names deliver login (R44, S66)" {
+@test "a docker-config login is checked before use: none made names turpin login (R44, S66)" {
   rm -f "$AUTH/builder.json"
   commit_change one
   run d build "$SHA"
   assert_failure 1
   assert_output --partial "the builder's registry login (docker-config) failed"
-  assert_output --partial "deliver login builder"
+  assert_output --partial "turpin login builder"
 }
 
-@test "a revoked login is told apart and named: the registry refuses the copier, and the message says deliver login copier (R44, S66)" {
+@test "a revoked login is told apart and named: the registry refuses the copier, and the message says turpin login copier (R44, S66)" {
   ref_commit "a feature" 12
   release_ready "12|Requirement||0|"
   seed_login "$AUTH/copier.json" builder
   run d release --expect 0.10.2
   assert_failure 1
   assert_output --partial "the registry refused access"
-  assert_output --partial "deliver login copier"
+  assert_output --partial "turpin login copier"
   [ -z "$(git -C "$W/remote.git" tag -l v0.10.2)" ]
 }
 
@@ -236,14 +236,14 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   assert_equal "$(host_state local preview)" finished
 }
 
-@test "a refused pull on the builder's machine names deliver login builder, on another machine the environment (R44, S66)" {
+@test "a refused pull on the builder's machine names turpin login builder, on another machine the environment (R44, S66)" {
   commit_change one; build_ok "$SHA"
   rm -f "$W/hosts/local/.docker/login.json"
   run d deploy preview "$SHA"
   assert_failure 1
-  assert_output --partial "deliver login builder"
+  assert_output --partial "turpin login builder"
   rm -f "$W/hosts/rehearsal/.docker/login.json"
   run d deploy rehearsal "$SHA" --off-level first
   assert_failure 1
-  assert_output --partial "deliver login rehearsal"
+  assert_output --partial "turpin login rehearsal"
 }

@@ -1,13 +1,13 @@
 #!/usr/bin/env bats
 
-# `deliver build` (delphside/programme#117; test-design.md S1 to S5, R3, R4).
-# The world is deliver_world.bash's: a dummy application, a directory registry
+# `turpin build` (delphside/programme#117; test-design.md S1 to S5, R3, R4).
+# The world is turpin_world.bash's: a dummy application, a directory registry
 # behind a skopeo stub and a docker stub, a bare remote.
 
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert
-  load deliver_world
+  load turpin_world
   world_new
 }
 
@@ -89,18 +89,18 @@ setup() {
   run grep -c "buildx bake" "$W/logs/docker.log"
   assert_output --regexp '^[1-9]'
   : > "$HOOKLOG"
-  cat > "$W/work/deliver/hooks/build" <<'EOF'
+  cat > "$W/work/turpin/hooks/build" <<'EOF'
 #!/usr/bin/env bash
-echo "== build $DELIVER_BUILD_IMAGES revision=$DELIVER_LABEL_REVISION version=$DELIVER_LABEL_VERSION" >> "$HOOKLOG"
-for i in $DELIVER_BUILD_IMAGES; do
-  v="DELIVER_BUILD_TAG_$(printf '%s' "$i" | tr a-z A-Z)"
+echo "== build $TURPIN_BUILD_IMAGES revision=$TURPIN_LABEL_REVISION version=$TURPIN_LABEL_VERSION" >> "$HOOKLOG"
+for i in $TURPIN_BUILD_IMAGES; do
+  v="TURPIN_BUILD_TAG_$(printf '%s' "$i" | tr a-z A-Z)"
   docker buildx bake "$i" --push --set "$i.tags=${!v}" \
-    --set "$i.labels.org.opencontainers.image.revision=$DELIVER_LABEL_REVISION" \
-    --set "$i.labels.org.opencontainers.image.version=$DELIVER_LABEL_VERSION" \
-    --set "$i.labels.org.opencontainers.image.created=$DELIVER_LABEL_CREATED"
+    --set "$i.labels.org.opencontainers.image.revision=$TURPIN_LABEL_REVISION" \
+    --set "$i.labels.org.opencontainers.image.version=$TURPIN_LABEL_VERSION" \
+    --set "$i.labels.org.opencontainers.image.created=$TURPIN_LABEL_CREATED"
 done
 EOF
-  chmod +x "$W/work/deliver/hooks/build"
+  chmod +x "$W/work/turpin/hooks/build"
   commit_all "add a build hook"
   : > "$W/logs/docker.log"
   run d build "$SHA"
@@ -114,14 +114,14 @@ EOF
 
 @test "a build whose image lacks the revision label is refused (R3)" {
   commit_change one
-  cat > "$W/work/deliver/hooks/build" <<'EOF'
+  cat > "$W/work/turpin/hooks/build" <<'EOF'
 #!/usr/bin/env bash
-for i in $DELIVER_BUILD_IMAGES; do
-  v="DELIVER_BUILD_TAG_$(printf '%s' "$i" | tr a-z A-Z)"
+for i in $TURPIN_BUILD_IMAGES; do
+  v="TURPIN_BUILD_TAG_$(printf '%s' "$i" | tr a-z A-Z)"
   docker buildx bake "$i" --push --set "$i.tags=${!v}" --set "$i.labels.org.opencontainers.image.revision=not-the-commit"
 done
 EOF
-  chmod +x "$W/work/deliver/hooks/build"
+  chmod +x "$W/work/turpin/hooks/build"
   commit_all "a build hook that labels wrongly"
   run d build "$SHA"
   assert_failure 1

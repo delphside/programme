@@ -41,7 +41,7 @@ if [[ "$cmd" == login ]]; then
   exit 0
 fi
 # where each write ran: the machine's root (the ssh stub sets it) or the controller
-case "$cmd" in copy|delete) echo "$cmd ${DELIVER_HOST_ROOT##*/}" >> "${STUB_LOG_DIR}/where.log" ;; esac
+case "$cmd" in copy|delete) echo "$cmd ${TURPIN_HOST_ROOT##*/}" >> "${STUB_LOG_DIR}/where.log" ;; esac
 case "$cmd" in
   inspect)
     parse "${@: -1}"; stub_auth_check skopeo inspect "$P_REPO" read

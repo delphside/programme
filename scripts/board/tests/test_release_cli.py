@@ -1,4 +1,4 @@
-"""`board-release.py`, the command `deliver` calls: JSON in, JSON out, and an exit
+"""`board-release.py`, the command `turpin` calls: JSON in, JSON out, and an exit
 status that says which of done, refused, partly done and broken it was.
 
 From the rules (design §6 *The board model's part*): exit 0 passed, 1 refused,
@@ -41,7 +41,7 @@ GATE = {"version": "0.10.2", "sha": "a" * 40, "range": "a", "main_range": "b", "
 class TheCommand(Cases):
 
     def setUp(self):
-        env = mock.patch.dict(os.environ, {"DELIVER_GH_REPO": "fakeorg/widget"})
+        env = mock.patch.dict(os.environ, {"TURPIN_GH_REPO": "fakeorg/widget"})
         env.start()
         self.addCleanup(env.stop)
 
@@ -101,13 +101,13 @@ class TheCommand(Cases):
         self.expect("with the names asked", ("a" * 40, ["e2e", "lint"]), m.call_args.args)
 
     def test_the_repository_is_named_or_the_command_refuses(self):
-        """the repository is DELIVER_GH_REPO or the origin's; neither refuses"""
+        """the repository is TURPIN_GH_REPO or the origin's; neither refuses"""
         with mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("DELIVER_GH_REPO")
+            os.environ.pop("TURPIN_GH_REPO")
             with mock.patch.object(cli.repo, "origin_slug", return_value=None):
                 code, out, _ = run("checks", "abc")
             self.expect("refused, saying how to name it", (1, True),
-                        (code, "DELIVER_GH_REPO" in json.loads(out)["refused"]))
+                        (code, "TURPIN_GH_REPO" in json.loads(out)["refused"]))
             with mock.patch.object(cli.repo, "origin_slug", return_value="fakeorg/origin"), \
                     mock.patch.object(release, "checks", return_value=(True, {}, [])):
                 code, _, _ = run("checks", "abc")

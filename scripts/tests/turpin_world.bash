@@ -1,45 +1,45 @@
-# Shared by scripts/tests/deliver-*.bats: builds, per test, the world the
-# deliver tool runs in (test-design.md part 8), with nothing from the network.
+# Shared by scripts/tests/turpin-*.bats: builds, per test, the world the
+# turpin tool runs in (test-design.md part 8), with nothing from the network.
 #
 #   - a git repository "work" with a bare remote, holding a dummy application,
 #     "acme": two images, a payload image, stub hooks that log what they are
 #     given and exit as each test sets, a second environment `join`, host files;
 #   - stubs on PATH for skopeo, docker, ssh, gh, sudo, systemctl, useradd,
-#     userdel and curl (scripts/tests/deliver-stubs/), answering from folders;
+#     userdel and curl (scripts/tests/turpin-stubs/), answering from folders;
 #   - three "machines" as folders: the controller (`local`), `rehearsal` and
 #     `prod`, reached through the ssh stub, each with its own docker state.
 #
-# `load deliver_world`, then `world_new` in setup.
+# `load turpin_world`, then `world_new` in setup.
 
-DELIVER_SRC="$(cd "$BATS_TEST_DIRNAME/../deliver" && pwd)"
-DELIVER="$DELIVER_SRC/deliver"
-DELIVER_HOST="$DELIVER_SRC/deliver-host"
-STUBS_SRC="$(cd "$BATS_TEST_DIRNAME/deliver-stubs" && pwd)"
+TURPIN_SRC="$(cd "$BATS_TEST_DIRNAME/../deliver" && pwd)"
+TURPIN="$TURPIN_SRC/turpin"
+TURPIN_HOST="$TURPIN_SRC/turpin-host"
+STUBS_SRC="$(cd "$BATS_TEST_DIRNAME/turpin-stubs" && pwd)"
 
 world_new() {
   W="$BATS_TEST_TMPDIR"
   mkdir -p "$W/gh/fix" "$W/gh/state" "$W/bin" "$W/registry" "$W/hosts/local" "$W/hosts/rehearsal" "$W/hosts/prod" "$W/logs" "$W/gh" "$W/home" "$W/hookctl" "$W/xdg"
   cp "$STUBS_SRC"/* "$W/bin/"
-  ln -sf "$DELIVER_HOST" "$W/bin/deliver-host"
-  ln -sf "$DELIVER" "$W/bin/deliver"
+  ln -sf "$TURPIN_HOST" "$W/bin/turpin-host"
+  ln -sf "$TURPIN" "$W/bin/turpin"
   export PATH="$W/bin:$PATH"
   export HOME="$W/home" XDG_STATE_HOME="$W/xdg"
   export STUB_REGISTRY="$W/registry" STUB_LOG_DIR="$W/logs" STUB_HOSTS="$W/hosts" STUB_LOCAL_ROOT="$W/hosts/local" STUB_GH="$W/gh"
-  export DELIVER_HOST_ROOT="$W/hosts/local" DELIVER_STATE_DIR=/var/lib/deliver
-  export DELIVER_REPO="$W/work" DELIVER_GH_REPO=acme/acme DELIVER_WAIT_UNIT=1
+  export TURPIN_HOST_ROOT="$W/hosts/local" TURPIN_STATE_DIR=/var/lib/turpin
+  export TURPIN_REPO="$W/work" TURPIN_GH_REPO=acme/acme TURPIN_WAIT_UNIT=1
   export HOOKLOG="$W/hook.log" HOOKCTL="$W/hookctl"
   export GIT_AUTHOR_NAME=Test GIT_AUTHOR_EMAIL=t@example.test GIT_COMMITTER_NAME=Test GIT_COMMITTER_EMAIL=t@example.test
-  export DELIVER_REGISTRY_VALUE="reg.test/ns"
+  export TURPIN_REGISTRY_VALUE="reg.test/ns"
   export STUB_AUTH_ENFORCE=1
-  mkdir -p "$HOME/.config/deliver"
-  printf 'DELIVER_REGISTRY=%s\n' "$DELIVER_REGISTRY_VALUE" > "$HOME/.config/deliver/acme.env"
+  mkdir -p "$HOME/.config/turpin"
+  printf 'TURPIN_REGISTRY=%s\n' "$TURPIN_REGISTRY_VALUE" > "$HOME/.config/turpin/acme.env"
   # each skopeo component's own auth file, made once as the owner would
   local c
-  for c in controller builder copier; do seed_login "$HOME/.config/deliver/auth/acme/$c.json" "$c"; done
+  for c in controller builder copier; do seed_login "$HOME/.config/turpin/auth/acme/$c.json" "$c"; done
   : > "$HOOKLOG"
   local h
   for h in local rehearsal prod; do
-    mkdir -p "$W/hosts/$h/var/lib/deliver/acme"
+    mkdir -p "$W/hosts/$h/var/lib/turpin/acme"
   done
   host_env local preview; host_env rehearsal rehearsal; host_env prod production
   : > "$W/gh/log"
@@ -52,30 +52,30 @@ world_new() {
   SHA="$(git rev-parse HEAD)"
   # the machines are installed as an owner would: this writes the root-owned allowlist
   local e
-  for e in preview rehearsal production; do "$DELIVER" host-install "$e" >/dev/null 2>&1 || { echo "host-install $e failed" >&2; return 1; }; done
+  for e in preview rehearsal production; do "$TURPIN" host-install "$e" >/dev/null 2>&1 || { echo "host-install $e failed" >&2; return 1; }; done
 }
 
 # seed_login FILE ROLE: a skopeo login already made into FILE; the stub registry reads ROLE from it.
 seed_login() {
   mkdir -p "$(dirname "$1")"
-  jq -nc --arg h "${DELIVER_REGISTRY_VALUE%%/*}" --arg r "$2" '{auths:{($h):{auth:$r}}}' > "$1"
+  jq -nc --arg h "${TURPIN_REGISTRY_VALUE%%/*}" --arg r "$2" '{auths:{($h):{auth:$r}}}' > "$1"
 }
 
 # host_env HOST ENVNAME: the machine's .env, holding its registry (and a canary secret).
 # The machine user's own docker login is the stub's <root>/.docker/login.json: the
 # laptop's is the builder's, which preview shares; the VMs' are the hosts' own.
 host_env() {
-  local d="$W/hosts/$1/var/lib/deliver/acme/$2"
+  local d="$W/hosts/$1/var/lib/turpin/acme/$2"
   mkdir -p "$d" "$W/hosts/$1/.docker"
   local role=host; [[ "$1" == local ]] && role=builder
   jq -nc --arg r "$role" '{role:$r}' > "$W/hosts/$1/.docker/login.json"
-  printf 'DELIVER_REGISTRY=%s\nCANARY_SECRET=%s\n' "$DELIVER_REGISTRY_VALUE" "${CANARY:-hunter2-canary}" > "$d/.env"
+  printf 'TURPIN_REGISTRY=%s\nCANARY_SECRET=%s\n' "$TURPIN_REGISTRY_VALUE" "${CANARY:-hunter2-canary}" > "$d/.env"
 }
 
 # write_app: the dummy application, in the work tree.
 write_app() {
   cd "$W/work" || return 1
-  mkdir -p deliver/hooks ops
+  mkdir -p turpin/hooks ops
   cat > app-profile.toml <<'EOF'
 application = "acme"
 
@@ -103,38 +103,38 @@ field = "app_version"
 tag_prefix = "v"
 history_prefixes = ["prod-"]
 announcement = "Released in v"
-deploy_marker = "[deliver]"
+deploy_marker = "[turpin]"
 required_checks = ["e2e"]
 required_hooks = ["pre-deploy", "save-state", "migrate", "smoke", "restore-state", "release-check"]
 overridable = ["milestone", "pre-deploy", "release-check"]
 
-[deliver]
+[turpin]
 candidates = "acme/candidates"
 releases = "acme/releases"
 images = ["server", "web"]
 payload_image = "server"
 join = ["docker-compose.yml", "Caddyfile"]
-fallback = "stop the deliver project, restore the snapshot, run the old script"
+fallback = "stop the turpin project, restore the snapshot, run the old script"
 
-[deliver.build]
+[turpin.build]
 on = "controller"
 login = "docker-config"
 
-[deliver.release]
+[turpin.release]
 copy_on = "copier"
 copy_login = "docker-config"
 
-[deliver.ephemeral]
+[turpin.ephemeral]
 user_prefix = "acme-"
 home = "/srv/acme"
 secrets = ["ACME_SECRET"]
 
-[[deliver.host_files]]
+[[turpin.host_files]]
 src = "ops/backup.sh"
 dest = "/opt/acme/backup.sh"
 mode = "0755"
 
-[[deliver.host_files]]
+[[turpin.host_files]]
 src = "ops/acme-backup.timer"
 dest = "/etc/systemd/system/acme-backup.timer"
 mode = "0644"
@@ -168,14 +168,14 @@ EOF
   printf '[Timer]\nOnCalendar=daily\n' > ops/acme-backup.timer
   local hook
   for hook in pre-deploy save-state migrate smoke restore-state release-check post-deploy env-create env-destroy; do
-    cat > "deliver/hooks/$hook" <<'EOF'
+    cat > "turpin/hooks/$hook" <<'EOF'
 #!/usr/bin/env bash
-# A stub hook: logs its name, its DELIVER_* environment and its arguments, then
+# A stub hook: logs its name, its TURPIN_* environment and its arguments, then
 # exits as $HOOKCTL/<name> says: empty or absent = 0; "N" = exit N; "N COUNT" =
 # exit N for the first COUNT calls, then 0; "kill" = kill the parent (a deploy
 # interrupted at this step).
 name="$(basename "$0")"
-{ echo "== $name $*"; env | grep '^DELIVER_' | grep -v '^DELIVER_REQUEST' | sort; } >> "${HOOKLOG:-/dev/null}"
+{ echo "== $name $*"; env | grep '^TURPIN_' | grep -v '^TURPIN_REQUEST' | sort; } >> "${HOOKLOG:-/dev/null}"
 ctl="${HOOKCTL:-/nonexistent}/$name"
 [[ -s "$ctl" ]] || exit 0
 read -r mode count < "$ctl"
@@ -187,7 +187,7 @@ if [[ -n "$count" ]]; then
 fi
 exit "$mode"
 EOF
-    chmod +x "deliver/hooks/$hook"
+    chmod +x "turpin/hooks/$hook"
   done
 }
 
@@ -212,7 +212,7 @@ hook_clear() { rm -f "$HOOKCTL/$1" "$HOOKCTL/$1.seen"; }
 
 # ---- running the tool
 
-d() { ( cd "$W/work" && "$DELIVER" "$@" ); }
+d() { ( cd "$W/work" && "$TURPIN" "$@" ); }
 
 build_ok() {      # [REF]: build, expect success
   run d build "${1:-HEAD}"
@@ -227,7 +227,7 @@ cand() { reg_tag_digest acme/candidates "$1"; }                               # 
 rel() { reg_tag_digest acme/releases "$1"; }
 reg_meta() { cat "$W/registry/reg.test/ns/$1/meta/${2#sha256:}.json"; }       # REPO DIGEST
 
-host_state_dir() { printf '%s/hosts/%s/var/lib/deliver/acme/%s' "$W" "$1" "$2"; }   # HOST ENV
+host_state_dir() { printf '%s/hosts/%s/var/lib/turpin/acme/%s' "$W" "$1" "$2"; }   # HOST ENV
 host_state() { head -1 "$(host_state_dir "$1" "$2")/state" 2>/dev/null; }
 host_current() { basename "$(readlink "$(host_state_dir "$1" "$2")/current" 2>/dev/null)" 2>/dev/null; }
 host_previous() { basename "$(readlink "$(host_state_dir "$1" "$2")/previous" 2>/dev/null)" 2>/dev/null; }
@@ -235,7 +235,7 @@ host_previous() { basename "$(readlink "$(host_state_dir "$1" "$2")/previous" 2>
 hook_calls() { grep '^== ' "$HOOKLOG" | awk '{print $2}'; }
 hook_log_for() { awk -v n="$1" '/^== /{p=($2==n)} p' "$HOOKLOG"; }
 gh_log() { cat "$W/gh/log"; }
-run_log_latest() { ls -1t "$XDG_STATE_HOME"/deliver/acme/"$1"-*.log | head -1; }
+run_log_latest() { ls -1t "$XDG_STATE_HOME"/turpin/acme/"$1"-*.log | head -1; }
 run_log_gates() { jq -r 'select(.event=="gate") | .name' "$(run_log_latest "$1")" | sort -u | tr '\n' ' '; }
 
 # snapshot of everything a refused command must leave alone (outcome O1)
@@ -342,7 +342,7 @@ lock_release() { kill "$LOCK_PID" 2>/dev/null; wait "$LOCK_PID" 2>/dev/null || t
 
 # drop_timer_from_profile: the profile without the second host file (the timer).
 drop_timer_from_profile() {
-  awk 'BEGIN{n=0} /^\[\[deliver.host_files\]\]/{n++} n==2 && /^\[environments/{n=3} n!=2{print}' "$W/work/app-profile.toml" > "$W/work/app-profile.new"
+  awk 'BEGIN{n=0} /^\[\[turpin.host_files\]\]/{n++} n==2 && /^\[environments/{n=3} n!=2{print}' "$W/work/app-profile.toml" > "$W/work/app-profile.new"
   mv "$W/work/app-profile.new" "$W/work/app-profile.toml"
 }
 
@@ -371,7 +371,7 @@ registry_record() {
 tag_record() { git -C "$W/remote.git" tag -l "$1" --format='%(contents)'; }   # the annotated tag's message
 remote_version() { git -C "$W/remote.git" show main:app.toml | sed -n 's/^version = "\(.*\)"/\1/p'; }
 
-# fake_production VERSION SHA: production's host state as a deliver deploy left it.
+# fake_production VERSION SHA: production's host state as a turpin deploy left it.
 # VERSION "" = a build with no record (deployed before the tool).
 fake_production() {
   local version="$1" sha="$2" d images record

@@ -13,10 +13,10 @@ is the question a person has before deploying and is scoped by milestone.
 naming it would be a finding nobody can clear.
 
 **It is also the release's board half** (delphside/programme#117): the gates
-`deliver release` takes from the board, what the release carries, what settling
+`turpin release` takes from the board, what the release carries, what settling
 it does, and the GitHub steps after the tag. `scripts/board/board-release.py` is
 the command over them. The rules are the board model's (`milestone.py`'s, `repo.py`'s)
-and `deliver` keeps none.
+and `turpin` keeps none.
 
 Design: programme/records/2.5-changes/programme-tooling/383-one-board-model/ and
 programme/records/2.5-changes/programme-tooling/117-generic-deliver-tool/
@@ -386,7 +386,7 @@ def publish(tag: str, notes_start_tag: str | None = None, retrospective: str | N
         if exists is False:
             body = (f"Release {version} ({commit}) was made with --skip-rehearsal. "
                     f"Reason: {retrospective}. Skipped: rehearsal of this commit and the smoke test "
-                    f"the release gate reads. deliver: rehearsal skipped for {version}")
+                    f"the release gate reads. turpin: rehearsal skipped for {version}")
             try:
                 sources.create_issue(title, body)
                 out["retrospective"] = "raised"
