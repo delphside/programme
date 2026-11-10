@@ -306,9 +306,11 @@ sequenceDiagram
 4. **Rehearse.** A *cycle* is rehearsal between one release being made and the
    next; preview and test have none. A cycle first deploys production's current
    record to rehearsal (*production's level*), so the commit is rehearsed as an
-   upgrade, then the commit ([§11](#11-on-the-host)). Technical tests and
-   regression run, the test manager checks the results, and the owner judges
-   rehearsal passed.
+   upgrade, then the commit ([§11](#11-on-the-host)). Rehearsal reads only
+   candidates, so it pulls the record's digests from there: the bytes releases
+   holds, since the copy keeps each digest and `prune` keeps every released
+   one. Technical tests and regression run, the test manager checks the
+   results, and the owner judges rehearsal passed.
 5. **Release.** `turpin release` runs the release gates
    ([§9](#9-gates-and-checks)), asks the owner to confirm the version and makes
    the release ([§10](#10-the-release-and-its-record)). The copier copies each
