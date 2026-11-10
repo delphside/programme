@@ -367,6 +367,9 @@ manifest per architecture.
 - A *tag* is a name for one digest within a repository. A push can move a tag to
   another image; a digest always names the same image. OCIR can make a
   repository's tags immutable.
+- A *label* is a key and value in the configuration, set when the image is
+  built. `org.opencontainers.image.revision` is the standard label for the
+  source revision the image was built from.
 
 #### The protocol
 
@@ -412,8 +415,8 @@ deletes. The registry refuses any action no statement grants.
 #### Repositories and what they hold
 
 Each application has two private repositories, `APP/candidates` and
-`APP/releases`, with immutable tags where offered. The diagram takes no C4
-view: it shows what the repositories store.
+`APP/releases`, with immutable tags where offered. The first diagram shows what
+each repository stores, each image by its tag; the second, what one image is.
 
 ```mermaid
 %%{init: {"themeVariables": {"clusterBkg": "#ffffff", "clusterBorder": "#8c959f", "edgeLabelBackground": "#ffffff"}}}%%
@@ -421,7 +424,7 @@ flowchart LR
   subgraph OCIR["OCI Registry"]
     subgraph CAND["Repository: tile-lite-elite/candidates"]
       subgraph S1["Image set: 3f2a9c1…"]
-        C1S["<i>3f2a9c1…-server</i><br>[Image]<br>revision label 3f2a9c1…;<br>the payload at /turpin/"]
+        C1S["<i>3f2a9c1…-server</i><br>[Image]<br>manifest sha256:9b1e…;<br>revision label 3f2a9c1…;<br>the payload at /turpin/"]
         C1W["<i>3f2a9c1…-web</i><br>[Image]<br>revision label 3f2a9c1…"]
       end
       subgraph S2["Image set: 8d04e7b…"]
@@ -431,8 +434,8 @@ flowchart LR
     end
     subgraph REL["Repository: tile-lite-elite/releases"]
       subgraph V1["Image set and record: release 0.10.2"]
-        R1S["<i>0.10.2-server</i><br>[Image]<br>the digest of 3f2a9c1…-server"]
-        R1W["<i>0.10.2-web</i><br>[Image]<br>the digest of 3f2a9c1…-web"]
+        R1S["<i>0.10.2-server</i><br>[Image]<br>the same manifest, sha256:9b1e…,<br>and its blobs"]
+        R1W["<i>0.10.2-web</i><br>[Image]<br>the same manifest as<br>3f2a9c1…-web, and its blobs"]
         R1R["<i>0.10.2-record</i><br>[Image: one layer, record.json]<br>version, commit 3f2a9c1…,<br>each image's digest"]
       end
     end
@@ -455,6 +458,28 @@ flowchart LR
 Tile Lite Elite's repositories, with two commits built and one released. A
 dashed box marks an image set. Dark Portal's are alike, with one image, `dp`,
 in each set.
+
+```mermaid
+%%{init: {"themeVariables": {"clusterBkg": "#ffffff", "clusterBorder": "#8c959f", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart LR
+  subgraph CAND["Repository: tile-lite-elite/candidates"]
+    T1["<i>3f2a9c1…-server</i><br>[Tag]"]
+    M1["<i>manifest</i><br>[JSON]<br>digest sha256:9b1e…,<br>the image digest"]
+    CF1["<i>configuration</i><br>[Blob: JSON]<br>revision label 3f2a9c1…"]
+    L1["<i>layer 1 … layer n</i><br>[Blobs: tar]<br>base, dependencies, application,<br>the payload at /turpin/"]
+  end
+  T1 -->|"names"| M1
+  M1 -->|"lists by digest"| CF1
+  M1 -->|"lists by digest"| L1
+  classDef new          fill:#dafbe1,stroke:#1a7f37,color:#0a3622
+  class T1,M1,CF1,L1 new
+```
+
+One image, `3f2a9c1…-server`, as candidates stores it: the tag names the
+manifest by its digest, and the manifest lists the configuration and each layer
+by theirs ([images, tags and digests](#images-tags-and-digests)). The release
+copy writes the same manifest and blobs to releases under the tag
+`0.10.2-server`, so both tags name `sha256:9b1e…`.
 
 The *commit SHA* (`3f2a9c1…`, 40 characters in full) is git's SHA-1 hash of
 the source commit. Each image carries it in its
