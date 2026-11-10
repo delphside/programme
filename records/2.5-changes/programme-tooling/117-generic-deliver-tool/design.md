@@ -1473,6 +1473,17 @@ issue with that title prevents a second; failing to read or raise it exits 3.
 without a JSON message (`v0.10.1`, every `prod-*`) predate the tool: history
 only.
 
+**Where the record is kept.** The same JSON is written to three places:
+
+| Copy | Written | Read by |
+| --- | --- | --- |
+| the message of the annotated tag `vVERSION` | step 4, by the controller | every other reader: `record_of_tag` in `turpin` runs `git tag --list vVERSION --format='%(contents)'` after `git fetch --tags`, refuses a message without a `record` field or with an unknown version, and returns the JSON. A deploy by version takes the commit and the digests from it; `settle`, `status`, `list`, `prune` and the board model's carried releases read it too |
+| `VERSION-record` in releases | step 3, by the copier | only `turpin release`, which reuses a record a failed run left there or refuses one for another commit or other digests |
+| `record.json` in the host's deploy directory ([§11](#11-on-the-host)) | at each deploy by version, from the deploy request | the host's own state, such as production's current record |
+
+So a deploy reads the git copy, and no deployer reads releases for a record:
+the controller sends it in the deploy request.
+
 ```json
 {
   "record": 1,
