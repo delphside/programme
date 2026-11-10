@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# steps.sh: the host-side steps of a deploy and a rollback (design §9). Sourced
+# steps.sh: the host-side steps of a deploy and a rollback (design §11). Sourced
 # by `deploy` and `rollback`, which `turpin-host` starts from the payload taken
 # out of the image, with the environment's lock already held. Names no
 # application: the profile (profile.json in the payload) and the hooks say.

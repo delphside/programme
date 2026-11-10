@@ -2,7 +2,7 @@
 
 # One registry login per component: a skopeo auth file of its own for the
 # controller, builder and copier, the machine user's docker login for the
-# builder's push and the deployers' pulls; DOCKER_CONFIG never changed (design §10;
+# builder's push and the deployers' pulls; DOCKER_CONFIG never changed (design §3;
 # test-design.md R44 to R47, S65 to S70, X23). The stub registry enforces who is
 # asking: STUB_AUTH_ENFORCE is on in every world, and the token of a login is the
 # role it was made for.

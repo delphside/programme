@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# turpin-host: the host command (design §4, §9). `turpin host-install ENV`
+# turpin-host: the host command (design §6, §11). `turpin host-install ENV`
 # installs it with its libraries. The controller calls it over ssh, or locally
 # where the environment's host is the controller:
 #
@@ -18,7 +18,7 @@
 #
 # It holds the environment's lock for the whole deploy or rollback (descriptor 9,
 # inherited by the payload's steps). State lives in
-# ${TURPIN_STATE_DIR:-/var/lib/turpin}/APP/ENV/ (design §9).
+# ${TURPIN_STATE_DIR:-/var/lib/turpin}/APP/ENV/ (design §11).
 #
 # TURPIN_HOST_ROOT prefixes every path this command touches. It is empty on a
 # real host; the tests point it at a scratch directory so a "host" can be a folder.
@@ -107,7 +107,7 @@ cmd_deploy() {
   gate_ok state "$(state_line "$envdir")"
 
   # every image by digest; the label must be the commit; then the payload
-  # the machine user's own docker login (design §10)
+  # the machine user's own docker login (design §3)
   REG_COMPONENT="$(jq -r '.login_component // empty' "$req")"; REG_COMPONENT="${REG_COMPONENT:-$env}"
   [[ -z "$login" ]] || login_run "$login" || gate_fail digests "registry login ($login) failed: $REG_ERR"
   local name digest ref labels rev
