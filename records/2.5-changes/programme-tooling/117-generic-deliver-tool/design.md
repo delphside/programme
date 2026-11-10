@@ -1473,16 +1473,26 @@ issue with that title prevents a second; failing to read or raise it exits 3.
 without a JSON message (`v0.10.1`, every `prod-*`) predate the tool: history
 only.
 
-**Where the record is kept.** The same JSON is written to three places:
+**Where the record is kept.** The same JSON is kept in three places:
 
 | Copy | Written | Read by |
 | --- | --- | --- |
-| the message of the annotated tag `vVERSION` | step 4, by the controller | every other reader: `record_of_tag` in `turpin` runs `git tag --list vVERSION --format='%(contents)'` after `git fetch --tags`, refuses a message without a `record` field or with an unknown version, and returns the JSON. A deploy by version takes the commit and the digests from it; `settle`, `status`, `list`, `prune` and the board model's carried releases read it too |
-| `VERSION-record` in releases | step 3, by the copier | only `turpin release`, which reuses a record a failed run left there or refuses one for another commit or other digests |
-| `record.json` in the host's deploy directory ([§11](#11-on-the-host)) | at each deploy by version, from the deploy request | the host's own state, such as production's current record |
+| the message of the annotated tag `vVERSION` | step 4, by the controller | `record_of_tag` in `turpin`, for a deploy by version, `settle`, `status`, `list`, `prune` and a resumed `turpin release`; the board model's carried releases (`tag_record`) |
+| `VERSION-record` in releases | step 3, by the copier | `turpin release`, which reuses a record a failed run left there, or refuses one for another commit or other digests |
+| the `record` field of the host's `meta.json` ([§11](#11-on-the-host)) | at each deploy, from the deploy request | `turpin-host status`, and through it production's current record for [Which release production runs](#which-release-production-runs) |
 
-So a deploy reads the git copy, and no deployer reads releases for a record:
-the controller sends it in the deploy request.
+`record_of_tag` takes a tag name, after its caller has run `git fetch --tags`:
+
+1. It reads the tag's message with
+   `git tag --list vVERSION --format='%(contents)'`.
+2. It returns 1 for a message without a `record` field, such as a tag made by
+   hand, and 2 for a record version this tool does not know; its caller
+   refuses.
+3. It returns the record's JSON.
+
+In a deploy by version, the controller takes the commit and the digests from
+that JSON and sends the record in the deploy request; the deployer pulls only
+the images.
 
 ```json
 {
@@ -1541,9 +1551,9 @@ passed is step 1's confirmation; the tool reads no test report.
   host_files.installed  the host files the current deploy installed
   deploys/<n>/          per deploy:
     turpin.env           images by digest
-    meta.json             the deploy's facts: SHA, version, images, role, joined files, host files or not, finish time, smoke result
+    meta.json             the deploy's facts: SHA, version, images, role, the record, joined files, host files or not, finish time, smoke result
     payload/              the payload as built, with the commit's `profile.json`, the hooks and the host files
-    record.json           the record, if any
+    record.json           the record, if any; no tool reads it
     the joined files, at their own paths
   current -> deploys/<n>
   previous -> deploys/<n-1>
