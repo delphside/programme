@@ -1479,16 +1479,23 @@ only.
 | --- | --- | --- |
 | the message of the annotated tag `vVERSION` | step 4, by the controller | `record_of_tag` in `turpin`, for a deploy by version, `settle`, `status`, `list`, `prune` and a resumed `turpin release`; the board model's carried releases (`tag_record`) |
 | `VERSION-record` in releases | step 3, by the copier | `turpin release`, which reuses a record a failed run left there, or refuses one for another commit or other digests |
-| the `record` field of the host's `meta.json` ([§11](#11-on-the-host)) | at each deploy, from the deploy request | `turpin-host status`, and through it production's current record for [Which release production runs](#which-release-production-runs) |
+| the host's deploy directory ([§11](#11-on-the-host)): the `record` field of `meta.json`, and `record.json` | at each deploy, from the deploy request | `turpin-host status` reads `meta.json`, and through it production's current record for [Which release production runs](#which-release-production-runs); no tool reads `record.json` |
 
 `record_of_tag` takes a tag name, after its caller has run `git fetch --tags`:
 
 1. It reads the tag's message with
    `git tag --list vVERSION --format='%(contents)'`.
-2. It returns 1 for a message without a `record` field, such as a tag made by
-   hand, and 2 for a record version this tool does not know; its caller
-   refuses.
-3. It returns the record's JSON.
+2. It returns 1 for a message without a `record` field (a tag that predates
+   the tool) and 2 for a record version this tool does not know.
+3. Otherwise it returns the record's JSON.
+
+What a caller does with 1 or 2:
+
+| Caller | 1, no record | 2, unknown version |
+| --- | --- | --- |
+| a deploy by version | production refuses; another environment deploys the tag's commit from candidates | refuses |
+| `settle`, a resumed `turpin release` | refuses | refuses |
+| `status`, `list`, `prune` | passes over the tag | passes over the tag |
 
 In a deploy by version, the controller takes the commit and the digests from
 that JSON and sends the record in the deploy request; the deployer pulls only
@@ -1553,7 +1560,7 @@ passed is step 1's confirmation; the tool reads no test report.
     turpin.env           images by digest
     meta.json             the deploy's facts: SHA, version, images, role, the record, joined files, host files or not, finish time, smoke result
     payload/              the payload as built, with the commit's `profile.json`, the hooks and the host files
-    record.json           the record, if any; no tool reads it
+    record.json           the record, if any
     the joined files, at their own paths
   current -> deploys/<n>
   previous -> deploys/<n-1>
