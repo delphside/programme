@@ -297,17 +297,21 @@ it; the second, how Turpin uses it. The [components](#5-components) and
 
 - A *tenancy* is the Oracle Cloud account: every resource, user and policy
   belongs to one.
-- A *namespace* is the tenancy's short, fixed name in the registry. It is part
-  of the registry address and of a user's registry login.
-- A *compartment* is a folder of resources within a tenancy, and a policy
-  statement grants access in one compartment or in the whole tenancy. The
-  tenancy is itself the *root compartment*, so `in tenancy` means the root and
-  everything under it.
-- An *OCID* (Oracle Cloud ID) is the unique identifier of one resource, such
-  as a VM. A dynamic group's rule matches instances by OCID.
+- A *namespace* is the tenancy's namespace string, which Oracle generates and
+  which cannot be changed; it is also the tenancy's Object Storage namespace,
+  and can differ from the tenancy's name. It is part of the registry address
+  and of a user's registry login.
+- A *compartment* is a folder of resources within a tenancy. A
+  [policy](#identities-and-policies) statement grants access in one
+  compartment and those under it, or in the whole tenancy. The tenancy is
+  itself the *root compartment*, so `in tenancy` means the root and everything
+  under it.
+- An *OCID* (Oracle Cloud Identifier) is the unique identifier of one
+  resource. A VM is an *instance*, and a
+  [dynamic group](#identities-and-policies)'s rule matches instances by their
+  own OCID or their compartment's.
 - An *identity domain* holds users, groups and dynamic groups; a tenancy starts
-  with one, the *Default* domain. A user of a domain other than the Default one
-  logs in to the registry as `NAMESPACE/DOMAIN/USER`.
+  with one, the *Default domain*.
 
 #### Images, tags and digests
 
@@ -353,7 +357,7 @@ bearer token:
 
 | Identity | What it holds | How it gets the bearer token |
 | --- | --- | --- |
-| an Oracle user, with an auth token | the *auth token*: a long-lived password for the registry, made in the console | the client presents `NAMESPACE/USER`, the tenancy's namespace then the user's name, with the auth token as password |
+| an Oracle user, with an auth token | the *auth token*: a long-lived password for the registry, made in the console | the client presents `NAMESPACE/USER`, the tenancy's namespace then the user's name (`NAMESPACE/DOMAIN/USER` for a user outside the Default domain), with the auth token as password |
 | an Oracle user, with an API key | a key pair, whose private key never leaves its machine | the `oci` CLI signs a request with the key for a short-lived registry token, which the client then presents |
 | an *instance principal* | nothing stored: the VM's own identity | the `oci` CLI on the VM asks for a short-lived registry token as the instance |
 
