@@ -61,20 +61,21 @@ Turpin is made of CLI *programs*, implemented as shell scripts. `turpin` is the
 Turpin client. It is run from a checkout of the application and can be close to
 the user. `turpin-host` is deployed on the machine where it carries out its
 action. Mainly it is invoked from `turpin`, but it can also be invoked
-directly. It is installed by `host-install`. The deployment model is flexible,
-and many copies of the programs can be deployed to wherever particular commands
-need to run. The application's profile, `app-profile.toml`, defines where each
-command runs.
+directly. It is installed by `host-install`.
 
 Turpin exposes CLI *commands*, each of which is a program and a subcommand,
 such as `turpin build` or `turpin-host copy`, typed by a person or sent by
 another component.
 
-A *component* is a logical collection of related commands with a common
+A *component* is a set of related commands with a common
 responsibility and shared credentials. The commands in a component may be
 implemented across both programs, but all run on the same machine, with the
 exception of the deployer, which runs beside each application environment it
 changes. This is specified in the [deployment model](#deployment-model).
+
+The deployment model is flexible.  Many copies of the programs can be deployed
+to wherever particular commands need to run. The application's profile,
+`app-profile.toml`, defines where each command runs.
 
 There are four components:
 
@@ -197,25 +198,42 @@ its builder, release copier and test deployers on the non-production VM. The
 
 ### Docker image repositories (OCI Registry)
 
-What is stored for one commit is an *image set*: one image for each name in the
-profile's `images` (Tile Lite Elite's `server` and `web`, Dark Portal's `dp`),
-built once and tagged `SHA-IMAGE`, the commit's SHA then the image's name. One
-of them, the profile's `payload_image`, also carries the *payload* at
-`/deliver/`. A release adds the *record* ([§7](#7-the-release-and-its-record)):
-the version, the commit and each image's digest, stored as a one-layer image
-beside the images and as the annotated tag's message.
+Build images are kept in two OCI Registry repositories per
+application ([§10](#10-oci-integration)): `APP/candidates` and `APP/releases`.
 
-Every image set and every release is kept in two OCI Registry repositories per
-application ([§10](#10-oci-integration)):
+Two hash values are used to ensure the correct images are used without change:
 
-- **`APP/candidates`** holds every commit built, as `SHA-IMAGE`. The builder
-  writes it; preview, test and rehearsal
+- The *commit SHA* (3f2a9c1…) is git’s SHA-1 hash of the source commit. We use it in the tag, 3f2a9c1-server, so you can see which commit an image came from.
+- The *image digest* (sha256:9b1e…) is the SHA-256 of the image’s manifest. The manifest lists the image’s layers, and each layer is identified by its own hash. So the digest is a fingerprint of every byte in the image.
+
+**`APP/candidates`** holds a set of images for every code commit (except where
+the commit has been
+superseded). The set contains one image for each docker container.  They are
+related by the naming convention: `SHA-IMAGE`, where SHA is the commit SHA and
+IMAGE is the docker
+container. Extracting a set of related images involves matching the name against
+the SHA of the commit.  The builder
+  component writes it; preview, test and rehearsal
   ([roles](#application-environments)) deploy from it, and `prune` deletes
   from it.
-- **`APP/releases`** holds every release, as `VERSION-IMAGE` and
+
+**`APP/releases`** holds every release, as `VERSION-IMAGE` and
   `VERSION-record`. The release copier writes it, by copying a candidate by
   digest, so production runs the bytes rehearsal ran; production deploys from it
   alone.
+
+For each commit an *image set* is stored in the candidate repository: one image 
+for each name in the
+profile's `images` (Tile Lite Elite's `server` and `web`, Dark Portal's `dp`),
+built once and tagged `SHA-IMAGE`, the commit's SHA then the image's name. One
+of them, the profile's `payload_image`, also carries the *payload* at
+`/deliver/`. 
+
+When an image set is promoted to the release repository it is copied over using
+skopeo.  A release adds the *record* ([§7](#7-the-release-and-its-record)):
+the version, the commit and each image's digest, stored as a one-layer image
+beside the images and as the annotated tag's message.
+
 
 The payload is what each host runs to deploy the image set
 ([§9](#9-on-the-host)): deploy steps, hooks,
