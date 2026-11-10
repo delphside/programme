@@ -293,6 +293,22 @@ it; the second, how Turpin uses it. The [components](#5-components) and
 
 ### The registry technology
 
+#### Oracle Cloud terms
+
+- A *tenancy* is the Oracle Cloud account: every resource, user and policy
+  belongs to one.
+- A *namespace* is the tenancy's short, fixed name in the registry. It is part
+  of the registry address and of a user's registry login.
+- A *compartment* is a folder of resources within a tenancy, and a policy
+  statement grants access in one compartment or in the whole tenancy. The
+  tenancy is itself the *root compartment*, so `in tenancy` means the root and
+  everything under it.
+- An *OCID* (Oracle Cloud ID) is the unique identifier of one resource, such
+  as a VM. A dynamic group's rule matches instances by OCID.
+- An *identity domain* holds users, groups and dynamic groups; a tenancy starts
+  with one, the *Default* domain. A user of a domain other than the Default one
+  logs in to the registry as `NAMESPACE/DOMAIN/USER`.
+
 #### Images, tags and digests
 
 A registry holds *repositories*, and a repository holds images. An image is a
