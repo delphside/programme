@@ -309,7 +309,7 @@ it; the second, how Turpin uses it. The [components](#5-components) and
 - An *OCID* (Oracle Cloud Identifier) is the unique identifier of one
   resource. A VM is an *instance*, and a
   [dynamic group](#identities-and-policies)'s rule matches instances by their
-  own OCID or their compartment's.
+  own OCID, their compartment's or a tag.
 - An *identity domain* holds users, groups and dynamic groups; a tenancy starts
   with one, the *Default domain*.
 
@@ -518,7 +518,7 @@ go round that ([§6](#6-commands)): `--unrecorded` deploys a SHA with no
 record; `--skip-rehearsal` releases a commit rehearsal has not passed.
 
 Dark Portal's statements are `in compartment COMPARTMENT`; `dp-controllers`
-reads both repositories, and its non-production group manages candidates, as
+reads both repositories, and its non-production dynamic group manages candidates, as
 its builder runs there.
 
 #### Logins
