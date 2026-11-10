@@ -467,7 +467,7 @@ in each set.
 flowchart LR
   subgraph CAND["Repository: tile-lite-elite/candidates"]
     T1["<i>3f2a9c1…-server</i><br>[Tag]"]
-    IX["<i>sha256:9b1e…</i><br>[Index: JSON]<br>the image digest"]
+    IX["<i>sha256:9b1e…</i><br>[Index: JSON]<br>lists the manifests by digest;<br>its own digest is the image digest"]
     M1["<i>sha256:5a07…</i><br>[Manifest: JSON]<br>linux/amd64"]
     M2["<i>sha256:e3c8…</i><br>[Manifest: JSON]<br>another platform, or the<br>attestation manifest"]
     CF1["<i>sha256:c4d2…</i><br>[Blob: JSON]<br>configuration: revision label 3f2a9c1…"]
