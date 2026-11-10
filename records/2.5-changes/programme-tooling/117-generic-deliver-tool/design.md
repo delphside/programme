@@ -520,8 +520,8 @@ The release copy skips each blob that releases already holds, and downloads
 and uploads the rest through the copier's machine. Before downloading a blob,
 `skopeo` asks to mount it from any repository that its Linux user's cache
 records as holding it, and a download is what records candidates there. So a
-first copy moves every blob through the copier, and only a resumed copy may
-mount the blobs it has already read.
+first copy moves every blob that releases lacks through the copier, and only a
+resumed copy may mount the blobs it has already read.
 
 A `skopeo` failure is summarised (`reg_summarise`) to *refused*, *not found*,
 *unreachable* or *failed*, keeping the address and repository off screen and
