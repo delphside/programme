@@ -1469,9 +1469,9 @@ and what was skipped (rehearsal of this commit and its smoke test). An existing
 issue with that title prevents a second; failing to read or raise it exits 3.
 `--emergency` raises none.
 
-**The record** is JSON, version 1; a reader refuses an unknown version. Tags
-without a JSON message (`v0.10.1`, every `prod-*`) predate the tool: history
-only.
+**The record** is JSON, version 1. Tags without a JSON message (`v0.10.1`,
+every `prod-*`) predate the tool; the table of callers below says what each
+reader does with one, and with an unknown version.
 
 **Where the record is kept.** The same JSON is kept in three places:
 
@@ -1494,8 +1494,12 @@ What a caller does with 1 or 2:
 | Caller | 1, no record | 2, unknown version |
 | --- | --- | --- |
 | a deploy by version | production refuses; another environment deploys the tag's commit from candidates | refuses |
-| `settle`, a resumed `turpin release` | refuses | refuses |
-| `status`, `list`, `prune` | passes over the tag | passes over the tag |
+| a resumed `turpin release` | refuses | refuses |
+| a release's carried releases (the board model's `tag_record`) | a release with no record, under the range rules below | refuses |
+| `settle` | reports nothing to settle, exit 3 | reports nothing to settle, exit 3 |
+| `status` | passes over the tag | passes over the tag |
+| `list` | lists the version as history, with no record | lists the version as history, with no record |
+| `prune` | dates the newest release by the tag's own date, and keeps none of its images | dates the newest release by the tag's own date, and keeps none of its images |
 
 In a deploy by version, the controller takes the commit and the digests from
 that JSON and sends the record in the deploy request; the deployer pulls only
