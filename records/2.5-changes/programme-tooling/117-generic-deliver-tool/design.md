@@ -1474,8 +1474,8 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
 - **The fallback.** Until 0.10.2 has run in production, the way back is to
   0.10.0, the only earlier version production has run. It is a written
   procedure, delphside/tile-lite-elite#555's artefact, tried on rehearsal before
-  0.10.2's production deploy: stop the `turpin` project; restore the snapshot
-  `save-state` took (Tile Lite Elite's hook keeps it in
+  0.10.2's production deploy: stop the Compose project Turpin started; restore
+  the snapshot `save-state` took (Tile Lite Elite's hook keeps it in
   `~/tile-lite-elite/snapshots`, where `rollback.sh --db-only` reads it); then
   `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason, which
   copies that commit's compose file and so its image names. `deploy.sh` and
