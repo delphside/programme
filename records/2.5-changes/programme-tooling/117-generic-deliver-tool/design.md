@@ -213,7 +213,7 @@ flowchart LR
   OWN --> HI
   OWN --> ENV
   REL -->|"candidates, releases, digests, record"| COPY
-  DEP -->|"--unrecorded: digests, SHA-IMAGE names"| COPY
+  DEP -->|"--unrecorded: digests, SHA-IMAGE tags"| COPY
   REL -->|"state"| HST
   DEP -->|"what runs now"| HST
   DEP -->|"SHA, version, images by digest, role, record, join"| HDEP
@@ -490,9 +490,10 @@ image built, unchanged.
 
 For each commit the image set is built once: one image for each name in the
 profile's `images` (Tile Lite Elite's `server` and `web`, Dark Portal's `dp`).
-An image set is the images whose tags share a prefix; the registry stores each
-image on its own. The prefix is `SHA-IMAGE` in candidates (the commit's SHA,
-then the image's name), `VERSION-IMAGE` in releases.
+Each image's tag is `SHA-IMAGE` in candidates (the commit's SHA, then the
+image's name from the profile) and `VERSION-IMAGE` in releases. An image set is
+the images whose tags share the SHA or the version; the registry stores each
+image on its own.
 
 The release *record* ([§10](#10-the-release-and-its-record)) is what ties a
 release's images together: the version, the commit and each image's digest,
