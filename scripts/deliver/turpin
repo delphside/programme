@@ -284,7 +284,7 @@ env_url() {        # ENV -> its base URL, literal `url` or from the first variab
 }
 
 # production_version -> the version of the release production runs: its
-# record in host state, else what its /health reports (design §6).
+# record in host state, else what its /health reports (design §9).
 production_version() {
   local env st v url path field
   env="$(env_of_role production)"; [[ -n "$env" ]] || die "the profile has no production environment"
@@ -467,7 +467,7 @@ cmd_build() {
     auth_login "builder" "$(pq .turpin.build.login)" skopeo
   fi
 
-  # what is already stored is never rebuilt (design §6); a failed query refuses
+  # what is already stored is never rebuilt (design §9); a failed query refuses
   local tobuild=() have="{}"
   if [[ $local_only -eq 0 ]]; then
     for img in "${IMAGES[@]}"; do
@@ -954,7 +954,7 @@ cmd_release() {
 }
 
 # milestone_gate VERSION RANGE MAIN_RANGE: the board's gates, tests passed and the
-# milestone as a shipping list (design §6), are the board model's: this hands it
+# milestone as a shipping list (design §9), are the board model's: this hands it
 # the commit's place in git and acts on its verdicts.
 milestone_gate() {
   local version="$1" erange="$2" emain_range="$3" aside=false out code=0 request line name result message
@@ -983,7 +983,7 @@ milestone_gate() {
   LEFT_OUT="$(jq -c .left_out <<< "$out")"
 }
 
-# the steps, in the order of design §7: what cannot be undone comes last
+# the steps, in the order of design §10: what cannot be undone comes last
 release_steps() {
   local prev="$1" tag="$TAG_PREFIX$VERSION" img d have failed=() done_all=1 rfile rec_file
   rec_file="$(mktemp)"; printf '%s\n' "$RECORD" > "$rec_file"
@@ -1092,7 +1092,7 @@ cmd_settle() {
 }
 
 # settle_version VERSION: the board model acts on exactly what the record carries
-# (design §8) and skips what is done. Returns 1 with the items left listed when
+# (design §12) and skips what is done. Returns 1 with the items left listed when
 # something failed.
 settle_version() {
   local version="$1" tag rec out code=0

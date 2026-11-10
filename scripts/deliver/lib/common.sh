@@ -6,7 +6,7 @@
 # it runs, and a command that ends with one unrun refuses), the flags that set a
 # gate aside, and the hook runner. It names no application and no machine.
 
-# Exit codes (design §4): 0 done; 1 refused or failed; 3 live, a later step failed.
+# Exit codes (design §6): 0 done; 1 refused or failed; 3 live, a later step failed.
 EXIT_REFUSED=1
 EXIT_PARTIAL=3
 
@@ -167,7 +167,7 @@ reason_flag() {
 
 HOOK_NOT_YET=75
 
-# hook_env_export: the variables a hook receives (design §5). The caller sets
+# hook_env_export: the variables a hook receives (design §8). The caller sets
 # H_APP H_ENV H_ROLE H_SHA H_VERSION H_STATE and H_IMAGES (name=ref lines).
 hook_env_export() {
   export TURPIN_APP="$H_APP" TURPIN_ENV="$H_ENV" TURPIN_ROLE="$H_ROLE"

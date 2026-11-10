@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy: the steps of design §9 after the pull and the payload: pre-deploy,
+# deploy: the steps of design §11 after the pull and the payload: pre-deploy,
 # the new deploy folder, save-state, migrate, host files, the switch, compose up,
 # smoke, finished, pruning. Started by `turpin-host deploy` from the payload
 # taken out of the image, with the lock held (the inherited descriptor 9).

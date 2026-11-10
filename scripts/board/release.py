@@ -270,7 +270,7 @@ def _absent_work_packages(req: GateRequest, issues: Sequence[Issue], ev: set[int
 
 
 def milestone_gate(req: GateRequest, issues: Sequence[Issue], result: GateResult) -> None:
-    """The milestone is a shipping list (design §6, *The milestone gate*)."""
+    """The milestone is a shipping list (design §9, *The milestone gate*)."""
     own = _items(issues, req.version)
     wp, other = _split(own)
     if req.milestone_set_aside:
@@ -407,7 +407,7 @@ def publish(tag: str, notes_start_tag: str | None = None, retrospective: str | N
 
 
 # --------------------------------------------------------------------------
-# settling (`board-release.py settle`, design §8)
+# settling (`board-release.py settle`, design §12)
 # --------------------------------------------------------------------------
 
 

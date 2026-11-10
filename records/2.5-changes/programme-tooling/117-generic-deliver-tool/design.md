@@ -3,8 +3,9 @@
 
 Design for delphside/programme#117, which introduces Turpin, a generic tool to
 build and deliver application images. The tool implements the generic rules for
-releasing application images described in
-[docs/1.2 *Making a release, then deploying it*](../../../../docs/1.2-change-lifecycle.md#making-a-release-then-deploying-it).
+releasing application images described in [docs/1.2 *Making a release, then
+deploying
+it*](../../../../docs/1.2-change-lifecycle.md#making-a-release-then-deploying-it).
 Its decisions are in #117's body.
 
 Two applications are building implementations alongside it, and they ship with
@@ -52,10 +53,13 @@ The process in short is:
    repository.
 4. From the releases repository it is deployed into the production environment.
 
-The repositories contain *image sets* ([§3](#3-oci-registry-integration)), which are the same for every
-environment. Environment-specific information, secrets included, is stored in
-each environment's `.env` file. A deployment needs an image set from a
-repository and an environment's `.env` file.
+The repositories contain image sets, which are the same for every environment:
+for each commit, one image per name the application gives, tagged `SHA-IMAGE`.
+One image of each set also carries the *payload*, the files a host runs to
+deploy the set ([§3](#3-oci-registry-integration)). Environment-specific
+information, secrets included, is stored in each environment's `.env` file. A
+deployment needs an image set from a repository and an environment's `.env`
+file.
 
 Turpin is made of CLI *programs*, implemented as shell scripts. `turpin` is the
 Turpin client. It is run from a checkout of the application and can be close to
@@ -81,7 +85,7 @@ There are four components:
 
 | Component | Responsibility | Commands it runs |
 | --- | --- | --- |
-| controller | decides what ships, and changes `main`, tags and the board | `turpin release`, `deploy`, `settle`, `rollback`, `status`, `list`, `prune`, `login`, `host-install` |
+| controller | decides what ships, and is the only component that changes `main`, tags and the board | `turpin release`, `deploy`, `settle`, `rollback`, `status`, `list`, `prune`, `login`, `host-install` |
 | builder | builds each commit once, and owns the candidates | `turpin build`; `turpin-host delete`, which `prune` sends it |
 | release copier | writes releases | `turpin-host copy` |
 | deployer | changes one application environment, by one locked, restorable path | `turpin-host deploy`, `rollback`, `status`, `allowlist`, `env`, `root-ops`; `turpin env create`, `destroy`, typed on the environment's host |
@@ -92,8 +96,8 @@ the login is for.
 Both programs are installed and run directly on their machine by a Linux user;
 only the application runs in Docker, started by the deployer with
 `docker compose`. They integrate with OCI Registry, which holds the images
-([§3](#3-oci-registry-integration)), and GitHub, which holds the code and tracks each
-delivery ([§4](#4-github-integration)).
+([§3](#3-oci-registry-integration)), and GitHub, which holds the code and
+tracks each delivery ([§4](#4-github-integration)).
 
 ### Application environments
 
@@ -113,10 +117,16 @@ Three views of the process: who calls whom ([component view](#component-view)),
 which command starts which ([command flow](#command-flow)), and the order of a
 release ([stages](#stages)).
 
+The diagrams here and in later sections use the programme's [diagram
+views](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md#which-view-a-diagram-takes-and-saying-so).
+In every diagram, each box is coloured by what this change does to it: green
+new, yellow changed, grey unchanged ([change
+state](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md#change-state)).
+Every line is new unless labelled unchanged. The registry's repositories are new
+for Tile Lite Elite and already exist for Dark Portal.
+
 #### Component view
 
-The diagrams use the programme's
-[diagram views](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md#which-view-a-diagram-takes-and-saying-so).
 Each component's box names the commands it runs. Each arrow is labelled with
 what it carries.
 
@@ -263,8 +273,8 @@ sequenceDiagram
 2. **Rehearse.** A *cycle* is rehearsal between one release being made and the
    next. It first deploys production's current record to rehearsal
    (*production's level*), so the commit is rehearsed as an upgrade, then the
-   commit ([§11](#11-on-the-host)). Regression runs, the test manager checks, the
-   owner judges rehearsal passed. Preview and test have no cycle.
+   commit ([§11](#11-on-the-host)). Regression runs, the test manager checks,
+   the owner judges rehearsal passed. Preview and test have no cycle.
 3. **Release.** `turpin release` runs the release gates
    ([§9](#9-gates-and-checks)), asks the owner to confirm the version and makes
    the release ([§10](#10-the-release-and-its-record)).
@@ -280,7 +290,7 @@ Images and their records are kept in Oracle Cloud Infrastructure Registry
 (OCIR), Oracle's container registry; delphside/tile-lite-elite#554's runbook
 sets it up. The first part describes the technology, as any client of it sees
 it; the second, how Turpin uses it. The [components](#5-components) and
-[commands](#6-commands) name the logins set out here and do not restate them.
+[commands](#6-commands) link here for each login.
 
 ### The registry technology
 
@@ -295,28 +305,29 @@ manifest per architecture.
 - The *image digest* (`sha256:9b1e…`) is the SHA-256 hash of the manifest, or
   of the index for a multi-architecture image. Since the manifest names every
   blob by its hash, the digest is a fingerprint of every byte in the image.
-- A *tag* is a name for one digest within a repository. A tag can be moved to
-  another image; a digest cannot. OCIR can make a repository's tags
-  immutable.
+- A *tag* is a name for one digest within a repository. A push can move a tag to
+  another image; a digest always names the same image. OCIR can make a
+  repository's tags immutable.
 
 #### The protocol
 
-Every call is HTTPS to the registry's API, the
-[OCI Distribution Specification](https://github.com/opencontainers/distribution-spec),
-which is the standardised form of the Docker Registry HTTP API v2. Docker,
-[skopeo](https://github.com/containers/skopeo) and OCIR all speak it; `skopeo`
-writes a registry image as `docker://ADDRESS/REPOSITORY:TAG`, its name for a
-registry that speaks this API. A call goes like this:
+Every call is HTTPS to the registry's API, the [OCI Distribution
+Specification](https://github.com/opencontainers/distribution-spec), which is
+the standardised form of the Docker Registry HTTP API v2. Docker,
+[skopeo](https://github.com/containers/skopeo) and OCIR all speak it. The
+specification leaves authentication out; OCIR uses Docker's [token
+authentication](https://distribution.github.io/distribution/spec/auth/token/)
+scheme. A call goes like this:
 
-1. **Authenticate.** A request without a token is answered 401, naming the
-   registry's token service. The client presents a login there
+1. **Authenticate.** The registry answers a request without a token with 401,
+   naming its token service. The client presents a login there
    ([identities](#identities-and-policies)). The token service asks the
    policy whether that identity may take the action (pull, push or delete) on
    that repository, and if so returns a short-lived *bearer token* scoped to
    both. Every later request carries it.
 2. **Read the manifest** by tag or digest.
 3. **Move the blobs.** A pull fetches the blobs it lacks. A push or copy
-   uploads those the target lacks; within one registry it may ask the registry
+   uploads those the target lacks; within one registry it can ask the registry
    to mount a blob from another repository rather than upload it again.
 4. **Write the manifest** at the target's tag.
 
@@ -334,32 +345,33 @@ bearer token:
 A *policy* is a list of statements, each granting one group of users, or one
 *dynamic group* of instances, a level of access to the repositories a
 condition picks out: `Allow group G to read repos in tenancy where
-target.repo.name = 'R'`. `read` pulls; `manage` also pushes and deletes. With
-no statement granting it, an action is refused.
+target.repo.name = 'R'`. `read` pulls; `use` also pushes; `manage` also
+deletes. The registry refuses any action no statement grants.
 
 ### How Turpin uses the registry
 
 #### Repositories and what they hold
 
 Each application has two private repositories, `APP/candidates` and
-`APP/releases`, with immutable tags where offered.
+`APP/releases`, with immutable tags where offered. The diagram takes no C4
+view: it shows what the repositories store.
 
 ```mermaid
 %%{init: {"themeVariables": {"clusterBkg": "#ffffff", "clusterBorder": "#8c959f", "edgeLabelBackground": "#ffffff"}}}%%
 flowchart LR
   subgraph OCIR["OCI Registry"]
-    subgraph CAND["tile-lite-elite/candidates"]
-      subgraph S1["image set 3f2a9c1…"]
+    subgraph CAND["Repository: tile-lite-elite/candidates"]
+      subgraph S1["Image set: 3f2a9c1…"]
         C1S["<i>3f2a9c1…-server</i><br>[Image]<br>revision label 3f2a9c1…;<br>the payload at /turpin/"]
         C1W["<i>3f2a9c1…-web</i><br>[Image]<br>revision label 3f2a9c1…"]
       end
-      subgraph S2["image set 8d04e7b…"]
+      subgraph S2["Image set: 8d04e7b…"]
         C2S["<i>8d04e7b…-server</i><br>[Image]"]
         C2W["<i>8d04e7b…-web</i><br>[Image]"]
       end
     end
-    subgraph REL["tile-lite-elite/releases"]
-      subgraph V1["release 0.10.2"]
+    subgraph REL["Repository: tile-lite-elite/releases"]
+      subgraph V1["Image set and record: release 0.10.2"]
         R1S["<i>0.10.2-server</i><br>[Image]<br>the digest of 3f2a9c1…-server"]
         R1W["<i>0.10.2-web</i><br>[Image]<br>the digest of 3f2a9c1…-web"]
         R1R["<i>0.10.2-record</i><br>[Image: one layer, record.json]<br>version, commit 3f2a9c1…,<br>each image's digest"]
@@ -371,7 +383,7 @@ flowchart LR
   end
   C1S -->|"copied by digest<br>(release copier)"| R1S
   C1W -->|"copied by digest<br>(release copier)"| R1W
-  TAG ---|"the same record"| R1R
+  TAG --- R1R
   classDef unchanged    fill:#f6f8fa,stroke:#8c959f,color:#1f2328
   classDef new          fill:#dafbe1,stroke:#1a7f37,color:#0a3622
   classDef changed      fill:#fff8c5,stroke:#9a6700,color:#4d2d00
@@ -382,8 +394,8 @@ flowchart LR
 ```
 
 Tile Lite Elite's repositories, with two commits built and one released. A
-dashed box is an image set, images grouped by their tags' shared prefix, not a
-stored object. Dark Portal's are alike, with one image, `dp`, in each set.
+dashed box marks an image set. Dark Portal's are alike, with one image, `dp`,
+in each set.
 
 The *commit SHA* (`3f2a9c1…`, 40 characters in full) is git's SHA-1 hash of
 the source commit. Each image carries it in its
@@ -394,9 +406,9 @@ image built, unchanged.
 
 For each commit the image set is built once: one image for each name in the
 profile's `images` (Tile Lite Elite's `server` and `web`, Dark Portal's `dp`).
-An image set is the images whose tags share a prefix: `SHA-IMAGE` in
-candidates (the commit's SHA, then the image's name), `VERSION-IMAGE` in
-releases.
+An image set is the images whose tags share a prefix, a grouping rather than a
+stored object: `SHA-IMAGE` in candidates (the commit's SHA, then the image's
+name), `VERSION-IMAGE` in releases.
 
 The release *record* ([§10](#10-the-release-and-its-record)) is what ties a
 release's images together: the version, the commit and each image's digest,
@@ -435,8 +447,7 @@ It holds nothing secret; secrets stay in each host's `.env`.
 
 #### Operations
 
-Turpin has no registry client of its own; it calls the protocol through
-`skopeo` and `docker`:
+Turpin calls the registry through `skopeo` and `docker`:
 
 | Operation | Through | Used for |
 | --- | --- | --- |
@@ -460,13 +471,13 @@ Each component has its own identity, with the least access
 | Component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- |
 | controller | Oracle user `tle-controller`, group `tle-controllers`, auth token; `docker-config` | Oracle user `dp-controller`, group `dp-controllers`, auth token; `docker-config` |
-| builder | Oracle user `tle-builder`, group `tle-builders`, auth token; `docker-config` | the non-production VM, instance principal |
+| builder | Oracle user `tle-builder`, group `tle-builders`, auth token; `docker-config` | the non-production VM, instance principal; `oci-instance-principal` |
 | release copier | Oracle user `tle-releaser`, group `tle-releasers`, auth token; `docker-config` | Linux user `dp-release` on the non-production VM, holding Oracle user `dp-releaser`'s API key (never leaves it); `oci-api-key` |
 | preview deployer | the laptop's `preview` environment, which uses the builder's `docker` login ([the one shared login](#logins)); `docker-config` | none |
-| rehearsal, production hosts | instance principal, dynamic groups `tle-nonprod` (rehearsal) and `tle-prod` (production) | instance principal |
+| rehearsal, production hosts | instance principal, dynamic groups `tle-nonprod` (rehearsal) and `tle-prod` (production); `oci-instance-principal` | instance principal; `oci-instance-principal` |
 
-The Oracle users have no console password. The last word in each cell is the
-component's [login adapter](#logins).
+The Oracle users have no console password. Each cell that names an identity
+ends with the component's [login adapter](#logins).
 
 #### Policy
 
@@ -542,14 +553,17 @@ the token on standard input only: `controller` and `copier` run `skopeo login
 --authfile` for their file; `builder` does that for `builder.json` and also
 `docker login` for the machine user; an environment runs `docker login` for its
 machine user, except one on the builder's machine (preview on the laptop), which
-refuses and names `turpin login builder`: it shares the builder's login. The controller's adapter is `[turpin].login`; the builder's,
+refuses and names `turpin login builder`: it shares the builder's login.
+
+The controller's adapter is `[turpin].login`; the builder's,
 `[turpin.build].login`; the copier's, `[turpin.release].copy_login`; a
 deployer's, its environment's `login`; each defaults to `docker-config`. An
 `oci-*` adapter makes a `docker` user's login with `docker login` and a
-`skopeo` user's with `skopeo login --authfile`. A refusal by the registry
-(an expired or revoked token, or a missing right) names `turpin login` and the
-component (`builder` for an environment on the builder's machine). The controller makes its login on its first registry read, so a
-command that reads none, a local preview deploy, needs none. An `oci-*`
+`skopeo` user's with `skopeo login --authfile`. A refusal by the registry (an
+expired or revoked token, or a missing right) names `turpin login` and the
+component (`builder` for an environment on the builder's machine). The
+controller makes its login on its first registry read, so a command that reads
+none, a local preview deploy, needs none. An `oci-*`
 controller login runs on each registry read, with no caching; both applications
 use `docker-config` for the controller.
 
@@ -583,20 +597,22 @@ GitHub is reached two ways, and one has two forms:
   GitHub's web API, which comes in two forms. The REST API has one URL per
   kind of thing (`repos/R/issues/N`) and suits single reads and writes. The
   GraphQL API is one endpoint taking a query that names exactly the fields
-  wanted across linked objects. An organisation's issue fields, such as
-  `Project State`, are read by both, but set by GraphQL only.
+  wanted across linked objects. Both read an organisation's custom issue
+  fields; only GraphQL sets them.
 - `gh`, the GitHub CLI, is a client for both: `gh api` sends a REST or
   GraphQL request with `gh`'s stored login, and `gh release create` wraps
   REST calls.
 
 #### Credentials
 
-The API takes a token, whose permissions are set when it is made: a
-fine-grained token names each permission, such as Contents or Issues, read or
-read and write. `gh` stores its login's token, so a program that calls GitHub
-through `gh` holds none of its own. git takes the user's own git credential,
-an SSH key or a token. A branch's ruleset can refuse a push, and lets through
-those it names for bypass, such as an administrator.
+- **The API** takes a token, whose permissions are set when it is made: a
+  fine-grained token names each permission, such as Contents or Issues, read
+  or read and write.
+- **`gh`** stores its login's token, so a program that calls GitHub through
+  `gh` holds none of its own.
+- **git** takes the user's own git credential, an SSH key or a token.
+- **A ruleset** on a branch can refuse a push, and lets through those it names
+  for bypass, such as an administrator.
 
 ### How Turpin uses GitHub
 
@@ -609,7 +625,16 @@ lifecycle's checks and gates share one code and one logic: `board-check.py`
 before a release, this tool's gates at it, `settle` after it. The controller
 calls one command, `board-release.py`, and keeps only what is about images,
 hosts and git. Python 3 is therefore a controller prerequisite; the builder,
-copier and hosts need no Python.
+copier and hosts need no Python. It runs beside the controller, under the
+owner's `gh` login; the builder fetches the commit by git, and it, the copier
+and the hosts hold no GitHub API credential ([privileges](#privileges)).
+
+Release and settle assume the programme's board: issue types (projects, with
+sub-issues as work packages), the `Route` and `Project State` fields and
+`Refs #N` in commits; field names are the board model's. Build, deploy and
+rollback use none. An application without it sets the milestone gate aside
+through `[release].overridable`; settle reports its board steps as not done
+(exit 3).
 
 ```mermaid
 %%{init: {"themeVariables": {"clusterBkg": "#ffffff", "clusterBorder": "#8c959f", "edgeLabelBackground": "#ffffff"}}}%%
@@ -657,19 +682,16 @@ standard input.
 
 Exit codes are the tool's: 0 passed or done; 1 refused, or for `gate` and
 `checks` the board or git could not be read; 2 usage (an unknown command);
-3 partly done (`settle`, `next`, `publish`), with what is left named; 70 a profile error or a crash
-(`profile.EXIT_PROFILE_ERROR`), never read as refused.
+3 partly done (`settle`, `next`, `publish`), with what is left named; 70 a
+profile error or a crash (`profile.EXIT_PROFILE_ERROR`), never read as refused.
 
 **The revert rule** ([the milestone gate](#the-milestone-gate)) is in
 `repo.py`, so `board-check.py`'s pre-flight counts reverts as the gate does.
 
 #### Calls
 
-Only the board model calls GitHub's API, beside the controller and under the
-owner's `gh` login; the builder fetches the commit by git, and it, the copier
-and the hosts hold no GitHub API credential ([privileges](#privileges)). The
-issue reads (`fetch`, `issues_in_full`) take GraphQL where the token allows it
-and fall back to REST where GraphQL is refused, as it is to a cloud session's
+The issue reads (`fetch`, `issues_in_full`) take GraphQL where the token allows
+it and fall back to REST where GraphQL is refused, as it is to a cloud session's
 token. Check runs, milestones, comments, an issue found by title and Releases
 are REST always, and the `Project State` write is GraphQL only
 (`setIssueFieldValue`), so settle needs a GraphQL-capable token: where GraphQL
@@ -687,44 +709,33 @@ read that neither answers refuses, never reads as empty. The repository is
 | an issue found by title, raised | REST | the retrospective issue |
 | a Release found by tag, created with notes from the previous release tag | REST | the GitHub Release |
 
-The tag `vVERSION` and the bump to `main` go by git, not the API, over SSH.
-
 #### Credentials used
 
 - **API**: the controller's `gh` login, the owner's; the tool keeps none.
-  Fine-grained permissions: Contents read and write (the Release; tag and bump
-  go by git), Issues read and write (milestones, comments, close), Checks
+  Fine-grained permissions: Contents read and write (the Release), Issues read
+  and write (milestones, comments, close), Checks
   read, Metadata read, organisation issue fields read and write
   (`Project State`).
-- **git**: the controller's git credential, the owner's, which bypasses
-  `main`'s ruleset (admin bypass) for the tag and the bump. The builder's
-  fetch uses the machine's git login.
-
-#### The board
-
-Release and settle assume the programme's board: issue types
-(projects, with sub-issues as work packages), the `Route` and `Project State`
-fields and `Refs #N` in commits; field names are the board model's. Build,
-deploy and rollback use none. An application without it sets the milestone gate
-aside through `[release].overridable`; settle reports its board steps as not
-done (exit 3).
+- **git**: the tag `vVERSION` and the bump to `main` go by git, with the
+  controller's git credential, the owner's, which bypasses `main`'s ruleset
+  (admin bypass) for the bump. The builder's fetch uses the machine's git
+  login.
 
 ## 5. Components
 
 Each component's responsibility and commands are in the
-[overview](#overview). This section says, for each, where it runs, what it
-depends on and what credentials it holds, then the scripts that implement
-them, the technologies and where the files are.
+[overview](#overview); its logins are in [§3](#3-oci-registry-integration)
+and [§4](#4-github-integration).
 
 ### The components
 
 For each component: where it runs, its local dependencies, who starts it
 (*reached by*), what it calls (*reaches*) and the credentials it holds. What
-each command may do with those credentials is [§4's privileges](#privileges).
+each command may do with those credentials is [§6's privileges](#privileges).
 Every component also needs the tools its registry login needs
-([§3](#3-oci-registry-integration)), and every machine `host-install` installs on
-needs `flock`. Common tools are named only; the others are described
-under [Dependencies](#dependencies).
+([§3](#3-oci-registry-integration)), and every machine `host-install` installs
+on needs `flock`. Common tools are named only; the others are described under
+[Dependencies](#dependencies).
 
 - **Controller.**
   - Runs where the owner works, with a route to every other component.
@@ -782,14 +793,10 @@ under [Dependencies](#dependencies).
 #### Dependencies
 
 - **Board model** (`scripts/board/`, Python): an existing programme tool,
-  reused here and installed beside the controller. It handles all integration
-  with the GitHub project board, and decides every question about issues,
-  milestones and `Refs`, so a release is gated by the same code that checks
-  the board ([the board model](#the-board-model)).
-- **[skopeo](https://github.com/containers/skopeo)**: a command-line tool that
-  inspects, copies and deletes images in a registry without pulling them or
-  running a Docker daemon. The controller, builder and release copier use it
-  ([§3](#3-oci-registry-integration)).
+  reused here and installed beside the controller
+  ([the board model](#the-board-model)).
+- **skopeo**: the registry client of the controller, builder and release
+  copier ([Technologies](#technologies)).
 - **Application hooks**: the application's own scripts in `turpin/hooks/`,
   which the tool calls at fixed points to build, check, migrate and smoke-test
   that application ([§8](#8-profile-and-hooks)). The controller and builder run
@@ -807,12 +814,7 @@ program but in the payload (`scripts/deliver/payload/`, [§11](#11-on-the-host))
 
 What each script sources, runs or calls: the tool's own scripts, the
 application's profile and hooks, and the external tools
-([Technologies](#technologies)). As in every diagram here, each box is coloured
-by what this change does to it: green new, yellow changed, grey unchanged
-([change state](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md#change-state)).
-Every line in these diagrams is new unless labelled unchanged, and the
-component view's repositories are new for Tile Lite Elite and already exist for
-Dark Portal.
+([Technologies](#technologies)).
 
 ```mermaid
 %%{init: {"themeVariables": {"clusterBkg": "#ffffff", "clusterBorder": "#8c959f", "edgeLabelBackground": "#ffffff"}}}%%
@@ -869,9 +871,9 @@ Where each runs is in the two deployment views.
 | --- | --- | --- |
 | [bash](https://www.gnu.org/software/bash/), [jq](https://jqlang.org/) | the shell the tool is written in; a command-line JSON processor | the tool; requests, state and records |
 | [awk](https://www.gnu.org/software/gawk/manual/) | a text-processing language | reading the profile (`toml.awk`) |
-| [skopeo](https://github.com/containers/skopeo) | a registry image tool ([Dependencies](#dependencies)) | registry reads, the release copy, the record, deletes ([§3](#3-oci-registry-integration)) |
+| [skopeo](https://github.com/containers/skopeo) | a command-line tool that inspects, copies and deletes images in a registry without pulling them or running a Docker daemon | registry reads, the release copy, the record, deletes ([§3](#3-oci-registry-integration)) |
 | [Docker](https://docs.docker.com/), [Compose](https://docs.docker.com/compose/), [Buildx](https://docs.docker.com/build/) | the container engine; its multi-container runner; its builder, which can build several architectures in one run | pull by digest and run; the default `build` hook |
-| [Python 3](https://www.python.org/) | the language of the reused board model | `board-release.py`'s gate, checks, next, settle and publish, on the controller ([§6](#the-board-model)) |
+| [Python 3](https://www.python.org/) | the language of the reused board model | `board-release.py`'s gate, checks, next, settle and publish, on the controller ([§4](#the-board-model)) |
 | [git](https://git-scm.com/) | version control | worktrees, the payload archive, tag, bump |
 | [GitHub CLI](https://cli.github.com/) (`gh`) | GitHub's command-line client, which also calls its REST and GraphQL APIs | every GitHub call, made through the board model ([§4](#4-github-integration)) |
 | [OpenSSH](https://www.openssh.com/), [curl](https://curl.se/) | remote commands; HTTP requests | `turpin-host` calls; production's `/health` ([§9](#9-gates-and-checks)) |
@@ -943,8 +945,9 @@ costs a rebuild.
 
 ### Examples
 
-What the owner types at each step is
-in [docs/1.2 *Making a release, then deploying it*](../../../../docs/1.2-change-lifecycle.md#making-a-release-then-deploying-it).
+What the owner types at each step is in [docs/1.2 *Making a release, then
+deploying
+it*](../../../../docs/1.2-change-lifecycle.md#making-a-release-then-deploying-it).
 
 Sent by one script to another, as the scripts run them. Each `ssh` is one
 non-interactive call: the command runs, its exit status and error output come
@@ -1067,12 +1070,10 @@ its builder, release copier and test deployers on the non-production VM. The
 
 ### Deployment views
 
-They show each host's environments, the technology inside each
-component, and on each arrow what it carries, `[protocol]` and the credential
-used. The registry is Oracle's Container Registry; every registry arrow is the
-Docker Registry HTTP API v2 over HTTPS ([§3](#3-oci-registry-integration)), and a
-`turpin-host` arrow sends its request as JSON on standard input
-([§6](#6-commands)).
+They show each host's environments, the technology inside each component, and on
+each arrow what it carries, `[protocol]` and the credential used. Every registry
+arrow, `[registry v2]`, is OCIR's [protocol](#the-protocol), and a `turpin-host`
+arrow sends its request as JSON on standard input ([§6](#6-commands)).
 
 #### Tile Lite Elite
 
@@ -1205,8 +1206,8 @@ through `root-ops` ([privileges](#privileges)).
 ## 8. Profile and hooks
 
 **Profile.** The application's `app-profile.toml` keeps its sections and gains
-keys in them, never the registry address ([§3](#3-oci-registry-integration)). Tile Lite
-Elite's example; Dark Portal's values in comments (`dp:`):
+keys in them, never the registry address ([§3](#3-oci-registry-integration)).
+Tile Lite Elite's example; Dark Portal's values in comments (`dp:`):
 
 ```toml
 [release]
@@ -1263,21 +1264,21 @@ pull_timeout = 300                         # from delphside/tile-lite-elite#554'
 
 Also:
 
-- a `login` is one of the [§3](#3-oci-registry-integration) adapters; where a component has none
-  it is `docker-config`;
+- a `login` is one of the [§3](#3-oci-registry-integration) adapters; where a
+  component has none it is `docker-config`;
 - `[turpin].fallback`, the sentence a failed first deploy prints;
 - `[turpin.ephemeral]` (`user_prefix`, `home`, `secrets`), `turpin env`'s
   template;
 - per environment `project` (Compose project) and `url`;
 - `[versions].deployed` (`path`, `field`), where `/health` reports production's
   version ([§9](#9-gates-and-checks));
-- `on` (builder), `copy_on` and `host` take `"controller"` (`"control-node"` still works);
-  `on` and `copy_on` also take an `ssh` alias.
+- `on` (builder), `copy_on` and `host` take `"controller"` (`"control-node"`
+  still works); `on` and `copy_on` also take an `ssh` alias.
 
 Each key is read from one of two profiles:
 
-- the commit's: `required_checks`, `required_hooks`, `overridable`, `images`
-  and `payload_image`, read by the gates, and `join` and `[[turpin.host_files]]`,
+- the commit's: `required_checks`, `required_hooks`, `overridable`, `images` and
+  `payload_image`, read by the gates, and `join` and `[[turpin.host_files]]`,
   carried in the payload with the hooks;
 - the controller's working tree: every other key, including each
   environment's host, role, `login`, `host_files`, `pull_timeout` and `lock`.
@@ -1494,9 +1495,9 @@ builder uses it with its `build:` blocks.
 8. install host files where `host_files` is true (default only for rehearsal and
    production, so environments sharing a host never overwrite each other's; an
    application whose test environments need a schedule keeps it inside its
-   Compose project, not as a host unit): copy with
-   modes, `systemctl daemon-reload`, enable and restart units marked `enable`,
-   as root through `root-ops`. A host file the previous deploy installed (listed in
+   Compose project, not as a host unit): copy with modes, `systemctl
+   daemon-reload`, enable and restart units marked `enable`, as root through
+   `root-ops`. A host file the previous deploy installed (listed in
    `host_files.installed`) and this one lacks is removed;
 9. switch `current`, run `compose up`, then `smoke`;
 10. mark the state `finished` and prune images under the registry address, and
@@ -1591,13 +1592,13 @@ with the items left, and the deploy exits 3.
   application's, such as Tile Lite Elite's 60-second smoke test.
 - **Secrets and access.** The tool holds no credential of its own: each
   component's registry login is in its own auth file or the machine user's
-  `docker` login, written by those tools ([§3](#3-oci-registry-integration)), and GitHub's is the `gh` login
-  ([§4](#4-github-integration)); the [privileges](#privileges) are
-  least access, and a token reaches `turpin login` at a hidden prompt, then
-  standard input only. Nothing secret
-  reaches a profile, record, tag or log. Reading production's host state or
-  `/health` (rehearsal's level, the emergency gate) is a scripted, bounded,
-  read-only check each application's CLAUDE.md names.
+  `docker` login, written by those tools ([§3](#3-oci-registry-integration)),
+  and GitHub's is the `gh` login ([§4](#4-github-integration)); the
+  [privileges](#privileges) are least access, and a token reaches `turpin login`
+  at a hidden prompt, then standard input only. Nothing secret reaches a
+  profile, record, tag or log. Reading production's host state or `/health`
+  (rehearsal's level, the emergency gate) is a scripted, bounded, read-only
+  check each application's CLAUDE.md names.
 
 ## 14. Moving Tile Lite Elite to it
 
@@ -1620,10 +1621,10 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
   `rollback.sh` are retired in 0.10.3.
 - **The logins.** Before the first `turpin` command: run `turpin login
   controller`, `copier` and `builder` on the laptop (each asks for its Oracle
-  user and auth token; preview shares the builder's `docker` login); `host-install` on a remote builder before
-  `prune` deletes there; and `docker logout` of any old `tle-releaser` login left
-  in the laptop's `~/.docker`, so the builder's and preview's `docker` login is
-  `tle-builder`'s alone.
+  user and auth token; preview shares the builder's `docker` login);
+  `host-install` on a remote builder before `prune` deletes there; and `docker
+  logout` of any old `tle-releaser` login left in the laptop's `~/.docker`, so
+  the builder's and preview's `docker` login is `tle-builder`'s alone.
 - **The board** reads the `v` prefix for releases and keeps `prod-*` as history
   (`history_prefixes`); "running in production" comes from settle and `/health`,
   not from the tag.

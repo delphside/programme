@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
-# The board's half of a release, called through `board-release.py` (design §6, *The
-# board model's part*): the tests-passed gate, and a board, git or GitHub that
+# The board's half of a release, called through `board-release.py` (design §4, *The
+# board model*): the tests-passed gate, and a board, git or GitHub that
 # cannot be read. A read that cannot be made refuses; it is never read as empty.
 # The rules themselves are tested in scripts/board/tests/test_release_*.py.
 

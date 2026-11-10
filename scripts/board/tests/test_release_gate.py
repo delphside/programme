@@ -1,6 +1,6 @@
 """The release's board gates: tests passed, and the milestone as a shipping list.
 
-From the rules (design §6 *The milestone gate*, §7 *The record*), not the code.
+From the rules (design §9 *The milestone gate*, §10 *The record*), not the code.
 The board is a fixture (`sources.fetch` and `sources.issues_in_full` are
 replaced); git is a real history, because the evidence is git's.
 

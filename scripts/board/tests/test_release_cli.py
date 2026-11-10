@@ -1,7 +1,7 @@
 """`board-release.py`, the command `turpin` calls: JSON in, JSON out, and an exit
 status that says which of done, refused, partly done and broken it was.
 
-From the rules (design §6 *The board model's part*): exit 0 passed, 1 refused,
+From the rules (design §4 *The board model*): exit 0 passed, 1 refused,
 3 partly done (settle, next, publish), 70 a profile error, never read as
 refused; and a board or git that cannot be read refuses."""
 

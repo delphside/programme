@@ -2,7 +2,7 @@
 # registry.sh: the registry as `turpin` reads and writes it (skopeo; no Docker
 # daemon needed), and the login adapters. TURPIN_REGISTRY is the registry
 # address with the tenancy's namespace; it comes from the machine's own local
-# configuration and is never in a profile (design §10).
+# configuration and is never in a profile (design §3).
 
 REG_ERR=""; REG_DIGEST=""
 
@@ -86,7 +86,7 @@ reg_copy() {
 # replace one another's login. `docker` keeps the machine user's login in
 # ~/.docker beside its contexts and builders, which the tool never moves
 # (DOCKER_CONFIG is never set): the builder's push and each deployer's pull use it
-# (design §10).
+# (design §3).
 
 # REG_COMPONENT names the component whose login is in use, for the messages.
 REG_COMPONENT=""
@@ -132,7 +132,7 @@ login_skopeo() {
 }
 
 # ---------------------------------------------------------------- login adapters
-# One adapter per vendor method, named for the vendor (design §10). Another
+# One adapter per vendor method, named for the vendor (design §3). Another
 # registry adds an adapter here and changes nothing else. Each is used for the
 # docker login of a docker user (login_run) or for the auth file of a skopeo
 # user (login_run_skopeo).
