@@ -1496,10 +1496,10 @@ What a caller does with 1 or 2:
 | a deploy by version | production refuses; another environment deploys the tag's commit from candidates | refuses |
 | a resumed `turpin release` | refuses | refuses |
 | a release's carried releases (the board model's `tag_record`) | a release with no record, under the range rules below | refuses |
-| `settle` | reports nothing to settle, exit 3 | reports nothing to settle, exit 3 |
+| `settle` | settles nothing and exits 3, warning that the tag has no record it reads | settles nothing and exits 3, warning that the tag has no record it reads |
 | `status` | passes over the tag | passes over the tag |
 | `list` | lists the version as history, with no record | lists the version as history, with no record |
-| `prune` | dates the newest release by the tag's own date, and keeps none of its images | dates the newest release by the tag's own date, and keeps none of its images |
+| `prune` | counts the tag's own date toward the newest release, and treats none of its candidates as released | counts the tag's own date toward the newest release, and treats none of its candidates as released |
 
 In a deploy by version, the controller takes the commit and the digests from
 that JSON and sends the record in the deploy request; the deployer pulls only
