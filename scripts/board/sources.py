@@ -1215,7 +1215,7 @@ def fetch(states: str = "OPEN", with_bodies: bool = True,
 # a release's reads and writes (moved from `scripts/deliver/lib/github.sh`)
 # --------------------------------------------------------------------------
 #
-# Every call `deliver` makes to GitHub is here, so the tool keeps no GitHub
+# Every call `turpin` makes to GitHub is here, so the tool keeps no GitHub
 # code and its tests stub the one command, `gh`. Reads take GraphQL where it is
 # allowed and REST where it is refused; a write is REST (the milestone, the
 # issue, the Release) except a field, which only GraphQL sets (`set_field`).

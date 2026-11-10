@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# registry.sh: the registry as `deliver` reads and writes it (skopeo; no Docker
-# daemon needed), and the login adapters. DELIVER_REGISTRY is the registry
+# registry.sh: the registry as `turpin` reads and writes it (skopeo; no Docker
+# daemon needed), and the login adapters. TURPIN_REGISTRY is the registry
 # address with the tenancy's namespace; it comes from the machine's own local
 # configuration and is never in a profile (design §10).
 
@@ -11,7 +11,7 @@ REG_ERR=""; REG_DIGEST=""
 # reaches the screen and the run log); the raw text is kept nowhere.
 reg_summarise() {
   case "$1" in
-    *denied*|*unauthorized*|*"authentication required"*|*forbidden*|*"not authorized"*) printf 'the registry refused access: the login may have expired or been revoked, or lacks the right (deliver login%s)' "${REG_COMPONENT:+ $REG_COMPONENT}" ;;
+    *denied*|*unauthorized*|*"authentication required"*|*forbidden*|*"not authorized"*) printf 'the registry refused access: the login may have expired or been revoked, or lacks the right (turpin login%s)' "${REG_COMPONENT:+ $REG_COMPONENT}" ;;
     *"manifest unknown"*|*"name unknown"*|*"not found"*) printf 'not found in the registry' ;;
     *"connection refused"*|*"no such host"*|*timeout*|*dial*|*TLS*|*"tls:"*|*"EOF"*) printf 'the registry could not be reached' ;;
     *) printf 'the registry operation failed' ;;
@@ -19,13 +19,13 @@ reg_summarise() {
 }
 
 registry_require() {
-  [[ -n "${DELIVER_REGISTRY:-}" ]] || die "DELIVER_REGISTRY is not set: put it in ${DELIVER_CONFIG_DIR:-~/.config/deliver}/${APP:-APP}.env (the profile never holds it)"
+  [[ -n "${TURPIN_REGISTRY:-}" ]] || die "TURPIN_REGISTRY is not set: put it in ${TURPIN_CONFIG_DIR:-~/.config/turpin}/${APP:-APP}.env (the profile never holds it)"
 }
 
 reg_ref() {        # REPO TAG|@DIGEST  ->  docker://REGISTRY/REPO:TAG
   case "$2" in
-    sha256:*) printf 'docker://%s/%s@%s' "$DELIVER_REGISTRY" "$1" "$2" ;;
-    *)        printf 'docker://%s/%s:%s' "$DELIVER_REGISTRY" "$1" "$2" ;;
+    sha256:*) printf 'docker://%s/%s@%s' "$TURPIN_REGISTRY" "$1" "$2" ;;
+    *)        printf 'docker://%s/%s:%s' "$TURPIN_REGISTRY" "$1" "$2" ;;
   esac
 }
 
@@ -60,7 +60,7 @@ reg_digest() {     # REPO TAG -> REG_DIGEST (and stdout); same return codes as r
 reg_list_tags() {  # REPO -> one tag per line
   local out
   reg_prepare || return 1
-  out="$(skopeo list-tags "docker://$DELIVER_REGISTRY/$1" 2>/dev/null)" || return 1
+  out="$(skopeo list-tags "docker://$TURPIN_REGISTRY/$1" 2>/dev/null)" || return 1
   jq -r '.Tags[]' <<< "$out"
 }
 
@@ -81,7 +81,7 @@ reg_copy() {
 # ---------------------------------------------------------------- one login per component
 # `skopeo` keeps its login in an auth file, so a component that only calls
 # skopeo (the controller's reads, the release copier's copy and record, the
-# builder's delete) has a file of its own, ~/.config/deliver/auth/APP/COMPONENT.json,
+# builder's delete) has a file of its own, ~/.config/turpin/auth/APP/COMPONENT.json,
 # chosen with REGISTRY_AUTH_FILE alone: two components on one machine never
 # replace one another's login. `docker` keeps the machine user's login in
 # ~/.docker beside its contexts and builders, which the tool never moves
@@ -95,7 +95,7 @@ REG_COMPONENT=""
 REG_AUTH_HOOK=""
 
 auth_file_of() {   # COMPONENT -> the auth file of the controller, builder or copier on this machine
-  printf '%s/auth/%s/%s.json' "${DELIVER_CONFIG_DIR:-$HOME/.config/deliver}" "${APP:?}" "$1"
+  printf '%s/auth/%s/%s.json' "${TURPIN_CONFIG_DIR:-$HOME/.config/turpin}" "${APP:?}" "$1"
 }
 
 # auth_use FILE COMPONENT: this process's skopeo login is FILE. The directory is
@@ -120,13 +120,13 @@ reg_prepare() {
 # The tool's own words only: a failure is summarised, never the tool's text.
 login_docker() {
   local out
-  out="$(docker login -u "$1" --password-stdin "${DELIVER_REGISTRY%%/*}" 2>&1 >/dev/null)" \
+  out="$(docker login -u "$1" --password-stdin "${TURPIN_REGISTRY%%/*}" 2>&1 >/dev/null)" \
     || { REG_ERR="docker login: $(reg_summarise "$out")"; return 1; }
 }
 login_skopeo() {
   local out
   [[ -n "${REGISTRY_AUTH_FILE:-}" ]] || { REG_ERR="no auth file chosen"; return 1; }
-  out="$(skopeo login --authfile "$REGISTRY_AUTH_FILE" -u "$1" --password-stdin "${DELIVER_REGISTRY%%/*}" 2>&1 >/dev/null)" \
+  out="$(skopeo login --authfile "$REGISTRY_AUTH_FILE" -u "$1" --password-stdin "${TURPIN_REGISTRY%%/*}" 2>&1 >/dev/null)" \
     || { REG_ERR="skopeo login: $(reg_summarise "$out")"; return 1; }
   chmod 600 "$REGISTRY_AUTH_FILE" 2>/dev/null || true
 }
@@ -153,29 +153,29 @@ login_run_skopeo() { _login_adapter skopeo "$1"; }   # REGISTRY_AUTH_FILE's logi
 
 # _login_adapter KIND ADAPTER: make the login valid. The adapters read
 # credentials the machine already holds and write none into the tool's own
-# output. docker-config: the owner made the login with `deliver login`; a docker
+# output. docker-config: the owner made the login with `turpin login`; a docker
 # user's is the machine user's own, a skopeo user's file is checked. oci-*:
-# DELIVER_OCI_TOKEN_CMD names the command that prints a registry auth token (`oci`
+# TURPIN_OCI_TOKEN_CMD names the command that prints a registry auth token (`oci`
 # CLI call chosen on the host, since the CLI's flags are the host's business,
-# #554); the user is DELIVER_REGISTRY_USER.
+# #554); the user is TURPIN_REGISTRY_USER.
 _login_adapter() {
   local kind="$1" adapter="${2:-docker-config}"
   case "$adapter" in
     docker-config)
       [[ "$kind" == docker ]] && return 0
-      jq -e --arg h "${DELIVER_REGISTRY%%/*}" '((.auths // {}) | has($h)) or ((.credHelpers // {}) | has($h))' \
+      jq -e --arg h "${TURPIN_REGISTRY%%/*}" '((.auths // {}) | has($h)) or ((.credHelpers // {}) | has($h))' \
         "${REGISTRY_AUTH_FILE:-/nonexistent}" >/dev/null 2>&1 \
-        || { REG_ERR="no registry login for the ${REG_COMPONENT:-component}: make it with deliver login ${REG_COMPONENT:-COMPONENT}"; return 1; }
+        || { REG_ERR="no registry login for the ${REG_COMPONENT:-component}: make it with turpin login ${REG_COMPONENT:-COMPONENT}"; return 1; }
       ;;
     oci-api-key|oci-instance-principal)
       command -v oci >/dev/null 2>&1 || { REG_ERR="login $adapter needs the oci CLI"; return 1; }
-      [[ -n "${DELIVER_OCI_TOKEN_CMD:-}" && -n "${DELIVER_REGISTRY_USER:-}" ]] || { REG_ERR="login $adapter needs DELIVER_OCI_TOKEN_CMD and DELIVER_REGISTRY_USER in the local configuration"; return 1; }
+      [[ -n "${TURPIN_OCI_TOKEN_CMD:-}" && -n "${TURPIN_REGISTRY_USER:-}" ]] || { REG_ERR="login $adapter needs TURPIN_OCI_TOKEN_CMD and TURPIN_REGISTRY_USER in the local configuration"; return 1; }
       if [[ "$adapter" == oci-api-key && -z "${OCI_CLI_KEY_FILE:-}${OCI_CLI_CONFIG_FILE:-}" && ! -f "$HOME/.oci/config" ]]; then
         REG_ERR="login oci-api-key needs an API key (OCI_CLI_KEY_FILE or ~/.oci/config)"; return 1
       fi
       local token
-      token="$(bash -c "$DELIVER_OCI_TOKEN_CMD")" || { REG_ERR="the token command failed"; return 1; }
-      printf '%s' "$token" | "login_$kind" "$DELIVER_REGISTRY_USER" || return 1
+      token="$(bash -c "$TURPIN_OCI_TOKEN_CMD")" || { REG_ERR="the token command failed"; return 1; }
+      printf '%s' "$token" | "login_$kind" "$TURPIN_REGISTRY_USER" || return 1
       ;;
     *) REG_ERR="unknown login adapter $adapter"; return 1 ;;
   esac

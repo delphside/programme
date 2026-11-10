@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # deploy: the steps of design §9 after the pull and the payload: pre-deploy,
 # the new deploy folder, save-state, migrate, host files, the switch, compose up,
-# smoke, finished, pruning. Started by `deliver-host deploy` from the payload
+# smoke, finished, pruning. Started by `turpin-host deploy` from the payload
 # taken out of the image, with the lock held (the inherited descriptor 9).
 set -uo pipefail
 PAYLOAD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,7 +9,7 @@ PAYLOAD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$PAYLOAD/lib/common.sh"
 # shellcheck source=steps.sh
 . "$PAYLOAD/steps.sh"
-DELIVER_CMD="deliver-host"
+TURPIN_CMD="turpin-host"
 host_ctx_load
 
 CHECK="$(jq -r '.check' "$REQ")"; LOCAL="$(jq -r '.local' "$REQ")"
@@ -38,7 +38,7 @@ cleanup_unchanged() { drop_dir "$DIR"; if [[ -n "$PRIOR" ]]; then state_write "$
 mkdir -p "$DIR" || die "cannot make $DIR"
 cp -a "$PAYLOAD" "$DIR/payload" || { cleanup_unchanged; die "cannot keep the payload"; }
 # the joined files are the commit's, taken from the payload: the environment's own list or the default
-JOIN="$(jq -c --slurpfile req "$REQ" '($req[0].env_join // []) as $e | if ($e | length) > 0 then $e else (.deliver.join // []) end' "$PJSON")"
+JOIN="$(jq -c --slurpfile req "$REQ" '($req[0].env_join // []) as $e | if ($e | length) > 0 then $e else (.turpin.join // []) end' "$PJSON")"
 while read -r f; do
   [[ -n "$f" ]] || continue
   if [[ -e "$PAYLOAD/join/$f" ]]; then
@@ -47,10 +47,10 @@ while read -r f; do
     cleanup_unchanged; die "the payload does not carry joined file $f"
   fi
 done < <(jq -r '.[]' <<< "$JOIN")
-: > "$DIR/deliver.env"
+: > "$DIR/turpin.env"
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
-  printf '%s=%s\n' "$(image_var "${line%%=*}")" "${line#*=}" >> "$DIR/deliver.env"
+  printf '%s=%s\n' "$(image_var "${line%%=*}")" "${line#*=}" >> "$DIR/turpin.env"
 done <<< "$H_IMAGES"
 jq -c 'select(.record != null) | .record' "$REQ" > "$DIR/record.json"
 jq -nc --argjson n "$N" --slurpfile r "$REQ" --argjson join "$JOIN" --argjson hf "$HOST_FILES" --arg project "$PROJECT" \
@@ -61,7 +61,7 @@ jq -nc --argjson n "$N" --slurpfile r "$REQ" --argjson join "$JOIN" --argjson hf
 fail_deploy() {   # STEP
   warn "the deploy failed at $1"
   if ! restore_to "$OLD" "$N" "$OLDPREV"; then
-    warn "the restore failed: the state is left interrupted ($(state_read)); run deliver rollback ENV once it can succeed, or put it right by hand. Fallback: $FALLBACK"
+    warn "the restore failed: the state is left interrupted ($(state_read)); run turpin rollback ENV once it can succeed, or put it right by hand. Fallback: $FALLBACK"
     exit 1
   fi
   if [[ -z "$OLD" ]]; then

@@ -8,7 +8,7 @@
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert
-  load deliver_world
+  load turpin_world
   world_new
 }
 

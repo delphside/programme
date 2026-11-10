@@ -1,10 +1,10 @@
 <!-- markdownlint-disable-file MD013 -->
 
-# Test design specification: the deliver tool
+# Test design specification: Turpin
 
 Project: delphside/programme#117 · type of change: `tooling` · route: `Docs and Programme Tooling` · release: not applicable
 
-This specification derives the tests for `deliver` from its stated rules, without reading the implementation. Its sources are:
+This specification derives the tests for `turpin` from its stated rules, without reading the implementation. Its sources are:
 
 - the design, `records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md` (2026-10-28 revision);
 - #117's body;
@@ -14,11 +14,11 @@ This specification derives the tests for `deliver` from its stated rules, withou
 
 **(H)** marks a rule taken from the agreed handover rather than from a document.
 
-**†** marks a rule, scenario or test that reads production: its host state over ssh, or its `/health` where it has no `deliver` state. It is the source of production's level (R15) and of the release production runs (R17). The owner decided on 2026-10-29 that this read is a scripted check, named in each application's CLAUDE.md beside `verify.sh`, `check-hosts.sh` and the `/health` reads (X2).
+**†** marks a rule, scenario or test that reads production: its host state over ssh, or its `/health` where it has no `turpin` state. It is the source of production's level (R15) and of the release production runs (R17). The owner decided on 2026-10-29 that this read is a scripted check, named in each application's CLAUDE.md beside `verify.sh`, `check-hosts.sh` and the `/health` reads (X2).
 
 Each test has one of two kinds:
 
-- **[CI]** is a bats test in `scripts/tests/deliver-*.bats`. It uses a dummy application, stub hooks, `registry:2`, and stubbed `ssh` and `gh`.
+- **[CI]** is a bats test in `scripts/tests/turpin-*.bats`. It uses a dummy application, stub hooks, `registry:2`, and stubbed `ssh` and `gh`.
 - **[REH]** is a technical test on Tile Lite Elite's rehearsal.
 
 The gates for the `production` role are tested in CI only. On real hosts they are shown only by 0.10.2's first production deploy and by the owner's `--check` runs, which are post-deployment checks and not tests (part 8).
@@ -28,22 +28,22 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | | rule | source |
 | --- | --- | --- |
 | R1 | The tool names no application and no machine. Anything that differs comes from `app-profile.toml` or a hook. | G1; §2 |
-| R2 | The registry address is never in the profile. Each component reads `DELIVER_REGISTRY` from its own local configuration. | §10 |
+| R2 | The registry address is never in the profile. Each component reads `TURPIN_REGISTRY` from its own local configuration. | §10 |
 | R3 | `build [REF]` is non-interactive and refuses a REF that is not a commit on the remote. It builds from a clean worktree with the `build` hook, or `docker buildx bake` by default. It labels each image `org.opencontainers.image.revision` = SHA and `.version` = the version file. It pushes each image as `SHA-IMAGE` and prints the digests, an index digest for a multi-arch build. | §4 |
 | R4 | An image whose `SHA-IMAGE` is already present is not rebuilt. A failed registry query refuses. Releases is immutable. | §4; §6; §10 |
-| R5 | The payload goes into `payload_image` at `/deliver/`, from the pinned submodule and the app repository. It holds nothing secret. Joined files come from the payload and never from a working tree. An environment may name its own `join`. | §2; §5 |
+| R5 | The payload goes into `payload_image` at `/turpin/`, from the pinned submodule and the app repository. It holds nothing secret. Joined files come from the payload and never from a working tree. An environment may name its own `join`. | §2; §5 |
 | R6 | `deploy ENV REF` checks REF against the environment's role. For preview, test and rehearsal, REF is a full or short SHA or a version, resolved in candidates. A short SHA that matches more than one candidate refuses. For production it is a version with a record, pulled from releases. The deploy runs over ssh, or locally where `host = "controller"`, and then `settle` for production. Gates key on the role, never the name. | §2; §4 |
 | R7 | Every image is pulled by digest. Its revision label must equal the SHA, and the running containers' `RepoDigests` must match. | §6 |
 | R8 | The environment's lock (`flock`) must be free and is held to the end. `--wait[=MINUTES]` waits for the lock and for a hook's exit 75, checking each minute, for at most 60 minutes by default. At the limit it refuses, exit 1, naming what it waited for, with nothing changed. | §4; §6; §9 |
-| R9 | A deploy refuses unless the state file shows the last deploy finished. Exception: a state of `failed, no previous deploy` (a first deploy that failed and was restored) does not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `deliver rollback`; a redeploy refuses until then. | §6; §9 |
+| R9 | A deploy refuses unless the state file shows the last deploy finished. Exception: a state of `failed, no previous deploy` (a first deploy that failed and was restored) does not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `turpin rollback`; a redeploy refuses until then. | §6; §9 |
 | R10 | `pre-deploy` is a gate. It can be set aside with `--set-aside`, where the profile marks it overridable. | §5; §6 |
-| R11 | A deploy runs these steps in order: lock, then state, then pull by digest, then payload, then `pre-deploy`, then the new deploy folder, then `save-state`, then `migrate`, then host files, then the `current` switch, then `compose up`, then `smoke`, then finished, then pruning host images. Compose runs with a fixed project name, `--project-directory` the deploy's own folder `deploys/N`, the host `.env` and then `deploys/N/deliver.env`, and `--no-build`. | §9 |
-| R12 | A failure after `save-state` runs `restore-state`, switches back to `previous` and reinstalls its host files, then exits 1. On a host's first `deliver` deploy there is no `previous`: the failure runs `restore-state`, stops the new containers, removes `current`, marks the state `failed, no previous deploy`, and exits 1 naming the application's fallback. | §6; §9 |
-| R13 | Host files are installed with their modes, followed by `systemctl daemon-reload`. Units marked `enable` are enabled and restarted. A host file the previous deploy installed and this one does not carry is removed. `deliver status` compares the host's copies with the payload, as a check. | §6; §9 |
+| R11 | A deploy runs these steps in order: lock, then state, then pull by digest, then payload, then `pre-deploy`, then the new deploy folder, then `save-state`, then `migrate`, then host files, then the `current` switch, then `compose up`, then `smoke`, then finished, then pruning host images. Compose runs with a fixed project name, `--project-directory` the deploy's own folder `deploys/N`, the host `.env` and then `deploys/N/turpin.env`, and `--no-build`. | §9 |
+| R12 | A failure after `save-state` runs `restore-state`, switches back to `previous` and reinstalls its host files, then exits 1. On a host's first `turpin` deploy there is no `previous`: the failure runs `restore-state`, stops the new containers, removes `current`, marks the state `failed, no previous deploy`, and exits 1 naming the application's fallback. | §6; §9 |
+| R13 | Host files are installed with their modes, followed by `systemctl daemon-reload`. Units marked `enable` are enabled and restarted. A host file the previous deploy installed and this one does not carry is removed. `turpin status` compares the host's copies with the payload, as a check. | §6; §9 |
 | R14 | A host keeps only its current and previous image sets. | §9; §12 |
 | R15 † | A rehearsal cycle is the deploys to a rehearsal-role environment since the last release was made. Its first deploy must be production's current record, read from the production host's state over ssh and pulled from candidates by the same digests. Production running a build with no record refuses. `--off-level REASON` sets this aside. | §6 |
 | R16 | `release` releases the commit that the rehearsal-role environment runs. It refuses unless that environment's last deploy finished and its `smoke` passed. The owner confirms by typing the version, or with `--expect VERSION`. `--skip-rehearsal REASON` sets this aside, is recorded, and raises the retrospective issue. | §4; §6; §7 |
-| R17 † | The release commit must be on `origin/main`. With `--emergency REASON` it must instead descend from the tag of the release production runs (its record, read from production's host state; where production has no `deliver` state, the version its `/health` reports, whose tag is the release's), and none of its commits after that tag may be on `main`. The newest tag is not the test: a release made but not yet run in production does not count. | §6 |
+| R17 † | The release commit must be on `origin/main`. With `--emergency REASON` it must instead descend from the tag of the release production runs (its record, read from production's host state; where production has no `turpin` state, the version its `/health` reports, whose tag is the release's), and none of its commits after that tag may be on `main`. The newest tag is not the test: a release made but not yet run in production does not count. | §6 |
 | R18 | Every check in `required_checks` must be green on the commit. | §6 |
 | R19 | The version is read from the version file at the commit. No tag or record may exist for it, and it must be higher than the newest release tag of any prefix. | §4; §6 |
 | R20 | Parents aside, every open issue in milestone VERSION must be evidenced by a `Refs #N` since the release production runs. A parent's `Refs` is reported beside its work package and never counted for it (delphside/tile-lite-elite#375). A commit a later commit in the range reverts, and that revert, name nothing. Every work package those commits name whose `Route` is Production Release must be in the milestone; work packages of other routes are left out. With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 7. Otherwise the release refuses. `--set-aside milestone REASON` sets the gate aside where the profile's `[release].overridable` lists `milestone`. | §6; docs/1.2 |
@@ -56,7 +56,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R26 | A production deploy needs a record for VERSION, with its digests pulled from releases. `--unrecorded REASON` instead copies `SHA-IMAGE` to releases with no record. No version is spent, and settle moves nothing. | §4; §6 |
 | R27 | `settle` acts only on what the record carries. A carried work package goes to Post-deployment with a comment. Only Production Release work packages are carried, because the milestone gate counts no other route. A carried non-project issue is closed as completed with a comment. The milestone is closed. Each action checks first, so settle is safe to rerun. If settle fails, it lists the items left, the deploy stands, and the exit is 3. | §8; §6 |
 | R28 | Rollback switches to `previous` and runs `restore-state`, and restores the previous deploy's host-file set, removing the current deploy's extra files. With no previous deploy it refuses and names the fallback. | §9 |
-| R29 | A hook listed in `required_hooks` that is missing or not executable refuses. Any other missing hook is a no-op. A hook's exit means 0 passed, 75 not yet, and anything else refused or failed. Hooks receive `DELIVER_APP`, `_ENV`, `_ROLE`, `_SHA`, `_VERSION`, `_STATE` and `_IMAGE_<NAME>`. A hook of kind check (`post-deploy`) that exits non-zero is reported, changes nothing else, and leaves the exit code as it was. | §5 |
+| R29 | A hook listed in `required_hooks` that is missing or not executable refuses. Any other missing hook is a no-op. A hook's exit means 0 passed, 75 not yet, and anything else refused or failed. Hooks receive `TURPIN_APP`, `_ENV`, `_ROLE`, `_SHA`, `_VERSION`, `_STATE` and `_IMAGE_<NAME>`. A hook of kind check (`post-deploy`) that exits non-zero is reported, changes nothing else, and leaves the exit code as it was. | §5 |
 | R30 | Every override takes a reason. The reason goes into the record where there is one, and always into the run log. | §4 |
 | R31 | Every command writes a run log on its own machine, naming each gate it ran. A command that ends with a gate unrun refuses. Exits are 0 done; 1 refused, failed with nothing changed, or rolled back; 3 live but a later step failed. | §4 |
 | R32 | `--check` runs every gate and changes nothing. | §4 |
@@ -65,16 +65,16 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R35 | Every pull completes within the environment's `pull_timeout`, or the deploy refuses before any change. | §9; §12 |
 | R36 | `prune` removes candidates whose `created` label (the build's start) is before the newest release was made, not released, and not in any environment's current or previous deploy. It never removes releases. The controller chooses; R46 says who deletes. | §4 |
 | R37 | `env create\|destroy NAME` works from the profile's template: a user, a state folder, a `.env` with secrets at a hidden prompt, a Compose project, and the hooks. | §4 |
-| R38 | `host-install` installs or updates `deliver-host` and its libraries and the single `sudo` rule, installs `jq` where it is missing, and checks that `flock` and the login adapter's tools (`oci`) are present, refusing when one is not. | §4; §9 |
+| R38 | `host-install` installs or updates `turpin-host` and its libraries and the single `sudo` rule, installs `jq` where it is missing, and checks that `flock` and the login adapter's tools (`oci`) are present, refusing when one is not. | §4; §9 |
 | R39 | The login adapters are `oci-instance-principal`, `oci-api-key` and `docker-config`. Hosts log in by instance principal. | §10; owner 2026-10-28 |
 | R42 | The carried range starts at the release production runs, so a release made while an earlier one is undeployed carries both; an item named only by a commit a later commit in the range reverts is not carried, and a revert of a commit outside the range has no effect. | §6; §7 |
 | R43 | Settling a record settles the items of the earlier releases it carries (comment `..., deployed with vV`), closes their milestones, and takes a dropped item out of its milestone with a comment, leaving its state alone; a rerun changes nothing. | §8 |
 | R40 | `status ENV` shows the digests, the matching record, the deploy state and host-file equality. `list ENV` shows the records beside what ENV runs. | §4 |
-| R44 | Each component has a registry login of its own. A component that only calls `skopeo` (the controller's reads, the copier, the builder's delete) uses its own auth file, `~/.config/deliver/auth/APP/COMPONENT.json` (directory 0700, file 0600), chosen by `REGISTRY_AUTH_FILE` alone; a component that calls `docker` (the builder's push, a deployer's pull) uses the machine user's own `docker` login. `DOCKER_CONFIG` is never set, so contexts and builders stay. Components sharing a machine never replace one another's login. The one exception is an environment on the builder's machine (preview on the laptop), which shares the builder's `docker` login: `deliver login` refuses it and names `deliver login builder`, as does a refused pull. A `docker-config` auth file that is missing is refused, naming `deliver login COMPONENT`; a registry refusal names it too. | §10 |
-| R45 | The controller reads candidates and releases (digests, tags, records) with its own login, `[deliver].login`, and with no other. | §2; §10 |
-| R46 | `prune`: the controller chooses what to delete, and sends the list, with each tag's digest, to `deliver-host delete` on `[deliver.build].on`, which deletes with the builder's login, only while a tag still has the digest sent. The controller never deletes. `--dry-run` sends nothing. | §4; §10 |
-| R47 | `deliver login COMPONENT` makes the `docker-config` login: `skopeo login --authfile` for the controller and copier, both that and `docker login` for the builder, `docker login` for an environment's deployer, on the component's machine (over `ssh` where it is another). The token is read at a hidden prompt and passed on standard input only: never printed, logged or an argument. | §4; §10; R34 |
-| R41 | Tile Lite Elite's move: the first `deliver` deploy to rehearsal takes `--off-level`. The fallback until 0.10.2 has run in production is the written procedure to 0.10.0: stop the `deliver` project, restore the snapshot, then `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason. 0.10.2 is the first release with a record. The board reads `v` as released and `prod-` as history. | §13; (H) |
+| R44 | Each component has a registry login of its own. A component that only calls `skopeo` (the controller's reads, the copier, the builder's delete) uses its own auth file, `~/.config/turpin/auth/APP/COMPONENT.json` (directory 0700, file 0600), chosen by `REGISTRY_AUTH_FILE` alone; a component that calls `docker` (the builder's push, a deployer's pull) uses the machine user's own `docker` login. `DOCKER_CONFIG` is never set, so contexts and builders stay. Components sharing a machine never replace one another's login. The one exception is an environment on the builder's machine (preview on the laptop), which shares the builder's `docker` login: `turpin login` refuses it and names `turpin login builder`, as does a refused pull. A `docker-config` auth file that is missing is refused, naming `turpin login COMPONENT`; a registry refusal names it too. | §10 |
+| R45 | The controller reads candidates and releases (digests, tags, records) with its own login, `[turpin].login`, and with no other. | §2; §10 |
+| R46 | `prune`: the controller chooses what to delete, and sends the list, with each tag's digest, to `turpin-host delete` on `[turpin.build].on`, which deletes with the builder's login, only while a tag still has the digest sent. The controller never deletes. `--dry-run` sends nothing. | §4; §10 |
+| R47 | `turpin login COMPONENT` makes the `docker-config` login: `skopeo login --authfile` for the controller and copier, both that and `docker login` for the builder, `docker login` for an environment's deployer, on the component's machine (over `ssh` where it is another). The token is read at a hidden prompt and passed on standard input only: never printed, logged or an argument. | §4; §10; R34 |
+| R41 | Tile Lite Elite's move: the first `turpin` deploy to rehearsal takes `--off-level`. The fallback until 0.10.2 has run in production is the written procedure to 0.10.0: stop the `turpin` project, restore the snapshot, then `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason. 0.10.2 is the first release with a record. The board reads `v` as released and `prod-` as history. | §13; (H) |
 
 ### Checked for contradiction
 
@@ -127,7 +127,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | O2 | Candidates holds `SHA-IMAGE` for each profile image. Stdout prints each digest. The labels `revision` = SHA and `version` = the version file. |
 | O3 | No push reaches the registry log for an image already present, and that image's digest is unchanged. |
 | O4 | Exit 0. The containers' `RepoDigests` equal the named digests. `current` points at a new `deploys/<n>`, `previous` at the earlier one, and `state` = finished. |
-| O5 | The steps ran from `/deliver/` extracted from `payload_image`. A sentinel in the operator's working-tree copy is never touched. The joined files in `current/` equal the payload's own, or the environment's own `join`. |
+| O5 | The steps ran from `/turpin/` extracted from `payload_image`. A sentinel in the operator's working-tree copy is never touched. The joined files in `current/` equal the payload's own, or the environment's own `join`. |
 | O6 | Hook calls were logged in the order R11 gives, each with the R29 environment variables. |
 | O7 | After a failure: `restore-state` was called, `current` = the previous deploy, the previous digests are running, the previous host files are in place, and the exit is 1. |
 | O8 | Host files have the payload's content and mode. The stub `systemctl` saw `daemon-reload`, then enable and restart for the marked units. |
@@ -194,7 +194,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S10 | `pre-deploy` exits 1, then 75, then 75 with `--wait` returning 0 later, then 0. | C9 | O1, O1, O16, O4 | CI |
 | S11 | A required hook missing, then not executable, then present; an optional hook missing. | C9 | O1, O1, O4; the optional one is a no-op | CI |
 | S12 | `--set-aside pre-deploy R` where overridable and where not. | C22 | O4 + O12; O1 | CI |
-| S13 | A deploy is killed after `save-state`, then rerun, then `deliver rollback`, then deployed. | C8 | O1 (it names the step), then O7-like restore, then O4 | CI |
+| S13 | A deploy is killed after `save-state`, then rerun, then `turpin rollback`, then deployed. | C8 | O1 (it names the step), then O7-like restore, then O4 | CI |
 | S14 | `migrate` fails; `smoke` exits non-zero; a host-file install fails; `compose up` fails. | C11, C12 exists | O7 each | CI; REH for TLE's real hooks (S33) |
 | S15 | A new host file; an edited one; status before and after. | C28 | O8, then O9 then quiet | CI; REH (S34) |
 | S16 | Three deploys in a row on one host. | R14 | O21 | CI |
@@ -211,7 +211,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S27 | Normal bump; an emergency when `main` holds the emergency's number. | C29 | O11; `main` moves to the next patch and the milestone's open issues move | CI |
 | S28 | A reader given record version 2; a text tag `v0.10.1`; a `prod-` tag. | C27 | O1; history only, not deployable as a record | CI |
 | S29 | Production deploy of a version with no record; with `--unrecorded R` by SHA; of a recorded version; of a raw SHA without a flag. | C2 production, C4 | O1; `SHA-IMAGE` in releases, no tag, O12, settle moves nothing; O4 + O14; O1 | CI |
-| S30 | Production deploy of a record carrying a Production Release work package and a non-project issue, where the release's commits also reference an Application Tooling work package in its own date milestone, and settle's `gh` fails partway; then `deliver settle VERSION` is rerun; then rerun again. | C23, C24 | O15; O14, with the Production Release work package moved and the Application Tooling one untouched; no new mutation | CI |
+| S30 | Production deploy of a record carrying a Production Release work package and a non-project issue, where the release's commits also reference an Application Tooling work package in its own date milestone, and settle's `gh` fails partway; then `turpin settle VERSION` is rerun; then rerun again. | C23, C24 | O15; O14, with the Production Release work package moved and the Application Tooling one untouched; no new mutation | CI |
 | S31 | Rollback with a previous deploy; with none. | C12 | O7; O1 naming the fallback | CI |
 | S32 | Each command's run log and exit codes; `--check` on deploy and release. | R31, R32 | O23, O20 | CI |
 | S33 | TLE's real hooks on rehearsal: snapshot, `--migrate-only`, `/health` within 60 s; smoke failure injected. | R12, R29 | O4; then O7 with the database restored | REH |
@@ -220,18 +220,18 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S36 | A measured pull on rehearsal within `pull_timeout`; in CI, a throttled pull beyond it. | R35 | REH: within; CI: O1 | REH + CI |
 | S37 | A deploy waits on the lock held by the application's own heavy run (the backup). | R8 | O1, then O16 | REH |
 | S38 | A reboot of the rehearsal VM mid-deploy, then rerun. | R9 | O1 naming the step reached | REH |
-| S39 † | TLE's move: the first `deliver deploy` to rehearsal with `--off-level "first deliver deploy"`; then `deploy.sh` at production's previous commit puts rehearsal back. | R41 | O4 + O12; the old compose and image names running, with `/health` | REH |
+| S39 † | TLE's move: the first `turpin deploy` to rehearsal with `--off-level "first turpin deploy"`; then `deploy.sh` at production's previous commit puts rehearsal back. | R41 | O4 + O12; the old compose and image names running, with `/health` | REH |
 | S40 | Release copy by the copier with skopeo; another component's credential writing releases. | R33 | O10; O17 | CI (htpasswd per component) |
 | S41 | `env create` with secrets at a hidden prompt, then `env destroy`. | R37 | the user, the state folder, `.env` and the project exist, then are gone; hooks called; O18 | CI (pty) |
-| S42 | `host-install` on a bare host container, then again. | R38 | `deliver-host`, `jq` and the sudo rule present; then updated | CI; REH |
+| S42 | `host-install` on a bare host container, then again. | R38 | `turpin-host`, `jq` and the sudo rule present; then updated | CI; REH |
 | S43 | Prune with a mix of candidates, including one built from a commit dated after the newest release but whose `created` label is before it. | R36 | O22; the `created` label decides | CI |
 | S44 | A canary secret through every command. | R34 | O18 | CI |
-| S45 | The tool contains no application name; a second dummy app runs S1, S6 and S18. | R1, R2 | O19; a profile without `DELIVER_REGISTRY` in local config refuses | CI |
+| S45 | The tool contains no application name; a second dummy app runs S1, S6 and S18. | R1, R2 | O19; a profile without `TURPIN_REGISTRY` in local config refuses | CI |
 | S46 | `status` and `list` on an environment after two deploys. | R40 | the digests, the matched record, the state, host-file equality; the records beside the current one | CI |
 | S47 | The board reads `v0.10.2` as released and `prod-*` as history. | R41 | the board scripts' output | CI |
 | S48 † | The source of production's level. The stub `ssh` to production returns a host state whose record is 0.10.2, while the last settled record is 0.10.1. A rehearsal's first deploy of the cycle at the last settled record's digests; then at the host-state record's digests. | C13, C14, C31 | O1, with the run log showing the ssh read; then O4 | CI |
 | S49 † | Production's host state shows a build with no record. A rehearsal's first deploy by SHA; then the same with `--off-level R`. | C14 | O1 naming the gate; then O4 + O12 | CI |
-| S50 † | Emergency where 0.10.1 is made and 0.10.0 is what production runs, production having no `deliver` state, so the stub `/health` reports 0.10.0: a commit cut from `v0.10.1`; then one cut from `v0.10.0`. Then a production with `deliver` state, whose record (read from the stub ssh host state) names a release that is not the newest tag: the same two cuts. | C16, C16a | O1 (it holds `main` commits after the release production runs); O10 + O12; the same results | CI |
+| S50 † | Emergency where 0.10.1 is made and 0.10.0 is what production runs, production having no `turpin` state, so the stub `/health` reports 0.10.0: a commit cut from `v0.10.1`; then one cut from `v0.10.0`. Then a production with `turpin` state, whose record (read from the stub ssh host state) names a release that is not the newest tag: the same two cuts. | C16, C16a | O1 (it holds `main` commits after the release production runs); O10 + O12; the same results | CI |
 | S51 | A parent whose `Refs` is the only evidence: with one work package in the milestone; then with two. | C19 | O1 for both (the work packages are unevidenced), the first naming the parent's count beside it; then each work package referenced, O10 | CI |
 | S52 | An emergency (C29 = equal to the emergency's number) where an open issue in the milestone is evidenced by no commit; then where it is evidenced only by a commit on `main` after the tag. | C19, C29 | O1 naming the milestone gate; then O10 + O12, step 6 moves the issue to the next milestone, and `carries` excludes it | CI |
 | S53a | The release's commits reference an Application Tooling work package that is in a date milestone, not in milestone VERSION; then a Production Release work package that is not in milestone VERSION. | C19 | O10, the tooling work package neither counted nor carried; then O1 naming the milestone gate | CI |
@@ -249,11 +249,11 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S63 | Reverts by count (a revert of a revert, a third revert, a short sha); production's release unreadable or untagged; a resumed release. | R42 | a revert of a revert keeps the change, three leave it out, a short sha matches; the release is refused at the milestone gate; the record keeps `releases` | CI |
 | S64 | An earlier release in the range made before the tool (a text tag) with open items in its milestone; an emergency cut from an undeployed release. | R42, R43 | items named in the range are carried and settled, the others dropped and removed; the emergency lists the release in its range | CI |
 | S65 | A feature built, rehearsed, released and deployed to production, with the stub registry enforcing which login each call carries. | R44, R33 | the builder's login pushes, the copier's writes releases and the record, the hosts' pull, no call is made without a login, and the controller's reads carry the controller's | CI |
-| S66 | The copier, builder and controller each log in with `deliver login`, in turn, with different users; then a release. A builder with no login made. | R44 | three auth files, each keeping its own user, and the builder's `docker` login made once; no `DOCKER_CONFIG` set; the release works; the build refuses, naming `deliver login builder`; a copier refused by the registry is told to `deliver login copier`; a refused pull on preview names `deliver login builder` | CI |
-| S67 | A release with the controller's login absent; then made for the wrong role; then right. A local preview build and deploy with no controller login. | R45 | O1 naming `deliver login controller`; O1 (releases refused to it); O10; the preview deploy needs none | CI |
+| S66 | The copier, builder and controller each log in with `turpin login`, in turn, with different users; then a release. A builder with no login made. | R44 | three auth files, each keeping its own user, and the builder's `docker` login made once; no `DOCKER_CONFIG` set; the release works; the build refuses, naming `turpin login builder`; a copier refused by the registry is told to `turpin login copier`; a refused pull on preview names `turpin login builder` | CI |
+| S67 | A release with the controller's login absent; then made for the wrong role; then right. A local preview build and deploy with no controller login. | R45 | O1 naming `turpin login controller`; O1 (releases refused to it); O10; the preview deploy needs none | CI |
 | S68 | `prune` with the builder on another machine; on the controller's own; a delete made with the controller's login. | R46, R33 | the deletion runs on the builder's machine with the builder's login, the controller's calls are reads, and the registry refuses the controller's delete | CI |
 | S69 | `prune --dry-run`; a delete request whose tag has moved to another digest; one naming a tag already gone. | R46 | nothing sent and nothing changed (O1's snapshot); the moved tag is left and the command fails; the gone tag is a no-op | CI |
-| S70 | `deliver login` with a canary token, for the builder, for a deployer on another machine over `ssh` (the builder's file landing on its own machine), and for preview, which is refused as sharing the builder's login; then with an empty token. | R47, R34 | the canary is in no output, log, argument or file (the `ssh` log too); the auth directory is 0700 and the file 0600; the empty token is refused and writes nothing | CI |
+| S70 | `turpin login` with a canary token, for the builder, for a deployer on another machine over `ssh` (the builder's file landing on its own machine), and for preview, which is refused as sharing the builder's login; then with an empty token. | R47, R34 | the canary is in no output, log, argument or file (the `ssh` log too); the auth directory is 0700 and the file 0600; the empty token is refused and writes nothing | CI |
 
 ## 6. Refusals and successes
 
@@ -423,7 +423,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 - a dummy application, "acme", with two images, `payload_image`, a `required_hooks` list and a second environment `join`;
 - stub hooks that log their argv and environment and exit as each test sets;
 - `registry:2` as a CI service. For S40 it runs with an htpasswd user per component and a proxy that refuses writes outside each component's repositories;
-- a "host" container reached through a stub `ssh` that runs `deliver-host` inside it, with Docker-in-Docker for compose, `RepoDigests` and pulls;
+- a "host" container reached through a stub `ssh` that runs `turpin-host` inside it, with Docker-in-Docker for compose, `RepoDigests` and pulls;
 - stub `systemctl` and `sudo` inside the host container;
 - a stub `gh` that answers checks, milestones and issues (one fixture, in REST's shape) from files and logs every mutation. It refuses GraphQL, as a cloud session's token is refused, except the three calls that set an issue field, so the board model's REST route is the one the bats tests drive; its GraphQL route is read in `scripts/board/tests/test_release_sources.py`.
 
@@ -433,11 +433,11 @@ Interruption is a hook that kills its parent. `pull_timeout` is tested through a
 
 **Production role.** The production-role gates (S29, S30, and R26 and R27 generally) are tested in CI only. On a real host they are shown by the owner's `--check` runs and by 0.10.2's first production deploy, post-deployment checks against #555 and #556. Production access is the owner's to run, so each of these is a check the owner runs, and Claude works from what comes back:
 
-- **owner** — `deliver deploy production <raw SHA> --check` refuses, naming the production record gate, and changes nothing (R32, R26). Run it before the deploy;
-- **owner** — `deliver deploy production <an unrecorded version> --check` refuses, naming the same gate, and changes nothing (R32, R26). Run it before the deploy;
+- **owner** — `turpin deploy production <raw SHA> --check` refuses, naming the production record gate, and changes nothing (R32, R26). Run it before the deploy;
+- **owner** — `turpin deploy production <an unrecorded version> --check` refuses, naming the same gate, and changes nothing (R32, R26). Run it before the deploy;
 - **Claude** — read the deploy log of 0.10.2's first production deploy: it names the version and digests;
 - **Claude** — read the board after settle: it moved exactly the record's work packages;
-- **owner** — run `deliver status production` (a production read): it matches the record.
+- **owner** — run `turpin status production` (a production read): it matches the record.
 
 The refusal is shown first and the successful deploy follows, as the other gates do. These checks match the post-deployment box of delphside/tile-lite-elite#555. Work package #555's test-approach box "exercised against rehearsal standing in for production" is replaced by the CI tests and these checks.
 
@@ -532,7 +532,7 @@ Everything else runs in CI.
 - `settle_rerun_changes_nothing`
 - `rollback_without_a_previous_deploy_names_the_fallback`
 
-### Range and carried releases (deliver-range.bats)
+### Range and carried releases (turpin-range.bats)
 
 - `a release made while an earlier one is undeployed carries both`
 - `a Production Release work package of an earlier release in the range passes the gate; elsewhere it refuses`
@@ -566,7 +566,7 @@ Everything else runs in CI.
 - `rehearsal_backup_timer_installed_and_enabled`
 - `deploy_waits_for_the_backup_lock`
 - `interrupted_state_survives_a_reboot`
-- `first_deliver_deploy_takes_off_level_and_deploy_sh_can_return`
+- `first_turpin_deploy_takes_off_level_and_deploy_sh_can_return`
 
 ## 10. Gaps
 
@@ -591,10 +591,10 @@ Still open, each a question for the owner:
 
 | gap | what it would take to close it | why it is acceptable for now |
 | --- | --- | --- |
-| X2 † Production's level, and the release production runs, are read from production's host state over ssh, or its `/health` where it has no `deliver` state. | Closed: the owner decided on 2026-10-29 that the read is a scripted check, named in each application's CLAUDE.md. | S17, S20, S39, S48, S49 and S50 (R15 and R17) stand as written. |
+| X2 † Production's level, and the release production runs, are read from production's host state over ssh, or its `/health` where it has no `turpin` state. | Closed: the owner decided on 2026-10-29 that the read is a scripted check, named in each application's CLAUDE.md. | S17, S20, S39, S48, S49 and S50 (R15 and R17) stand as written. |
 | X9b A command "ending with a gate unrun refuses" cannot be provoked from outside, and §4 gives no per-command gate list beyond §6. | A test hook or a documented gate list. | The run log is asserted against §6 (O23). The self-check is reviewed, not tested. |
 | X14 The `oci-api-key` adapter (Dark Portal's copier) is exercised by no Tile Lite Elite test. | Dark Portal's adoption, delphside/dark-portal#15, carries the test: the key missing, then present, with the refusal shown before the success. | Dark Portal is out of scope here. |
-| X15 The production-role gates are shown on a real host only by the owner's `--check` runs and 0.10.2's first production deploy (part 8), not before the merge. The real-host statement is: `deliver deploy production <raw SHA> --check` and `deliver deploy production <unrecorded version> --check` both refuse, naming the gate, and change nothing. It matches the post-deployment box of delphside/tile-lite-elite#555. | #555's test-approach box is changed to point at the CI tests and the post-deployment check. | Accepted at the test manager's sign-off on #117, 2026-10-28: production reads and deploys are the owner's, and the rehearsal identity cannot read releases. |
+| X15 The production-role gates are shown on a real host only by the owner's `--check` runs and 0.10.2's first production deploy (part 8), not before the merge. The real-host statement is: `turpin deploy production <raw SHA> --check` and `turpin deploy production <unrecorded version> --check` both refuse, naming the gate, and change nothing. It matches the post-deployment box of delphside/tile-lite-elite#555. | #555's test-approach box is changed to point at the CI tests and the post-deployment check. | Accepted at the test manager's sign-off on #117, 2026-10-28: production reads and deploys are the owner's, and the rehearsal identity cannot read releases. |
 
 Accepted gaps, closed by the rehearsal run rather than by CI (part 8). The
 stubs stand in for the real tools; what a stub cannot show, the rehearsal run
@@ -606,6 +606,6 @@ on the real stack does.
 | X20 S5 (multi-arch: a real `buildx` build and the index digest kept by the copy) is stubbed only through `STUB_ARCH`, which salts the digest. | The same rehearsal run: a multi-arch build, copy and pull on the real stack. | The copy is `skopeo copy --all --preserve-digests`, whose behaviour the stub cannot vouch for. |
 | X21 S36 (a slow pull) is a delayed-pull stub, not a throttling proxy. | The rehearsal run's measured pull on a real host (`pull_timeout`). | The timeout path is exercised; the number is measured on the host. |
 | X22 S40 (each component's registry credential writes only its own repositories) uses the stub's `STUB_WRITE_ONLY`, not a registry's access control; the stub also records which machine each registry write ran on (`where.log`), so a copy made on the wrong machine fails the test. | The rehearsal run, with the real credentials of the builder, the copier and the hosts. | The tool's part (which machine, which login) is asserted; the registry's enforcement is not the tool's. |
-| X23 S65 to S70 (each component's login is its own, the controller cannot delete) rest on the stub registry reading a role from the auth file a `skopeo` call names and from the stub machine's `docker` login, not on a registry's policy or the real tools' handling of `REGISTRY_AUTH_FILE`, `~/.docker` contexts, `buildx` builders and credential stores. | The rehearsal run, with the laptop's real `docker` and `skopeo` and the real users and groups: `deliver login` for each component, then a build (with a `docker-container` builder), a release and a `prune`; the laptop's `docker context ls` unchanged. | The tool's part (which file, which machine, `DOCKER_CONFIG` untouched) is asserted; the registry's enforcement is not the tool's. |
+| X23 S65 to S70 (each component's login is its own, the controller cannot delete) rest on the stub registry reading a role from the auth file a `skopeo` call names and from the stub machine's `docker` login, not on a registry's policy or the real tools' handling of `REGISTRY_AUTH_FILE`, `~/.docker` contexts, `buildx` builders and credential stores. | The rehearsal run, with the laptop's real `docker` and `skopeo` and the real users and groups: `turpin login` for each component, then a build (with a `docker-container` builder), a release and a `prune`; the laptop's `docker context ls` unchanged. | The tool's part (which file, which machine, `DOCKER_CONFIG` untouched) is asserted; the registry's enforcement is not the tool's. |
 
 Derived by a fresh `test-designer` agent that read no implementation (docs/1.9).

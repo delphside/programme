@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# useradd -m -d HOME USER
+home="$3"; user="$4"
+mkdir -p "${TURPIN_HOST_ROOT:-${STUB_LOCAL_ROOT:?}}$home"
+echo "$user" >> "${TURPIN_HOST_ROOT:-${STUB_LOCAL_ROOT:?}}/.users"

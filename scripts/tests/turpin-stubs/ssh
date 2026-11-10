@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A stand-in for ssh: the "host" is a folder ($STUB_HOSTS/<alias>) that becomes
-# DELIVER_HOST_ROOT for the command, which runs locally in bash as the remote
+# TURPIN_HOST_ROOT for the command, which runs locally in bash as the remote
 # login shell would run it. stdin passes through.
 set -uo pipefail
 while [[ $# -gt 0 ]]; do
@@ -17,4 +17,4 @@ root="${STUB_HOSTS:?}/$host"; mkdir -p "$root"
 # real ssh carries no environment, so neither the controller's auth file nor docker config reaches the machine
 # a machine with its own home folder has its own HOME
 home="$HOME"; [[ -d "$root/home" ]] && home="$root/home"
-exec env -u DOCKER_CONFIG -u REGISTRY_AUTH_FILE HOME="$home" DELIVER_HOST_ROOT="$root" bash -c "$*"
+exec env -u DOCKER_CONFIG -u REGISTRY_AUTH_FILE HOME="$home" TURPIN_HOST_ROOT="$root" bash -c "$*"

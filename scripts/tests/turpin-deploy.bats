@@ -1,12 +1,12 @@
 #!/usr/bin/env bats
 
-# `deliver deploy`, `rollback` and `status` on a non-production host
+# `turpin deploy`, `rollback` and `status` on a non-production host
 # (test-design.md S6 to S16, S31, S36, S54 to S59; rules R5 to R14, R28, R29, R35).
 
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert
-  load deliver_world
+  load turpin_world
   world_new
 }
 
@@ -52,7 +52,7 @@ second_deploy() {
   assert_output --partial "build-exists"
   build_ok "$SHA"
   # the operator's working tree is edited after the build: it must not be used
-  printf '#!/usr/bin/env bash\ntouch "%s/TREE-HOOK-RAN"\n' "$W" > "$W/work/deliver/hooks/pre-deploy"
+  printf '#!/usr/bin/env bash\ntouch "%s/TREE-HOOK-RAN"\n' "$W" > "$W/work/turpin/hooks/pre-deploy"
   : > "$HOOKLOG"
   run d deploy rehearsal "$SHA" --off-level first
   assert_success
@@ -64,14 +64,14 @@ migrate
 smoke
 post-deploy"
   local env; env="$(hook_log_for smoke)"
-  assert_regex "$env" "DELIVER_APP=acme"
-  assert_regex "$env" "DELIVER_ENV=rehearsal"
-  assert_regex "$env" "DELIVER_ROLE=rehearsal"
-  assert_regex "$env" "DELIVER_SHA=$SHA"
-  assert_regex "$env" "DELIVER_VERSION=0.10.2"
-  assert_regex "$env" "DELIVER_STATE=.*/acme/rehearsal"
-  assert_regex "$env" "DELIVER_IMAGE_SERVER=reg.test/ns/acme/candidates@$(cand "$SHA-server")"
-  assert_regex "$env" "DELIVER_IMAGE_WEB=reg.test/ns/acme/candidates@$(cand "$SHA-web")"
+  assert_regex "$env" "TURPIN_APP=acme"
+  assert_regex "$env" "TURPIN_ENV=rehearsal"
+  assert_regex "$env" "TURPIN_ROLE=rehearsal"
+  assert_regex "$env" "TURPIN_SHA=$SHA"
+  assert_regex "$env" "TURPIN_VERSION=0.10.2"
+  assert_regex "$env" "TURPIN_STATE=.*/acme/rehearsal"
+  assert_regex "$env" "TURPIN_IMAGE_SERVER=reg.test/ns/acme/candidates@$(cand "$SHA-server")"
+  assert_regex "$env" "TURPIN_IMAGE_WEB=reg.test/ns/acme/candidates@$(cand "$SHA-web")"
   # O4
   assert_equal "$(running_digests_of rehearsal acme-rehearsal)" "$(digests_of "$SHA")"
   assert_equal "$(host_current rehearsal rehearsal)" 1
@@ -170,8 +170,8 @@ systemctl restart acme-backup.timer"
 }
 
 @test "missing_required_hook_refuses_and_missing_optional_hook_is_skipped (S11, R29)" {
-  cp "$W/work/deliver/hooks/migrate" "$W/migrate.save"
-  git -C "$W/work" rm -q deliver/hooks/migrate
+  cp "$W/work/turpin/hooks/migrate" "$W/migrate.save"
+  git -C "$W/work" rm -q turpin/hooks/migrate
   commit_change one; build_ok "$SHA"
   local before; before="$(snapshot)"
   run d deploy rehearsal "$SHA" --off-level first
@@ -179,14 +179,14 @@ systemctl restart acme-backup.timer"
   assert_output --partial "required hook migrate is missing"
   assert_equal "$(snapshot)" "$before"
 
-  cp "$W/migrate.save" "$W/work/deliver/hooks/migrate"; chmod -x "$W/work/deliver/hooks/migrate"
+  cp "$W/migrate.save" "$W/work/turpin/hooks/migrate"; chmod -x "$W/work/turpin/hooks/migrate"
   commit_change two; build_ok "$SHA"
   run d deploy rehearsal "$SHA" --off-level first
   assert_failure 1
   assert_output --partial "required hook migrate is not executable"
 
-  chmod +x "$W/work/deliver/hooks/migrate"
-  git -C "$W/work" rm -q deliver/hooks/post-deploy
+  chmod +x "$W/work/turpin/hooks/migrate"
+  git -C "$W/work" rm -q turpin/hooks/post-deploy
   commit_change three; build_ok "$SHA"
   run d deploy rehearsal "$SHA" --off-level first
   assert_success
@@ -326,7 +326,7 @@ echo backup"
   printf '#!/bin/sh\necho extra\n' > "$W/work/ops/extra.sh"
   cat >> "$W/work/app-profile.toml" <<'EOF'
 
-[[deliver.host_files]]
+[[turpin.host_files]]
 src = "ops/extra.sh"
 dest = "/opt/acme/extra.sh"
 mode = "0700"
@@ -406,7 +406,7 @@ EOF
     : > "$HOOKLOG"
     run d deploy rehearsal "$SHA" --off-level first
     assert_failure 1
-    assert_output --partial "Fallback: stop the deliver project"
+    assert_output --partial "Fallback: stop the turpin project"
     assert_regex "$(hook_calls | tr '\n' ' ')" "restore-state"
     assert_equal "$(host_state rehearsal rehearsal)" "failed, no previous deploy"
     [ ! -e "$(host_state_dir rehearsal rehearsal)/current" ]
