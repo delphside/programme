@@ -236,50 +236,80 @@ flowchart LR
 
 #### Stages
 
-A dynamic view of the stages, in order.
+A dynamic view of a change's stages, in order. A solid arrow is a request:
+a command, or a call that asks another component to act. A dashed arrow is
+data moving. The controller only sends requests: images go straight from the
+registry to the builder's, copier's or host's side, never through the
+controller. The two repositories are shaded.
 
 ```mermaid
 %%{init: {"themeVariables": {"noteBkgColor": "#ddf4ff", "noteBorderColor": "#54aeff", "noteTextColor": "#0a3069"}}}%%
 sequenceDiagram
+  participant DEV as development environment
+  participant GH as GitHub
   participant CN as controller
   participant BE as builder
-  participant C as candidates
+  box rgb(251,239,255) candidates
+    participant C as APP/candidates
+  end
+  participant PV as preview or test host
   participant H as rehearsal host
   participant RC as release copier
-  participant R as releases
+  box rgb(255,241,229) releases
+    participant R as APP/releases
+  end
   participant P as production host
-  Note over CN,P: 1. Build
-  BE->>C: turpin build SHA (once)
-  Note over CN,P: 2. Rehearse
-  CN->>H: turpin deploy rehearsal PRODUCTION'S RECORD (start of the cycle)
+  Note over DEV,P: 1. Develop
+  Note over DEV: code, unit tests
+  DEV-->>GH: the branch's commits (git push)
+  Note over GH: CI: unit and end-to-end tests
+  Note over DEV,P: 2. Build
+  CN->>BE: turpin build SHA
+  GH-->>BE: the commit (git fetch)
+  BE-->>C: image set SHA-IMAGE, payload inside (once)
+  Note over DEV,P: 3. Try and test the branch
+  CN->>PV: turpin deploy preview SHA, or test
+  C-->>PV: image set, by digest
+  Note over PV: user functional testing
+  Note over DEV,P: 4. Rehearse
+  CN->>H: turpin deploy rehearsal VERSION (production's, at the cycle's start)
+  C-->>H: production's image set, by digest
   CN->>H: turpin deploy rehearsal SHA
-  H->>C: pull by digest, run payload
-  Note over H: regression, test manager checks, owner judges passed
-  Note over CN,P: 3. Release
+  C-->>H: image set, by digest
+  Note over H: technical tests and regression, test manager checks, owner judges passed
+  Note over DEV,P: 5. Release
   CN->>CN: turpin release: gates, record
-  CN->>RC: copy by digest, push record
-  RC->>R: write
-  CN->>CN: tag vVERSION, GitHub Release, bump main, next milestone
-  Note over CN,P: 4. Deploy
+  CN->>RC: copy request: digests, record
+  RC->>C: read by digest
+  C-->>R: image set as VERSION-IMAGE, by digest (through the copier)
+  RC-->>R: VERSION-record
+  CN-->>GH: tag vVERSION, GitHub Release, bump main, next milestone
+  Note over DEV,P: 6. Deploy
   CN->>P: turpin deploy production VERSION
-  P->>R: pull record and images by digest, run payload
-  Note over CN,P: 5. Settle
-  CN->>CN: settle from the record
+  R-->>P: record, then the image set, by digest
+  Note over DEV,P: 7. Settle
+  CN->>GH: settle the board from the record
 ```
 
-1. **Build.** The builder builds a commit once and pushes `SHA-IMAGE`, payload
+1. **Develop.** The change is made and unit-tested in the development
+   environment, and pushed to its branch, where CI runs the required checks.
+2. **Build.** The builder builds a commit once and pushes `SHA-IMAGE`, payload
    inside, to candidates.
-2. **Rehearse.** A *cycle* is rehearsal between one release being made and the
+3. **Try and test.** Preview and test deploy the branch's commit from
+   candidates, for user functional testing. They have no cycle.
+4. **Rehearse.** A *cycle* is rehearsal between one release being made and the
    next. It first deploys production's current record to rehearsal
    (*production's level*), so the commit is rehearsed as an upgrade, then the
-   commit ([§11](#11-on-the-host)). Regression runs, the test manager checks, the
-   owner judges rehearsal passed. Preview and test have no cycle.
-3. **Release.** `turpin release` runs the release gates
+   commit ([§11](#11-on-the-host)). Technical tests and regression run, the
+   test manager checks the results, and the owner judges rehearsal passed.
+5. **Release.** `turpin release` runs the release gates
    ([§9](#9-gates-and-checks)), asks the owner to confirm the version and makes
-   the release ([§10](#10-the-release-and-its-record)).
-4. **Deploy.** `turpin deploy production VERSION` pulls the record and images
+   the release ([§10](#10-the-release-and-its-record)). The copier copies each
+   image by digest; within one registry the copy can mount a blob rather than
+   pass it through the copier.
+6. **Deploy.** `turpin deploy production VERSION` pulls the record and images
    from releases by digest and runs the same steps.
-5. **Settle.** The controller settles the board from the record
+7. **Settle.** The controller settles the board from the record
    ([§12](#12-settling)); a failure leaves the deploy standing, exit 3.
    `post-deploy` follows ([§9](#9-gates-and-checks)).
 
@@ -1387,7 +1417,7 @@ production deployed before the tool) is it read from `/health` through
 
 ## 10. The release and its record
 
-The release step ([stages](#stages), stage 3) puts what cannot be undone last:
+The release step ([stages](#stages), stage 5) puts what cannot be undone last:
 
 1. every release gate ([§9](#9-gates-and-checks)), then the owner's
    confirmation;
