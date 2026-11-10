@@ -358,11 +358,12 @@ it; the second, how Turpin uses it. The [components](#5-components) and
 A registry holds *repositories*, and a repository holds images. An image is a
 *manifest*, a small JSON document listing the image's configuration and
 layers, and the *blobs* it lists: the configuration and each layer, each named
-by its SHA-256 hash. A multi-architecture image adds an *index*, listing one
-manifest per architecture.
+by its SHA-256 hash. A multi-architecture image, or one carrying an
+attestation such as build provenance, adds an *index*, listing one manifest per
+architecture and one per attestation.
 
 - The *image digest* (`sha256:9b1e…`) is the SHA-256 hash of the manifest, or
-  of the index for a multi-architecture image. Since the manifest names every
+  of the index where there is one. Since the manifest names every
   blob by its hash, the digest is a fingerprint of every byte in the image.
 - A *tag* is a name for one digest within a repository. A push can move a tag to
   another image; a digest always names the same image. OCIR can make a
@@ -424,7 +425,7 @@ flowchart LR
   subgraph OCIR["OCI Registry"]
     subgraph CAND["Repository: tile-lite-elite/candidates"]
       subgraph S1["Image set: 3f2a9c1…"]
-        C1S["<i>3f2a9c1…-server</i><br>[Image]<br>manifest sha256:9b1e…;<br>revision label 3f2a9c1…;<br>the payload at /turpin/"]
+        C1S["<i>3f2a9c1…-server</i><br>[Image]<br>image digest sha256:9b1e…;<br>revision label 3f2a9c1…;<br>the payload at /turpin/"]
         C1W["<i>3f2a9c1…-web</i><br>[Image]<br>revision label 3f2a9c1…"]
       end
       subgraph S2["Image set: 8d04e7b…"]
@@ -434,8 +435,8 @@ flowchart LR
     end
     subgraph REL["Repository: tile-lite-elite/releases"]
       subgraph V1["Image set and record: release 0.10.2"]
-        R1S["<i>0.10.2-server</i><br>[Image]<br>the same manifest, sha256:9b1e…,<br>and its blobs"]
-        R1W["<i>0.10.2-web</i><br>[Image]<br>the same manifest as<br>3f2a9c1…-web, and its blobs"]
+        R1S["<i>0.10.2-server</i><br>[Image]<br>the same image digest,<br>sha256:9b1e…, and its blobs"]
+        R1W["<i>0.10.2-web</i><br>[Image]<br>the same image digest as<br>3f2a9c1…-web, and its blobs"]
         R1R["<i>0.10.2-record</i><br>[Image: one layer, record.json]<br>version, commit 3f2a9c1…,<br>each image's digest"]
       end
     end
@@ -464,22 +465,29 @@ in each set.
 flowchart LR
   subgraph CAND["Repository: tile-lite-elite/candidates"]
     T1["<i>3f2a9c1…-server</i><br>[Tag]"]
-    M1["<i>manifest</i><br>[JSON]<br>digest sha256:9b1e…,<br>the image digest"]
-    CF1["<i>configuration</i><br>[Blob: JSON]<br>revision label 3f2a9c1…"]
-    L1["<i>layer 1 … layer n</i><br>[Blobs: tar]<br>base, dependencies, application,<br>the payload at /turpin/"]
+    IX["<i>sha256:9b1e…</i><br>[Index: JSON]<br>the image digest"]
+    M1["<i>sha256:5a07…</i><br>[Manifest: JSON]<br>linux/amd64"]
+    M2["<i>sha256:e3c8…</i><br>[Manifest: JSON]<br>another platform, or an attestation"]
+    CF1["<i>sha256:c4d2…</i><br>[Blob: JSON]<br>configuration: revision label 3f2a9c1…"]
+    L1["<i>sha256:…, one per layer</i><br>[Blobs: tar]<br>layers: base, dependencies, application,<br>the payload at /turpin/"]
   end
-  T1 -->|"names"| M1
+  T1 -->|"names"| IX
+  IX -->|"lists by digest"| M1
+  IX -->|"lists by digest"| M2
   M1 -->|"lists by digest"| CF1
   M1 -->|"lists by digest"| L1
   classDef new          fill:#dafbe1,stroke:#1a7f37,color:#0a3622
-  class T1,M1,CF1,L1 new
+  class T1,IX,M1,M2,CF1,L1 new
 ```
 
-One image, `3f2a9c1…-server`, as candidates stores it: the tag names the
-manifest by its digest, and the manifest lists the configuration and each layer
-by theirs ([images, tags and digests](#images-tags-and-digests)). The release
-copy writes the same manifest and blobs to releases under the tag
-`0.10.2-server`, so both tags name `sha256:9b1e…`.
+One image, `3f2a9c1…-server`, as candidates stores it
+([images, tags and digests](#images-tags-and-digests)). The tag names an index,
+whose digest is the image digest. The index lists one manifest per platform,
+and any attestation the build adds, and each manifest lists its configuration
+and layers by digest. An image built for one platform with no attestation has
+no index: the tag names its manifest, whose digest is then the image digest.
+The release copy (`--all`) writes the index, every manifest and every blob to
+releases under the tag `0.10.2-server`, so both tags name `sha256:9b1e…`.
 
 The *commit SHA* (`3f2a9c1…`, 40 characters in full) is git's SHA-1 hash of
 the source commit. Each image carries it in its
