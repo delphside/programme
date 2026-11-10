@@ -198,42 +198,40 @@ its builder, release copier and test deployers on the non-production VM. The
 
 ### Docker image repositories (OCI Registry)
 
-Build images are kept in two OCI Registry repositories per
-application ([§10](#10-oci-integration)): `APP/candidates` and `APP/releases`.
+Build images are kept in two OCI Registry repositories per application
+([§10](#10-oci-integration)): `APP/candidates` and `APP/releases`.
 
-Two hash values are used to ensure the correct images are used without change:
+Two hash values make sure the right images are used, unchanged:
 
-- The *commit SHA* (3f2a9c1…) is git’s SHA-1 hash of the source commit. We use it in the tag, 3f2a9c1-server, so you can see which commit an image came from.
-- The *image digest* (sha256:9b1e…) is the SHA-256 of the image’s manifest. The manifest lists the image’s layers, and each layer is identified by its own hash. So the digest is a fingerprint of every byte in the image.
+- The *commit SHA* (`3f2a9c1…`) is git's SHA-1 hash of the source commit. It
+  is in each image's tag, `3f2a9c1-server`, so the tag says which commit the
+  image was built from.
+- The *image digest* (`sha256:9b1e…`) is the SHA-256 hash of the image's
+  manifest. The manifest lists the image's layers, each identified by its own
+  hash, so the digest is a fingerprint of every byte in the image. A tag can be
+  moved to another image; a digest cannot, so images are pulled by digest.
 
-**`APP/candidates`** holds a set of images for every code commit (except where
-the commit has been
-superseded). The set contains one image for each docker container.  They are
-related by the naming convention: `SHA-IMAGE`, where SHA is the commit SHA and
-IMAGE is the docker
-container. Extracting a set of related images involves matching the name against
-the SHA of the commit.  The builder
-  component writes it; preview, test and rehearsal
+For each commit an *image set* is built once: one image for each name in the
+profile's `images` (Tile Lite Elite's `server` and `web`, Dark Portal's `dp`),
+tagged `SHA-IMAGE`, the commit's SHA then the image's name. An image set is
+not stored as one object: its images are related by the shared `SHA-` prefix.
+One of them, the profile's `payload_image`, also carries the *payload* at
+`/deliver/`.
+
+- **`APP/candidates`** holds the image set of every commit built and not yet
+  pruned. The builder writes it; preview, test and rehearsal
   ([roles](#application-environments)) deploy from it, and `prune` deletes
   from it.
+- **`APP/releases`** holds every release: its image set, as `VERSION-IMAGE`,
+  and its *record*, as `VERSION-record`. The release copier writes it, copying
+  each image from candidates by digest with `skopeo`, so production runs the
+  bytes rehearsal ran; production deploys from it alone.
 
-**`APP/releases`** holds every release, as `VERSION-IMAGE` and
-  `VERSION-record`. The release copier writes it, by copying a candidate by
-  digest, so production runs the bytes rehearsal ran; production deploys from it
-  alone.
-
-For each commit an *image set* is stored in the candidate repository: one image 
-for each name in the
-profile's `images` (Tile Lite Elite's `server` and `web`, Dark Portal's `dp`),
-built once and tagged `SHA-IMAGE`, the commit's SHA then the image's name. One
-of them, the profile's `payload_image`, also carries the *payload* at
-`/deliver/`. 
-
-When an image set is promoted to the release repository it is copied over using
-skopeo.  A release adds the *record* ([§7](#7-the-release-and-its-record)):
-the version, the commit and each image's digest, stored as a one-layer image
-beside the images and as the annotated tag's message.
-
+The record ([§7](#7-the-release-and-its-record)) is what ties a release's
+images together: the version, the commit and each image's digest, stored as a
+one-layer image beside the images and as the release tag's message. A
+production deploy starts from the record and pulls each image it names by
+digest.
 
 The payload is what each host runs to deploy the image set
 ([§9](#9-on-the-host)): deploy steps, hooks,
