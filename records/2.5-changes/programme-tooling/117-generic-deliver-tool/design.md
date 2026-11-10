@@ -486,10 +486,11 @@ One image, `3f2a9c1…-server`, as candidates stores it
 ([images, tags and digests](#images-tags-and-digests)). The tag names an index,
 whose digest is the image digest. The index lists one manifest per platform,
 and an attestation manifest per platform where the build adds attestations,
-and each manifest lists its configuration and layers by digest. An image built for one platform with no attestation has
-no index: the tag names its manifest, whose digest is then the image digest.
-The release copy (`skopeo copy --all`) writes the index, every manifest and every blob to
-releases under the tag `0.10.2-server`, so both tags name `sha256:9b1e…`.
+and each manifest lists its configuration and layers by digest. An image built
+for one platform with no attestation has no index: the tag names its manifest,
+whose digest is then the image digest. The release copy (`skopeo copy --all`)
+writes the index, every manifest and every blob to releases under the tag
+`0.10.2-server`, so both tags name `sha256:9b1e…`.
 
 The *commit SHA* (`3f2a9c1…`, 40 characters in full) is git's SHA-1 hash of
 the source commit. Each image carries it in its
