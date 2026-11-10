@@ -203,35 +203,40 @@ Build images are kept in two OCI Registry repositories per application
 
 Two hash values make sure the right images are used, unchanged:
 
-- The *commit SHA* (`3f2a9c1…`) is git's SHA-1 hash of the source commit. It
-  is in each image's tag, `3f2a9c1-server`, so the tag says which commit the
-  image was built from.
+- The *commit SHA* (`3f2a9c1…`, 40 characters in full) is git's SHA-1 hash of
+  the source commit. Each image carries it in its
+  `org.opencontainers.image.revision` label, and a candidate's tag starts with
+  it, so the image says which commit it was built from.
 - The *image digest* (`sha256:9b1e…`) is the SHA-256 hash of the image's
-  manifest. The manifest lists the image's layers, each identified by its own
-  hash, so the digest is a fingerprint of every byte in the image. A tag can be
-  moved to another image; a digest cannot, so images are pulled by digest.
+  manifest, which lists the image's configuration and layers, each by its own
+  hash: a fingerprint of every byte in the image (for a multi-architecture
+  build, of the index listing each architecture's manifest). A tag can be
+  moved to another image; a digest cannot.
 
-For each commit an *image set* is built once: one image for each name in the
-profile's `images` (Tile Lite Elite's `server` and `web`, Dark Portal's `dp`),
-tagged `SHA-IMAGE`, the commit's SHA then the image's name. An image set is
-not stored as one object: its images are related by the shared `SHA-` prefix.
-One of them, the profile's `payload_image`, also carries the *payload* at
-`/deliver/`.
+For each commit the image set is built once: one image for each name in the
+profile's `images` (Tile Lite Elite's `server` and `web`, Dark Portal's `dp`).
+An image set is the images whose tags share a prefix: `SHA-IMAGE` in
+candidates (the commit's SHA, then the image's name), `VERSION-IMAGE` in
+releases.
+
+The release *record* ([§7](#7-the-release-and-its-record)) is what ties a
+release's images together: the version, the commit and each image's digest,
+stored as a one-layer image beside the images and as the message of the
+release's git tag. A production deploy starts from the record and pulls each
+image it names by digest.
 
 - **`APP/candidates`** holds the image set of every commit built and not yet
   pruned. The builder writes it; preview, test and rehearsal
   ([roles](#application-environments)) deploy from it, and `prune` deletes
   from it.
-- **`APP/releases`** holds every release: its image set, as `VERSION-IMAGE`,
-  and its *record*, as `VERSION-record`. The release copier writes it, copying
-  each image from candidates by digest with `skopeo`, so production runs the
-  bytes rehearsal ran; production deploys from it alone.
+- **`APP/releases`** holds every release: its image set and its record. The
+  release copier writes it, copying each image from candidates by digest, so
+  production runs the bytes rehearsal ran; production deploys from it alone.
+  A deploy with `--unrecorded` ([flags](#flags-that-set-a-gate-aside)) is the
+  exception: it copies a commit's image set without a record.
 
-The record ([§7](#7-the-release-and-its-record)) is what ties a release's
-images together: the version, the commit and each image's digest, stored as a
-one-layer image beside the images and as the release tag's message. A
-production deploy starts from the record and pulls each image it names by
-digest.
+One image of the set, the profile's `payload_image`, also carries the
+*payload* at `/deliver/`.
 
 The payload is what each host runs to deploy the image set
 ([§9](#9-on-the-host)): deploy steps, hooks,
