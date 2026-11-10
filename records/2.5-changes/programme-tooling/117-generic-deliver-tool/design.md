@@ -358,13 +358,15 @@ it; the second, how Turpin uses it. The [components](#5-components) and
 A registry holds *repositories*, and a repository holds images. An image is a
 *manifest*, a small JSON document listing the image's configuration and
 layers, and the *blobs* it lists: the configuration and each layer, each named
-by its SHA-256 hash. A multi-architecture image, or one carrying an
-attestation such as build provenance, adds an *index*, listing one manifest per
-architecture and one per attestation.
+by its SHA-256 hash. An image built for several platforms, or carrying
+attestations such as build provenance, adds an *index*: it lists one manifest
+per platform and, where the build adds attestations, one attestation manifest
+per platform.
 
 - The *image digest* (`sha256:9b1e…`) is the SHA-256 hash of the manifest, or
-  of the index where there is one. Since the manifest names every
-  blob by its hash, the digest is a fingerprint of every byte in the image.
+  of the index where there is one. Since the index names each manifest, and
+  each manifest every blob, by its hash, the digest is a fingerprint of every
+  byte in the image.
 - A *tag* is a name for one digest within a repository. A push can move a tag to
   another image; a digest always names the same image. OCIR can make a
   repository's tags immutable.
@@ -467,7 +469,7 @@ flowchart LR
     T1["<i>3f2a9c1…-server</i><br>[Tag]"]
     IX["<i>sha256:9b1e…</i><br>[Index: JSON]<br>the image digest"]
     M1["<i>sha256:5a07…</i><br>[Manifest: JSON]<br>linux/amd64"]
-    M2["<i>sha256:e3c8…</i><br>[Manifest: JSON]<br>another platform, or an attestation"]
+    M2["<i>sha256:e3c8…</i><br>[Manifest: JSON]<br>another platform, or the<br>attestation manifest"]
     CF1["<i>sha256:c4d2…</i><br>[Blob: JSON]<br>configuration: revision label 3f2a9c1…"]
     L1["<i>sha256:…, one per layer</i><br>[Blobs: tar]<br>layers: base, dependencies, application,<br>the payload at /turpin/"]
   end
@@ -483,10 +485,10 @@ flowchart LR
 One image, `3f2a9c1…-server`, as candidates stores it
 ([images, tags and digests](#images-tags-and-digests)). The tag names an index,
 whose digest is the image digest. The index lists one manifest per platform,
-and any attestation the build adds, and each manifest lists its configuration
-and layers by digest. An image built for one platform with no attestation has
+and an attestation manifest per platform where the build adds attestations,
+and each manifest lists its configuration and layers by digest. An image built for one platform with no attestation has
 no index: the tag names its manifest, whose digest is then the image digest.
-The release copy (`--all`) writes the index, every manifest and every blob to
+The release copy (`skopeo copy --all`) writes the index, every manifest and every blob to
 releases under the tag `0.10.2-server`, so both tags name `sha256:9b1e…`.
 
 The *commit SHA* (`3f2a9c1…`, 40 characters in full) is git's SHA-1 hash of
