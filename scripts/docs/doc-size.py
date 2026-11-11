@@ -5,7 +5,7 @@
     doc-size.py --programme   the programme repository's own
 
 Every markdown file git tracks, less what `board/size.py`'s `exempt` leaves
-out (logs, reports, fixtures and change documents), the `programme/`
+out (logs, reports, fixtures and the design map), the `programme/`
 submodule's (checked in the programme repository, as its own) and the
 generated documents an application names in its technical profile
 (`documents.generated`). The limit and the report are `board/size.py`'s, which
