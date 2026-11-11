@@ -1,7 +1,7 @@
 # 71 Test approach
 
 **How #71 is built and tested.** The design is in
-[`71-design.md`](71-design.md); this says how it is proved. Agreed with the
+[`71-02-overview.md`](71-02-overview.md); this says how it is proved. Agreed with the
 owner on 2026-08-28.
 
 **Server first, tested by a test client; then the real client.** Owner: *"maybe
@@ -24,7 +24,7 @@ doing something. That is exactly the *"second client watching"* without which,
 as #71 says, none of its three faults would have been caught.
 
 **It compiles against `crates/game-wire`**, like both real sides
-(`71-data-model.md` §3), so it rebuilds the same domain objects they do and
+([`71-05-wire.md`](71-05-wire.md#the-interface-layer)), so it rebuilds the same domain objects they do and
 asserts on the **state it receives** rather than on rendered output. That is the right level for
 Core Game Lifecycle (#268): what the server *sent* is the question, and a browser can only
 show what a client chose to draw.

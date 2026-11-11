@@ -42,7 +42,7 @@ Invitations, the Scheduler's timeouts and reminders, the admin routes (Admin
 endpoints) and the account service (Accounts) for a rename. The engine proxy
 goes; the in-process bot is a client of the game, hears it is on turn from the
 Event stream and submits through the
-[in-process glue](71-data-model.md#8--the-engine) to the Game service, which
+[in-process glue](71-06-engine.md#the-engine) to the Game service, which
 calls `apply` for it. The server builds each `GameView`; the `game-wire` crate
 (Game wire) converts it to and from the DTOs, which stay in `crates/api`.
 
@@ -55,81 +55,81 @@ A notifications component reports each event to the players' browsers.
 ```structurizr
 workspace extends model.dsl {
     model {
-        // 71-design.md, "The engine is a client" and "1.2 — the component
-        // diagram" ("Engine Proxy goes"), and 71-data-model.md, "8 · The
+        // 71-06-engine.md, "The engine is a client" and 71-10-documents-changed.md, "1.2 — the component
+        // diagram" ("Engine Proxy goes"), and 71-06-engine.md, "The
         // engine" ("There is no proxy"): an engine reaches the game as a
         // client does.
         !element tle.server.proxy {
             tags "removed" "wp:268"
         }
 
-        // 71-data-model.md, "6 · Modules" (app/games.rs): the handlers become
+        // 71-08-storage.md, "Modules" (app/games.rs): the handlers become
         // thin, so the old description is no longer true.
         !element tle.server.games {
             tags "changed" "wp:268"
             description "Creates and lists games, and sends each action as a GameMessage to apply."
         }
-        // 71-design.md, "One version, moved in one place", and
-        // 71-data-model.md, "1 · Domain types" (the one handler): apply is
+        // 71-03-version.md, "One version, moved in one place", and
+        // 71-03-version.md, "The one handler" (the one handler): apply is
         // the only writer, and the game carries the unsaved flag.
         !element tle.server.session {
             tags "changed" "wp:268"
             description "GameSession: one game's authoritative state, and apply, the one method that changes it."
         }
-        // 71-data-model.md, "6 · Modules" (app/events.rs): publish saves,
-        // logs and publishes in one place, on the game's own channel (§8).
+        // 71-08-storage.md, "Modules" (app/events.rs): publish saves,
+        // logs and publishes in one place, on the game's own channel (71-06-engine.md, "The engine").
         !element tle.server.events {
             tags "changed" "wp:268"
             description "Saves each applied change, logs it and pushes the game's latest state, with its cause, to its players over a watch channel per game."
         }
-        // 71-data-model.md, "6 · Modules" (app/roster.rs): seat changes
+        // 71-08-storage.md, "Modules" (app/roster.rs): seat changes
         // become messages. Its relationships change, its description stays
         // true.
         !element tle.server.roster {
             tags "changed" "wp:268"
         }
-        // 71-data-model.md, "6 · Modules" (app/invitations.rs): invitation
+        // 71-08-storage.md, "Modules" (app/invitations.rs): invitation
         // changes become messages; the table write stays.
         !element tle.server.invitations {
             tags "changed" "wp:268"
         }
-        // 71-data-model.md, "6 · Modules" (app/sweeps_game.rs,
+        // 71-08-storage.md, "Modules" (app/sweeps_game.rs,
         // app/scheduler_jobs.rs): a scheduler job is a caller like any other.
         !element tle.server.scheduler {
             tags "changed" "wp:268"
         }
-        // 71-data-model.md, "6 · Modules" (app/admin.rs): force-resign and
+        // 71-08-storage.md, "Modules" (app/admin.rs): force-resign and
         // force-end become messages.
         !element tle.server.adminApi {
             tags "changed" "wp:268"
         }
-        // 71-design.md, "Open questions" (a change to user details is a
+        // 71-09-open-questions.md, "Open questions" (a change to user details is a
         // GameMessage): update_player_details sends one to each of the
         // player's games.
         !element tle.server.auth {
             tags "changed" "wp:268"
         }
-        // 71-data-model.md, "5 · Database": the append-only game log, the
+        // 71-08-storage.md, "Database": the append-only game log, the
         // snapshot's schema version, foreign keys, and the rating key becoming
         // (player_id, edition) with a bot's rows moving to its account. Its
-        // description stays true; ratings.rs is unchanged in substance (§6).
+        // description stays true; ratings.rs is unchanged in substance (71-08-storage.md, "Modules").
         !element tle.server.store {
             tags "changed" "wp:268"
         }
 
         !element tle.server {
-            // 71-design.md, "The engine is a client", and 71-data-model.md,
-            // "8 · The engine". The design names no path.
+            // 71-06-engine.md, "The engine is a client", and 71-06-engine.md,
+            // "The engine". The design names no path.
             bot = component "In-process bot" "An engine seat as a client of the game: one bot object per seat, over the glue and the in-process link." {
                 tags "new" "wp:268"
                 properties {
                     "artefact" "crates/server-game/src/bot.rs (proposed)"
                 }
             }
-            // 71-design.md, "The engine is a client" (the four layers), and
-            // 71-data-model.md, "8 · The engine": the in-process transport,
-            // which joins under the Transport API (§8 gives the two
-            // calls). The client core is game-wire's (§3), so it is not
+            // 71-06-engine.md, "The engine is a client" (the four layers), and
+            // 71-06-engine.md, "The engine": the in-process transport,
+            // which joins under the Transport API (71-06-engine.md, "The engine" gives the two
+            // calls). The client core is game-wire's (71-05-wire.md, "The interface layer"), so it is not
             // drawn.
             glue = component "In-process glue" "The in-process transport: the bot's two calls without a socket." {
                 tags "new" "wp:268"
@@ -137,7 +137,7 @@ workspace extends model.dsl {
                     "artefact" "crates/server-game/src/bot_link.rs (proposed)"
                 }
             }
-            // 71-data-model.md, "3 · The interface layer".
+            // 71-05-wire.md, "The interface layer".
             wire = component "Game wire" "GameView, GameLink, Bot and take_turn, and GameView's conversion to and from the DTOs." "Rust crate" {
                 tags "new" "wp:268"
                 properties {
@@ -156,7 +156,7 @@ workspace extends model.dsl {
             tags "External" "new" "wp:270"
         }
 
-        // Removed: 71-design.md, "The engine is a client".
+        // Removed: 71-06-engine.md, "The engine is a client".
         !relationships "tle.server.games -> tle.server.proxy" {
             tags "removed" "wp:268"
         }
@@ -167,7 +167,7 @@ workspace extends model.dsl {
             tags "removed" "wp:268"
         }
 
-        // Replaced: 71-data-model.md, "6 · Modules". The save moves into
+        // Replaced: 71-08-storage.md, "Modules". The save moves into
         // events::publish; what the caller still writes is the table rows.
         !relationships "tle.server.roster -> tle.server.store" {
             tags "removed" "wp:268"
@@ -180,7 +180,7 @@ workspace extends model.dsl {
         }
 
         // Replaced: every caller sends the one handler a GameMessage instead
-        // of changing the game itself. 71-design.md, "One version, moved in
+        // of changing the game itself. 71-03-version.md, "One version, moved in
         // one place". A relationship entry cannot set a description (the
         // export fails), so each old line is removed and a new one added.
         !relationships "tle.server.games -> tle.server.session" {
@@ -200,14 +200,14 @@ workspace extends model.dsl {
         }
 
         // games -> store: events::publish now saves each applied change
-        // (71-data-model.md, "6 · Modules"). Whether create_game still saves
+        // (71-08-storage.md, "Modules"). Whether create_game still saves
         // directly is not settled, so the new line states only what is certain.
         !relationships "tle.server.games -> tle.server.store" {
             tags "removed" "wp:268"
         }
 
         // publish writes the game's state, with its cause, to that game's
-        // watch (71-data-model.md, "8 · The engine"), so the old label
+        // watch (71-06-engine.md, "The engine"), so the old label
         // "publishes GameEventDto to" is replaced on these five by the
         // relationships below.
         !relationships "tle.server.games -> tle.server.events" {
@@ -226,7 +226,7 @@ workspace extends model.dsl {
             tags "removed" "wp:268"
         }
 
-        // The replacements, 71-design.md, "One version, moved in one place".
+        // The replacements, 71-03-version.md, "One version, moved in one place".
         tle.server.games -> tle.server.session "sends each action as a GameMessage to apply" {
             tags "new" "wp:268"
         }
@@ -246,7 +246,7 @@ workspace extends model.dsl {
             tags "new" "wp:268"
         }
 
-        // The replacements for the five above, 71-data-model.md, "8 · The
+        // The replacements for the five above, 71-06-engine.md, "The
         // engine".
         tle.server.games -> tle.server.events "publishes the game's state, with its cause, to" {
             tags "new" "wp:268"
@@ -264,12 +264,12 @@ workspace extends model.dsl {
             tags "new" "wp:268"
         }
 
-        // 71-design.md, "The engine is a client": a bot hears it is on turn
+        // 71-06-engine.md, "The engine is a client": a bot hears it is on turn
         // from the Event stream, searches holding no lock, and submits to the
         // Game service as the bot's account. The glue joins under the
         // Transport API at two calls, so it skips the rate limiter; the Game
         // service calls apply (see "The in-process glue joins under the
-        // Transport API at two calls" in 71-data-model.md, "8 · The engine").
+        // Transport API at two calls" in 71-06-engine.md, "The engine").
         tle.server.bot -> tle.server.glue "hears of each change through, and submits its move through" {
             tags "new" "wp:268"
         }
@@ -286,7 +286,7 @@ workspace extends model.dsl {
             tags "new" "wp:268"
         }
 
-        // 71-design.md, "Open questions" (a change to user details is a
+        // 71-09-open-questions.md, "Open questions" (a change to user details is a
         // GameMessage).
         tle.server.auth -> tle.server.session "sends UpdateUserDetails to each game the player is in" {
             tags "new" "wp:268"
@@ -295,7 +295,7 @@ workspace extends model.dsl {
             tags "new" "wp:268"
         }
 
-        // 71-data-model.md, "1 · Domain types" (what a failed save leaves)
+        // 71-03-version.md, "The one handler" (what a failed save leaves)
         // and "5 · Database" (game_events).
         tle.server.events -> tle.server.store "saves each applied change and appends it to the game log" {
             tags "new" "wp:268"
@@ -313,7 +313,7 @@ workspace extends model.dsl {
             tags "new" "wp:268"
         }
 
-        // 71-data-model.md, "3 · The interface layer": the conversion moves
+        // 71-05-wire.md, "The interface layer": the conversion moves
         // out of server-game. The server builds each GameView with
         // GameSession::view_for and passes it to game-wire, which never sees
         // GameSession.

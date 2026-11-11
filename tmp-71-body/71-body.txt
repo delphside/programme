@@ -3,9 +3,9 @@
 
 ## Requirements
 
-**One game model** (opened 2026-08-05). A client cannot always tell that a game has changed, because not everything it renders moves the game's `version`. This project makes every change go through one handler that moves one version, and redraws the application's design map around it. What is wrong now and why is in [`71-design.md`](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/application-game-architecture/71-one-game-model/71-design.md), *What is wrong now*.
+**One game model** (opened 2026-08-05). A client cannot always tell that a game has changed, because not everything it renders moves the game's `version`. This project makes every change go through one handler that moves one version, and redraws the application's design map around it. What is wrong now and why is in [`71-01-as-is.md`](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/application-game-architecture/71-one-game-model/71-01-as-is.md).
 
-**Seven work packages, deliveries decided per package** (D56, #442; WP G, #582, added 2026-11-11). The requirements below are folded into this project, not into its packages; the allocation is a plan, and packages may move a requirement between them during design. How the line between Core and Additional is drawn is in `71-design.md`, *Work packages*. Below the allocation are the code review findings routed here and the project's decisions; a new functional requirement is raised on this issue.
+**Seven work packages, deliveries decided per package** (D56, #442; WP G, #582, added 2026-11-11). The requirements below are folded into this project, not into its packages; the allocation is a plan, and packages may move a requirement between them during design. How the line between Core and Additional is drawn is in `71-02-overview.md`, *Work packages*. Below the allocation are the code review findings routed here and the project's decisions; a new functional requirement is raised on this issue.
 
 | requirement | package | why there |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ The code review of 2026-10-02 found these in code this project rewrites; the det
 
 | finding | package | where the design answers it |
 | --- | --- | --- |
-| a rejected exchange loses rack tiles | #268 | `71-design.md`, *A rejected message changes nothing* |
+| a rejected exchange loses rack tiles | #268 | `71-03-version.md`, *A rejected message changes nothing* |
 | a bot is never run after a timeout or a force-resign hands it the turn | #268 | *The engine is a client* |
 | `game_moves` rewritten on every save | #268 | D61 |
 | invitations survive an abort | #268 | `ApplyError::GameNotWaiting`; `71-functional.md`, *The game and its seats* |
@@ -56,7 +56,7 @@ The code review of 2026-10-02 found these in code this project rewrites; the det
 | a viewer's access is one seat (GAME-4) | #268 | *Access is a set of seats* |
 | admin and invitation paths race between lock and database | #268 | *Locking is per game*; D70 |
 | invitation status strings in four files | #268 | an enum, with the seat state |
-| `MoveRecordDto.move_type` is a string | #268 | `71-data-model.md` §2 |
+| `MoveRecordDto.move_type` is a string | #268 | `71-05-wire.md`, *The wire* |
 | misplaced comments in `game_state.rs` | #268 | the file is rewritten |
 | no test of an engine timeout or panic, or of GAME-4 | #268 | `71-test-approach.md` |
 | opening or removing a game leaves composer and socket state behind | #269 | *Stop clearing; start matching* |
@@ -88,11 +88,11 @@ Each closes once applied, and the design cites it where it states the conclusion
 
 ## Design
 
-In the [`71-one-game-model`](https://github.com/delphside/programme/tree/main/applications/tile-lite-elite/3.1.7-changes/workstreams/application-game-architecture/71-one-game-model) folder in `delphside/programme`: `71-functional.md` (use case, journeys, lifecycles), `71-design.md` (overall, then a section per package), `71-data-model.md`, `71-life-histories.md` (WP A's entity/event matrix, #542), `71-impact.md`, the design map change `71-map-change.md` and its drawing `71-map-diagrams.md`, and the reviews. `71-handover.md` says what is open.
+In the [`71-one-game-model`](https://github.com/delphside/programme/tree/main/applications/tile-lite-elite/3.1.7-changes/workstreams/application-game-architecture/71-one-game-model) folder in `delphside/programme`: `71-functional.md` (use case, lifecycles), `71-journeys-u1-u3.md` and `71-journeys-u4-u6.md` (the journeys), `71-journey-questions.md`, `71-01-as-is.md` (how it works today), `71-02-overview.md` (overall, then a section per package) with its topic files `71-03-version.md`, `71-04-seats.md`, `71-05-wire.md`, `71-06-engine.md`, `71-07-client.md`, `71-08-storage.md`, `71-09-open-questions.md` and `71-10-documents-changed.md`, `71-life-histories.md` (WP A's entity/event matrix, #542), `71-impact.md`, the design map change `71-map-change.md` and its drawing `71-map-diagrams.md`, and the reviews in `reviews/`. `71-handover.md` says what is open.
 
 ## Non-functional design
 
-`71-design.md`, *Non-functional design*: capacity, failure, limits and timeouts, secrets and access.
+`71-02-overview.md`, *Non-functional design*: capacity, failure, limits and timeouts, secrets and access.
 
 ## Test approach
 
@@ -105,7 +105,7 @@ The generated header above lists what this waits on and what needs it.
 - **#10 bot client harness** stays its own project and follows #268 (D63).
 - **#439 player interactions** owns unique and verified addresses; D72 builds on them without waiting.
 - **#538 move generator** is its own project; WP A's engine design depends only on its interface.
-- **Anything game-related outside #71 is independent of it** (`71-design.md`, *Work packages*): #291 capacity and #296 account states each say so on their own issue.
+- **Anything game-related outside #71 is independent of it** (`71-02-overview.md`, *Work packages*): #291 capacity and #296 account states each say so on their own issue.
 - **Outside it**: #103, the browser tab icon, and any client change unrelated to games.
 
 ## Deliveries
