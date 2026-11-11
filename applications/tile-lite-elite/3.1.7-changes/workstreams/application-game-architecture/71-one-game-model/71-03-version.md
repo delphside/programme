@@ -2,8 +2,8 @@
 
 This file holds how one version is moved in one place: what is worth keeping
 from today and what to move away from, the model, the technologies it rests on
-(Rust enums with exhaustive `match`, Tokio's lock and `Arc`, and module
-privacy), the argument, then the session, the counters, the three categories of
+(Rust enums with exhaustive `match`, Tokio's lock and `Arc`, `watch` channels
+and module privacy), then the session, the counters, the three categories of
 change, the message and the one handler. It follows
 [`71-02-overview.md`](71-02-overview.md) and is followed by
 [`71-04-seats.md`](71-04-seats.md).
@@ -16,9 +16,8 @@ change, the message and the one handler. It follows
   `GameSession.version` is an `i64` that `mark_changed` increments, called from
   each mutator in `game_state.rs`, among them start, abort, seat, chat and hide.
   Over-bumping is harmless; only monotonicity matters.
-- **The client already drops what it holds.** `should_apply_update`
-  (`crates/ui/src/app.rs`) applies an update for another game, or one whose
-  `version` is greater than the one shown, and discards the rest.
+- **The client already drops what it holds.** `should_apply_update` compares
+  versions ([the client's as-is](71-07-client.md#worth-keeping)).
 - **`touch()` bumps the version for a change the session cannot see.** An
   invitation's status lives in `game_invitations`, not on `GameSession`.
 - **A change is saved under the write lock before it is sent.**
@@ -30,10 +29,11 @@ change, the message and the one handler. It follows
 - **Nothing makes a writer announce its change.** Handlers in `app/games.rs`,
   `app/roster.rs`, `app/invitations.rs` and `app/sweeps_game.rs` each call a
   mutator, then save and send for themselves.
-- **The stopgap is a convention.** `announce_invitation_change` carries a
-  comment saying it works only while the change travels with a change to the
-  session, and that sending and declining an invitation went unnoticed until a
-  page reload.
+- **The stopgap is a convention.** The comment on `announce_invitation_change`
+  says every write to `game_invitations` must end there. Accepting, withdrawing
+  and removing a seat do not call it, and are right only because each also
+  changes the session and so bumps the version; sending and declining a seat's
+  invitation changed no session.
 - **A save can fail after the change is applied.** `submit_action`
   (`app/games.rs`) applies a move in one write-lock section, runs any engine
   turns, and saves in a later one, so a failed save leaves memory ahead of the
@@ -44,9 +44,6 @@ change, the message and the one handler. It follows
 - **One lock guards every game.** `AppState.games` is an
   `Arc<RwLock<HashMap<String, GameSession>>>` (`app.rs`), so work on one game
   blocks all.
-- **The scoreless count is accumulated.** `consecutive_scoreless_turns`
-  (`game_state.rs`) is incremented and reset in place, and `turn_number` is the
-  only turn counter.
 
 ## The model
 
@@ -106,12 +103,16 @@ Tokio is the Rust async runtime the server runs on (`#[tokio::main]`,
 `main.rs`;
 [docs.rs](https://docs.rs/tokio/latest/tokio/runtime/index.html)):
 
-- A *task* is a unit of async work, such as one request or one WebSocket. The
-  multi-thread runtime runs many tasks on a few *worker threads*, one for each
-  CPU by default.
-- A *future* is a value that stands for async work not yet done, which a task
-  polls. A task gives up its worker only at an `.await`. Code that computes
-  without awaiting, as a move search does, keeps its worker until it returns.
+- An `async fn` does not run when called: it returns a *future*, a value that
+  stands for work not yet done. `.await` is the point where that work may
+  pause and let other work run. Rust's standard library has no way to run
+  futures, so a *runtime* does, and Tokio is the one this server uses.
+- A *task* is a unit of async work, such as one request or one WebSocket (a
+  long-lived two-way connection from a browser, which
+  [axum](71-05-wire.md#the-axum-technology) explains). The multi-thread runtime
+  runs many tasks on a few *worker threads*, one for each CPU by default.
+- A task gives up its worker only at an `.await`. Code that computes without
+  awaiting, as a move search does, keeps its worker until it returns.
 - `Send` marks a type that may move between threads, which a task's future
   must be. A guard from `std::sync` held across an `.await` can deadlock and
   makes the future not `Send`.
@@ -120,9 +121,9 @@ Tokio is the Rust async runtime the server runs on (`#[tokio::main]`,
   lock taken with `.await`: `read().await` admits any number of readers,
   `write().await` admits one writer and no reader, and a guard releases the lock
   when it drops. The queue is first come first served, so a reader that arrives
-  after a waiting writer waits behind it. Unlike `std::sync`'s, its guard may be
-  held across an `.await`, and then every other task that wants the lock waits
-  for the whole `.await`.
+  after a waiting writer waits behind it. Unlike `std::sync`'s, its guard may
+  be held across an `.await`, and then every other task that wants the lock
+  waits for the whole `.await`.
 - `Arc<T>`, from `std::sync`, is a pointer that shares one value among owners
   and counts them. `Arc::clone` adds an owner without copying the value, and the
   value is dropped with the last owner. `Arc<RwLock<T>>` is how tasks share a
@@ -135,14 +136,56 @@ Arc<RwLock<GameSession>>>`, so the map's lock guards insertion and removal and
 each game has its own. A handler takes the map's read lock only long enough to
 clone the game's `Arc`, then locks the game. One game's work stops blocking
 every other game, which is what makes an engine search off the request path
-affordable. No lock is held across an await on anything slow: an engine search,
-or a database write of another game. The game's own write lock is held across
-the save of that game, which is the point of
-[*A change has happened only once it is in the database*](#one-version-moved-in-one-place).
+affordable.
+
+The game's lock is taken to read the game, to build a view of it or to submit
+a message to it, and is held across no await on anything slow, such as an engine
+search or the database write of another game. Its write lock is held across the
+save of that game, which is the point of the rule in
+[*One version, moved in one place*](#one-version-moved-in-one-place) that a
+change has happened only once it is in the database.
+
 This project owns the map's shape; #408 designs its deadline index, loading and
-eviction on top of it [^d70]. The engine takes the per-game lock only to submit
-a move
-([How the engine uses Tokio](71-06-engine.md#how-the-engine-uses-tokio)).
+eviction on top of it [^d70]. A handler holding a cloned `Arc` can still save
+after a sweep or an admin delete has removed the game from the map, which
+inserts its row again
+([*Open questions about the shapes*](71-09-open-questions.md#open-questions-about-the-shapes)).
+
+## Watch channels
+
+### The watch technology
+
+`tokio::sync::watch` is a channel that keeps only the last value sent
+([docs.rs](https://docs.rs/tokio/latest/tokio/sync/watch/index.html)):
+
+- `watch::channel(initial)` makes a `Sender` and a `Receiver`. The channel
+  always holds a value, and `Sender::subscribe` makes another receiver at any
+  time.
+- `Sender::send` replaces the value and fails if no receiver is left;
+  `Sender::send_replace` replaces it regardless.
+- A receiver reads the latest value with `borrow()`, which holds a read lock
+  until the guard drops, so it is not held across an `.await`.
+  `changed().await` waits until the value is newer than the one this receiver
+  last marked seen, by `changed` or by `borrow_and_update`; `borrow` does not
+  mark it.
+- A receiver that falls behind neither errors nor queues. Sends between two of
+  its reads overwrite one another, so it sees the latest value and does not
+  know how many it missed.
+- When every sender is dropped, `changed()` returns an error once the receiver
+  has seen the current value, which is its signal that the channel has closed.
+
+`tokio::sync::broadcast`, which the server uses today for `AppState.events`,
+differs in each of these: it queues every message up to its capacity, and a
+receiver too slow to keep up gets a `Lagged` error and loses the oldest.
+
+### How the version uses watch
+
+Each game has its own `watch` channel holding its latest state, which carries
+its version. A receiver that keeps up sees every version; one that falls behind
+reads only the latest and sees the version jump, which is why the version, and
+not a count of messages, is what tells a client whether it is stale. How the
+channels are made, held and subscribed to is in
+[How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch).
 
 ## Module privacy
 
@@ -192,53 +235,66 @@ pub enum GameMessage {
 
 `Start` deals the racks and drops the spent seats in one step. Undo and redo
 join the enum with #272. Anything that changes what a client of the game could
-be shown is a variant; there is no other way in.
+be shown is a variant, and a variant is the only way in.
 
 The handler applies the change, advances the version, records the event and
-publishes — in that order, in one place. Nothing else writes to a game.
+publishes, in that order and in one place, and it is the only writer to a game.
 
 **Two messages save without advancing the version.** `Hide` changes one
 player's own list, not the game, and `ReminderSent` records that a reminder
-went so it is not sent twice. Neither is anything another client is shown,
-so each is saved under the same lock and nothing is published; neither counts
-as activity for RET-3.
+went so it is not sent twice. Neither is anything another client is shown, so
+each is saved under the same lock and nothing is published, and neither counts
+as activity for RET-3. Each still logs its event (`SeatHidden`,
+`ReminderSent`), with a row keyed by the log's own sequence and not by version
+(G5 in [the life histories](71-life-histories.md#gaps-the-matrix-found)).
 
 **A rejected message changes nothing.** The handler validates against the game
 as it stands and applies only a message that will succeed, so a refused
 exchange or placement leaves the racks and the bag as they were.
 
 **A change has happened only once it is in the database** [^d69]. Under the
-game's own lock the handler sets the game's *unsaved* flag, applies the change
-in memory, saves it, and clears the flag; only then does it publish. The lock
-keeps every other reader out until the flag clears. A save that fails with a
-transient error is retried while the player waits, as the error's class
-allows. If it still fails, the change did not happen: the player is told to
-try again, and the game is reloaded from the database, which clears the flag.
-If the reload fails too, the flag stays set and the game refuses every message
-until a reload succeeds. Nothing is retried after the player has been
-answered, because a save that succeeded later would make a move happen after
-the player was told it had not. How many retries, how far apart, and what a
-failing database raises beyond this game are #402's. The rules stay in Rust;
-the database records the outcome and does not apply it.
+game's own lock, in this order:
 
-That is the whole of the fix for the freshness problem. There is no obligation
-to remember, because there is nowhere else to write.
+1. `apply` sets the game's *unsaved* flag (`GameSession.unsaved: bool`).
+2. `apply` applies the change in memory.
+3. `events::publish` saves it.
+4. `events::publish` clears the flag.
+5. `events::publish` publishes.
 
-**The version is a counter, not a description.** A game can return to a state
-it already held — two seats swapped and swapped back — so anything
-derived from state repeats and a client comparing with `>` silently ignores
-the update. A timestamp is the same counter with worse properties. This also
-constrains undo: undo cannot set the version back, it produces a *new, higher*
-version whose content is an earlier state.
+The lock keeps every other reader out until the flag clears. A save that fails
+leads to one of these cases:
 
-**Locking is per game**, as
-[How the version uses Tokio](#how-the-version-uses-tokio) says.
+- A transient error, as `ApiProblem::from_sqlx` classes it, is retried in place
+  while the player waits, within #402's bounds.
+- A failure that remains means the change did not happen. The player is told to
+  try again with 503 and `Retry-After`, the game is replaced by
+  `GameSession::from_snapshot` of the stored row, which clears the flag, and
+  nothing is published.
+- A reader that finds `unsaved` set does the same reload before it reads.
+- A failed reload leaves the flag set, and the game answers 503 to every
+  message until a reload succeeds.
 
-**Ordering does not need more than that**, and the reason is not that
-out-of-turn messages commute. It is that there is no order to preserve.
+Nothing is retried after the player has been answered, because a save that
+succeeded later would make a move happen after the player was told it had not.
+How many retries, how far apart and what a failing database raises beyond this
+game are #402's. The database is the source of truth for #408. The rules stay in
+Rust; the database records the outcome and does not apply it.
+
+The handler is the only writer, so nothing has to be remembered: a change
+cannot skip the version.
+
+**The version is a counter.** A game can return to a state it already held, as
+when two seats are swapped and swapped back, so anything derived from state
+repeats and a client comparing with `>` silently ignores the update. A
+timestamp is the same counter with worse properties. This also constrains undo:
+undo cannot set the version back, it produces a *new, higher* version whose
+content is an earlier state.
+
+**Ordering needs nothing more than that**, because for almost every message
+there is no order to preserve.
 
 An in-turn move cannot be made until the previous one has been applied and
-published, because that is how a client learns it is its turn — so in-turn
+published, because that is how a client learns it is its turn, so in-turn
 moves arrive in an order the game itself created. Everything else is
 independent action by separate clients, and which reaches the server first is
 luck. **Any order the handler sees is a valid one**, because no other order
@@ -249,17 +305,17 @@ server owes nobody a reconstruction of what "really" happened first, since
 nothing did.
 
 The one place a real order exists is a single client sending two messages back
-to back — a move, then resigning out of turn. Those were genuinely ordered by
-the person, and two requests in flight together can be processed either way
-round.
+to back, such as a move and then resigning out of turn. Those were genuinely
+ordered by the person, and two requests in flight together can be processed
+either way round.
 
 It costs little. Applied as sent, the move lands and then the seat goes.
 Reversed, the seat goes first and the move is refused, because taking a turn
 requires it to be your turn and that seat no longer has one. Either way the
-player resigns and is ranked identically — a resigner's place depends on when
-they left, not on what they scored. What differs is the board: one order plays
-the tiles, the other returns them to the bag, and the other players draw from
-a different bag as a result.
+player resigns and is ranked identically, because a resigner's place depends on
+when they left, not on what they scored. What differs is the board: one order
+plays the tiles, the other returns them to the bag, and the other players draw
+from a different bag as a result.
 
 **Closed by the client waiting, and the server makes waiting worth doing.**
 Every message is answered with the resulting state and its version, so a
@@ -267,20 +323,19 @@ client knows the change landed rather than merely that it was accepted. A
 client that waits for that before sending its next message never has two in
 flight, and that window does not exist for it.
 
-The same version then earns a second keep. The client sees each change twice —
-once in the response to its own message, once in the update that goes to
-everybody — and the second is discarded as already held, because it carries a
+The same version then earns a second keep. The client sees each change twice,
+once in the response to its own message and once in the update that goes to
+everybody, and the second is discarded as already held, because it carries a
 version no higher than the one just applied. Without that the client would
 apply its own move twice, or need to recognise its own echo some other way.
 
 **Every update goes to every client of its game.** Choosing recipients within a
-game by who a change affects would be fragile and buys nothing — no change to a
-game is invisible to everybody, and the cost of not choosing is a refetch
-nobody needed. Each game has its own channel
-([How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch)),
-so an update reaches no other game's clients. Per-viewer concerns stay where
-they are: redaction decides what each connection may see, and hiding a game is
-a flag on a seat.
+game by who a change affects would be fragile and buys nothing: no change to a
+game is invisible to everybody, and the cost of choosing is a bug each time one
+is missed. An update reaches no other game's clients, because each game has its
+own channel ([above](#how-the-version-uses-watch)). Per-viewer concerns stay
+where they are: redaction decides what each connection may see, and hiding a
+game is a flag on a seat.
 
 ## The session
 
@@ -300,7 +355,7 @@ pub struct GameSession {
 
 **Two counters, and only one of them is monotonic.**
 
-| | what it counts | monotonic? |
+| Counter | What it counts | Monotonic? |
 | --- | --- | --- |
 | `version` | every change a client can see, including chat and a rename | **yes, always** |
 | `turn` | turns taken since the game started — **game state** | **no**: undo takes it back, redo returns it |
@@ -309,12 +364,12 @@ pub struct GameSession {
 (derived, in
 [*Deriving beats accumulating*](71-07-client.md#deriving-beats-accumulating-and-the-scoreless-rule-is-the-case))
 and what a player is shown (owner, 2026-08-29). Because it can return to a value
-it already held, it keys nothing — the same reason the design gives for
-`version` being a counter rather than a description.
+it already held, it keys nothing, for the same reason `version` is a counter and
+not a description.
 
 ## Which changes move which counter
 
-| change | `version` | `turn` |
+| Change | `version` | `turn` |
 | --- | --- | --- |
 | a word placed | ✓ | ✓ |
 | a pass | ✓ | ✓ |
@@ -323,12 +378,14 @@ it already held, it keys nothing — the same reason the design gives for
 | an invitation sent, accepted, declined | ✓ | — |
 | a rename (`UpdateUserDetails`) | ✓ | — |
 | a resignation, force-resign, timeout | ✓ | — |
+| a start, an abort, an admin force-end | ✓ | — |
 | undo, redo | ✓ | ✓ back / ✓ forward |
-| a seat added, removed, reordered, hidden | ✓ | — |
+| a seat added, withdrawn or swapped | ✓ | — |
+| a seat hidden, a reminder sent | — | — |
 
 ## Three categories of change
 
-| category | what is in it | changed by |
+| Category | What is in it | Changed by |
 | --- | --- | --- |
 | **board** | the tiles played on the board, and nothing else | a placement; undo or redo of one |
 | **the game** | the board, plus racks, scores, the turn, resignations and timeouts | everything in the board row, plus pass, exchange, resign, force-resign, timeout, start, abort |
@@ -336,11 +393,13 @@ it already held, it keys nothing — the same reason the design gives for
 
 **The categories are not counters.** `version` moves for all three and answers
 *is what I hold stale*. What a category decides is what to do, and that is a
-property of the **event**: the envelope carries it —
-`State { game, because: Option<GameEventDto> }` — so a client classifies the
+property of the **event**: the envelope carries it as
+`State { game, because: Option<GameEventDto> }`, where `GameEventDto` is a
+data transfer object, defined in
+[*The model*](71-05-wire.md#the-model) of the wire. A client classifies the
 event rather than comparing numbers:
 
-| the client is told | it does |
+| The client is told | It does |
 | --- | --- |
 | a **board** event | redraw the board; a staged word whose cells are now taken is discarded by [the occupancy check](71-07-client.md#the-composition-is-keyed-by-game-and-seat) |
 | a **game** event | redraw the panes — racks, scores, whose turn. Notify if it is now this player's turn |
@@ -396,26 +455,16 @@ Everything else on `GameSession` becomes a reader. The methods that mutate
 today — `maybe_run_engine_turn`, the action handlers, the invitation writers —
 either disappear into `apply` or become callers of it.
 
-**Enforced by visibility, not by discipline.** `seats`, `state`, `bag`,
-`version` and `turn` become private to the module holding `apply`, with readers
-for what the outside needs. A second writer then does not compile, which is the
-difference between this and `announce_invitation_change`.
+**Enforced by visibility.** `seats`, `state`, `bag`, `version` and `turn`
+become private to the module holding `apply`, with readers for what the outside
+needs. A second writer then does not compile, which is the difference between
+this and `announce_invitation_change`.
 
 Two other ways in are named so that they are not mistaken for writers.
 `GameSession::from_snapshot` builds a game from its stored row, which is how
 persistence loads one; it validates the snapshot and changes nothing. Tests
 build games through `GameSession::new` and `apply`, the public path, so a test
 cannot reach a state the handler could not produce.
-
-**What a failed save leaves** is nothing [^d69]. `GameSession` carries an
-`unsaved: bool`, which `apply` sets. `events::publish`, under the game's write
-lock, saves the change `apply` made and clears the flag, then publishes. A save
-error that `ApiProblem::from_sqlx` classes as transient is retried in place,
-within #402's bounds. One that still fails answers 503 with `Retry-After`,
-replaces the session with `GameSession::from_snapshot` of the stored row, and
-publishes nothing; a reader that finds `unsaved` set does the same reload before
-it reads, and a game whose reload fails answers 503 to every message. The
-database is the source of truth for #408.
 
 [^d69]: Decision #469 (D69): the database holds what has happened. A failed
     save is retried by its error's class, then fails into a reload, under the

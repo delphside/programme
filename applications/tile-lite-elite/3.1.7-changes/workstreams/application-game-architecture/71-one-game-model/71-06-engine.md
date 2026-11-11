@@ -2,11 +2,11 @@
 
 This is the first of two files on the engine, and it is read first. It holds
 what is worth keeping from how an engine turn runs today and what to move away
-from, the model the design replaces it with, and the technologies the model
-rests on: watch channels, the blocking pool with a semaphore and a generic type
-over a trait. Tokio, which they all sit on, is explained in
-[`71-03-version.md`](71-03-version.md#the-tokio-technology), the first file to
-rely on it.
+from, the model the design replaces it with, and the technologies it rests on:
+Tokio and `watch` channels, both explained in
+[`71-03-version.md`](71-03-version.md), the blocking pool with a semaphore, and
+a generic type over a trait, explained in [`71-05-wire.md`](71-05-wire.md).
+Then it gives the argument for the engine being a client.
 [`71-06b-engine-bots.md`](71-06b-engine-bots.md) holds what only the engine
 needs on top of that: levels, the bots the server runs, what makes lifting the
 engine out possible and where it runs. This file follows
@@ -33,7 +33,7 @@ engine out possible and where it runs. This file follows
 - **A permit already bounds password hashing.** `hash_limit` is a `Semaphore`
   that `with_hash_permit` acquires (`app/auth.rs`); `engine_limit`, sized from
   `TILE_LITE_ELITE_ENGINE_CONCURRENCY` (default 2, `app.rs`), is its twin.
-- **Each turn is announced as it happens, paced.** After a turn,
+- - - - **Each turn is announced as it happens, paced.** After a turn,
   `run_engine_turns` sends the state on `AppState.events` and sleeps
   `ENGINE_TURN_BROADCAST_DELAY` (120 ms) so that a watching client sees each
   move
@@ -45,11 +45,11 @@ engine out possible and where it runs. This file follows
   `submit_action` and `suggest_move` (`games.rs`) end by calling
   `run_engine_turns`, and the request does not return until the loop ends, so a
   person waits for every bot turn that follows their move.
-- **The games lock is held across each search.** `AppState.games` is one
-  `Arc<RwLock<HashMap<String, GameSession>>>` (`app.rs`), and
-  `maybe_run_engine_turn` holds its write lock across the `spawn_blocking`
-  wait, so every other request needing it waits for each search. Searches run
-  one at a time by that accident.
+- **A search holds the one games lock.** `maybe_run_engine_turn` holds the
+  write lock across the `spawn_blocking` wait
+  ([the lock](71-03-version.md#to-move-away-from)), so every other request
+  needing it waits for each search. Searches run one at a time by that
+  accident.
 - **Nothing bounds how many searches run.** `engine_limit` is never acquired.
 - **A search past 5 seconds makes the seat pass**, with a warning logged. Every
   other failure, such as a panic in the engine, an action `apply_*` refuses or
@@ -68,33 +68,20 @@ engine out possible and where it runs. This file follows
   uses at least two tiles. An all-engine game that reaches it stalls, because no
   request follows to run the loop again.
 
-## The engine is a client
+## The model
 
 An engine seat is told it is its turn and returns a move when ready, driven by
-its game's channel. The engine becomes a client of
-the Game service as a person's browser is: it hears of each change from its
-game's channel, decides, and submits a move for the server to accept or refuse.
+its game's channel. The engine is a client of the Game service, a component of
+the
+[design map](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.0-design-map.md),
+as a person's browser is: it hears of each change from its game's channel,
+decides and submits a move for the server to accept or refuse. **Every bot is a
+client, and none runs inside a request** (owner, 2026-10-14). External bots run
+outside the server, in #10's harness or their own client. The server's own bots
+are in-process, reached through the glue, defined below.
 
-The reason is the goal that engine code cannot tell whether it is running in the
-server or in a client ([the goal](71-02-overview.md#the-goal)). While the loop
-stays in place, the in-process engine and an external one are two ways to play,
-and they drift apart, which is the real cost of leaving it. As a client the two
-differ only by transport, which makes the external harness (#10) a plug-in. The
-lock stops being held through a search and the request returns as soon as the
-person's move is applied. The lock gave one search at a time, by accident, which
-a permit now gives on purpose. The timeout and the turn ceiling kept a request
-from hanging on a bot, which
-[the move time limit](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md#move-time-limits)
-now does for a bot that never answers.
-
-**Every bot is a client, and none runs inside a request** (owner,
-2026-10-14). External bots run outside the server, in #10's harness or their own
-client. The server's own bots are in-process, reached through the glue, defined
-next.
-
-### The model
-
-A bot behaves like the existing client, in four layers, top-down.[^layers]
+A bot behaves like the existing client, in four layers, top-down. The layering
+is that of [the interface layer](71-05-wire.md#the-interface-layer).
 
 1. **Bot**: `Bot<L: GameLink>`, the engine and `take_turn`, which asks the
    seat's engine for a move. The same wherever it runs.
@@ -106,8 +93,8 @@ A bot behaves like the existing client, in four layers, top-down.[^layers]
    - `ExternalLink` turns them into JSON and back over HTTPS and the WebSocket.
    - `InProcessLink` hands them over as Rust values, through `updates_for` and
      the Game service's submit function.
-4. **Server**: Transport API, Game service, `apply` and the Event stream.
-   `publish` sends each change to its game's channel, and `updates_for`
+4. **Server**: the Transport API, the Game service, `apply` and the Event
+   stream. `publish` sends each change to its game's channel, and `updates_for`
    subscribes to the channels in its scope and redacts for one viewer, under
    both transports.
 
@@ -177,60 +164,23 @@ sequenceDiagram
   P->>GW: write the state with its cause, and the delivery repeats
 ```
 
-### What follows from the engine being a client
-
-- The request that triggers a bot's turn returns as soon as the human's move
-  is applied. `MAX_ENGINE_TURNS_PER_TRIGGER` stops being needed: it bounds a
-  loop that no longer exists, and a bot that never answers is already handled
-  by the move time limit, exactly as a silent human is.
-- The search runs without holding anything. The engine takes the per-game lock
-  only to submit its chosen move.
-- **Every change can put a bot on turn**, not only a move: a timeout, a
-  force-resign or a seat leaving each hand the turn on, and each is published,
-  so the bot hears of it from its game's channel whichever it was. No caller of
-  `apply` spawns a bot task.
-- **The submitted move is re-validated on arrival**, because the game may have
-  moved while the engine was thinking: aborted, or its seat retired. A human
-  gets that check today; a bot searching off the lock needs the same one. That
-  is what makes it a client rather than a special case: it proposes a move and
-  may be told no. A rejection is normal, not an error.
-
 ## Tokio
+
+Tokio is explained in
+[`71-03-version.md`](71-03-version.md#the-tokio-technology), the first file to
+rely on it.
 
 ### How the engine uses Tokio
 
-[The Tokio technology](71-03-version.md#the-tokio-technology) is explained in
-71-03. Each WebSocket and each listed bot's glue is its own task. A search leaves the
+Each WebSocket and each listed bot's glue is its own task. A search leaves the
 worker through [the blocking pool](#the-blocking-pool-and-the-semaphore), and
-the per-game lock, which replaces the one games lock, is held only to read the
-game or to submit a move, never across a search.
+holds no per-game lock while it runs.
 
 ## Watch channels
 
-### The watch technology
-
-`tokio::sync::watch` is a channel that keeps only the last value sent
-([docs.rs](https://docs.rs/tokio/latest/tokio/sync/watch/index.html)):
-
-- `watch::channel(initial)` makes a `Sender` and a `Receiver`. The channel
-  always holds a value, and `Sender::subscribe` makes another receiver at any
-  time.
-- `Sender::send` replaces the value and fails if no receiver is left;
-  `Sender::send_replace` replaces it regardless.
-- A receiver reads the latest value with `borrow()`, which holds a read lock
-  until the guard drops, so it is not held across an `.await`.
-  `changed().await` waits until the value is newer than the one this receiver
-  last marked seen, by `changed` or by `borrow_and_update`; `borrow` does not
-  mark it.
-- A receiver that falls behind neither errors nor queues. Sends between two of
-  its reads overwrite one another, so it sees the latest value and does not
-  know how many it missed.
-- When every sender is dropped, `changed()` returns an error once the receiver
-  has seen the current value, which is its signal that the channel has closed.
-
-`tokio::sync::broadcast`, which the server uses today for `AppState.events`,
-differs in each of these: it queues every message up to its capacity, and a
-receiver too slow to keep up gets a `Lagged` error and loses the oldest.
+`watch` is explained in
+[`71-03-version.md`](71-03-version.md#the-watch-technology), the first file to
+rely on it.
 
 ### How the Event stream uses watch
 
@@ -270,17 +220,16 @@ is played:
 
 **The state supersedes; the `because` of a skipped state is dropped by design.**
 A `watch` value is the state with its `because`
-([the envelope](71-05b-wire-types.md#the-envelope)). A receiver that keeps up sees every
-value and always reads the latest state, so it never lags. A slow one skips
-states: it sees the version jump by more than one and treats `because` as
+([the envelope](71-05b-wire-types.md#the-envelope)). A receiver that keeps up
+sees every value and always reads the latest state, so it never lags. A slow one
+skips states: it sees the version jump by more than one and treats `because` as
 absent, which rebuilds everything
-([the *nothing* case](71-03-version.md#three-categories-of-change)).
-The move list is part of the state, so nothing is lost. Push notifications
-come from Notifications, which the Game service reports each event to, so a
-skipped watch value loses none.
-Today a lagging server receiver ends the socket; here it skips states and
-carries on, and the client already ignores a version it has passed
-(`should_apply_update`, `crates/ui/src/app.rs`).[^watch]
+([the *nothing* case](71-03-version.md#three-categories-of-change)). The move
+list is part of the state, so nothing is lost. Push notifications come from
+Notifications, which the Game service reports each event to, so a skipped watch
+value loses none. A slow receiver skips states and carries on, and the client
+ignores a version it has passed (`should_apply_update`,
+[the client's as-is](71-07-client.md#worth-keeping)).[^watch]
 
 **What leaves the seat list, and a game's channel:**
 
@@ -395,34 +344,55 @@ sequenceDiagram
 
 ## A generic type over a trait
 
-### The generic type technology
-
-A Rust trait names behaviour. A type generic over it, `Bot<L: GameLink>`, is
-compiled once for each concrete type used for `L`, which is *monomorphisation*:
-the choice costs nothing at run time, and one build can hold `Bot<ExternalLink>`
-and `Bot<InProcessLink>` side by side. The alternative, `Box<dyn Trait>`, is
-chosen at run time through a vtable, a table of function pointers looked up on
-each call. A trait whose method is `async` cannot be used that way without
-boxing the future it returns.
+A trait and a generic type over one are explained in
+[`71-05-wire.md`](71-05-wire.md#the-generic-type-technology), the first file to
+rely on them.
 
 ### How the engine uses a generic type
 
-`GameLink::on_event` is async, which is why `Bot` is generic over its link and
-not given a `Box<dyn GameLink>`. Which link to compile is the design's choice,
-not a limit of the generic: the server builds `Bot<InProcessLink>` and a harness
-builds `Bot<ExternalLink>`, one for each build
-([the interface layer](71-05-wire.md#the-interface-layer)). The engine itself is
-chosen at run time, so it stays dynamic: `start` returns a
+`Bot` is generic over its link for the reason in
+[the interface layer](71-05-wire.md#how-the-interface-layer-uses-a-generic-type).
+The engine itself is chosen at run time, so it stays dynamic: `start` returns a
 `Box<dyn EnginePlayer>`, a trait the design adds. Today's dynamic dispatch is
 `Arc<dyn GameEngine>` in `EngineRegistry` (`game_state.rs`).
 
-[^layers]: Owner, 2026-10-20: `game-wire` converts `GameView` both ways and
-    never sees `GameSession`; the server builds the view. A bot harness
-    behaves like the existing client, over the internet or in-process.
+## The engine is a client
+
+The reason is the goal that engine code cannot tell whether it is running in the
+server or in a client ([the goal](71-02-overview.md#the-goal)). While the loop
+stays in place, the in-process engine and an external one are two ways to play,
+and they drift apart, which is the real cost of leaving it. As a client the two
+differ only by transport, which makes the external harness (#10) a plug-in. The
+lock stops being held through a search and the request returns as soon as the
+person's move is applied. The lock gave one search at a time, by accident, which
+a permit now gives on purpose. The timeout and the turn ceiling kept a request
+from hanging on a bot, which
+[the move time limit](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md#move-time-limits)
+now does for a bot that never answers.
+
+### What follows from the engine being a client
+
+- The request that triggers a bot's turn returns as soon as the human's move
+  is applied. `MAX_ENGINE_TURNS_PER_TRIGGER` stops being needed: it bounds a
+  loop that no longer exists, and a bot that never answers is already handled
+  by the move time limit, exactly as a silent human is.
+- The search runs holding no lock
+  ([the per-game lock](71-03-version.md#how-the-version-uses-tokio) is not held
+  across one).
+- **Every change can put a bot on turn**, not only a move: a timeout, a
+  force-resign or a seat leaving each hand the turn on, and each is published,
+  so the bot hears of it from its game's channel whichever it was. No caller of
+  `apply` spawns a bot task.
+- **The submitted move is re-validated on arrival**, because the game may have
+  moved while the engine was thinking: aborted, or its seat retired. A human
+  gets that check today; a bot searching off the lock needs the same one. That
+  is what makes it a client and not a special case: it proposes a move and may
+  be told no. A rejection is a normal answer.
 
 [^watch]: Owner, 2026-10-20: the per-game channel is a `watch`, the account's
     seats are a `watch`, and one task per subscriber.
 
 [^d62]: Decision #462 (D62): `engine_limit` bounds parallel searches and hints;
     the default stays 2, the VM's core count. The search's time starts once
-    the permit is held, and the engine is sent a stop signal (owner, 2026-10-14).
+    the permit is held, and the engine is sent a stop signal (owner,
+    2026-10-14).

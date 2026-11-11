@@ -2,11 +2,11 @@
 
 This is the second of two files on the engine, and it is read second. The first,
 [`71-06-engine.md`](71-06-engine.md), holds the as-is, the model of a bot as a
-client and the technologies, and defines the terms this file uses: the glue, a
-listed bot, a bot object and the layers. This file holds what only the engine
-needs on top of that: levels, the glue's calls, the bots the server runs, what
-makes lifting the engine out possible and where it runs. It is followed by
-[`71-07-client.md`](71-07-client.md).
+client, the technologies it uses and the argument for it, and defines the terms
+this file uses: the glue, a listed bot, a bot object and the layers. This file
+holds what only the engine needs on top of that: levels, the glue's calls, the
+bots the server runs, what makes lifting the engine out possible and where it
+runs. It is followed by [`71-07-client.md`](71-07-client.md).
 
 ## The engine
 
@@ -60,16 +60,18 @@ Over the external transport an object's link is one game, one WebSocket per
 game. The two subscription scopes are in
 [How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch),
 and what a harness does with `Seats` is #10's. A bot hears it is on turn from
-its game's channel, as [*What changes*](71-06-engine.md#what-follows-from-the-engine-being-a-client)
+its game's channel, as
+[*What follows from the engine being a client*](71-06-engine.md#what-follows-from-the-engine-being-a-client)
 says.
 
-**The in-process glue joins under the Transport API at two calls**:
-`updates_for` to hear
-([the Event stream](71-06-engine.md#how-the-event-stream-uses-watch)), and the Game
-service's submit function to act. `submit` calls the same Game service function
-a route handler calls after its sign-in check, passing the bot's account ID as
-the caller. The service still checks that the caller holds the seat and that it
-is on turn, and calls `apply`.
+**The in-process glue joins under the Transport API** (a component of the
+[design map](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.0-design-map.md))
+**at two calls**: `updates_for` to hear
+([the Event stream](71-06-engine.md#how-the-event-stream-uses-watch)), and the
+Game service's submit function to act. `submit` calls the same Game service
+function a route handler calls after its sign-in check, passing the bot's
+account ID as the caller. The service still checks that the caller holds the
+seat and that it is on turn, and calls `apply`.
 
 A seat added while the server runs starts from its own trigger, a creator adding
 the bot's seat:
@@ -172,5 +174,5 @@ schema.
     the creator picks a level is the UI's.
 
 [^bots]: Owner, 2026-10-20: one bot holds several seats, one bot per strength,
-    sign-in belongs to the link, and `game-wire` defines `GameMessage` and
+    sign-in belongs to the link and `game-wire` defines `GameMessage` and
     `GameUpdate`.

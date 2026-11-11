@@ -1,14 +1,15 @@
 # 71 Seats
 
-This file holds seat state: why it belongs to the seat, what each state
-carries, the principles for addresses and invitations, how the seat carries
-them, the seat as written, and access. It follows
-[`71-03-version.md`](71-03-version.md) and is followed by
+This file holds seat state: what is worth keeping from today and what to move
+away from, the model, the enum technology as the seat uses it, how a seat is
+filled, spent seats and the start, bots as users, the principles for addresses
+and invitations and how the seat carries them, the seat as written and access.
+It follows [`71-03-version.md`](71-03-version.md) and is followed by
 [`71-05-wire.md`](71-05-wire.md).
 
 ## As-is
 
-Worth keeping:
+### Worth keeping
 
 - **One authorisation check.** `resolve_viewer_access` (`game_state.rs`) is
   used by every handler that returns a `GameStateDto` and by the `game_events`
@@ -26,20 +27,21 @@ Worth keeping:
 - **A named seat takes the invitee's own spelling** of the name, because names
   match without regard to case (`app/roster.rs`).
 
-To move away from:
+### To move away from
 
 - **Seat state is derived from history.** `attach_invitation_status`
   (`game_state.rs`) folds a seat's status out of its most recent
   `game_invitations` row on every read, as `NotSent`, `Pending` or `Rejected`,
   for unclaimed seats of a waiting game only
   (`game_dto_with_invitation_status`, `app/common.rs`). The seat holds nothing,
-  so writing a row changes what every tab should show and moves no version.
+  so writing a row changes what every tab shows and moves no version.
 - **The domain seat is flat.** `ParticipantState` has 11 fields, among them
   `resigned: bool` and a `rack: Rack` that every seat carries, whatever its
   state, with `kind` and `engine_id` marking a bot.
 - **The domain seat has no field for invitation status.** `ParticipantDto`
   carries `invitation_status` and `ParticipantState` does not, so
-  `DTO → domain → DTO` loses it.
+  `DTO → domain → DTO` loses it (a DTO is a data transfer object, defined in
+  [*The model*](71-05-wire.md#the-model) of the wire).
 - **Names are copied.** `display_name` is stored on the seat, and
   `invited_email` on a seat created with `SeatClaim::Email`, until claimed.
 - **`ViewerAccess` holds one seat.** `Participant { seat_number }` comes from
@@ -51,25 +53,20 @@ To move away from:
 A *seat* is one place at a game, and its *seat state* is where that place has
 got to. The state is a field of the seat, one value of an enum that carries what
 that state has, and every other seat field is true of every seat in every state.
-The game's own states and each seat's are separate lifecycles. The enum is
-explained in
-[the enum technology](71-03-version.md#the-enum-technology).
+The game has four states of its own (not started, active, finished, aborted)
+and every seat has its own lifecycle, running independently, so a roster can
+hold a claimed seat, one asked and waiting, one asked and refused and one never
+asked, all at once. Nothing may assume a game is in a single invitation phase.
 
-### Seat state belongs to the seat
+An *invitation* says how a seat is to be filled: by name, by email or open. It
+is fixed when the seat is created. A seat is *spent* when it is declined or
+withdrawn: both are terminal, and its invitation is never sent again. A seat is
+*pending* while it is `Invited`, because it might still be filled.
 
 A seat's invitation state moves onto the seat. `game_invitations` remains the
-record of who was asked and when — accept and decline are addressed by
-invitation ID, and email links carry it — but the seat carries where it has
-got to.
-
-That single change removes the reason the version does not move: altering a
-seat is altering the game.
-
-**The whole state is composite.** The game has four states of its own — not
-started, active, finished, aborted — and every seat has its own lifecycle,
-running independently. A roster can hold a claimed seat, one asked and
-waiting, one asked and refused, and one never asked, all at once. Nothing may
-assume a game is in a single "invitation phase".
+record of who was asked and when, because accept and decline are addressed by
+invitation ID and email links carry it, but the seat carries where it has got
+to. Altering a seat is then altering the game, which is why the version moves.
 
 ```rust
 /// How this seat is to be filled. `None` for the creator's own seat and for a
@@ -97,67 +94,6 @@ pub enum SeatRack {
 }
 ```
 
-**One lifecycle, three ways of filling a seat.** Accept and decline are the same
-transitions whether the seat was aimed at a player, at an address, or at anyone.
-Only the mechanics differ — what adding the seat sends, and who is allowed to
-accept — so the difference is a field the states are read against, not a set of
-states.
-
-An earlier draft of this design split them: `UnsentToName → InvitedByName`,
-`UnsentToEmail → InvitedByEmail`, `UnsentOpen → Open`. Drawn out, those are
-three parallel lanes that never touch, which is the signature of a dimension
-that wants factoring out rather than three lifecycles. The three things that
-looked like they justified separate states are all predicates on the field:
-
-| | is a |
-| --- | --- |
-| who may accept — that player, whoever holds the link, anyone | guard |
-| which invitations appear in your list — `ByName { you }` | query |
-| which may be re-sent — `ByEmail` | guard |
-| declining an open seat, which nobody was asked for | guard |
-
-None of them is a transition. The test for a separate state is whether the
-legal *moves* differ, and they do not.
-
-**Immutable is what makes the field safe.** The objection to a field like this
-before was that it would be a second copy of what the state already held, free
-to disagree with it. Fixed at creation it cannot: the seat's purpose is
-settled when the seat exists, and a seat aimed somewhere else is a different
-seat — which is exactly what "a spent seat is spent" already established.
-
-That does mean **a name is resolved to a player when the seat is added**,
-rather than when the invitation is sent. Better feedback anyway: staging a
-seat for somebody who does not exist should fail there, not two clicks later.
-`create_game` already does this — it resolves every named invitee up front,
-*"so a typo'd name fails cleanly instead of leaving a half-built game
-behind"* — and `add_seat_to_game` now refuses an unknown name the same way.
-What changes is that the resolved player is kept on the seat, rather than
-resolved again when the invitation is sent.
-
-The client picking the name from a list of registered players is what stops
-anybody meeting that error in normal use, and it is where a typo should be
-caught — but it is help, not enforcement. The server resolves the name itself,
-because a client is not the only thing that can call it, and an unresolvable
-name has to be refused wherever it comes from. The list is currently not
-appearing, which is its own defect rather than a reason to soften this.
-
-**`None` starts at `Claimed`.** The creator's own seat and a bot's are filled
-on the spot, so they have no invitation and never pass through `Invited`. The
-`Option` says so once, instead of every caller checking for a seat kind.
-
-**There is no empty seat.** A seat is added as one of five kinds — the
-creator's own, a bot, by name, by email, or open — and a human seat without
-one is refused outright: *"A human seat needs a claim: named, open, or
-email."*
-
-**Adding an invited seat sends its invitation** (owner, 2026-10-14). The
-client asks for a seat of a kind — by name, by email or open — and the server
-creates the invitation, sends it, and returns the game with the seat already
-`Invited`, carrying its invitation ID. No seat waits unsent, so there is no
-state for it and no separate Send. A creator who adds the wrong seat withdraws
-it, as with any invitation. Today's staged seat, whose Send changed its status
-without moving the game's version, goes with it.
-
 ## Rust enums
 
 The enum technology, with *making invalid states unrepresentable*, is explained
@@ -173,13 +109,68 @@ cannot have a thing do not carry it:
 - `Claimed` has neither rack nor score, because the deal has not happened.
 
 Three smaller enums say the same for a choice: `Invitation` how a seat is to be
-filled, `Departure` how a player left, and `SeatRack` whether the rack is
+filled, `Departure` how a player left and `SeatRack` whether the rack is
 visible or only counted. `Option` says whether a seat has an invitation at all
-(*`None` starts at `Claimed`*) and whether a withdrawn seat ever had a player.
+(*`None` starts at `Claimed`*, below) and whether a withdrawn seat ever had a
+player.
 
 A caller reads the state with a `match`, so adding a state makes the compiler
 list the places that must decide what to do with it. The lifecycle is drawn in
 [the functional views](71-functional.md#lifecycles).
+
+## How a seat is filled
+
+**One lifecycle, three ways of filling a seat.** Accept and decline are the same
+transitions whether the seat was aimed at a player, at an address or at anyone.
+Only the mechanics differ, which are what adding the seat sends and who is
+allowed to accept, so the difference is a field the states are read against and
+not a set of states. States split by how the seat is filled, such as
+`UnsentToName`, `UnsentToEmail` and `UnsentOpen`, would be three parallel lanes
+that never touch, which is a dimension to factor out. What looks like it
+justifies separate states is a predicate on the field:
+
+| Question | Is a |
+| --- | --- |
+| who may accept — that player, whoever holds the link, anyone | guard |
+| which invitations appear in your list — `ByName { you }` | query |
+| which may be re-sent — `ByEmail` | guard |
+| declining an open seat, which nobody was asked for | guard |
+
+None of them is a transition. The test for a separate state is whether the
+legal *moves* differ, and they do not.
+
+**Immutable is what makes the field safe.** It is not a second copy of what the
+state holds, free to disagree with it: fixed at creation, the seat's purpose is
+settled when the seat exists, and a seat aimed somewhere else is a different
+seat, which is what GAME-9's spent seat already means.
+
+So **a name is resolved to a player when the seat is added**, and not when the
+invitation is sent. Staging a seat for somebody who does not exist fails there,
+not two clicks later. `create_game` resolves every named invitee up front,
+*"so a typo'd name fails cleanly instead of leaving a half-built game
+behind"*, and `add_seat_to_game` refuses an unknown name the same way. The
+resolved player is kept on the seat and is not resolved again when the
+invitation is sent.
+
+The client picking the name from a list of registered players is where a typo
+is caught, which is help and not enforcement. The server resolves the name
+itself, because a client is not the only thing that can call it, and an
+unresolvable name is refused wherever it comes from.
+
+**`None` starts at `Claimed`.** The creator's own seat and a bot's are filled
+on the spot, so they have no invitation and never pass through `Invited`. The
+`Option` says so once, instead of every caller checking for a seat kind.
+
+**Every seat has a kind.** A seat is added as one of five kinds (the creator's
+own, a bot, by name, by email or open), and a human seat without one is refused
+outright: *"A human seat needs a claim: named, open, or email."*
+
+**Adding an invited seat sends its invitation** (owner, 2026-10-14). The
+client asks for a seat of a kind (by name, by email or open) and the server
+creates the invitation, sends it, and returns the game with the seat already
+`Invited`, carrying its invitation ID. No seat waits unsent, so there is no
+state for it and no separate Send. A creator who adds the wrong seat withdraws
+it, as with any invitation.
 
 ## Spent seats, and the start
 
@@ -190,15 +181,12 @@ name of whoever said no or walked away, if anybody had, and its invitation is
 never sent again. A creator who wants to invite anybody, the same person
 included, adds a new seat.
 
-That is what lets `Claimed` carry nothing but the player. Three earlier
-attempts at this section were answers to "where does a withdrawn seat go back
-to" — an invitation ID on `Claimed`, a `claim` field, a `Filled` enum. The
-question was wrong. Nothing goes back, so nothing has to be remembered, and
-**the pre-start lifecycle is acyclic**: a seat only ever moves forward.
+That is what lets `Claimed` carry nothing but the player. Nothing goes back, so
+nothing has to be remembered, and **the pre-start lifecycle is acyclic**: a seat
+only ever moves forward.
 
 It also keeps what a creator wants to see. A seat reading "Bob declined" or
-"Carol withdrew" says what happened; one that quietly reverted does
-not.
+"Carol withdrew" says what happened; one that quietly reverted would not.
 
 **Starting clears the spent seats.** A game begins with only the seats that
 are going to play, so `Declined` and `Withdrawn` are dropped rather than
@@ -207,12 +195,12 @@ replacement stays optional: a creator short of a player can add a seat and
 invite somebody, or start with fewer. Before the start the client lets the
 creator hide spent seats, so only the seats still in play show; that is a view
 choice, and the service keeps them until the start drops them (owner,
-2026-10-14).
+2026-10-14). `Declined` and `Withdrawn` are drawn inside **Game: Not Started**,
+and they exist only there.
 
 That makes `can_start` a statement about what is still *pending* rather than
-about every seat: no seat may be `Invited`, because it might
-still be filled, and everything that is not spent must be `Claimed`. Spent and
-pending stop being the same thing — one is never coming, the other might.
+about every seat: no seat may be `Invited`, and everything that is not spent
+must be `Claimed`. One is never coming and the other might.
 
 **Start is the last moment renumbering is free.** Dropping seats renumbers the
 ones that remain, and seat numbers are the turn order. Before the start no
@@ -222,28 +210,20 @@ ones; a moment later the log does, and the same tidy-up would be a rewrite.
 It follows that **a game must still have two seats left** (GAME-3), checked
 when it is created and again at start, after the spent seats are dropped. A
 roster whose seats turned out to be spent, down to one or none, cannot start.
-GAME-3 is what lets GAME-2's finish condition — at most one seat still playing —
+GAME-3 is what lets GAME-2's finish condition (at most one seat still playing)
 read one remaining seat as everybody else having left.
 
 Who declined is not lost. `game_invitations` keeps the record of who was asked
 and what they said, which is what DEL-2 reads: an account that turned down a
 game still cannot be deleted while that game exists, even though the seat has
-gone.
+gone. `Declined`, `Withdrawn` and every state from `Claimed` on name a player.
+`Invitation::ByEmail` names no account at all, so nothing is protected, and the
+link keeps working whether or not anybody has registered.
 
-And the diagram stops approximating. `Declined` and `Withdrawn` are drawn
-inside **Game: Not Started**, which was true of where they can be *reached*;
-with this rule it is true of where they can *exist*.
-
-**Whose turn it is stays an integer on the game**, not a flag on the seat.
-Marking the seat would mean every seat changing on every turn, all of them
-having to agree, and no fact recorded that `current_seat` does not already
-hold. "Is it mine" is a comparison.
-
-**This all matters for DEL-2**, which blocks deleting an account a game still
-refers to. `Declined`, `Withdrawn` and every state from `Claimed` on name a
-player. `Invitation::ByEmail` names no account at all, which is correct: there
-is nothing to protect, and the link keeps working whether or not anybody has
-registered.
+**Whose turn it is stays an integer on the game**, a flag on no seat. Marking
+the seat would mean every seat changing on every turn, all of them having to
+agree, and no fact recorded that `current_seat` does not already hold. "Is it
+mine" is a comparison.
 
 A game exposes an iterator over its seats, and the questions callers actually
 ask are answered from it:
@@ -258,20 +238,18 @@ game.can_start()                               // nothing pending, a seat left
 ## Bots are users
 
 A bot has an account like anyone else, and a seat it holds
-is `Claimed` then `Playing` — so `SeatKind::Engine`, `engine_id` on the seat,
+is `Claimed` then `Playing`, so `SeatKind::Engine`, `engine_id` on the seat,
 and any separate "engine is ready" state all go. What engine a bot runs is a
-fact about that user, not about the seat, and `can_start` stops special-casing
-them.
+fact about that user, not about the seat, and `can_start` treats every seat
+alike. Every caller would otherwise write `kind == Human && player_id.is_none()`
+and remember that engines are exempt.
 
 One account per engine, so a rating stays what it is now: today the rated
 subject is the `engine_id`, and "Greedy 1" and "Greedy 2" are seat labels
 sharing one rating row. Keeping one account per engine preserves that meaning
-exactly, and makes a bot-versus-bot game one account holding two seats — the
+exactly, and makes a bot-versus-bot game one account holding two seats, the
 same shape as a person doing it, per GAME-4, rather than a case of its own.
 `player_ratings.subject_kind` then has one kind and can go.
-
-Without that, every caller writes `kind == Human && player_id.is_none()` and
-remembers that engines are exempt.
 
 ## The lifecycles are in the functional views
 
@@ -293,8 +271,8 @@ case. The owner confirmed them on 2026-10-14 under D72.[^d72]
    turns an address into a user ID, or a user ID into an address. The creator
    sees an ID only once the invitation is accepted, and inviting, recovering
    an account and a closed link all answer the same whether or not the address
-   belongs to anybody. This is what OWASP calls preventing account
-   enumeration.
+   belongs to anybody. The Open Worldwide Application Security Project (OWASP)
+   calls this preventing account enumeration.
 2. **One holder at a time, and no past.** An address belongs to at most one
    account at a time, and nothing records who held it before.
 3. **The inbox is the proof.** Only verifying an address, which proves you
@@ -319,7 +297,7 @@ case. The owner confirmed them on 2026-10-14 under D72.[^d72]
 What they settle. The owner answered the invitation rows on 2026-10-14; the
 two #439 rows and the DEL-2 row are still open.
 
-| point | principle | answer |
+| Point | Principle | Answer |
 | --- | --- | --- |
 | a link's invitation, once passed: accepted or held | 7 | held for acceptance |
 | what a closed link's page shows | 1 | the inviter and that it is closed, never who took it |
@@ -332,28 +310,31 @@ two #439 rows and the DEL-2 row are still open.
 | closing an account while a passed invitation names it, refused by DEL-2 | 9 | acceptable: RET-3 ends it, and the player can decline |
 | how the verifier hears of a passed invitation | 3 | by email linking to the application, not the invitation, when they are not signed in (INV-2) |
 
-### How the seat carries them
+### Who may accept
 
-**Who may accept is settled by the address, then by the link.**[^d72] The
-rules are INV-1 to INV-8 in `docs/1.0`, and the address's two state machines,
-with a table of how each drives the other, are in `71-functional.md`, *An
-address and its invitations*. This is how the seat carries them.
+**Who may accept is settled by the address, then by the link.**[^d72] The rules
+are INV-1 to INV-8 in
+[Tile Lite Elite's rules](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md#invitations-by-address),
+and the address's two state machines, with a table of how each drives the other,
+are in
+[*An email and its invitations*](71-functional.md#an-email-and-its-invitations).
+This is how the seat carries them.
 
 - **At send.** When the address is one an account has verified and still
-holds, the seat is invited to that player, `Invited { addressee: Some(player)
-}`, and the email is a notification linking to the application, not the
-invitation (INV-1). Otherwise the addressee is `None` and the email carries the
-link (INV-2).
+  holds, the seat is invited to that player,
+  `Invited { addressee: Some(player) }`, and the email is a notification
+  linking to the application, not the invitation (INV-1). Otherwise the
+  addressee is `None` and the email carries the link (INV-2).
 - **A link followed.** The person signs in, or registers and activates, and
   only then does the server apply `InvitationPassed { seat, to }` for that
   account. The seat stays `Invited`, now with an addressee, and the link is
   spent, because a link can only claim a seat whose addressee is `None`
-  (INV-3). The game's own lock makes the claim atomic: of two at once, the
-  second finds an addressee and is refused with `InvitationNotAvailable`.
+  (INV-2, INV-3). The game's own lock makes the claim atomic: of two at once,
+  the second finds an addressee and is refused with `InvitationNotAvailable`.
 - **An address verified.** The account service finds the open invitations to
   that address with no addressee and applies `InvitationPassed` to each game in
   turn, through the same handler, so a link claimed a moment earlier wins and
-  the pass is a no-op for that seat (INV-4).
+  the pass is a no-op for that seat (INV-2, INV-3).
 - **Accepting.** A seat with an addressee can be accepted or declined only by
   that player, and passing never accepts for them (INV-5). `Open` seats are
   unchanged: anyone may claim one.
@@ -366,14 +347,14 @@ seated player's included (INV-6). Support can see the addressee, so someone
 surprised that an invitation to their address was taken can raise it with the
 creator and then with support.
 
-**A spent link says so, and nothing more** (INV-8). Its page shows who sent the
-invitation and that it is no longer available. Followed by the account it
-passed to, signed in, it opens the invitation instead, which covers the player
-whose verification passed it before they used the link.
+**A spent link says so, and shows nothing else** (INV-8). Its page shows who
+sent the invitation and that it is no longer available. Followed by the account
+it passed to, signed in, it opens the invitation instead, which covers the
+player whose verification passed it before they used the link.
 
 **Withdrawing an invitation spends its seat** with `SeatWithdrawn`, which
 closes the invitation and kills its link; RET-3 does the same for a whole game
-(INV-7). No seat is removed before the start, which drops the spent ones.
+(INV-7). The start drops the spent seats, and until then none is removed.
 
 **An address change rebinds nothing.** Once a seat has an addressee it is
 about a player, not an address. If the addressee later changes address the
@@ -387,11 +368,11 @@ can decline there.
 **Every rule holds at the API.** Third-party clients are allowed, so nothing
 here lives in a client; a client can only offer what the API permits.
 
-**What #439 owns.** Verifying, uniqueness, pending addresses,
-and the migration that takes existing addresses as verified are #439's. #71
-needs one query from it, the account that has verified an address and still
-holds it, and one event, an address verified. Until #439 delivers no address is
-verified, so every emailed invitation is a link and the design works unchanged.
+**What #439 owns.** Verifying, uniqueness, pending addresses and the migration
+that takes existing addresses as verified are #439's. #71 needs one query from
+it, the account that has verified an address and still holds it, and one event,
+an address verified. Until #439 delivers no address is verified, so every
+emailed invitation is a link and the design works unchanged.
 
 ## The seat
 
@@ -409,12 +390,12 @@ pub struct Seat {
 }
 ```
 
-`display_name` is gone — that is the lookup rule. `resigned: bool` is gone:
+`display_name` is gone, because a name is a lookup. `resigned: bool` is gone:
 `SeatState::Departed { how: Departure::Resigned, .. }` says it, and says which
 of the three ways it happened. `score` and `rack` move inside the states that
 have them, which is what stops a `Claimed` seat carrying a rack it cannot have.
 `kind` and `engine` are gone: a bot is a user account, and the account says
-which engine it runs (*Bots are users* in the design).
+which engine it runs ([*Bots are users*](#bots-are-users)).
 
 `SeatState`, `Invitation`, `Departure` and `SeatRack` are the types in
 [the model](#the-model).
@@ -424,19 +405,33 @@ which engine it runs (*Bots are users* in the design).
 ```rust
 pub struct ViewerAccess {
     pub player: Option<PlayerId>,
-    pub seats: Vec<u8>,        // every seat this account holds — not one
+    pub seats: Vec<u8>,        // every seat this account holds
     pub is_creator: bool,
 }
 ```
 
-`Creator` stops being a rank below participant: an account can be the creator
-*and* hold two seats. What a viewer may see is the union over `seats`, which is
-the live defect the design names — today `.find(...)` returns one seat, so a
-player holding two has one of their own racks hidden from them.
+**Access is a set of seats, not a tier.** GAME-4 says a player may hold more
+than one seat, so what a viewer may see is the union of what their seats may
+see, plus whether they created the game. `Creator` stops being a rank below
+participant: an account can be the creator *and* hold two seats.
+
+Three units, easily blurred and worth keeping apart. A *seat* plays: it holds
+tiles, takes turns, is invited. An *account* is entitled: what may be seen is a
+function of which seats it holds. A *connection* is addressed: it is where a
+message is delivered. An account may have several connections and they all see
+the same thing, so a client is always an account, never a seat.
+
+A person who wants to play twice in practice registers two accounts and runs
+two clients, which keeps the seats genuinely independent. The multi-seat path
+exists chiefly because a bot account holds every seat its engine plays. Somebody
+who does hold two seats gets view-switching without it being built: each client
+chooses which seat to show, so two windows on one account can show one seat
+each. How the wire redacts for a viewer is in
+[*The model*](71-05-wire.md#the-model) of the wire.
 
 [^d72]: Decision #479 (D72): how an emailed invitation behaves once an address
     identifies one account. It supersedes D59 (#445).
 
 [^d71]: Decision #472 (D71): one file per stage, functional views before the
-    technical design; work packages scoped as sections of this design, and a test
-    file per package fitted to the overall test approach.
+    technical design; work packages scoped as sections of this design, and a
+    test file per package fitted to the overall test approach.

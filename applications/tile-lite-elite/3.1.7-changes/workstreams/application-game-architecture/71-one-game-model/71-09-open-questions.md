@@ -115,8 +115,8 @@ start, one place for logs — and not a tier in the architecture. A bot run
 singly from somebody's laptop is the same bot.
 
 It answers the reloaded-game question, though: a game whose bot is on turn is
-picked up rather than left for whoever happens to touch the game next, which
-is what covers it today by accident. For the in-process bot the first yields of
+picked up rather than left for whoever happens to touch the game next, which is
+what covers it today by accident. For the in-process bot the first yields of
 `updates_for` do it, and the bot plays a game already on its turn at start-up
 ([How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch)).
 
@@ -125,7 +125,8 @@ message carrying the previous move, or the game starting, on a socket it already
 holds for that game. A game left waiting while the harness was down is picked up
 by the first yield of its socket for that game. A socket that subscribes to
 every seated game also learns of a new seat from the account's seat list
-([How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch)); the shape of the socket is #10's.
+([How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch));
+the shape of the socket is #10's.
 
 **A bot plays as a bot account, wherever the engine runs.** The harness
 authenticates as the bot, not as the person running it — so a bot's moves
@@ -143,9 +144,9 @@ and a bot playing in the server are the same game.
 Everything but `/health`, registering and logging in requires a session, and a
 bot session is taken on top of a human one. The in-process bot holds no session:
 its link is built with the identity the settings list
-([The bots the server runs](71-06b-engine-bots.md#the-bots-the-server-runs)). For an external bot, rating follows the
-bot and accountability follows the person, so one behaving badly has an owner to
-disable.
+([The bots the server runs](71-06b-engine-bots.md#the-bots-the-server-runs)).
+For an external bot, rating follows the bot and accountability follows the
+person, so one behaving badly has an owner to disable.
 
 It is worth being plain that this is revocation and not prevention:
 registration is open, so anybody can create a throwaway account and a bot
@@ -178,18 +179,37 @@ the test client, which make any client possible; #10 then attaches
 ## Open questions about the shapes
 
 **Does `apply` persist, or does its caller?** Written as
-[*The one handler*](71-03-version.md#the-one-handler) has it: `apply` mutates in memory
-and returns `Applied`; `events::publish` persists and publishes. That keeps
-`GameSession` free of the database, and makes `apply` a pure function of state
-and message — which is what makes it testable without a pool. The cost is that a
-caller can forget to publish. Enforceable by making `Applied` `#[must_use]`,
-which is weaker than the type-level guarantee the server side otherwise gets.
+[*The one handler*](71-03-version.md#the-one-handler) has it: `apply` mutates in
+memory and returns `Applied`; `events::publish` persists and publishes. That
+keeps `GameSession` free of the database, and makes `apply` a pure function of
+state and message — which is what makes it testable without a pool. The cost is
+that a caller can forget to publish. Enforceable by making `Applied`
+`#[must_use]`, which is weaker than the type-level guarantee the server side
+otherwise gets.
 
-**What is the hint?** Answered (owner, 2026-11-11): nothing uses
-`suggest_move` today. No client calls `POST /games/{game_id}/suggest`. A hint
-may be offered later, using it makes the game unrated, and it may come from a
-different engine from the one playing. It is a server feature, so that the
-server knows to make the game unrated; that is
+**Can a handler save a game that has been deleted?** A handler holds a clone of
+the game's `Arc`
+([How the version uses Tokio](71-03-version.md#how-the-version-uses-tokio)),
+so it can save after a sweep or an admin delete has removed the game from the
+map, which inserts the row again. The live case is `Hide` on a finished game.
+Options: (a) the session carries a deleted flag that every save checks under
+the game's lock; (b) the deleter takes the game's lock, so a save in progress
+finishes first and a later one finds the flag. It may be #408's, which designs
+the map's loading and eviction.
+
+**Does a staged word survive onto a game that is over?** `live_composition`
+([*The composition is keyed by game and seat*](71-07-client.md#the-composition-is-keyed-by-game-and-seat))
+has no condition that fails when the game is `Aborted` or `Finished`, so a
+composition whose cells are free and whose tiles are still in the rack stays
+live. The two `test.fixme` cases in `e2e/tests/ui-state.spec.ts` fail for this.
+Options: (a) a status condition in `live_composition`; (b) a clear on a status
+change, which brings back the push model the design retires. Open, for #269.
+
+**What is the hint?** Answered (owner, 2026-11-11): nothing uses `suggest_move`
+today. No client calls `POST /games/{game_id}/suggest`. A hint may be offered
+later, using it makes the game unrated, and it may come from a different engine
+from the one playing. It is a server feature, so that the server knows to make
+the game unrated; that is
 [delphside/tile-lite-elite#585](https://github.com/delphside/tile-lite-elite/issues/585),
 outside #71. Until then #71 leaves `suggest_move` as it is, and a hint, once
 built, takes an `engine_limit` permit like any other search in the server.
@@ -206,8 +226,9 @@ the owner.
 need an owner?** Settled by owner, 2026-10-20: see
 [The bots the server runs](71-06b-engine-bots.md#the-bots-the-server-runs).
 
-**How does an external harness learn of a game it is newly seated in?**
-Settled by owner, 2026-10-20: see [How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch).
+**How does an external harness learn of a game it is newly seated in?** Settled
+by owner, 2026-10-20: see
+[How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch).
 
 **Third-party bots in-process?** Settled by owner, 2026-10-20: no; see
 [The bots the server runs](71-06b-engine-bots.md#the-bots-the-server-runs).

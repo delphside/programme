@@ -13,16 +13,16 @@ technical design, 71-01 to 71-10, of which this file is the second:
 | [`71-functional.md`](71-functional.md) | the use case and the lifecycles, and the key to reading the journeys |
 | [`71-journeys-u1-u3.md`](71-journeys-u1-u3.md), [`71-journeys-u4-u6.md`](71-journeys-u4-u6.md) | the journeys U1 to U6 |
 | [`71-journey-questions.md`](71-journey-questions.md) | the functional questions the journeys raise, Q1 to Q15 |
-| [`71-01-as-is.md`](71-01-as-is.md) | how it works today, and what is wrong with it |
+| [`71-01-as-is.md`](71-01-as-is.md) | an index of each part's as-is: what to keep from today and what to move away from |
 | [`71-02-overview.md`](71-02-overview.md) | this file: the goal, what it makes possible, the non-functional design and the work packages |
-| [`71-03-version.md`](71-03-version.md) | one version, moved in one place: as-is, the model, the enum, Tokio and module privacy technologies, then the session, the counters, the categories of change, the message and the one handler |
-| [`71-04-seats.md`](71-04-seats.md) | seats: as-is, the seat-state model and how it uses enums, spent seats and the start, bots as users, addresses and invitations, the seat as written, access |
-| [`71-05-wire.md`](71-05-wire.md) | the wire, read first: as-is, the model (DTOs are invisible), the serde, Cargo workspace and axum technologies, the interface layer |
+| [`71-03-version.md`](71-03-version.md) | one version, moved in one place: as-is, the model, the enum, Tokio, `watch` and module privacy technologies, then the session, the counters, the categories of change, the message and the one handler |
+| [`71-04-seats.md`](71-04-seats.md) | seats: as-is, the seat-state model and how it uses enums, how a seat is filled, spent seats and the start, bots as users, addresses and invitations, the seat as written, access |
+| [`71-05-wire.md`](71-05-wire.md) | the wire, read first: as-is, the model, the trait and generic type, serde, WebAssembly, Cargo workspace and axum technologies, why DTOs are invisible, the interface layer |
 | [`71-05b-wire-types.md`](71-05b-wire-types.md) | the wire, read second: the seat, the game, structured descriptions, the envelope and the error body |
-| [`71-06-engine.md`](71-06-engine.md) | the engine as a client, read first: as-is, the model, and the watch channels, the blocking pool and the generic type it uses |
+| [`71-06-engine.md`](71-06-engine.md) | the engine as a client, read first: as-is, the model, how the engine uses Tokio, `watch`, the blocking pool and a generic type, and why the engine is a client |
 | [`71-06b-engine-bots.md`](71-06b-engine-bots.md) | the engine as a client, read second: levels, the glue's calls, the bots the server runs, what makes lifting the engine out possible |
-| [`71-07-client.md`](71-07-client.md) | the client: as-is, the model, the Dioxus and WebAssembly technologies, the composition key, the three tile states, deriving against accumulating |
-| [`71-08-storage.md`](71-08-storage.md) | storage: as-is, the model, the SQLite and sqlx technologies, migration, the database schema and the modules that change |
+| [`71-07-client.md`](71-07-client.md) | the client: as-is, the model, the Dioxus technology and how the client uses it and WebAssembly, stop clearing and start matching, the composition key, the three tile states, deriving against accumulating |
+| [`71-08-storage.md`](71-08-storage.md) | storage: as-is, the model, the SQLite, sqlx and serde technologies, migration, the database schema and the modules that change |
 | [`71-09-open-questions.md`](71-09-open-questions.md) | the open questions, and the ones settled |
 | [`71-10-documents-changed.md`](71-10-documents-changed.md) | the documents this changes, and the two diagrams that move into 1.2 |
 
@@ -57,8 +57,8 @@ One goal, from which everything here follows:
 Two things have to be true for that. The engine must be handed the same
 objects wherever it runs, and it must be driven the same way. Neither is true
 today, and the reasons turn out to be the same reasons a client sometimes
-never hears that a game changed: they are set out in
-[`71-01-as-is.md`](71-01-as-is.md#what-is-wrong-now).
+never hears that a game changed. Each part's as-is sets out its own:
+[`71-01-as-is.md`](71-01-as-is.md) indexes them.
 
 ## What this makes possible
 
@@ -78,7 +78,7 @@ The rules engine, the dictionaries, the scoring, the rating algorithm, and how
 a move is validated. This design is about who holds the state, who is told when
 it changes, and how a turn reaches the thing that takes it.
 
-## How we will know
+## How the design will be known to work
 
 - **A round-trip property test** over every type crossing the wire, `GameView`
   among them. Written first: it states what "invisible" means precisely
@@ -86,7 +86,7 @@ it changes, and how a turn reaches the thing that takes it.
 - **An engine run both ways** against the same position, through the
   in-process glue and the external transport, producing the same move.
 - **The existing lifecycle suite**, which already walks a game from creation
-  through resignation, abort, timeout and retention, and should pass unchanged
+  through resignation, abort, timeout and retention, and passes unchanged
   except where it asserts a behaviour this design deliberately alters — **plus a
   game holding every kind of seat at once**, which it has never had.
 
@@ -115,11 +115,11 @@ states to mix.
 cost the server carries, and moving them off the request path removes the
 accidental bound on them, so a bound replaces it: `engine_limit`, default 2
 because the VM has two cores [^d62], taken by every search and every hint.
-Memory is unchanged in kind: every live game is held in the map as
-today, one lock each. The whole-state-per-update wire costs a few kilobytes per
-message per connection, which is what is sent today. Each game has its own
-`watch` channel holding the latest state, so a change costs that game's
-receivers only, however many games and players there are
+Memory is unchanged in kind: every live game is held in the map as today, one
+lock each. The whole-state-per-update wire costs a few kilobytes per message per
+connection, which is what is sent today. Each game has its own `watch` channel
+holding the latest state, so a change costs that game's receivers only, however
+many games and players there are
 ([How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch)).
 
 **Assumption: routing.** Every connection for a game must reach the server that
@@ -180,27 +180,30 @@ client changes Core's server changes require.
 ### WP A, #268 Core Game Lifecycle
 
 **Takes**:
-[*One version, moved in one place*](71-03-version.md#one-version-moved-in-one-place), with every
-`GameMessage` variant except undo and redo; per-game locking; the seat model and
-its lifecycle; [*DTOs are invisible*](71-05-wire.md#dtos-are-invisible),
-including the opponent tile count and the shared error body (D65);
-[*The engine is a client*](71-06-engine.md#the-engine-is-a-client), with the in-process glue
-under the bot; the append-only game log (D61);
+[*One version, moved in one place*](71-03-version.md#one-version-moved-in-one-place),
+with every `GameMessage` variant except undo and redo; per-game locking; the
+seat model and its lifecycle;
+[*DTOs are invisible*](71-05-wire.md#dtos-are-invisible), including the opponent
+tile count and the shared error body (D65);
+[*The engine is a client*](71-06-engine.md#the-engine-is-a-client), with the
+in-process glue under the bot; the append-only game log (D61);
 [*Migration*](71-08-storage.md#migration), with the schema version, foreign keys
 and the rating key; the user-details lookup rule; and the code-review findings
 routed from #460 to it. It takes #142, #80, #106, #105, #429 and the invitation
 that outlives its game, each true by construction here [^d67]. It also builds
 the `game-wire` crate and the test client.
 
-**Waits on**: nothing still open. It builds the test client and stops short of
-the harness, which is #10's (D63). Its tests:
+**Waits on**: delphside/tile-lite-elite#576, sqlx 0.9, because the migration
+needs `-- no-transaction` on SQLite
+([*Migration*](71-08-storage.md#migration)). It builds the test client and
+stops short of the harness, which is #10's (D63). Its tests:
 [`71-test-wp-a.md`](71-test-wp-a.md). What each event does to each entity it
 touches is in [`71-life-histories.md`](71-life-histories.md) (#542).
 
 ### WP B, #269 Core Client UI
 
 **Takes**:
-[*The client has the same defect*](71-07-client.md#the-model) — one writer of the
+[*The model*](71-07-client.md#the-model) of the client — one writer of the
 server cache, matching rather than clearing, the composition keyed by game and
 seat — and whatever client change WP A's wire change forces, with #152 and #88,
 both composition behaviour [^d67]. It also changes how a creator fills the seats
@@ -288,12 +291,13 @@ own timeout test.
 **Waits on**: nothing. Its test is the change itself, on #582.
 
 [^d71]: Decision #472 (D71): one file per stage, functional views before the
-    technical design; work packages scoped as sections of this design, and a test
-    file per package fitted to the overall test approach.
+    technical design; work packages scoped as sections of this design, and a
+    test file per package fitted to the overall test approach.
 
 [^d62]: Decision #462 (D62): `engine_limit` bounds parallel searches and hints;
     the default stays 2, the VM's core count. The search's time starts once
-    the permit is held, and the engine is sent a stop signal (owner, 2026-10-14).
+    the permit is held, and the engine is sent a stop signal (owner,
+    2026-10-14).
 
 [^d69]: Decision #469 (D69): the database holds what has happened. A failed
     save is retried by its error's class, then fails into a reload, under the

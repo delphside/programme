@@ -282,8 +282,8 @@ first subscribes, rather than for every account.
 **G5.** The design logs every applied message, chat and hide included, in
 `game_events (game_id, version, …)`, but `Hide` and `ReminderSent` save without
 moving the version, so their rows would repeat a key.
-([The session](71-03-version.md#the-session)'s counter table also has a hidden seat
-moving the version, against the design; that row is corrected with this gap.)
+([The session](71-03-version.md#the-session)'s counter table now shows a hidden
+seat and a reminder moving neither counter.)
 Proposed: the log gains its own sequence, `(game_id, seq)`, with `version` as a
 column.
 
