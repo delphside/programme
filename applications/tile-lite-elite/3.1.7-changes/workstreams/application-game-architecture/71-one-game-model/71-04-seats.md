@@ -1,15 +1,65 @@
 # 71 Seats
 
-This file holds seat state: why it belongs to the seat, what each state carries,
-the principles for addresses and invitations, how the seat carries them, the
-seat as written, and access. It follows [`71-03-version.md`](71-03-version.md)
-and is followed by [`71-05-wire.md`](71-05-wire.md).
+This file holds seat state: why it belongs to the seat, what each state
+carries, the principles for addresses and invitations, how the seat carries
+them, the seat as written, and access. It follows
+[`71-03-version.md`](71-03-version.md) and is followed by
+[`71-05-wire.md`](71-05-wire.md).
 
-## Seat state belongs to the seat
+## As-is
+
+Worth keeping:
+
+- **One authorisation check.** `resolve_viewer_access` (`game_state.rs`) is
+  used by every handler that returns a `GameStateDto` and by the `game_events`
+  WebSocket, so the rule cannot drift between them. It checks a seat before the
+  creator, so a creator who also holds a seat gets the more permissive tier.
+- **`game_invitations` is the record of who was asked.** It keeps each
+  invitation's status, and accept and decline are addressed by its ID, which
+  email links carry (`persistence.rs`, `app/invitations.rs`). DEL-2 reads it.
+- **Two per-seat fields.** `removed_by_player` hides a finished game from one
+  player's list without touching anyone else's view, and `reminder_sent_turn`
+  says whether this turn's time-running-low email is still owed
+  (`ParticipantState`, `game_state.rs`).
+- **Unknown names are refused when a seat is added.** `add_seat_to_game`
+  (`app/roster.rs`) fails on an unregistered name, as creating a game does.
+- **A named seat takes the invitee's own spelling** of the name, because names
+  match without regard to case (`app/roster.rs`).
+
+To move away from:
+
+- **Seat state is derived from history.** `attach_invitation_status`
+  (`game_state.rs`) folds a seat's status out of its most recent
+  `game_invitations` row on every read, as `NotSent`, `Pending` or `Rejected`,
+  for unclaimed seats of a waiting game only
+  (`game_dto_with_invitation_status`, `app/common.rs`). The seat holds nothing,
+  so writing a row changes what every tab should show and moves no version.
+- **The domain seat is flat.** `ParticipantState` has 11 fields, among them
+  `resigned: bool` and a `rack: Rack` that every seat carries, whatever its
+  state, with `kind` and `engine_id` marking a bot.
+- **The domain seat has no field for invitation status.** `ParticipantDto`
+  carries `invitation_status` and `ParticipantState` does not, so
+  `DTO → domain → DTO` loses it.
+- **Names are copied.** `display_name` is stored on the seat, and
+  `invited_email` on a seat created with `SeatClaim::Email`, until claimed.
+- **`ViewerAccess` holds one seat.** `Participant { seat_number }` comes from
+  `.find(...)` in `resolve_viewer_access`, so a player holding two seats has
+  one of their own racks hidden, and `Creator` is a tier below `Participant`.
+
+## The model
+
+A *seat* is one place at a game, and its *seat state* is where that place has
+got to. The state is a field of the seat, one value of an enum that carries what
+that state has, and every other seat field is true of every seat in every state.
+The game's own states and each seat's are separate lifecycles. The enum is
+explained in
+[the enum technology](71-03-version.md#the-enum-technology).
+
+### Seat state belongs to the seat
 
 A seat's invitation state moves onto the seat. `game_invitations` remains the
 record of who was asked and when — accept and decline are addressed by
-invitation id, and email links carry it — but the seat carries where it has
+invitation ID, and email links carry it — but the seat carries where it has
 got to.
 
 That single change removes the reason the version does not move: altering a
@@ -22,13 +72,6 @@ waiting, one asked and refused, and one never asked, all at once. Nothing may
 assume a game is in a single "invitation phase".
 
 ```rust
-pub struct Seat {
-    pub number: u8,
-    pub player: Option<PlayerId>,        // resolved when the seat is created; a name is looked up, never stored
-    pub invitation: Option<Invitation>,  // fixed when the seat is created
-    pub state: SeatState,
-}
-
 /// How this seat is to be filled. `None` for the creator's own seat and for a
 /// bot's — they are filled on the spot and never invited.
 pub enum Invitation {
@@ -102,11 +145,6 @@ appearing, which is its own defect rather than a reason to soften this.
 on the spot, so they have no invitation and never pass through `Invited`. The
 `Option` says so once, instead of every caller checking for a seat kind.
 
-### What each state carries, and what it cannot
-
-- `Departed` has no rack, because TIME-3 returns the tiles to the bag.
-- `Claimed` has neither rack nor score, because the deal has not happened.
-
 **There is no empty seat.** A seat is added as one of five kinds — the
 creator's own, a bot, by name, by email, or open — and a human seat without
 one is refused outright: *"A human seat needs a claim: named, open, or
@@ -115,20 +153,145 @@ email."*
 **Adding an invited seat sends its invitation** (owner, 2026-10-14). The
 client asks for a seat of a kind — by name, by email or open — and the server
 creates the invitation, sends it, and returns the game with the seat already
-`Invited`, carrying its invitation id. No seat waits unsent, so there is no
+`Invited`, carrying its invitation ID. No seat waits unsent, so there is no
 state for it and no separate Send. A creator who adds the wrong seat withdraws
 it, as with any invitation. Today's staged seat, whose Send changed its status
 without moving the game's version, goes with it.
 
-### Principles for addresses and invitations
+## Rust enums
+
+The enum technology, with *making invalid states unrepresentable*, is explained
+in [`71-03-version.md`](71-03-version.md#the-enum-technology), the first file to
+rely on it.
+
+### How the seat uses enums
+
+`SeatState` is the enum, and a seat's `state` field holds it. The states that
+cannot have a thing do not carry it:
+
+- `Departed` has no rack, because TIME-3 returns the tiles to the bag.
+- `Claimed` has neither rack nor score, because the deal has not happened.
+
+Three smaller enums say the same for a choice: `Invitation` how a seat is to be
+filled, `Departure` how a player left, and `SeatRack` whether the rack is
+visible or only counted. `Option` says whether a seat has an invitation at all
+(*`None` starts at `Claimed`*) and whether a withdrawn seat ever had a player.
+
+A caller reads the state with a `match`, so adding a state makes the compiler
+list the places that must decide what to do with it. The lifecycle is drawn in
+[the functional views](71-functional.md#lifecycles).
+
+## Spent seats, and the start
+
+**A spent seat is spent** (GAME-9, owner, 2026-10-15). Declining and
+withdrawing are both terminal, whoever withdraws: the creator, any seat
+including their own (GAME-8), or the player holding it. The seat keeps the
+name of whoever said no or walked away, if anybody had, and its invitation is
+never sent again. A creator who wants to invite anybody, the same person
+included, adds a new seat.
+
+That is what lets `Claimed` carry nothing but the player. Three earlier
+attempts at this section were answers to "where does a withdrawn seat go back
+to" — an invitation ID on `Claimed`, a `claim` field, a `Filled` enum. The
+question was wrong. Nothing goes back, so nothing has to be remembered, and
+**the pre-start lifecycle is acyclic**: a seat only ever moves forward.
+
+It also keeps what a creator wants to see. A seat reading "Bob declined" or
+"Carol withdrew" says what happened; one that quietly reverted does
+not.
+
+**Starting clears the spent seats.** A game begins with only the seats that
+are going to play, so `Declined` and `Withdrawn` are dropped rather than
+blocking the start or waiting for the creator to tidy them away. Adding a
+replacement stays optional: a creator short of a player can add a seat and
+invite somebody, or start with fewer. Before the start the client lets the
+creator hide spent seats, so only the seats still in play show; that is a view
+choice, and the service keeps them until the start drops them (owner,
+2026-10-14).
+
+That makes `can_start` a statement about what is still *pending* rather than
+about every seat: no seat may be `Invited`, because it might
+still be filled, and everything that is not spent must be `Claimed`. Spent and
+pending stop being the same thing — one is never coming, the other might.
+
+**Start is the last moment renumbering is free.** Dropping seats renumbers the
+ones that remain, and seat numbers are the turn order. Before the start no
+move has been recorded against a seat number, so nothing refers to the old
+ones; a moment later the log does, and the same tidy-up would be a rewrite.
+
+It follows that **a game must still have two seats left** (GAME-3), checked
+when it is created and again at start, after the spent seats are dropped. A
+roster whose seats turned out to be spent, down to one or none, cannot start.
+GAME-3 is what lets GAME-2's finish condition — at most one seat still playing —
+read one remaining seat as everybody else having left.
+
+Who declined is not lost. `game_invitations` keeps the record of who was asked
+and what they said, which is what DEL-2 reads: an account that turned down a
+game still cannot be deleted while that game exists, even though the seat has
+gone.
+
+And the diagram stops approximating. `Declined` and `Withdrawn` are drawn
+inside **Game: Not Started**, which was true of where they can be *reached*;
+with this rule it is true of where they can *exist*.
+
+**Whose turn it is stays an integer on the game**, not a flag on the seat.
+Marking the seat would mean every seat changing on every turn, all of them
+having to agree, and no fact recorded that `current_seat` does not already
+hold. "Is it mine" is a comparison.
+
+**This all matters for DEL-2**, which blocks deleting an account a game still
+refers to. `Declined`, `Withdrawn` and every state from `Claimed` on name a
+player. `Invitation::ByEmail` names no account at all, which is correct: there
+is nothing to protect, and the link keeps working whether or not anybody has
+registered.
+
+A game exposes an iterator over its seats, and the questions callers actually
+ask are answered from it:
+
+```rust
+game.seats()                                   // Iterator<Item = &Seat>
+game.any_seat_is(Invited)                      // → still waiting on someone
+game.count_of(Declined)
+game.can_start()                               // nothing pending, a seat left
+```
+
+## Bots are users
+
+A bot has an account like anyone else, and a seat it holds
+is `Claimed` then `Playing` — so `SeatKind::Engine`, `engine_id` on the seat,
+and any separate "engine is ready" state all go. What engine a bot runs is a
+fact about that user, not about the seat, and `can_start` stops special-casing
+them.
+
+One account per engine, so a rating stays what it is now: today the rated
+subject is the `engine_id`, and "Greedy 1" and "Greedy 2" are seat labels
+sharing one rating row. Keeping one account per engine preserves that meaning
+exactly, and makes a bot-versus-bot game one account holding two seats — the
+same shape as a person doing it, per GAME-4, rather than a case of its own.
+`player_ratings.subject_kind` then has one kind and can go.
+
+Without that, every caller writes `kind == Human && player_id.is_none()` and
+remembers that engines are exempt.
+
+## The lifecycles are in the functional views
+
+The state machine for the game and its seats, and how its arrows line up with
+the messages in [*The message*](71-03-version.md#the-message), are in
+[`71-functional.md`](71-functional.md),
+[*Lifecycles*](71-functional.md#lifecycles), where the journeys are checked
+against them.[^d71]
+
+## Addresses and invitations
+
+### Principles
 
 There are many journeys through addresses and invitations, so each one, and
 each rule, is checked against these principles rather than argued case by
 case. The owner confirmed them on 2026-10-14 under D72.[^d72]
 
 1. **No address to account, nor account to address.** Nothing anyone can do
-   turns an address into a user id, or a user id into an address. The creator
-   sees an id only once the invitation is accepted, and inviting, recovering
+   turns an address into a user ID, or a user ID into an address. The creator
+   sees an ID only once the invitation is accepted, and inviting, recovering
    an account and a closed link all answer the same whether or not the address
    belongs to anybody. This is what OWASP calls preventing account
    enumeration.
@@ -230,102 +393,6 @@ needs one query from it, the account that has verified an address and still
 holds it, and one event, an address verified. Until #439 delivers no address is
 verified, so every emailed invitation is a link and the design works unchanged.
 
-**A spent seat is spent** (GAME-9, owner, 2026-10-15). Declining and
-withdrawing are both terminal, whoever withdraws: the creator, any seat
-including their own (GAME-8), or the player holding it. The seat keeps the
-name of whoever said no or walked away, if anybody had, and its invitation is
-never sent again. A creator who wants to invite anybody, the same person
-included, adds a new seat.
-
-That is what lets `Claimed` carry nothing but the player. Three earlier
-attempts at this section were answers to "where does a withdrawn seat go back
-to" — an invitation id on `Claimed`, a `claim` field, a `Filled` enum. The
-question was wrong. Nothing goes back, so nothing has to be remembered, and
-**the pre-start lifecycle is acyclic**: a seat only ever moves forward.
-
-It also keeps what a creator wants to see. A seat reading "Bob declined" or
-"Carol withdrew" says what happened; one that quietly reverted does
-not.
-
-**Starting clears the spent seats.** A game begins with only the seats that
-are going to play, so `Declined` and `Withdrawn` are dropped rather than
-blocking the start or waiting for the creator to tidy them away. Adding a
-replacement stays optional: a creator short of a player can add a seat and
-invite somebody, or start with fewer. Before the start the client lets the
-creator hide spent seats, so only the seats still in play show; that is a view
-choice, and the service keeps them until the start drops them (owner,
-2026-10-14).
-
-That makes `can_start` a statement about what is still *pending* rather than
-about every seat: no seat may be `Invited`, because it might
-still be filled, and everything that is not spent must be `Claimed`. Spent and
-pending stop being the same thing — one is never coming, the other might.
-
-**Start is the last moment renumbering is free.** Dropping seats renumbers the
-ones that remain, and seat numbers are the turn order. Before the start no
-move has been recorded against a seat number, so nothing refers to the old
-ones; a moment later the log does, and the same tidy-up would be a rewrite.
-
-It follows that **a game must still have two seats left** (GAME-3), checked
-when it is created and again at start, after the spent seats are dropped. A
-roster whose seats turned out to be spent, down to one or none, cannot start.
-GAME-3 is what lets GAME-2's finish condition — at most one seat still playing —
-read one remaining seat as everybody else having left.
-
-Who declined is not lost. `game_invitations` keeps the record of who was asked
-and what they said, which is what DEL-2 reads: an account that turned down a
-game still cannot be deleted while that game exists, even though the seat has
-gone.
-
-And the diagram stops approximating. `Declined` and `Withdrawn` are drawn
-inside **Game: Not Started**, which was true of where they can be *reached*;
-with this rule it is true of where they can *exist*.
-
-**Whose turn it is stays an integer on the game**, not a flag on the seat.
-Marking the seat would mean every seat changing on every turn, all of them
-having to agree, and no fact recorded that `current_seat` does not already
-hold. "Is it mine" is a comparison.
-
-**This all matters for DEL-2**, which blocks deleting an account a game still
-refers to. `Declined`, `Withdrawn` and every state from `Claimed` on name a
-player. `Invitation::ByEmail` names no account at all, which is correct: there
-is nothing to protect, and the link keeps working whether or not anybody has
-registered.
-
-A game exposes an iterator over its seats, and the questions callers actually
-ask are answered from it:
-
-```rust
-game.seats()                                   // Iterator<Item = &Seat>
-game.any_seat_is(Invited)                      // → still waiting on someone
-game.count_of(Declined)
-game.can_start()                               // nothing pending, a seat left
-```
-
-**Bots are users.** A bot has an account like anyone else, and a seat it holds
-is `Claimed` then `Playing` — so `SeatKind::Engine`, `engine_id` on the seat,
-and any separate "engine is ready" state all go. What engine a bot runs is a
-fact about that user, not about the seat, and `can_start` stops special-casing
-them.
-
-One account per engine, so a rating stays what it is now: today the rated
-subject is the `engine_id`, and "Greedy 1" and "Greedy 2" are seat labels
-sharing one rating row. Keeping one account per engine preserves that meaning
-exactly, and makes a bot-versus-bot game one account holding two seats — the
-same shape as a person doing it, per GAME-4, rather than a case of its own.
-`player_ratings.subject_kind` then has one kind and can go.
-
-Without that, every caller writes `kind == Human && player_id.is_none()` and
-remembers that engines are exempt.
-
-### The lifecycles are in the functional views
-
-The state machine for the game and its seats, and how its arrows line up with
-the messages in [*The message*](71-03-version.md#the-message), are in
-[`71-functional.md`](71-functional.md),
-[*Lifecycles*](71-functional.md#lifecycles), where the journeys are checked
-against them.[^d71]
-
 ## The seat
 
 `ParticipantState` is replaced. The fields that survive do so because they are
@@ -349,8 +416,8 @@ have them, which is what stops a `Claimed` seat carrying a rack it cannot have.
 `kind` and `engine` are gone: a bot is a user account, and the account says
 which engine it runs (*Bots are users* in the design).
 
-`SeatState`, `Invitation`, `Departure` and `SeatRack` are as
-[`71-04-seats.md`](71-04-seats.md) gives them, and are not repeated here.
+`SeatState`, `Invitation`, `Departure` and `SeatRack` are the types in
+[the model](#the-model).
 
 ## Access
 

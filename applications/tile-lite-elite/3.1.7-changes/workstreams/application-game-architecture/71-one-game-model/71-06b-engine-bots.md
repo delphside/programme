@@ -60,7 +60,7 @@ Over the external transport an object's link is one game, one WebSocket per
 game. The two subscription scopes are in
 [How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch),
 and what a harness does with `Seats` is #10's. A bot hears it is on turn from
-its game's channel, as [*What changes*](71-06-engine.md#what-changes)
+its game's channel, as [*What changes*](71-06-engine.md#what-follows-from-the-engine-being-a-client)
 says.
 
 **The in-process glue joins under the Transport API at two calls**:
