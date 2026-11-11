@@ -111,10 +111,10 @@ pub enum ChangeCategory { Board, Game, Periphery }
 the event, and which administrator acted is not theirs to know; the server's own
 log records it.
 
-**Undo and redo are classified by what they undo**, not by being undo — undoing
-a placement is a board change, undoing a pass is a game change. That falls out
-if the event carries what it reversed, which it must anyway for the log to be
-readable.
+**Undo and redo are classified by what they undo**, not by being undo —
+undoing a placement is a board change, undoing a pass is a game change. That
+falls out if the event carries what it reversed, which it must anyway for the
+log to be readable.
 
 Seat numbers and player IDs, not sentences. The client renders them, which is
 the only way any of it is readable in a language other than the one the server
@@ -149,8 +149,8 @@ pub struct SeatRefDto { pub game_id: String, pub seat: u8 }
 and needs the server to know which one it holds; the state is small, and the
 client's version comparison, `should_apply_update`
 ([as-is](71-07-client.md#worth-keeping)), already discards what it has.
-`because` is what the log records and what a client shows in the move list — it
-is not applied.
+`because` is what the log records and what a client shows in the move list —
+it is not applied.
 
 ## The error body, shared by every endpoint
 

@@ -33,7 +33,7 @@ engine out possible and where it runs. This file follows
 - **A permit already bounds password hashing.** `hash_limit` is a `Semaphore`
   that `with_hash_permit` acquires (`app/auth.rs`); `engine_limit`, sized from
   `TILE_LITE_ELITE_ENGINE_CONCURRENCY` (default 2, `app.rs`), is its twin.
-- - - - **Each turn is announced as it happens, paced.** After a turn,
+- **Each turn is announced as it happens, paced.** After a turn,
   `run_engine_turns` sends the state on `AppState.events` and sleeps
   `ENGINE_TURN_BROADCAST_DELAY` (120 ms) so that a watching client sees each
   move
@@ -78,7 +78,7 @@ as a person's browser is: it hears of each change from its game's channel,
 decides and submits a move for the server to accept or refuse. **Every bot is a
 client, and none runs inside a request** (owner, 2026-10-14). External bots run
 outside the server, in #10's harness or their own client. The server's own bots
-are in-process, reached through the glue, defined below.
+are in-process, reached through the glue that joins layers 3 and 4 of the four.
 
 A bot behaves like the existing client, in four layers, top-down. The layering
 is that of [the interface layer](71-05-wire.md#the-interface-layer).
@@ -358,8 +358,9 @@ The engine itself is chosen at run time, so it stays dynamic: `start` returns a
 
 ## The engine is a client
 
-The reason is the goal that engine code cannot tell whether it is running in the
-server or in a client ([the goal](71-02-overview.md#the-goal)). While the loop
+The engine is a client because of the goal that engine code cannot tell whether
+it is running in the server or in a client
+([the goal](71-02-overview.md#the-goal)). While the loop
 stays in place, the in-process engine and an external one are two ways to play,
 and they drift apart, which is the real cost of leaving it. As a client the two
 differ only by transport, which makes the external harness (#10) a plug-in. The

@@ -7,9 +7,9 @@ follows [`71-08-storage.md`](71-08-storage.md) and is followed by
 ## Open questions
 
 **Core writes the log; undo reads it later.**[^d61] Every `Applied` appends one
-row to `game_events (game_id, version, event, created_at)`, written by `publish`
-and never rewritten, and `game_moves` becomes what is read from it. The row
-holds the same serialised event that goes over the wire, so there is one
+row to `game_events (game_id, seq, version, event, created_at)`, written by
+`publish` and never rewritten, and `game_moves` becomes what is read from it.
+The row holds the same serialised event that goes over the wire, so there is one
 serialisation rather than a second format to keep in step. Current state stays
 authoritative and behaviour never reads the log; undo (WP E) is its first
 reader. Because nothing is rewritten, `created_at` is when a change happened.
@@ -201,7 +201,9 @@ the map's loading and eviction.
 ([*The composition is keyed by game and seat*](71-07-client.md#the-composition-is-keyed-by-game-and-seat))
 has no condition that fails when the game is `Aborted` or `Finished`, so a
 composition whose cells are free and whose tiles are still in the rack stays
-live. The two `test.fixme` cases in `e2e/tests/ui-state.spec.ts` fail for this.
+live while the game is selected. #269's key, which makes a composition live
+only while its game is selected, fixes the Remove `test.fixme` case in
+`e2e/tests/ui-state.spec.ts`; the Abort case needs this answer too.
 Options: (a) a status condition in `live_composition`; (b) a clear on a status
 change, which brings back the push model the design retires. Open, for #269.
 

@@ -331,11 +331,11 @@ apply its own move twice, or need to recognise its own echo some other way.
 
 **Every update goes to every client of its game.** Choosing recipients within a
 game by who a change affects would be fragile and buys nothing: no change to a
-game is invisible to everybody, and the cost of choosing is a bug each time one
-is missed. An update reaches no other game's clients, because each game has its
-own channel ([above](#how-the-version-uses-watch)). Per-viewer concerns stay
-where they are: redaction decides what each connection may see, and hiding a
-game is a flag on a seat.
+game is invisible to everybody, and the cost of not choosing is a refetch nobody
+needed. An update reaches no other game's clients, because each game has its own
+channel ([*How the version uses watch*](#how-the-version-uses-watch)).
+Per-viewer concerns stay where they are: redaction decides what each connection
+may see, and hiding a game is a flag on a seat.
 
 ## The session
 
@@ -391,11 +391,11 @@ not a description.
 | **the game** | the board, plus racks, scores, the turn, resignations and timeouts | everything in the board row, plus pass, exchange, resign, force-resign, timeout, start, abort |
 | **periphery** | chat messages | posting a message |
 
-**The categories are not counters.** `version` moves for all three and answers
-*is what I hold stale*. What a category decides is what to do, and that is a
-property of the **event**: the envelope carries it as
-`State { game, because: Option<GameEventDto> }`, where `GameEventDto` is a
-data transfer object, defined in
+**A category says what to redraw; `version` alone says what is stale.**
+`version` moves for all three and answers *is what I hold stale*. What a
+category decides is what to do, and that is a property of the **event**: the
+envelope carries it as `State { game, because: Option<GameEventDto> }`, where
+`GameEventDto` is a data transfer object, defined in
 [*The model*](71-05-wire.md#the-model) of the wire. A client classifies the
 event rather than comparing numbers:
 
@@ -451,8 +451,8 @@ impl GameSession {
 }
 ```
 
-Everything else on `GameSession` becomes a reader. The methods that mutate
-today — `maybe_run_engine_turn`, the action handlers, the invitation writers —
+Everything else on `GameSession` becomes a reader. The methods that mutate today
+— `maybe_run_engine_turn`, the action handlers, the invitation writers —
 either disappear into `apply` or become callers of it.
 
 **Enforced by visibility.** `seats`, `state`, `bag`, `version` and `turn`

@@ -86,9 +86,9 @@ it changes, and how a turn reaches the thing that takes it.
 - **An engine run both ways** against the same position, through the
   in-process glue and the external transport, producing the same move.
 - **The existing lifecycle suite**, which already walks a game from creation
-  through resignation, abort, timeout and retention, and passes unchanged
-  except where it asserts a behaviour this design deliberately alters — **plus a
-  game holding every kind of seat at once**, which it has never had.
+  through resignation, abort, timeout and retention, and passes unchanged except
+  where it asserts a behaviour this design deliberately alters — **plus a game
+  holding every kind of seat at once**, which it has never had.
 
 The mixed roster belongs *in* the lifecycle suite rather than beside it, and
 that is a decision rather than a filing convenience. Every scenario there
@@ -100,8 +100,8 @@ and retention are each exercised against a roster that is genuinely mixed.
 
 It is also the test that checks the claim this design rests on. *The whole state
 is composite* — the game has four states of its own and every seat has its own
-lifecycle, running independently — and nothing may assume a game is in a single
-invitation phase. A suite that only ever sees uniform rosters cannot tell
+lifecycle, running independently — and nothing may assume a game is in a
+single invitation phase. A suite that only ever sees uniform rosters cannot tell
 whether that holds.
 
 `issue-71-mixed-roster-coverage` covered part of this against the old seat
@@ -202,16 +202,15 @@ touches is in [`71-life-histories.md`](71-life-histories.md) (#542).
 
 ### WP B, #269 Core Client UI
 
-**Takes**:
-[*The model*](71-07-client.md#the-model) of the client — one writer of the
-server cache, matching rather than clearing, the composition keyed by game and
-seat — and whatever client change WP A's wire change forces, with #152 and #88,
-both composition behaviour [^d67]. It also changes how a creator fills the seats
-(owner, 2026-10-14). Today the client adds seats, then sends the invitations,
-then starts. Instead each seat goes its own way: added and invited at once, then
-declined or withdrawn, and replaced by a new seat, independently of the others,
-until the creator has a set of claimed seats and starts the game. Ships with WP
-A.
+**Takes**: [*The model*](71-07-client.md#the-model) of the client — one writer
+of the server cache, matching rather than clearing, the composition keyed by
+game and seat — and whatever client change WP A's wire change forces, with #152
+and #88, both composition behaviour [^d67]. It also changes how a creator
+fills the seats (owner, 2026-10-14). Today the client adds seats, then sends the
+invitations, then starts. Instead each seat goes its own way: added and invited
+at once, then declined or withdrawn, and replaced by a new seat, independently
+of the others, until the creator has a set of claimed seats and starts the game.
+Ships with WP A.
 
 **Waits on**: WP A's wire shapes. Its tests:
 [`71-test-wp-b.md`](71-test-wp-b.md).
@@ -219,8 +218,8 @@ A.
 ### WP C, #270 Additional Game Lifecycle
 
 **Takes**: the scheduled jobs that are not yet built — RET-3's countdown and a
-message reaching a player who is not looking — each through the one handler, as
-[*Arrows with no command*](71-functional.md#do-the-arrows-match-the-messages)
+message reaching a player who is not looking — each through the one handler,
+as [*Arrows with no command*](71-functional.md#do-the-arrows-match-the-messages)
 requires.
 
 **A player who is not looking is reached by Web Push** (#87; owner,
