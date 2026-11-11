@@ -118,9 +118,10 @@ sqlx's SQLite driver bundles it through `libsqlite3-sys` 0.30.1 in
   actions would delete or null the children. [*Migration*](#migration) gives
   the sequence that avoids it.
 - `game_events` has the primary key (`game_id`, `seq`), a per-game sequence the
-  log owns, so an event written twice is refused by the database rather than by
-  the caller. `version` is a column beside it, because `Hide` and
-  `ReminderSent` log a row without moving the version.
+  log owns. `version` is a column beside it, because `Hide` and `ReminderSent`
+  log a row without moving the version. A partial unique index on
+  (`game_id`, `version`), over the rows that move the version, makes the
+  database refuse an event written twice rather than leaving it to the caller.
 
 ## sqlx
 
@@ -220,7 +221,13 @@ whatever it says. **WP A therefore depends on delphside/tile-lite-elite#576
    `players`, `player_ratings`, `rating_history` and `sessions` keep their
    rows. `rating_history` is copied into the new nullable table with
    `select …, null as game_id, …`, which is every row, because every game is
-   deleted. `password_reset_tokens` is rebuilt without its rows: a token is
+   deleted. Before the rating tables are copied, one `players` row is inserted
+   for each engine that has rating rows (each distinct `subject_id` whose
+   `subject_kind` is `engine`), and that engine's rows are copied to the new
+   account's ID; without it, step 6 counts every bot row. What a bot account
+   holds in `email` and `password_hash`, which are `not null`, is open
+   ([71-09](71-09-open-questions.md#open-questions-about-the-shapes)).
+   `password_reset_tokens` is rebuilt without its rows: a token is
    short-lived, so a player with one pending requests another.
 6. An enforced check, so that a violation fails the migration before the
    commit. `PRAGMA foreign_key_check` only reports, and the table-valued

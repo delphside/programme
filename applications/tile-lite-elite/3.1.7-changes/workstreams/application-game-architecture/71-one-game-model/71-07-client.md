@@ -441,6 +441,5 @@ only while its game is selected. The Abort case also needs the answer to
 (a status condition). The two `test.fixme` cases in `e2e/tests/ui-state.spec.ts`,
 which [the as-is](#to-move-away-from) names, are the acceptance tests of #269.
 
-[^d57]: Decision #443 (D57): the composition key fixes the Remove case in #269;
-    the Abort case also needs the status condition that
-    [71-09](71-09-open-questions.md#open-questions-about-the-shapes) asks about.
+[^d57]: Decision #443 (D57): fixed in Core Client UI (#269), by the
+    composition key.

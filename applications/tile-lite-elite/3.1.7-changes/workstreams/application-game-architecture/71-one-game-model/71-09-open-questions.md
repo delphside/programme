@@ -207,6 +207,14 @@ only while its game is selected, fixes the Remove `test.fixme` case in
 Options: (a) a status condition in `live_composition`; (b) a clear on a status
 change, which brings back the push model the design retires. Open, for #269.
 
+**What does a bot account hold in `email` and `password_hash`?** Both are
+`not null` on `players`, and a bot has neither an address nor a password. The
+migration creates one account per engine with rating rows
+([*Migration*](71-08-storage.md#migration)), so it needs the answer. Options:
+(a) a reserved address per engine and a hash nothing can match; (b) make both
+nullable, with a check that only a bot account leaves them empty. Open, for
+WP A; it sits beside G4, deleting a listed bot's account.
+
 **What is the hint?** Answered (owner, 2026-11-11): nothing uses `suggest_move`
 today. No client calls `POST /games/{game_id}/suggest`. A hint may be offered
 later, using it makes the game unrated, and it may come from a different engine
