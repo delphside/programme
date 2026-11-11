@@ -25,7 +25,7 @@ the seven headings and change its type.
 no work packages is a standalone project, which carries all seven and a
 `Route`.
 
-| heading | parent | work package |
+| Heading | Parent | Work package |
 | --- | --- | --- |
 | Requirements | **owns** | links |
 | Design | **owns** | links, adding only what is its own |
@@ -78,7 +78,7 @@ section is read.
 
 ## Deliveries
 
-| # | what it delivers | route | milestone | work package or steps |
+| # | What it delivers | Route | Milestone | Work package or steps |
 | --- | --- | --- | --- | --- |
 
 *Then one subsection per delivery: its artefacts as a table, a row per route,
@@ -87,7 +87,7 @@ per delivery, a table per subsection".*
 
 ### Delivery 1 — <what it delivers>
 
-| route | in this delivery | artefacts | branch | PR |
+| Route | In this delivery | Artefacts | Branch | PR |
 | --- | --- | --- | --- | --- |
 | **Production Release** | yes/no | | **always yes** | **always yes** |
 | **Application Tooling** | yes/no | | yes | yes |
@@ -101,7 +101,7 @@ per subsection").*
 
 ## Post-deployment checks against requirements
 
-| requirement | how the check is done | |
+| Requirement | How the check is done | |
 | --- | --- | --- |
 ```
 
