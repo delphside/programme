@@ -108,18 +108,18 @@ per subsection").*
 **The source requirements are listed as well as parented** (owner, 2026-09-08),
 separately from the requirements table, which may move on during scoping.
 
-| | is | changes when |
+| | Is | Changes when |
 | --- | --- | --- |
 | **Source requirements** | the issues this project took, by number | a requirement moves in or out. It matches the `Requirement` sub-issues exactly |
 | the **Requirements table** | R1…Rn, what must be true when this is done | scoping restructures them — two sources merge into one R, one splits into three, a source is dropped as out of scope |
 
-**The `from` column is not a substitute.** It says which source produced an R,
+**The `From` column is not a substitute.** It says which source produced an R,
 which is useful and which stops being complete the moment scoping merges or drops
 one. The source list is provenance and does not move; the table is the current
 statement of the work and does.
 
 **A decision is not a source requirement.** It routes work — it raises or adds
-requirements and is then closed — so it is named in the `from` column of the
+requirements and is then closed — so it is named in the `From` column of the
 rows it produced, never in the source list: nothing folds a decision.
 
 **A project raised directly says so** rather than leaving the line out — `none —
