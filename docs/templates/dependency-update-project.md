@@ -1,21 +1,26 @@
 # Dependency update project
 
 The body of a release's dependency update project. The rule, the title and
-the fields are
+the fields are in
 [1.2 §2.2.1](../1.2-change-lifecycle.md#221-business-as-usual-updates).
 
 <!--
-Only the fenced block is copied, into the project's body when it is raised.
+Claude copies only the fenced block into the project's body when raising it.
 
 Placeholders: `#N` is this project's number; `X.Y.Z` is the release it rides;
-`#nnn` is a pull request or an advisory requirement.
+`#nnn` is a pull request; `#aaa` is an advisory requirement; `n` in `3.n.6` is
+the application's index.
 
-What changes from release to release is listed in 1.2 §2.2.1. A row that
-needs a test the template does not list adds a box here, and the test approach
-then goes to the test manager before that row merges.
+Fixed wording, which the tooling reads: the headings `Test approach`,
+`Functional user tests`, `Technical tests`, `Deliveries` and
+`Post-deployment checks against requirements`. The user-testing check
+(`obligations.py`, `turn.py`) matches the literal
+`Functional user tests — Preview`, so that heading keeps `Preview`; the text
+after the dash in `Technical tests` names the rehearsal environment from the
+application's `3.n.6`, and Tile Lite Elite's is Rehearsal.
 
-An advisory row's targeted test is always the application's advisory check,
-run at the pull request's branch tip, no longer reporting the advisory.
+1.2 §2.2.1 says what changes from release to release, and what to add for a
+row that needs a test this template lacks.
 -->
 
 ````markdown
@@ -26,15 +31,15 @@ run at the pull request's branch tip, no longer reporting the advisory.
 | Requirement | From | Statement |
 | --- | --- | --- |
 | R1 | | Every update in the table reaches production in `X.Y.Z` without changing behaviour |
-| R2 | *advisory requirements* | No finding of the application's advisory check that reaches the application remains in what `X.Y.Z` ships |
+| R2 | *advisory requirements, or "none"* | No finding of the application's advisory check that reaches the application remains in what `X.Y.Z` ships |
 
 | Update | Why | Pull request | Targeted test | Result |
 | --- | --- | --- | --- | --- |
-| *what moves, from and to which version* | *Dependabot · advisory `#nnn` · planned* | `#nnn` | *the test aimed at the change, or "CI"; for an advisory, the advisory check at the branch tip no longer reports it* | *passed · failed* |
+| *what moves, from and to which version* | *Dependabot · advisory `#aaa` · planned* | `#nnn` | *the test aimed at the change, or "CI"; for an advisory, the advisory check at the branch tip no longer reports it* | *passed · failed* |
 
 ## Design
 
-None: each row is a version change, made as 1.2 §2.2.1 says.
+None: each row is a version change, made as [1.2 §2.2.1](https://github.com/delphside/programme/blob/main/docs/1.2-change-lifecycle.md#221-business-as-usual-updates) says.
 
 ## Non-functional design
 
@@ -46,10 +51,10 @@ Capacity, failure, limits and timeouts, secrets and access: none, because a vers
 
 None, unless a row a user could notice adds a box here.
 
-### Technical tests — Rehearsal
+### Technical tests — *rehearsal environment*
 
-- [ ] **Claude** — each row's targeted test at its pull request's branch tip: where only a deployed stack can show it, on the application's user-testing and rehearsal environments where it has them (its `3.n.6`), otherwise the advisory check and CI
-- [ ] **Claude** — the release's regression run, at a `main` tip that includes every merged row; a row merged after the run moves to the next release's project, or the run is repeated
+- [ ] **Claude** — each row's targeted test at its pull request's branch tip: where only a deployed stack can show the change, on the application's user-testing and rehearsal environments where it has them (its `3.n.6`); otherwise where the table says (CI)
+- [ ] **Claude** — the release's regression run, at a `main` tip that includes every merged row; Claude moves a row merged after the run to the next release's project, or repeats the run
 
 ## Dependencies and related work
 

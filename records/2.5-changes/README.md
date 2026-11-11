@@ -1,15 +1,21 @@
 # 2.5 Programme change documents
 
-The change documents of the programme's own projects: those of Process
-Definition and Programme Tooling ([2.6](../2.6-workstreams.md)), and the
-design of the programme repository itself. A folder per workstream, then a
-folder per project named `<number>-<name>`, as for an application's
-[`3.n.7-changes/`](../../applications/tile-lite-elite/3.1.7-changes/README.md).
+This folder holds the change documents of the programme's own projects, which
+belong to Process Definition and Programme Tooling
+([2.6](../2.6-workstreams.md)). The layout is
+`<workstream>/<issue>-<name>/`, one folder per parent project, as
+[1.2 §2.4](../../docs/1.2-change-lifecycle.md#24-where-a-document-lives-about-the-work-or-a-product-of-it)
+sets out; a work package's design goes in its parent's folder. A new folder
+takes its delphside/programme issue number; older folders carry
+delphside/tile-lite-elite's number. `process-review.md` and `glossary.md` are
+history, grandfathered at workstream level outside the layout.
 
-| folder | holds |
+| Folder | Holds |
 | --- | --- |
-| `process-definition/` | the rules, and the documents that state them, including the glossary of the early decisions |
-| `programme-tooling/` | the programme's own scripts, hooks, skills and agents, where they live, and the board model (`383-one-board-model/`) |
+| `process-definition/` | the rules, and the documents that state them; `glossary.md` holds D1 to D38 |
+| `programme-tooling/` | the programme's own scripts, hooks, skills and agents, the board model, this repository's design and the generic deliver tool |
 
-Like any change document, these are temporary and are records of a moment
-([1.2 §2.4](../../docs/1.2-change-lifecycle.md#24-where-a-document-lives-about-the-work-or-a-product-of-it)).
+A change document changes with its issue and expires with it. What stays true
+once the change ships goes to the `docs/1.x` document that owns it. What a
+change document holds is
+[1.2 §2.4](../../docs/1.2-change-lifecycle.md#24-where-a-document-lives-about-the-work-or-a-product-of-it).
