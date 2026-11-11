@@ -63,7 +63,7 @@ What the code does, and where:
   sized from `TILE_LITE_ELITE_ENGINE_CONCURRENCY` (default 2, `app.rs`) and
   nothing acquires it. Password hashing acquires its twin, `hash_limit`, in
   `with_hash_permit` (`app/auth.rs`).
-- - **Each turn is announced as it happens.** After a turn the loop attaches the
+- **Each turn is announced as it happens.** After a turn the loop attaches the
   current ratings to the state, saves the game first if it finished, sends the
   state on `AppState.events`, a `broadcast::Sender<GameEventDto>` of capacity
   64, and sleeps `ENGINE_TURN_BROADCAST_DELAY` (120 ms) so that a watching
@@ -204,8 +204,8 @@ sequenceDiagram
 
 | Aspect | Today | After | Section |
 | --- | --- | --- | --- |
-| a person's request | waits for every bot turn that follows | returns once its move is applied; the bot is a client | [What changes](#what-changes) |
-| the lock | the one games lock, held across each search | [a per-game lock](71-03-version.md#one-version-moved-in-one-place), which replaces it, taken only to submit a move | [What changes](#what-changes) |
+| a person's request | waits for every bot turn that follows | returns once its move is applied; the bot is a client | the bullets after this table |
+| the lock | the one games lock, held across each search | [a per-game lock](71-03-version.md#one-version-moved-in-one-place), which replaces it, taken only to submit a move | the bullets after this table |
 | searches at once | one at a time, by the lock | bounded by the `engine_limit` permit | [The blocking pool](#how-the-engine-uses-the-blocking-pool) |
 | a search past its time | the seat passes after 5 s | the seat is left on turn, and the move time limit retires it | [The blocking pool](#how-the-engine-uses-the-blocking-pool) |
 | an engine failure | 400 to the person whose request triggered it | logged | [The blocking pool](#how-the-engine-uses-the-blocking-pool) |
@@ -245,7 +245,7 @@ Tokio is the Rust async runtime the server runs on (`#[tokio::main]`,
 - A *future* is a value that stands for async work not yet done, which a task
   polls. A task gives up its worker only at an `.await`. Code that computes
   without awaiting, as a move search does, keeps its worker until it returns.
-- - `Send` marks a type that may move between threads, which a task's future
+- `Send` marks a type that may move between threads, which a task's future
   must be. A guard from `std::sync` held across an `.await` can deadlock and
   makes the future not `Send`. Tokio's own `RwLock` allows it, and then every
   other task that wants the lock waits for the whole `.await`, which is today's
@@ -328,8 +328,9 @@ value and always reads the latest state, so it never lags. A slow one skips
 states: it sees the version jump by more than one and treats `because` as
 absent, which rebuilds everything
 ([the *nothing* case](71-03-version.md#three-categories-of-change)).
-The move list is part of the state, so nothing is lost. Push notifications come from Notifications, which
-the Game service reports each event to, so a skipped watch value loses none.
+The move list is part of the state, so nothing is lost. Push notifications
+come from Notifications, which the Game service reports each event to, so a
+skipped watch value loses none.
 Today a lagging server receiver ends the socket; here it skips states and
 carries on, and the client already ignores a version it has passed
 (`should_apply_update`, `crates/ui/src/app.rs`).[^watch]
@@ -401,20 +402,20 @@ Three tools turn a computation that never awaits into bounded work
 The search is CPU-bound, so it runs through `spawn_blocking`, as today; the
 change is what bounds it, and what happens when it fails.
 
-- - **How many searches run at once is bounded.** Once a search holds no lock, N
+- **How many searches run at once is bounded.** Once a search holds no lock, N
   bot games on turn are N parallel searches, so every search and every hint
   takes an `engine_limit` permit before it starts, for as long as the hint is
   computed in the server
   ([what the hint is](71-09-open-questions.md#open-questions-about-the-shapes)).
-  `engine_limit` is `TILE_LITE_ELITE_ENGINE_CONCURRENCY`, default 2, the VM's core count, and
-  it replaces the lock's accident [^d62]. This is the pattern `with_hash_permit`
-  in `app/auth.rs` already follows for password hashing.
+  `engine_limit` is `TILE_LITE_ELITE_ENGINE_CONCURRENCY`, default 2, the VM's
+  core count, and it replaces the lock's accident [^d62]. This is the pattern
+  `with_hash_permit` in `app/auth.rs` already follows for password hashing.
 - **The permit lives as long as the thread does.** It moves into the blocking
   thread and is released only when the engine returns, not when the time runs
   out, so a search that overran its time and cannot be cancelled still counts.
   `ENGINE_TURN_TIMEOUT` starts once the permit is held, so a queued bot loses
   none of its time; the queue itself is bounded by the move time limit.
-- - **An engine is asked to stop, and a broken one keeps its permit.**
+- **An engine is asked to stop, and a broken one keeps its permit.**
   `EngineRequest` gains a `stop: &AtomicBool`, set when the time runs out, and
   an engine checks it as it searches. One that ignores it, or has hung, holds
   its permit until it returns: the bound stays true at the cost of capacity, and
