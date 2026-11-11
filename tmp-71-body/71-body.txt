@@ -69,7 +69,7 @@ Each closes once applied, and the design cites it where it states the conclusion
 | decision | question | outcome |
 | --- | --- | --- |
 | #472 D71 | how the design documents are structured | one file per stage, a section and a test file per package |
-| #442 D56 | two work packages or six | six, deliveries decided per package |
+| #442 D56 | two work packages or six | six, deliveries decided per package (WP G added later) |
 | #443 D57 | where the staged-tile fix (#157) goes | #269, by the composition key |
 | #444 D58 | the rating key, for editions and bots | both in #268, one migration |
 | #445 D59 | whether unique email changes how an invitation binds | superseded by D72 |
@@ -96,7 +96,7 @@ In the [`71-one-game-model`](https://github.com/delphside/programme/tree/main/ap
 
 ## Test approach
 
-`71-test-approach.md`, with `71-test-wp-a.md` to `71-test-wp-f.md` per package.
+`71-test-approach.md`, with `71-test-wp-a.md` to `71-test-wp-f.md` per package; WP G's test is the change itself, on #582.
 
 ## Dependencies and related work
 
@@ -123,6 +123,6 @@ How each reaches production is in `71-delivery.md`; this table is the list.
 
 On each work package, one row per requirement it takes, except this one, which no single delivery satisfies:
 
-| requirement | how the check is done | |
+| requirement | how the check is done | result |
 | --- | --- | --- |
 | the design map | after the last package ships, the map in Tile Lite Elite's docs/4.2.0 names one owner for each kind of logic, and its check reports it current | |

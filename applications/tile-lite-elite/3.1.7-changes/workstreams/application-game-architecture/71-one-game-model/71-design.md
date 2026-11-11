@@ -1162,7 +1162,7 @@ acted on a seat beyond the seat itself.
 
 ## Work packages
 
-The overall design above is delivered in six packages (D56, #442). Each section
+The overall design above is delivered in six packages (D56, #442), and a seventh, WP G, ships ahead of them. Each section
 says what the package takes from the design, and what it waits on. A package's
 requirements are on its issue; its tests are in its own test file.
 
@@ -1280,6 +1280,17 @@ are written against.
 **Schema needs**: none; it changes the client framework only.
 
 **Waits on**: nothing in #71. Its tests: [`71-test-wp-f.md`](71-test-wp-f.md).
+
+### WP G, #582 Test for the engine move timeout
+
+**Takes**: #572, a test of today's engine timeout, outside D56's split (owner,
+2026-11-11). It ships ahead of the other packages and is superseded by WP A's
+own timeout test.
+
+**Waits on**: nothing. Its test is the change itself, on #582.
+
+[^d64]: Decision #464 (D64): `release/1.0.0` for #268 and #269, carrying every
+    schema change the project needs.
 
 ## Documents this changes
 
@@ -1472,5 +1483,3 @@ whether that holds.
 model and was dropped on 2026-08-17, since `SeatState` replaces what it
 asserted. The gap it found is real and gets wider here: there are now more
 states to mix.
-[^d64]: Decision #464 (D64): `release/1.0.0` for #268 and #269, carrying every
-    schema change the project needs.
