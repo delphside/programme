@@ -18,7 +18,7 @@ is an identity over what a viewer may see, and an engine is a client.
 - **Scripted test clients**, two or more, on `game-wire`: one acts, the others
   must see it. This is the layer WP A is built against before WP B exists.
 - **An engine run both ways** — through the
-  [in-process glue](71-06-engine.md#the-engine-is-a-client) and through the external
+  [in-process glue](71-06-engine.md#the-model) and through the external
   transport — on the same position, producing the same move.
 
 A run against `localhost:3000` covers the external transport only: it

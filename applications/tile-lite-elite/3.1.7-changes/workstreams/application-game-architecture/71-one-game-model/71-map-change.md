@@ -42,7 +42,7 @@ Invitations, the Scheduler's timeouts and reminders, the admin routes (Admin
 endpoints) and the account service (Accounts) for a rename. The engine proxy
 goes; the in-process bot is a client of the game, hears it is on turn from the
 Event stream and submits through the
-[in-process glue](71-06-engine.md#the-engine-is-a-client) to the Game service, which
+[in-process glue](71-06-engine.md#the-model) to the Game service, which
 calls `apply` for it. The server builds each `GameView`; the `game-wire` crate
 (Game wire) converts it to and from the DTOs, which stay in `crates/api`.
 
@@ -57,7 +57,7 @@ workspace extends model.dsl {
     model {
         // 71-06-engine.md, "The engine is a client" and 71-10-documents-changed.md, "1.2 — the component
         // diagram" ("Engine Proxy goes"), and 71-06b-engine-bots.md, "A bot
-        // posts what a person posts" ("There is no proxy"): an engine reaches the game as a
+        // posts what a person posts": an engine reaches the game as a
         // client does.
         !element tle.server.proxy {
             tags "removed" "wp:268"
