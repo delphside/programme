@@ -1175,8 +1175,14 @@ ship separately. Two rules draw the line between Core and Additional:
   a second migration over the same tables, so it is Core's; deferring #68 or #87
   costs nothing, so they are Additional's.
 - **Every schema change belongs in Core**, because a migration is expensive to
-  repeat and risky to interleave. Undo's history table is laid down in Core
-  even though undo itself is WP E.
+  repeat and risky to interleave.[^d64] Undo's history table is laid down in
+  Core even though undo itself is WP E.
+
+What Core does not take falls to the others: Additional Game Lifecycle takes
+every other server change apart from undo and redo, and Additional Client UI
+every other game-related client change, including whatever Additional Game
+Lifecycle needs. Anything game-related outside #71 must be independent of it
+and doable at any time (owner, 2026-09-02).
 
 Core Client UI is filled by Core's design, not from the backlog: it holds the
 client changes Core's server changes require.
@@ -1466,3 +1472,5 @@ whether that holds.
 model and was dropped on 2026-08-17, since `SeatState` replaces what it
 asserted. The gap it found is real and gets wider here: there are now more
 states to mix.
+[^d64]: Decision #464 (D64): `release/1.0.0` for #268 and #269, carrying every
+    schema change the project needs.

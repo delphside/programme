@@ -3,18 +3,9 @@
 
 ## Requirements
 
-**One game model** (opened 2026-08-05). A client cannot always tell that a game
-has changed, because not everything it renders moves the game's `version`.
-This project makes every change go through one handler that moves one version,
-and redraws the application's design map around it. What is wrong now and why
-is in [`71-design.md`](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/application-game-architecture/71-one-game-model/71-design.md),
-*What is wrong now*.
+**One game model** (opened 2026-08-05). A client cannot always tell that a game has changed, because not everything it renders moves the game's `version`. This project makes every change go through one handler that moves one version, and redraws the application's design map around it. What is wrong now and why is in [`71-design.md`](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/application-game-architecture/71-one-game-model/71-design.md), *What is wrong now*.
 
-**Seven work packages, deliveries decided per package** (D56, #442; WP G, #582, added 2026-11-11). The
-requirements below are folded into this project, not into its packages; the
-allocation is a plan, and packages may move a requirement between them during
-design. How the line between Core and Additional is drawn is in `71-design.md`,
-*Work packages*.
+**Seven work packages, deliveries decided per package** (D56, #442; WP G, #582, added 2026-11-11). The requirements below are folded into this project, not into its packages; the allocation is a plan, and packages may move a requirement between them during design. How the line between Core and Additional is drawn is in `71-design.md`, *Work packages*. Below the allocation are the code review findings routed here and the project's decisions; a new functional requirement is raised on this issue.
 
 | requirement | package | why there |
 | --- | --- | --- |
@@ -27,9 +18,9 @@ design. How the line between Core and Additional is drawn is in `71-design.md`,
 | #449 R1 to R3 move input checked at the boundary, with property tests | **#268 Core** | Core rewrites how a move enters the game (folded 2026-10-18) |
 | an invitation outlives its seat or its game | **#268 Core** (D67, #467) | aborting cancels pending invitations; seat messages are refused after the start |
 | #142 reconnect catch-up, #80 a rename reaches others, #106 inviting yourself accepts, #105 withdrawing hides the game | **#268 Core** | true by construction (D67, #467) |
-| #571 the code meets the 4.1.0 rules this project's design questions decided: RATE-4, GAME-12, ADM-2, GAME-11, ACC-6, RATE-5, NOTE-1, DEL-4, TIME-2 | **#268 Core**; NOTE-1 to **#270** beside #87; DEL-4 and TIME-2 with RET-3 (#68) | each ends with a test citing the rule (folded 2026-11-09) |
+| #571 the code meets the 4.1.0 rules this project's design questions decided: RATE-4, GAME-12, ADM-2, GAME-11, ACC-6, RATE-5, NOTE-1, DEL-4, TIME-2 | **#268 Core**; NOTE-1, DEL-4 and TIME-2 to **#270**, beside #87 and RET-3 (#68) | each ends with a test citing the rule, or the rule changed where the code is right (folded 2026-11-09) |
 | #572 a test for the engine move timeout | **#582 WP G** | ahead of #71, guarding today's timeout path until #268 replaces it (owner, 2026-11-11) |
-| the design map: each kind of logic named with the one module that owns it, and #428's Application & Game Architecture row | **#268 Core** starts it; each package adds its part | Core lays down the single points the map names |
+| the design map: each kind of logic (game state changes, rule validation, persistence, the wire mapping, seats and invitations, scheduling) named with the one module and function that owns it, a procedure that starts a fix or change from it, and a check where one is cheap (only the single state-change point writes game state); and #428's Application & Game Architecture row | **#268 Core** starts it; each package adds its part | Core lays down the single points the map names |
 | #157 a staged tile survives Remove and Abort | **#269 Core Client UI** (D57, #443) | the composition key; the two `fixme` cases in `e2e/tests/ui-state.spec.ts` are its acceptance |
 | #152 removing a game clears the board and rack, #88 out-of-turn staging | **#269 Core Client UI** | composition behaviour (D67, #467) |
 | #68 retention for games that never started | **#270 Additional** | a sweep rule, not a model change |
@@ -39,30 +30,28 @@ design. How the line between Core and Additional is drawn is in `71-design.md`,
 | #73 undo, from a history keyed on the game's version | **#272 Undo and Redo** | its table is laid down in Core |
 | #166 nothing happens when a move time limit expires | delivered in 0.9.0 | shipped with #400; the row goes when the diagram is regenerated |
 
-Drawn from the table by `scripts/programme/board/roadmap-diagram.py --project 71 --write-issue 71`;
-where they disagree, the table is right.
+Drawn from the table by `programme/scripts/board/roadmap-diagram.py --project 71 --write-issue 71`; where they disagree, the table is right.
 
 <!-- roadmap-diagram:start -->
 <!-- roadmap-diagram:end -->
 
 ### Code review findings routed from #460
 
-The code review of 2026-10-02 found these in code this project rewrites; the
-detail is on #460, where each line is marked **→ #71**.
+The code review of 2026-10-02 found these in code this project rewrites; the detail is on #460, where each line is marked **→ #71**.
 
 | finding | package | where the design answers it |
 | --- | --- | --- |
 | a rejected exchange loses rack tiles | #268 | `71-design.md`, *A rejected message changes nothing* |
 | a bot is never run after a timeout or a force-resign hands it the turn | #268 | *The engine is a client* |
 | `game_moves` rewritten on every save | #268 | D61 |
-| invitations survive an abort | #268 | `ApplyError::GameNotWaiting` |
+| invitations survive an abort | #268 | `ApplyError::GameNotWaiting`; `71-functional.md`, *The game and its seats* |
 | an unknown engine is accepted; an engine failure is answered 400 to the human | #268 | *The engine is a client* |
 | `engine_limit` never acquired; the lock held across the search | #268 | D62; *Locking is per game* |
 | a failed save leaves memory ahead of the database (`BEGIN IMMEDIATE` stays on #460) | #268 | D69 |
-| `/start` on a started game is a silent success | #268 | *The two lifecycles together* |
+| `/start` on a started game is a silent success | #268 | `71-functional.md`, *The game and its seats* |
 | `create_game` validates seats inconsistently | #268 | one validation, in `apply` |
-| the event stream exits when it lags | #268 | *One version, moved in one place* |
-| single-game expiry announces a finish when the game goes on | #268 | sweeps go through `apply` |
+| the event stream exits when it lags and does not notice a closed socket | #268 | *One version, moved in one place* |
+| single-game expiry announces a finish when the game goes on, and logs the wrong seat | #268 | sweeps go through `apply` |
 | `suggest_move` re-implements the engine's pick | #268 | *The engine is a client* |
 | a viewer's access is one seat (GAME-4) | #268 | *Access is a set of seats* |
 | admin and invitation paths race between lock and database | #268 | *Locking is per game*; D70 |
@@ -75,9 +64,7 @@ detail is on #460, where each line is marked **→ #71**.
 
 ### Decisions
 
-Each closes once applied, and the design cites it where it states the
-conclusion. Answered in order: document structure, functional, technical,
-delivery planning.
+Each closes once applied, and the design cites it where it states the conclusion. Answered in order: document structure, functional, technical, delivery planning.
 
 | decision | question | outcome |
 | --- | --- | --- |
@@ -101,51 +88,41 @@ delivery planning.
 
 ## Design
 
-In the [`71-one-game-model`](https://github.com/delphside/programme/tree/main/applications/tile-lite-elite/3.1.7-changes/workstreams/application-game-architecture/71-one-game-model)
-folder in `delphside/programme`: `71-functional.md` (use case, journeys,
-lifecycles), `71-design.md` (overall, then a section per package),
-`71-data-model.md`, `71-life-histories.md` (WP A's entity/event matrix, #542),
-`71-impact.md`, the design map change `71-map-change.md` and its drawing
-`71-map-diagrams.md`, and the reviews. `71-handover.md` says what is open.
+In the [`71-one-game-model`](https://github.com/delphside/programme/tree/main/applications/tile-lite-elite/3.1.7-changes/workstreams/application-game-architecture/71-one-game-model) folder in `delphside/programme`: `71-functional.md` (use case, journeys, lifecycles), `71-design.md` (overall, then a section per package), `71-data-model.md`, `71-life-histories.md` (WP A's entity/event matrix, #542), `71-impact.md`, the design map change `71-map-change.md` and its drawing `71-map-diagrams.md`, and the reviews. `71-handover.md` says what is open.
 
 ## Non-functional design
 
-`71-design.md`, *Non-functional design*: capacity, failure, limits and
-timeouts, secrets and access.
+`71-design.md`, *Non-functional design*: capacity, failure, limits and timeouts, secrets and access.
 
 ## Test approach
 
-`71-test-approach.md`: server first, proved by a test client built on
-`game-wire`, then the real client; with `71-test-wp-a.md` to `71-test-wp-f.md`
-per package.
+`71-test-approach.md`, with `71-test-wp-a.md` to `71-test-wp-f.md` per package.
 
 ## Dependencies and related work
 
 The generated header above lists what this waits on and what needs it.
 
 - **#10 bot client harness** stays its own project and follows #268 (D63).
-- **#439 player interactions** owns unique and verified addresses; D72 builds
-  on them without waiting.
-- **#538 move generator** is its own project; WP A's engine design depends only
-  on its interface.
-- **#291 capacity and #296 account states** are independent of this project,
-  as each says on its own issue (owner, 2026-09-02).
-- **Outside it**: #103, the browser tab icon, and any client change unrelated
-  to games.
+- **#439 player interactions** owns unique and verified addresses; D72 builds on them without waiting.
+- **#538 move generator** is its own project; WP A's engine design depends only on its interface.
+- **Anything game-related outside #71 is independent of it** (`71-design.md`, *Work packages*): #291 capacity and #296 account states each say so on their own issue.
+- **Outside it**: #103, the browser tab icon, and any client change unrelated to games.
 
 ## Deliveries
 
-`71-delivery.md`. #268 and #269 are one delivery, release 1.0.0 from
-`release/1.0.0`, carrying every schema change the project needs (D64). #270,
-#271, #272 and #290 each take their own milestone when scheduled.
+How each reaches production is in `71-delivery.md`; this table is the list.
 
 | delivery | work packages | milestone |
 | --- | --- | --- |
-| 1 | #268 Core Game Lifecycle, #269 Core Client UI | 1.0.0 |
-| later | #290 Dioxus upgrade, before #269's UI work | when scheduled |
-| later | #270, #271, #272, each its own | when scheduled |
 | ahead of 1.0.0 | #582 WP G, the engine timeout test | the day it merges |
+| before 1.0.0 | #290 WP F, the Dioxus upgrade, which #269 is written against | when scheduled |
+| 1.0.0 | #268 WP A Core Game Lifecycle, #269 WP B Core Client UI | 1.0.0 |
+| after 1.0.0 | #270, #271, #272, each its own | when scheduled |
 
 ## Post-deployment checks against requirements
 
-On each work package, one row per requirement it takes.
+On each work package, one row per requirement it takes, except this one, which no single delivery satisfies:
+
+| requirement | how the check is done | |
+| --- | --- | --- |
+| the design map | after the last package ships, the map in Tile Lite Elite's docs/4.2.0 names one owner for each kind of logic, and its check reports it current | |
