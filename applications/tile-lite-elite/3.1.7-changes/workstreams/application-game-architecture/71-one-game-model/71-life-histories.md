@@ -98,8 +98,8 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 | E16 | U `Finished` | — (frozen) | — | C | U, settled; a bot playing only against itself nets zero |
 | E17 | U: an abort, or a force-end before the start, `Aborted`; a force-end after it `Finished`, no rating change | — (frozen) | U, pending ones cancelled | C | — |
 | E18 | U, version and `last_activity_at` | — | — | C | — |
-| E19 | U, saved, version unchanged | U `hidden_by_player` | — | **G5** | — |
-| E20 | U, saved, version unchanged | U `reminder_sent_turn` | — | **G5** | — |
+| E19 | U, saved, version unchanged | U `hidden_by_player` | — | C, keyed by `seq` (G5) | — |
+| E20 | U, saved, version unchanged | U `reminder_sent_turn` | — | C, keyed by `seq` (G5) | — |
 | E21 | D | D | D | D | U, `game_id` set null; the history stays |
 | E22 | — | — | — | — | — |
 | E23 | U, from the stored row | U, from the stored row | — | — | — |
@@ -279,13 +279,15 @@ first subscribes, rather than for every account.
    and the bot task ends at once, so the bot plays nothing more until the list
    is fixed.
 
-**G5.** The design logs every applied message, chat and hide included, in
-`game_events (game_id, version, …)`, but `Hide` and `ReminderSent` save without
-moving the version, so their rows would repeat a key.
-([The session](71-03-version.md#the-session)'s counter table now shows a hidden
-seat and a reminder moving neither counter.)
-Proposed: the log gains its own sequence, `(game_id, seq)`, with `version` as a
-column.
+**G5.** The design logs every applied message, chat and hide included, but
+`Hide` and `ReminderSent` save without moving the version, so rows keyed by
+version would repeat a key.
+([*Which changes move which counter*](71-03-version.md#which-changes-move-which-counter)
+shows a hidden seat and a reminder moving neither counter.) Answered,
+2026-11-11: `game_events` is keyed by `(game_id, seq)`, a per-game sequence the
+log owns, and carries `version` as a column, so those two log a row without
+moving the version, and undo still finds a version
+([*Database*](71-08-storage.md#database)).
 
 **G6.** A bot hears it is on turn only from a publish. A refused move is either
 overtaken, and that move's publish follows, or illegal, and the design already

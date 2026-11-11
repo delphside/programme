@@ -117,8 +117,10 @@ sqlx's SQLite driver bundles it through `libsqlite3-sys` 0.30.1 in
   point at must not be dropped while the pragma is on, or its `on delete`
   actions would delete or null the children. [*Migration*](#migration) gives
   the sequence that avoids it.
-- `game_events` has the primary key (`game_id`, `version`), so an event
-  written twice is refused by the database rather than by the caller.
+- `game_events` has the primary key (`game_id`, `seq`), a per-game sequence the
+  log owns, so an event written twice is refused by the database rather than by
+  the caller. `version` is a column beside it, because `Hide` and
+  `ReminderSent` log a row without moving the version.
 
 ## sqlx
 
@@ -143,7 +145,7 @@ delphside/tile-lite-elite#576 moves it to 0.9, which the migration needs
   file has changed. `sqlx::migrate!` embeds the files at build time. Each file
   runs in a transaction unless its first line is `-- no-transaction`, which the
   SQLite driver reads from 0.9; in 0.8.6 only the Postgres driver does.
-- - `SqliteConnectOptions` sets what each connection is opened with: the journal
+- `SqliteConnectOptions` sets what each connection is opened with: the journal
   mode, `foreign_keys` and the busy timeout, which is how long a writer waits
   for the lock before failing.
 
@@ -174,13 +176,14 @@ wire's tagged enums are in [`71-05-wire.md`](71-05-wire.md).
 ## Migration
 
 The schema and the shape of `snapshot_json` both change. **Existing games are
-deleted rather than migrated**, and the schema version below makes this the
-last time. Users, ratings and rating history are kept: they belong to the
-player and not the game, and they are what makes deleting games acceptable at
-all. The risk is entirely in what the migration must *not* delete (`players`,
+deleted rather than migrated**, and
+[the schema version](#so-that-this-is-the-last-deletion) makes this the last
+time. Users, ratings and rating history are kept: they belong to the player and
+not the game, and they are what makes deleting games acceptable at all. The risk
+is entirely in what the migration must *not* delete (`players`,
 `player_ratings`, `rating_history`, `sessions`). The rating tables are rekeyed
-to `(player_id, edition)`, so the migration also checks that every row
-survives the move.
+to `(player_id, edition)`, so the migration also checks that every row survives
+the move.
 
 Before the migration runs, the owner checks on production that nobody else is
 mid-game:
@@ -204,12 +207,20 @@ whatever it says. **WP A therefore depends on delphside/tile-lite-elite#576
 2. `PRAGMA foreign_keys = OFF`, so dropping a table that others point at does
    not run the `on delete` actions on its children.
 3. `BEGIN`, so that the rest is atomic.
-4. Delete the games, and set `rating_history.game_id` to null explicitly,
-   because the set-null action does not fire with the pragma off.
+4. Delete the games, and with them the rows of every table keyed to a game:
+   `game_moves`, `game_messages`, `game_participants` and `game_invitations`,
+   the four `delete_game` empties by hand (`persistence.rs`). No other table
+   holds a game's ID (`sessions.game_id` went in migration 0003). Without
+   this, step 5 would rebuild those tables with rows that name no game, and
+   step 6's check would fail. The set-null action does not fire with the
+   pragma off, so `rating_history.game_id` is not nulled here: migration 0004
+   declares it `not null`, so the old table cannot hold a null.
 5. Rebuild each table that has rows to keep or gains a constraint: create the
    new table, copy the rows, drop the old table and rename the new one.
    `players`, `player_ratings`, `rating_history` and `sessions` keep their
-   rows. `password_reset_tokens` is rebuilt without its rows: a token is
+   rows. `rating_history` is copied into the new nullable table with
+   `select …, null as game_id, …`, which is every row, because every game is
+   deleted. `password_reset_tokens` is rebuilt without its rows: a token is
    short-lived, so a player with one pending requests another.
 6. An enforced check, so that a violation fails the migration before the
    commit. `PRAGMA foreign_key_check` only reports, and the table-valued
@@ -220,7 +231,7 @@ whatever it says. **WP A therefore depends on delphside/tile-lite-elite#576
    insert into fk_ok select count(*) from pragma_foreign_key_check;
    ```
 
-7. `COMMIT`.
+7. `drop table fk_ok`, then `COMMIT`.
 8. `PRAGMA foreign_keys = ON`.
 
 This migration breaks the rules of `migrations/README.md`. It is not additive
@@ -230,6 +241,11 @@ for each. An older image cannot roll back across it: it does not boot against
 the new schema
 ([rolling back across a migration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#112-roll-back-across-a-migration)),
 and the games are gone.
+
+Under sqlx 0.9 the `_sqlx_migrations` row of a `-- no-transaction` file is
+written after the file's own `COMMIT` (sqlx-sqlite 0.9.0, `migrate.rs`), so a
+crash between the two re-runs the file at the next start, and it fails. The
+deploy's database snapshot is the recovery.
 
 This is a **breaking wire change**, so the api major version moves
 ([deciding whether it moves](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#243-decide-whether-the-api-version-moves)):
@@ -280,7 +296,7 @@ last old blob has gone.
 | `game_participants` | drop `display_name`. Add `state text not null`, `invitation_id text`, `hidden_by_player integer not null default 0`. Keep `outcome`, `bingo_count`, `score` — stats read them without loading a snapshot |
 | `game_invitations` | gains `addressee_id text`: the player who may accept, set at send when the address is one an account has verified, or later when a link is claimed or the address is verified; null while the link is still the credential, so a set addressee also means the link is spent (see [*Who may accept*](71-04-seats.md#who-may-accept)).[^d72] An index on the invited address over open rows with no addressee serves the pass on verification. It stays the record of who was asked and what they said, which DEL-2 reads |
 | `player_ratings`, `rating_history` | the key becomes `(player_id, edition)` and `subject_kind` goes, in one migration with the rest of Core.[^d58] An edition is the game's `variant` (`games.variant`, 4.2), so a game is rated in the edition it was played in, bot against bot included. The rating step sums an account's per-seat changes into one update, and a seat's change against another of its own seats cancels, so a bot that holds several seats in one game needs no special case and a game it plays only against itself nets zero (`settle_ratings`, `stats.rs`). A bot's rows move to the ID of its account, and every existing row becomes English (International)'s; other editions start at 1500. `rating_history.game_id` becomes nullable, which the set-null rule below needs |
-| `game_events` | new: `game_id`, `version`, `event` (the serialised `GameEventDto`), `created_at`; primary key (`game_id`, `version`). Appended once per `Applied`, never updated or deleted except with its game (RET-1).[^d61] |
+| `game_events` | new: `game_id`, `seq`, `version`, `event` (the serialised `GameEventDto`), `created_at`; primary key (`game_id`, `seq`), where `seq` is a per-game sequence the log owns, so `Hide` and `ReminderSent` log a row without moving `version`, and undo still finds the version of each row. Appended once per `Applied`, never updated or deleted except with its game (RET-1).[^d61] |
 | `players` | gains `stats_private integer not null default 0`: whether the player's stats and rating history are hidden from others (RATE-5) |
 | `push_subscriptions` | new, for Web Push (WP C): `id`, `player_id`, `endpoint text not null unique`, `p256dh text not null`, `auth text not null`, `created_at`. One row per device a player has allowed; a send answered 404 or 410 deletes it |
 | `notification_preferences` | new: `player_id`, `event_kind text not null`, `enabled integer not null`; primary key (`player_id`, `event_kind`). A missing row means the event kind's default, so a new kind needs no migration |

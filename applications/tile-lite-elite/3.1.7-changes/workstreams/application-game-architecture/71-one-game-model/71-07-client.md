@@ -49,7 +49,7 @@ natively for a desktop build. Its state is in `RootApp` (`app.rs`, 5,522 lines).
 
 ### To move away from
 
-- - **No selection state.** `selected_id` is read back out of the loaded DTO (a
+- **No selection state.** `selected_id` is read back out of the loaded DTO (a
   data transfer object, defined in [*The model*](71-05-wire.md#the-model) of the
   wire) (`game().as_ref().map(|current| current.id.clone())`, `app.rs`), so
   `game: Signal<Option<GameStateDto>>` holds both *what is selected* and *what
@@ -132,8 +132,8 @@ that what is used here still holds.
   previous and changes only the difference in the real page, through
   `dioxus-web` in a browser. A `key` attribute on repeated elements says which
   is which between renders.
-- A *hook* is a function named `use_…` that keeps state for a component between
-  runs. Hooks are called on every run, in the same order, never inside a
+- A *hook* is a function named `use_…` that keeps state for a component
+  between runs. Hooks are called on every run, in the same order, never inside a
   condition.
 - `use_signal(|| initial)` returns a `Signal<T>`, a small `Copy` handle to a
   value the runtime holds, so it can be moved into closures and async blocks.
@@ -294,26 +294,30 @@ pub struct CompositionKey {
 }
 
 fn live_composition(&self) -> Option<Composition> {
+    let selected = self.selected_game.peek().clone()?;
     let game = self.cache.peek().as_ref()?;
     let c    = self.composition.peek().clone()?;
-    (c.key.game == game.id
+    (c.key.game == selected
+        && c.key.game == game.id
         && c.staged.iter().all(|s| game.board[s.index].letter.is_none())
         && staged_tiles_still_held(&c, game))
         .then_some(c)
 }
 ```
 
-**Both conditions compare against the state the DTO already carries**: the cells
-are empty, the tiles are still in the rack. The rack check covers what the board
+**A composition is live only while its game is the selected one**, so removing
+or deselecting the game ends it at once. **The other two conditions compare
+against the state the DTO already carries**: the cells are empty, the tiles are
+still in the rack. The rack check covers what the board
 check cannot: a rack changes without the board changing, after an exchange or a
 timeout returning tiles to the bag, and a composition names tiles by rack
 position. Nothing is stored, nothing is bumped and nothing can be forgotten in a
 handler.
 
-`live_composition` has no condition that fails when the game is `Aborted` or
-`Finished`, so a staged word survives onto a game that is over. That is open
+`live_composition` still has no condition that fails when the game is `Aborted`
+or `Finished`, so a staged word survives onto a game that is over. That is open
 ([*Open questions about the shapes*](71-09-open-questions.md#open-questions-about-the-shapes)),
-with the two `test.fixme` cases.
+with the Abort `test.fixme` case.
 
 **Composing does not need the turn; submitting does.** A composition survives
 an opponent's turn, so a player can arrange a word while waiting (#88, carried
@@ -356,10 +360,12 @@ structured, the computation has to be checked rather than assumed: it is exactly
 the kind of derived value that keeps working until it quietly does not. Its unit
 tests build records by hand, so they would not notice.
 
-**The staged state must survive board changes that do not touch its cells.**
-Under the current *clear on any change* behaviour the staged class simply
-disappears, which no test would notice because disappearing is what it is
-supposed to do eventually.
+**The staged state must survive board changes that do not touch its cells, and
+go when they do.** Today nothing on the update path clears the composer
+([*To move away from*](#to-move-away-from)), so the staged class survives every
+update, including one that takes its cells, and no test would notice either
+failure. The key makes it go when a tile is played in one of its cells, and
+only then.
 
 ### An enhancement this makes cheap, outside this change
 
@@ -429,8 +435,12 @@ lands in. Client-only: no server change, no API version move, no migration. The
 staged tile left behind after a game is removed is a symptom of how state
 changes are managed today, so the fix is the composition key, delivered in #269
 (Core Client UI) rather than as a separate release.[^d57] The fault stays live
-until #269 ships, and the two `test.fixme` cases in
-`e2e/tests/ui-state.spec.ts`, which [the as-is](#to-move-away-from) names, are
-the acceptance tests of #269.
+until #269 ships. #269's key fixes the Remove case, because a composition is live
+only while its game is selected. The Abort case also needs the answer to
+[*Does a staged word survive onto a game that is over?*](71-09-open-questions.md#open-questions-about-the-shapes)
+(a status condition). The two `test.fixme` cases in `e2e/tests/ui-state.spec.ts`,
+which [the as-is](#to-move-away-from) names, are the acceptance tests of #269.
 
-[^d57]: Decision #443 (D57): fixed in #269 by the composition key.
+[^d57]: Decision #443 (D57): the composition key fixes the Remove case in #269;
+    the Abort case also needs the status condition that
+    [71-09](71-09-open-questions.md#open-questions-about-the-shapes) asks about.

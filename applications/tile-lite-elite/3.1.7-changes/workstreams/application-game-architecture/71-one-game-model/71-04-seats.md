@@ -42,6 +42,10 @@ It follows [`71-03-version.md`](71-03-version.md) and is followed by
   carries `invitation_status` and `ParticipantState` does not, so
   `DTO → domain → DTO` loses it (a DTO is a data transfer object, defined in
   [*The model*](71-05-wire.md#the-model) of the wire).
+- **The list of registered players is currently not appearing**, which is its
+  own defect and not this design's: the client reads it from `search_players`
+  (`app.rs`), which calls `GET /players/search` (`search_players`,
+  `app/auth.rs`). The design neither causes it nor fixes it.
 - **Names are copied.** `display_name` is stored on the seat, and
   `invited_email` on a seat created with `SeatClaim::Email`, until claimed.
 - **`ViewerAccess` holds one seat.** `Participant { seat_number }` comes from
@@ -89,7 +93,7 @@ pub enum SeatState {
 pub enum Departure { Resigned, ForceResigned, TimedOut }
 
 pub enum SeatRack {
-    Visible(Rack),   // the viewer's own seat
+    Visible(Rack),   // the viewer's own seat, or the server's own view
     Hidden(u8),      // everyone else's: how many tiles, not which
 }
 ```
@@ -111,7 +115,7 @@ cannot have a thing do not carry it:
 Three smaller enums say the same for a choice: `Invitation` how a seat is to be
 filled, `Departure` how a player left and `SeatRack` whether the rack is
 visible or only counted. `Option` says whether a seat has an invitation at all
-(*`None` starts at `Claimed`*, below) and whether a withdrawn seat ever had a
+(*`None` starts at `Claimed`*, in [*How a seat is filled*](#how-a-seat-is-filled)) and whether a withdrawn seat ever had a
 player.
 
 A caller reads the state with a `match`, so adding a state makes the compiler
@@ -427,7 +431,7 @@ exists chiefly because a bot account holds every seat its engine plays. Somebody
 who does hold two seats gets view-switching without it being built: each client
 chooses which seat to show, so two windows on one account can show one seat
 each. How the wire redacts for a viewer is in
-[*The model*](71-05-wire.md#the-model) of the wire.
+[*DTOs are invisible*](71-05-wire.md#dtos-are-invisible) of the wire.
 
 [^d72]: Decision #479 (D72): how an emailed invitation behaves once an address
     identifies one account. It supersedes D59 (#445).
