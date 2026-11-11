@@ -54,6 +54,8 @@ class Gh:
             return self.done(0, json.dumps(self.graphql(query)))
         if any(path.split("?")[0].endswith(r) for r in self.refuse_rest):
             return self.done(1, err="HTTP 403")
+        if "page=" not in path:             # one object, such as a repository
+            return self.done(0, json.dumps(self.rest.get(path, {})))
         page = int(path.rsplit("page=", 1)[1])
         key = path.split("&per_page=")[0] if "&per_page=" in path else path.split("?per_page=")[0]
         data = self.rest.get(key, [])
@@ -293,15 +295,16 @@ class TheMergedList(Cases):
         with mock.patch.object(sources.subprocess, "run", gh):
             sources.merged_pull_requests("2026-10-19")
         self.expect("no page past the first old one was asked for",
-                    1, len([c for c in gh.rest_calls() if "fakeorg/widget" in c]))
+                    1, len([c for c in gh.rest_calls() if "fakeorg/widget/pulls" in c]))
 
     def test_a_search_that_answers_is_used(self):
         line = json.dumps(["https://api.github.com/repos/fakeorg/widget", 4, "t", "b", False])
         gh = Gh(search=line)
         with mock.patch.object(sources.subprocess, "run", gh):
             got = sources.merged_pull_requests("2026-10-19")
-        self.expect("one, and no REST", ([("fakeorg/widget", 4)], []),
-                    ([(p.repository, p.number) for p in got], gh.rest_calls()))
+        self.expect("one, and no pull request listing over REST", ([("fakeorg/widget", 4)], []),
+                    ([(p.repository, p.number) for p in got],
+                     [c for c in gh.rest_calls() if "/pulls" in c]))
 
     def test_search_and_rest_both_refused_is_unavailable(self):
         with mock.patch.object(sources.subprocess, "run", Gh(refuse_rest=("pulls",))):
@@ -312,6 +315,165 @@ class TheMergedList(Cases):
 def waiting_pr(n, step_state):
     return RawIssue(n, f"pr {n}", "OPEN", "", "PullRequest", {PR_STATE: step_state}, (), None,
                     None, frozenset())
+
+
+class EveryWatchedRepository(Cases):
+    """The merged list, the visibility of each repository and the removed files
+    are read from every repository the programme file names (P-8)."""
+
+    WINDOW = "2026-10-19"
+
+    def paths(self, repo):
+        return {f"repos/{repo}/pulls?state=closed&sort=updated&direction=desc":
+                [merged(1, "2026-10-21T10:00:00Z", "2026-10-21T10:00:00Z", title=f"in {repo}")]}
+
+    def test_the_rest_listing_reads_every_watched_repository(self):
+        table = {}
+        for repo in ("fakeorg/widget", "fakeorg/fake-programme", "fakeorg/programme", "fakeorg/service-desk"):
+            table.update(self.paths(repo))
+        gh = Gh(rest=table)
+        with mock.patch.object(sources.subprocess, "run", gh):
+            got = sources.merged_pull_requests(self.WINDOW)
+        self.expect("one from each", ["fakeorg/fake-programme", "fakeorg/programme", "fakeorg/service-desk",
+                                      "fakeorg/widget"], [p.repository for p in got])
+
+    def test_the_search_names_every_watched_repository(self):
+        gh = Gh(search="")
+        with mock.patch.object(sources.subprocess, "run", gh):
+            sources.merged_pull_requests(self.WINDOW)
+        query = next(a for c in gh.calls for a in c if a.startswith("q="))
+        self.expect("each in the query", [True] * 4,
+                    [f"repo:fakeorg/{r}" in query for r in ("widget", "fake-programme", "programme", "service-desk")])
+
+    def test_a_private_repository_is_marked_and_the_application_is_not(self):
+        table = {**self.paths("fakeorg/widget"), **self.paths("fakeorg/service-desk"),
+                 **self.paths("fakeorg/programme"),
+                 "repos/fakeorg/service-desk": {"private": True},
+                 "repos/fakeorg/programme": {"private": False}}
+        with mock.patch.object(sources.subprocess, "run", Gh(rest=table)):
+            got = sources.merged_pull_requests(self.WINDOW)
+        self.expect("private only where the repository says so",
+                    {"fakeorg/service-desk": True, "fakeorg/programme": False, "fakeorg/widget": False},
+                    {p.repository: p.private for p in got})
+
+    def search_line(self, repo, n, title="t"):
+        return json.dumps([f"https://api.github.com/repos/{repo}", n, title, "b", False])
+
+    def test_a_repository_that_cannot_be_read_is_unread_and_not_searched_for(self):
+        table = self.paths("fakeorg/programme")
+        real = Gh(rest=table, search="")
+
+        def call(args, **kw):
+            if args[0] == "gh" and args[2] == "repos/fakeorg/programme":
+                return Gh.done(1, err="HTTP 404")
+            return real(args, **kw)
+        with mock.patch.object(sources.subprocess, "run", call):
+            got = sources.merged_pull_requests(self.WINDOW)
+        self.expect("named, not read as quiet", ("fakeorg/programme" in got.unread, list(got)), (True, []))
+        query = next(a for c in real.calls for a in c if a.startswith("q="))
+        self.expect("and left out of the search", False, "repo:fakeorg/programme" in query)
+
+    def test_the_applications_own_repository_is_searched_even_if_its_read_fails(self):
+        real = Gh(rest={}, search=self.search_line("fakeorg/widget", 1))
+
+        def call(args, **kw):
+            if args[0] == "gh" and args[2] == "repos/fakeorg/widget":
+                return Gh.done(1, err="HTTP 500")
+            return real(args, **kw)
+        with mock.patch.object(sources.subprocess, "run", call):
+            got = sources.merged_pull_requests(self.WINDOW)
+        self.expect("found, not private, not unread", ([("fakeorg/widget", False)], False),
+                    ([(p.repository, p.private) for p in got], "fakeorg/widget" in got.unread))
+
+    def test_the_search_path_marks_a_private_repository(self):
+        lines = "\n".join([self.search_line("fakeorg/widget", 1), self.search_line("fakeorg/service-desk", 2),
+                           self.search_line("fakeorg/programme", 3)])
+        table = {"repos/fakeorg/service-desk": {"private": True}, "repos/fakeorg/programme": {"private": False},
+                 "repos/fakeorg/widget": {"private": True}}
+        with mock.patch.object(sources.subprocess, "run", Gh(rest=table, search=lines)):
+            got = sources.merged_pull_requests(self.WINDOW)
+        self.expect("private where the repository says, the application's never",
+                    {"fakeorg/widget": False, "fakeorg/service-desk": True, "fakeorg/programme": False},
+                    {p.repository: p.private for p in got})
+
+    def test_an_answer_that_does_not_say_is_private(self):
+        with mock.patch.object(sources.subprocess, "run",
+                               Gh(rest={}, search=self.search_line("fakeorg/programme", 3))):
+            got = sources.merged_pull_requests(self.WINDOW)
+        self.expect("private", [("fakeorg/programme", True)], [(p.repository, p.private) for p in got])
+
+    def search_pages(self, pages):
+        """A `gh` whose search answers these pages (lists of lines), then none."""
+        real = Gh(rest={})
+
+        def call(args, **kw):
+            if args[0] == "gh" and "search/issues" in args:
+                page = int(next(a for a in args if a.startswith("page=")).split("=")[1])
+                real.calls.append(args)
+                return Gh.done(0, "\n".join(pages[page - 1]) if page <= len(pages) else "")
+            return real(args, **kw)
+        return call, real
+
+    def test_the_search_is_read_a_page_at_a_time(self):
+        pages = [[self.search_line("fakeorg/widget", n) for n in range(100)],
+                 [self.search_line("fakeorg/widget", 100)]]
+        call, _ = self.search_pages(pages)
+        with mock.patch.object(sources.subprocess, "run", call):
+            got = sources.merged_pull_requests(self.WINDOW)
+        self.expect("all 101", 101, len(got))
+
+    def test_a_search_that_cannot_give_everything_falls_back_to_rest(self):
+        pages = [[self.search_line("fakeorg/widget", n) for n in range(100)]] * 10
+        call, real = self.search_pages(pages)
+        table = {**self.paths("fakeorg/widget")}
+        real.rest = table
+        with mock.patch.object(sources.subprocess, "run", call):
+            got = sources.merged_pull_requests(self.WINDOW)
+        self.expect("read over REST instead: the one pull request listed", [("fakeorg/widget", 1)],
+                    [(p.repository, p.number) for p in got])
+
+    def test_the_removed_files_are_the_removed_status_across_pages(self):
+        files = [{"filename": f"keep{i}", "status": "modified"} for i in range(100)]
+        files += [{"filename": "gone.md", "status": "removed"}, {"filename": "new.md", "status": "added"}]
+        table = {"repos/fakeorg/programme/pulls/5/files": files}
+
+        def call(args, **kw):
+            if args[0] == "gh" and "pulls/5/files" in args[2]:
+                page = int(args[2].rsplit("page=", 1)[1])
+                return Gh.done(0, json.dumps(files[:100] if page == 1 else files[100:] if page == 2 else []))
+            return Gh.done(0, "[]")
+        prs = [sources.MergedPullRequest("fakeorg/programme", 5, "t", "")]
+        with mock.patch.object(sources.subprocess, "run", call):
+            removed, unread = sources.removed_files(prs)
+        self.expect("only the removed one, from the second page", ({("fakeorg/programme", 5): ("gone.md",)}, ()),
+                    (removed, unread))
+
+    def test_a_refused_files_read_is_unread_not_empty(self):
+        prs = [sources.MergedPullRequest("fakeorg/programme", 5, "t", ""),
+               sources.MergedPullRequest("fakeorg/dark-portal", 6, "t", "")]
+
+        def call(args, **kw):
+            if args[0] == "gh" and "programme/pulls/5/files" in args[2]:
+                return Gh.done(1, err="HTTP 403")
+            return Gh.done(0, json.dumps([{"filename": "x", "status": "removed"}]))
+        with mock.patch.object(sources.subprocess, "run", call):
+            removed, unread = sources.removed_files(prs)
+        self.expect("the failed one is unread, the other read",
+                    ({("fakeorg/dark-portal", 6): ("x",)}, (("fakeorg/programme", 5),)), (removed, unread))
+
+    def test_build_leaves_a_private_repositorys_pull_requests_out_of_the_review_record(self):
+        body = "## Review rounds\n\n- R1 reader — a — b"
+        prs = (sources.MergedPullRequest("fakeorg/widget", 1, "own", body),
+               sources.MergedPullRequest("fakeorg/programme", 2, "other", body),
+               sources.MergedPullRequest("fakeorg/service-desk", 3, "SECRET", body, private=True))
+        with mock.patch.object(digest.repo, "_git", return_value=""):
+            d = build(sources.Snapshot((), 0, 0, 0, True), None, since="2026-10-19", merged_prs=prs)
+        self.expect("elsewhere is every pull request outside the application", [2, 3],
+                    [p.number for p in d.elsewhere])
+        self.expect("the record holds the public ones", [1, 2], [n for _, n, _, _ in d.reviews])
+        text = render(d)
+        self.expect("and nothing of the private one", False, "SECRET" in text)
+        self.expect("the private one is counted", True, "1 merged pull request(s) in private repositories" in text)
 
 
 class TheWaitingList(Cases):
