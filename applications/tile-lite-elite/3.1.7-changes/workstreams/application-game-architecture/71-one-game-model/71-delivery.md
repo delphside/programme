@@ -27,6 +27,9 @@ runs once, and #270, #271, #272 and #290 ship as ordinary releases with no
 schema change of their own. Each later package's design names its schema needs
 before #268's migration is written.
 
+**#582, WP G, ships alone ahead of 1.0.0**, as Application Tooling, with no
+release.
+
 **The later packages carry no milestone until each is scheduled**, and then take
 the normal route: a work-package branch off `main`, merged once tested.
 
