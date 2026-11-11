@@ -129,7 +129,7 @@ apply its own move twice, or need to recognise its own echo some other way.
 game by who a change affects would be fragile and buys nothing — no change to a
 game is invisible to everybody, and the cost of not choosing is a refetch
 nobody needed. Each game has its own channel
-([The engine](71-06b-engine-bots.md#the-engine)), so an update reaches no other game's
+([How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch)), so an update reaches no other game's
 clients. Per-viewer concerns stay where they are: redaction decides what each
 connection may see, and hiding a game is a flag on a seat.
 
@@ -230,7 +230,7 @@ pub enum ApplyError {
 change publishes the new state, which names the seat on turn, so a bot comes on
 turn after a timeout, a force-resign or a seat leaving just as it does after a
 move, and no caller of `apply` hands it anything
-([the engine](71-06b-engine-bots.md#the-engine)).
+([the engine is a client](71-06-engine.md#the-engine-is-a-client)).
 
 ## The one handler
 

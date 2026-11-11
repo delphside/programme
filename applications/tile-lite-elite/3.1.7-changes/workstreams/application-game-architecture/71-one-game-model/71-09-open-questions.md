@@ -118,14 +118,14 @@ It answers the reloaded-game question, though: a game whose bot is on turn is
 picked up rather than left for whoever happens to touch the game next, which
 is what covers it today by accident. For the in-process bot the first yields of
 `updates_for` do it, and the bot plays a game already on its turn at start-up
-([The engine](71-06b-engine-bots.md#the-engine)).
+([How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch)).
 
 An external harness (#10's) learns of a turn the way any client does — from the
 message carrying the previous move, or the game starting, on a socket it already
 holds for that game. A game left waiting while the harness was down is picked up
 by the first yield of its socket for that game. A socket that subscribes to
 every seated game also learns of a new seat from the account's seat list
-([The engine](71-06b-engine-bots.md#the-engine)); the shape of the socket is #10's.
+([How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch)); the shape of the socket is #10's.
 
 **A bot plays as a bot account, wherever the engine runs.** The harness
 authenticates as the bot, not as the person running it — so a bot's moves
@@ -133,7 +133,7 @@ move a bot's rating, and nothing has to declare after the fact which moves
 were whose. A server-run bot's seat carries the same kind of account id; the
 in-process glue passes it to the Game service, which checks it as it checks
 any caller. The server's settings list the bots it runs
-([The engine](71-06b-engine-bots.md#the-engine)).
+([The bots the server runs](71-06b-engine-bots.md#the-bots-the-server-runs)).
 
 That keeps where the engine runs out of the schema entirely, which is the whole
 purpose of [the goal](71-02-overview.md#the-goal). A bot playing from a client
@@ -143,7 +143,7 @@ and a bot playing in the server are the same game.
 Everything but `/health`, registering and logging in requires a session, and a
 bot session is taken on top of a human one. The in-process bot holds no session:
 its link is built with the identity the settings list
-([The engine](71-06b-engine-bots.md#the-engine)). For an external bot, rating follows the
+([The bots the server runs](71-06b-engine-bots.md#the-bots-the-server-runs)). For an external bot, rating follows the
 bot and accountability follows the person, so one behaving badly has an owner to
 disable.
 
@@ -158,7 +158,7 @@ Rate limiting is a separate concern and answers a different question. It
 protects the service from load, not from anybody in particular. It exists
 (`app/throttle.rs`, 4.1), and a harness meets it like any client: its retry
 policy against 429 and `Retry-After` is #10's. It counts only callers outside
-the server, and the [in-process bot](71-06b-engine-bots.md#the-engine)
+the server, and the [in-process bot](71-06-engine.md#the-model)
 joins below it.
 
 **Anybody may register a bot** and run it through the harness or their own
@@ -185,15 +185,31 @@ and message — which is what makes it testable without a pool. The cost is that
 caller can forget to publish. Enforceable by making `Applied` `#[must_use]`,
 which is weaker than the type-level guarantee the server side otherwise gets.
 
+**What is the hint?** The design says every search and every hint takes an
+`engine_limit` permit ([the blocking pool](71-06-engine.md#how-the-engine-uses-the-blocking-pool)).
+Today `suggest_move` (`games.rs`) searches inline in the async handler under the
+games write lock, with no `spawn_blocking` and without the engine crate, and
+applies the best move for the seat on turn. Either it becomes a search that takes
+a permit and runs on the blocking pool, or the hint is something else and the
+permit has nothing to cover. Open, for the owner.
+
+**What paces the engine's moves?** `ENGINE_TURN_BROADCAST_DELAY` (`games.rs`)
+sleeps 120 ms between engine turns so that a person watching an engine game
+sees each move; without it an all-engine game finishes before a socket has
+opened. A bot that is a client replies as fast as its search returns, and
+nothing in [the model](71-06-engine.md#the-model) paces it. Either the bot paces
+itself, or the client shows each move for a minimum time, or neither. Open, for
+the owner.
+
 **How does the server act as the bot accounts it runs in-process, and do they
 need an owner?** Settled by owner, 2026-10-20: see
-[The engine](71-06b-engine-bots.md#the-engine).
+[The bots the server runs](71-06b-engine-bots.md#the-bots-the-server-runs).
 
 **How does an external harness learn of a game it is newly seated in?**
-Settled by owner, 2026-10-20: see [The engine](71-06b-engine-bots.md#the-engine).
+Settled by owner, 2026-10-20: see [How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch).
 
 **Third-party bots in-process?** Settled by owner, 2026-10-20: no; see
-[The engine](71-06b-engine-bots.md#the-engine).
+[The bots the server runs](71-06b-engine-bots.md#the-bots-the-server-runs).
 
 **Does `turn` need to be persisted separately from `moves.len()`?** Settled by
 undo, 2026-08-29: yes. Under undo `turn` walks backwards while `moves` does not
