@@ -18,8 +18,9 @@ handlers in `crates/server-game/src/app/games.rs` end by calling
 runs until the seat on turn is not an engine's, the game finishes or
 `MAX_ENGINE_TURNS_PER_TRIGGER` (400) turns have run, and the request does not
 return until it ends. The ceiling is a safety stop, not a game rule, and a game
-can pass it: any placement resets the scoreless count, so each of the 100 tiles
-may follow five scoreless turns, about 600 turns in all. An all-engine game that
+can pass it: any placement resets the scoreless count, and the first move uses
+at least two tiles, so up to 99 placements may each follow five scoreless turns,
+about 590 turns in all. An all-engine game that
 reaches it stalls, because no request follows to run the loop again. The
 diagram shows `start_game` and `submit_action`.
 
