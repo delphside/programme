@@ -165,7 +165,7 @@ than aspirational; this work package then removes the remaining coupling.
 
 **What is new** is the bot as a client: it hears it is on turn from the Event
 stream and submits through the
-[in-process glue](71-data-model.md#8--the-engine), so no caller of `apply`
+[in-process glue](71-06-engine.md#the-engine), so no caller of `apply`
 drives it.
 
 **Artefacts WP A adds for the bot.** The Event stream in `app/events.rs`
@@ -175,8 +175,8 @@ instead of filtering one shared channel. The server's settings gain
 the configuration reference documents
 ([4.4.1 Configuration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md)).
 The generic `Bot<L: GameLink>` is in
-[§3](71-data-model.md#3--the-interface-layer); the mechanism and the bot list
-are in [§8](71-data-model.md#8--the-engine). `client_rules.rs` in `ui`
+[The interface layer](71-05-wire.md#the-interface-layer); the mechanism and the bot list
+are in [The engine](71-06-engine.md#the-engine). `client_rules.rs` in `ui`
 loses its copies of the conversions, as
 [DTOs are invisible, and redaction is in the model](#dtos-are-invisible-and-redaction-is-in-the-model)
 says.

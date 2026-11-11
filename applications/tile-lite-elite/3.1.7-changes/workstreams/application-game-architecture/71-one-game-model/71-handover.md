@@ -14,11 +14,20 @@ written otherwise.
 
 1. #71's body: the allocation table, the Decisions table, and the code-review
    findings routed from #460.
-2. [`71-design.md`](71-design.md): the *Pending decisions* table at the top,
-   then the work-package sections.
+2. [`71-02-overview.md`](71-02-overview.md): the table of the design's files, the
+   *Pending decisions* paragraph at the top, then the work-package sections.
+   The topic files it lists are read as the work needs them:
+   [`71-03-version.md`](71-03-version.md), [`71-04-seats.md`](71-04-seats.md),
+   [`71-05-wire.md`](71-05-wire.md), [`71-06-engine.md`](71-06-engine.md),
+   [`71-07-client.md`](71-07-client.md), [`71-08-storage.md`](71-08-storage.md),
+   [`71-09-open-questions.md`](71-09-open-questions.md) and
+   [`71-10-documents-changed.md`](71-10-documents-changed.md).
 3. [`71-delivery.md`](71-delivery.md): `release/1.0.0` for #268 and #269.
-4. [`71-functional.md`](71-functional.md): the use case, the journeys, the
-   lifecycles, and *Questions the journeys raise* (Q1 to Q15, all answered).
+4. [`71-functional.md`](71-functional.md): the use case and the lifecycles;
+   the journeys are in [`71-journeys-u1-u3.md`](71-journeys-u1-u3.md) and
+   [`71-journeys-u4-u6.md`](71-journeys-u4-u6.md), and *Questions the journeys
+   raise* (Q1 to Q15, all answered) in
+   [`71-journey-questions.md`](71-journey-questions.md).
 5. Tile Lite Elite's [4.1.0 rules](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md),
    which the journeys cite.
 
@@ -46,11 +55,11 @@ written otherwise.
 | #439's open rows: friends and blocking (the old address is told of a change: R6, NOTE-1) | owner, on #439 |
 | closing your own account, suspension, support requests and complaints | #296 (R1 to R5) |
 | The as-is design map (#406) is on Tile Lite Elite main (delphside/tile-lite-elite#523). Check-docs step 8 starts checking it when #522 moves the `programme/` pin; if it reports stale, regenerate with `programme/scripts/docs/design-map/design-map.py --write` | #522 |
-| [`71-map-change.md`](71-map-change.md) is a prototype: WP A and WP C only. The format's three gaps are closed (programme #41), and [`71-map-diagrams.md`](71-map-diagrams.md) is generated from it with `design-map.py --change`. WP A's to-be is drawn and designed (programme #60 and #62): the layering, per-game latest-state channels, `game-wire`'s two message enums, the seat list and the bot list ([71-data-model.md §8](71-data-model.md#8--the-engine)). Tile Lite Elite runs the mode from `../programme` until its `programme/` pin moves past programme #41 | owner: how dense a package's drawing may be |
+| [`71-map-change.md`](71-map-change.md) is a prototype: WP A and WP C only. The format's three gaps are closed (programme #41), and [`71-map-diagrams.md`](71-map-diagrams.md) is generated from it with `design-map.py --change`. WP A's to-be is drawn and designed (programme #60 and #62): the layering, per-game latest-state channels, `game-wire`'s two message enums, the seat list and the bot list ([71-06-engine.md](71-06-engine.md#the-engine)). Tile Lite Elite runs the mode from `../programme` until its `programme/` pin moves past programme #41 | owner: how dense a package's drawing may be |
 | #538: the move generator finds only moves whose first tile is on an anchor (with AT on the board and B, O in the rack it offers OAT, misses BOAT). It affects bots, suggestions and opening moves, so WP A's engine design takes it into account once triaged | owner, triage of #538 |
 | A compiling sketch of `game-wire`'s types (links, both message enums, `Bot<L>`, engine levels) is in the project files at `notes/71/game-wire-sketch/`; WP A's code branch starts from it | WP A Development |
 | Split the server-only variants (`TimeOut`, `ForceResign`, `AdminForceEnd`, `ReminderSent`) out of `GameMessage` into a server-side `GameCommand`; recommended, asked on a card in the #71 thread on 2026-10-21 | owner |
-| #542 entity life histories: WP A's matrix and runtime state tables are in [`71-life-histories.md`](71-life-histories.md). Its gaps G1 and G4 are the owner's, on cards; G2, G3, G5, G6 and G7 are Claude's, and all seven go into the data model and WP A's tests once answered | owner (G1, G4), then Claude |
+| #542 entity life histories: WP A's matrix and runtime state tables are in [`71-life-histories.md`](71-life-histories.md). Its gaps G1 and G4 are the owner's, on cards; G2, G3, G5, G6 and G7 are Claude's, and all seven go into the design files and WP A's tests once answered | owner (G1, G4), then Claude |
 
 ## A tooling defect met on the way
 

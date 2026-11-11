@@ -2,7 +2,7 @@
 
 Fitted to [`71-test-approach.md`](71-test-approach.md), which holds the layers
 and what each can answer; this file says what WP A uses of them. The scope is
-in [`71-design.md`](71-design.md), *Work packages*.
+in [`71-02-overview.md`](71-02-overview.md), *Work packages*.
 
 ## What it proves
 
@@ -18,7 +18,7 @@ is an identity over what a viewer may see, and an engine is a client.
 - **Scripted test clients**, two or more, on `game-wire`: one acts, the others
   must see it. This is the layer WP A is built against before WP B exists.
 - **An engine run both ways** — through the
-  [in-process glue](71-data-model.md#8--the-engine) and through the external
+  [in-process glue](71-06-engine.md#the-engine) and through the external
   transport — on the same position, producing the same move.
 
 A run against `localhost:3000` covers the external transport only: it
@@ -28,8 +28,8 @@ playing the same move both ways.
 
 ## The journeys and rules it covers
 
-[U2.1 Create and start a game](71-functional.md#u21-create-and-start-a-game), [U3.1 Accept or decline an invitation](71-functional.md#u31-accept-or-decline-an-invitation), [U4.1 Take a turn](71-functional.md#u41-take-a-turn), [U4.4 Leave a game in play](71-functional.md#u44-leave-a-game-in-play) and
-[U4.5 Abort a game](71-functional.md#u45-abort-a-game), from [`71-functional.md`](71-functional.md): GAME-1 to GAME-4,
+[U2.1 Create and start a game](71-journeys-u1-u3.md#u21-create-and-start-a-game), [U3.1 Accept or decline an invitation](71-journeys-u1-u3.md#u31-accept-or-decline-an-invitation), [U4.1 Take a turn](71-journeys-u4-u6.md#u41-take-a-turn), [U4.4 Leave a game in play](71-journeys-u4-u6.md#u44-leave-a-game-in-play) and
+[U4.5 Abort a game](71-journeys-u4-u6.md#u45-abort-a-game), from [`71-functional.md`](71-functional.md): GAME-1 to GAME-4,
 RATE-1 to RATE-3, TIME-3, DEL-2, DEL-3, and the tests the code review found
 missing (`71-test-approach.md`).
 

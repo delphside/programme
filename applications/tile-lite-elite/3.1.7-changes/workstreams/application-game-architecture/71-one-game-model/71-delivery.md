@@ -2,7 +2,7 @@
 
 **What #71's body does not say about how it reaches production.** The packages,
 their requirements and their deliveries are in #71's body, which the board
-reads; the design is in [`71-design.md`](71-design.md) and how it is proved is
+reads; the design is in [`71-02-overview.md`](71-02-overview.md) and how it is proved is
 in [`71-test-approach.md`](71-test-approach.md).
 
 ## Core ships as one release
