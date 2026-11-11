@@ -216,10 +216,10 @@ need an answer:
   Options: (a) a reserved address per engine and a hash nothing can match;
   (b) make both nullable, with a check that only a bot account leaves them
   empty.
-- **`display_name`** is `not null` and unique, and so is its folded form
-  (`idx_players_display_name_folded`). An engine's name can clash with a
-  player's, which would fail the migration, so the migration checks for a
-  clash first or the bot's name is one no player can register.
+- **`display_name`** is `not null` and unique, and its folded form is unique
+  too (`idx_players_display_name_folded`). An engine's name can clash with a
+  player's, which would fail the migration. Options: (a) the migration checks
+  for a clash first; (b) a bot's name is one no player can register.
 - **Which listed bot inherits the rows.** Each listed bot has its own account
   ([*The bots the server runs*](71-06b-engine-bots.md#the-bots-the-server-runs)),
   so the list must find the account the migration made, or the first start
@@ -227,7 +227,7 @@ need an answer:
 
 `created_at` and `updated_at` take the migration's time. Open, for WP A; it
 sits beside G4, deleting a listed bot's account
-([71-life-histories](71-life-histories.md)).
+([71-life-histories](71-life-histories.md#gaps-the-matrix-found)).
 
 **What is the hint?** Answered (owner, 2026-11-11): nothing uses `suggest_move`
 today. No client calls `POST /games/{game_id}/suggest`. A hint may be offered
