@@ -4,8 +4,8 @@ No network and no files: paths and sizes only.
 
   limit       over the limit is reported, at the limit is not, largest first
   measure     bytes of UTF-8, as a file's size is
-  exempt      logs, reports, fixtures, the design map and change documents
-              are left out; a change folder's README and runbooks are not"""
+  exempt      logs, reports, fixtures and the design map are left out;
+              change documents are measured (owner, 2026-11-11)"""
 
 from .cases import Cases
 
@@ -43,13 +43,13 @@ class TheSizeLimit(Cases):
                      "applications/tile-lite-elite/3.1.1-delivery-log.md",
                      "sizing/results/2026-10-27-report.md",
                      "scripts/board/tests/fixtures/body.md",
-                     "docs/4.2.0-design-map.md",
-                     "records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md",
-                     "applications/tile-lite-elite/3.1.7-changes/workstreams/x/71-design.md"):
+                     "docs/4.2.0-design-map.md"):
             self.expect(f"left out: {path}", True, exempt(path))
         for path in ("docs/1.2-change-lifecycle.md", "CLAUDE.md",
                      ".claude/skills/triage/SKILL.md",
                      "records/2.5-changes/README.md",
                      "applications/tile-lite-elite/3.1.7-changes/ops/benchmark-runbook.md",
-                     "docs/4.4.3-api-schema.md"):
+                     "docs/4.4.3-api-schema.md",
+                     "records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md",
+                     "applications/tile-lite-elite/3.1.7-changes/workstreams/x/71-design.md"):
             self.expect(f"measured: {path}", False, exempt(path))
