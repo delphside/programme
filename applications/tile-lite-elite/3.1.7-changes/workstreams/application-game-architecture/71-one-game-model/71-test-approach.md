@@ -104,8 +104,10 @@ passing vacuously.
 The three layers do not replace it. They keep it small.
 
 **The two failing cases are #269's acceptance.** They are the `test.fixme` cases
-for a staged tile surviving Remove and Abort, and they turn on when the
-composition key lands in Core Client UI.[^d57]
+for a staged tile surviving Remove and Abort. The Remove case turns on when the
+composition key lands in Core Client UI.[^d57] The Abort case also needs #269's
+answer to *Does a staged word survive onto a game that is over?*, in
+[*Open questions about the shapes*](71-09-open-questions.md#open-questions-about-the-shapes).
 
 ## Tests the code review found missing
 

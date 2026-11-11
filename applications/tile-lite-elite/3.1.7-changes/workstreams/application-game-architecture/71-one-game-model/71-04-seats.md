@@ -42,10 +42,11 @@ It follows [`71-03-version.md`](71-03-version.md) and is followed by
   carries `invitation_status` and `ParticipantState` does not, so
   `DTO → domain → DTO` loses it (a DTO is a data transfer object, defined in
   [*The model*](71-05-wire.md#the-model) of the wire).
-- **The list of registered players is currently not appearing**, which is its
-  own defect and not this design's: the client reads it from `search_players`
-  (`app.rs`), which calls `GET /players/search` (`search_players`,
-  `app/auth.rs`). The design neither causes it nor fixes it.
+- **The list of registered players has been reported as not appearing**, and
+  is unconfirmed. `NameAutocompleteInput` (`games_panel.rs`) fills it from a
+  prefix search after two characters, through `search_players` (`app.rs`) and
+  `GET /players/search` (`app/auth.rs`). The design neither causes it nor
+  fixes it.
 - **Names are copied.** `display_name` is stored on the seat, and
   `invited_email` on a seat created with `SeatClaim::Email`, until claimed.
 - **`ViewerAccess` holds one seat.** `Participant { seat_number }` comes from
