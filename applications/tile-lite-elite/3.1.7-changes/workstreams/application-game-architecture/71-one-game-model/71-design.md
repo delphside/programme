@@ -922,6 +922,13 @@ fields added since, which recovers a single missing field but cannot express
 a change of shape, and gives a reader no way to tell an old blob from a new
 one with a field omitted.
 
+**A later shape is read by a variant object, one per schema version** (owner,
+2026-09-02). Each reads a whole version and converts it to the current one, so a
+version retires as a unit: once no blob of it remains, which retention makes
+foreseeable, its reader goes. A per-field shim such as
+`deserialize_i64_flexible` never retires, because nothing records when the
+last old blob has gone.
+
 ## Open questions
 
 **Core writes the log; undo reads it later.**[^d61] Every `Applied` appends one
@@ -1158,6 +1165,21 @@ acted on a seat beyond the seat itself.
 The overall design above is delivered in six packages (D56, #442). Each section
 says what the package takes from the design, and what it waits on. A package's
 requirements are on its issue; its tests are in its own test file.
+
+**The split serves three ends** (owner, 2026-09-02): packages small enough to
+manage, the core proven before anything is built on it, and deliveries that can
+ship separately. Two rules draw the line between Core and Additional:
+
+- **Core takes nothing that can be done later at no extra cost.** The question
+  for each requirement is whether deferring it costs more: deferring #253 means
+  a second migration over the same tables, so it is Core's; deferring #68 or #87
+  costs nothing, so they are Additional's.
+- **Every schema change belongs in Core**, because a migration is expensive to
+  repeat and risky to interleave. Undo's history table is laid down in Core
+  even though undo itself is WP E.
+
+Core Client UI is filled by Core's design, not from the backlog: it holds the
+client changes Core's server changes require.
 
 ### WP A, #268 Core Game Lifecycle
 
