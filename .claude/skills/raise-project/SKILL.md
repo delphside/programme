@@ -148,7 +148,7 @@ and takes no sub-project: the parent and the child would say the same thing.
 
 ## Naming
 
-| | form |
+| | Form |
 | --- | --- |
 | a parent | `#N MAIN PROJECT: <what it is>` |
 | a work package, alone in its delivery | `#N WP A Del 1 of 2: <what it delivers>` |
