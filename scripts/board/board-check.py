@@ -170,9 +170,12 @@ def main(argv=None) -> int:
         # Issue bodies over the size limit (the programme's docs/1.5), the
         # documents' measure applied to the board. A measure, so it never sets
         # `failing`: the weekly document-review proposes the restructure.
-        bodies = [(f"#{r.number} {r.title}", size_of(r.body)) for r in snapshot.issues
-                  if r.issue_type != "PullRequest"]
-        text += "\n\n" + render_size(oversized(bodies), "issue bodies")
+        # Open issues only: a closed issue is history and is not edited.
+        if not args.closed:
+            bodies = [(r.title if r.title.startswith(f"#{r.number} ") else f"#{r.number} {r.title}",
+                       size_of(r.body))
+                      for r in snapshot.issues if r.issue_type != "PullRequest"]
+            text += "\n\n" + render_size(oversized(bodies), "issue bodies")
 
     # Stripped at the boundary rather than threaded through the renderer:
     # nineteen call sites would each have to remember, and one that forgot

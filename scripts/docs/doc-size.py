@@ -42,8 +42,9 @@ def main(argv: list[str]) -> int:
     else:
         root = profile.app_root()
         # An application with no `documents` table names no generated documents.
-        listed = profile.technical(root).data.get("documents", {}).get("generated", [])
-        generated = set(listed)
+        spec = profile.technical(root)
+        generated = (set(spec.strings("documents.generated"))
+                     if "generated" in spec.data.get("documents", {}) else set())
     paths = documents(root, generated)
     found = oversized((p, (root / p).stat().st_size) for p in paths
                       if (root / p).is_file())
