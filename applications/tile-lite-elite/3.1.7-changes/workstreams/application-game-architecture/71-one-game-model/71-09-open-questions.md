@@ -188,10 +188,11 @@ which is weaker than the type-level guarantee the server side otherwise gets.
 **What is the hint?** Answered (owner, 2026-11-11): nothing uses
 `suggest_move` today. No client calls `POST /games/{game_id}/suggest`. A hint
 may be offered later, using it makes the game unrated, and it may come from a
-different engine from the one playing, possibly run in the client; that is
+different engine from the one playing. It is a server feature, so that the
+server knows to make the game unrated; that is
 [delphside/tile-lite-elite#585](https://github.com/delphside/tile-lite-elite/issues/585),
 outside #71. Until then #71 leaves `suggest_move` as it is, and a hint, once
-built, takes an `engine_limit` permit like any other search.
+built, takes an `engine_limit` permit like any other search in the server.
 
 **What paces the engine's moves?** `ENGINE_TURN_BROADCAST_DELAY` (`games.rs`)
 sleeps 120 ms between engine turns so that a person watching an engine game
