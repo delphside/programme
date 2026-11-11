@@ -25,6 +25,9 @@ technical design, 71-01 to 71-10, of which this file is the second:
 | [`71-09-open-questions.md`](71-09-open-questions.md) | the open questions, and the ones settled |
 | [`71-10-documents-changed.md`](71-10-documents-changed.md) | the documents this changes, and the two diagrams that move into 1.2 |
 
+Every file in this folder stays under about 25 KB (owner, 2026-11-11), and a
+topic that would not fit is split in reading order, as 71-06 and 71-06b are.
+
 **The documents run top-down, one file per stage.**[^d71]
 The functional set is the use case diagram, the journeys and the lifecycles.
 The files 71-01 to 71-10 are the technical design: the as-is, then this

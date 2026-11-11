@@ -167,7 +167,7 @@ than aspirational; this work package then removes the remaining coupling.
 
 **What is new** is the bot as a client: it hears it is on turn from the Event
 stream and submits through the
-[in-process glue](71-06-engine.md#the-engine-is-a-client), so no caller of `apply`
+[in-process glue](71-06-engine.md#the-model), so no caller of `apply`
 drives it.
 
 **Artefacts WP A adds for the bot.** The Event stream in `app/events.rs` becomes

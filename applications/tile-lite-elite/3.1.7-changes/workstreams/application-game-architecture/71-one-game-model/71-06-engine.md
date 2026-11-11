@@ -1,12 +1,12 @@
 # 71 The engine
 
-This is the first of two files on the engine, split because one would pass
-25 KB, and it is read first. It holds how an engine turn runs today, the model
-the design replaces it with, and the technologies the model rests on: Tokio,
-watch channels, the blocking pool with a semaphore, and a generic type over a
-trait. [`71-06b-engine-bots.md`](71-06b-engine-bots.md) holds what only the
-engine needs on top of that: levels, the bots the server runs, what makes
-lifting the engine out possible and where it runs. This file follows
+This is the first of two files on the engine, and it is read first. It holds how
+an engine turn runs today, the model the design replaces it with, and the
+technologies the model rests on: Tokio, watch channels, the blocking pool with a
+semaphore and a generic type over a trait.
+[`71-06b-engine-bots.md`](71-06b-engine-bots.md) holds what only the engine
+needs on top of that: levels, the bots the server runs, what makes lifting the
+engine out possible and where it runs. This file follows
 [`71-05-wire.md`](71-05-wire.md); the second is followed by
 [`71-07-client.md`](71-07-client.md).
 
@@ -63,12 +63,14 @@ What the code does, and where:
   sized from `TILE_LITE_ELITE_ENGINE_CONCURRENCY` (default 2, `app.rs`) and
   nothing acquires it. Password hashing acquires its twin, `hash_limit`, in
   `with_hash_permit` (`app/auth.rs`).
-- **Each turn is announced as it happens.** After a turn the loop attaches the
+- - **Each turn is announced as it happens.** After a turn the loop attaches the
   current ratings to the state, saves the game first if it finished, sends the
   state on `AppState.events`, a `broadcast::Sender<GameEventDto>` of capacity
   64, and sleeps `ENGINE_TURN_BROADCAST_DELAY` (120 ms) so that a watching
-  client sees each move ([what paces it after](71-09-open-questions.md#open-questions-about-the-shapes)). The handler broadcasts again afterwards unless the
-  loop's `EngineTurnsOutcome.announced` says it already did.
+  client sees each move
+  ([what paces it after](71-09-open-questions.md#open-questions-about-the-shapes)).
+  The handler broadcasts again afterwards unless the loop's
+  `EngineTurnsOutcome.announced` says it already did.
 - **A search past 5 seconds makes the seat pass**, with a warning logged. Every
   other failure returns an error from `maybe_run_engine_turn` that the handler
   answers with 400 to the person whose request triggered it: a panic in the
@@ -87,13 +89,12 @@ What the code does, and where:
 
 The loop is what is wrong. A person's request lasts as long as every bot turn
 that follows it, the games lock is held for the whole of each search, and the
-bot can be reached only from inside the server, so an external bot would be a
-second way to play.
+bot can be reached only from inside the server.
 
 ## The engine is a client
 
-An engine seat is told it is its turn and returns a move when ready. It is not
-driven by a loop inside somebody else's request. The engine becomes a client of
+An engine seat is told it is its turn and returns a move when ready, driven by
+its game's channel. The engine becomes a client of
 the Game service as a person's browser is: it hears of each change from its
 game's channel, decides, and submits a move for the server to accept or refuse.
 
@@ -101,12 +102,13 @@ The reason is the goal that engine code cannot tell whether it is running in the
 server or in a client ([the goal](71-02-overview.md#the-goal)). While the loop
 stays in place, the in-process engine and an external one are two ways to play,
 and they drift apart, which is the real cost of leaving it. As a client the two
-differ only by transport, which makes the external harness (#10) a plug-in
-rather than a second way to play. The lock stops being held through a search and
-the request returns as soon as the person's move is applied. The two properties
-the lock gave, one search at a time and a request that cannot hang on a bot,
-are replaced on purpose by a permit and
-[the move time limit](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md#move-time-limits).
+differ only by transport, which makes the external harness (#10) a plug-in. The
+lock stops being held through a search and the request returns as soon as the
+person's move is applied. The lock gave one search at a time, by accident, which
+a permit now gives on purpose. The timeout and the turn ceiling kept a request
+from hanging on a bot, which
+[the move time limit](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md#move-time-limits)
+now does for a bot that never answers.
 
 **Every bot is a client, and none runs inside a request** (owner,
 2026-10-14). External bots run outside the server, in #10's harness or their own
@@ -198,18 +200,18 @@ sequenceDiagram
   P->>GW: write the state with its cause, and the delivery repeats
 ```
 
-An in-process engine and an external one therefore differ only by transport.
-
 ### What changes
 
 | Aspect | Today | After | Section |
 | --- | --- | --- | --- |
-| a person's request | waits for every bot turn that follows | returns once its move is applied; the bot is a client | [Tokio](#how-the-engine-uses-tokio) |
-| the lock | the one games lock, held across each search | a per-game lock, which replaces it, taken only to submit a move | [Tokio](#how-the-engine-uses-tokio) |
+| a person's request | waits for every bot turn that follows | returns once its move is applied; the bot is a client | [What changes](#what-changes) |
+| the lock | the one games lock, held across each search | [a per-game lock](71-03-version.md#one-version-moved-in-one-place), which replaces it, taken only to submit a move | [What changes](#what-changes) |
 | searches at once | one at a time, by the lock | bounded by the `engine_limit` permit | [The blocking pool](#how-the-engine-uses-the-blocking-pool) |
 | a search past its time | the seat passes after 5 s | the seat is left on turn, and the move time limit retires it | [The blocking pool](#how-the-engine-uses-the-blocking-pool) |
 | an engine failure | 400 to the person whose request triggered it | logged | [The blocking pool](#how-the-engine-uses-the-blocking-pool) |
 | a slow receiver | the global broadcast lags and ends the socket | the game's watch skips states and the receiver carries on | [Watch channels](#how-the-event-stream-uses-watch) |
+| the engine contract | no level and no stop signal | `Level`, `start` and a `stop` flag | [Levels](71-06b-engine-bots.md#what-the-engine-gains-levels) |
+| pacing | `ENGINE_TURN_BROADCAST_DELAY` sleeps 120 ms between engine turns | open | [Open questions](71-09-open-questions.md#open-questions-about-the-shapes) |
 
 What follows from the engine being a client:
 
@@ -240,18 +242,21 @@ Tokio is the Rust async runtime the server runs on (`#[tokio::main]`,
 - A *task* is a unit of async work, such as one request or one WebSocket. The
   multi-thread runtime runs many tasks on a few *worker threads*, one for each
   CPU by default.
-- A task gives up its worker only at an `.await`. Code that computes without
-  awaiting, as a move search does, keeps its worker until it returns.
-- A guard from `std::sync` held across an `.await` can deadlock and makes the
-  future not `Send`. Tokio's own `RwLock` allows it, and then every other task
-  that wants the lock waits for the whole `.await`, which is today's search.
+- A *future* is a value that stands for async work not yet done, which a task
+  polls. A task gives up its worker only at an `.await`. Code that computes
+  without awaiting, as a move search does, keeps its worker until it returns.
+- - `Send` marks a type that may move between threads, which a task's future
+  must be. A guard from `std::sync` held across an `.await` can deadlock and
+  makes the future not `Send`. Tokio's own `RwLock` allows it, and then every
+  other task that wants the lock waits for the whole `.await`, which is today's
+  search.
 
 ### How the engine uses Tokio
 
 Each WebSocket and each listed bot's glue is its own task. A search leaves the
-worker through [the blocking pool](#the-blocking-pool-and-the-semaphore), and the
-per-game lock, which replaces the one games lock, is held only to read the game
-or to submit a move, never across a search.
+worker through [the blocking pool](#the-blocking-pool-and-the-semaphore), and
+the per-game lock, which replaces the one games lock, is held only to read the
+game or to submit a move, never across a search.
 
 ## Watch channels
 
@@ -322,11 +327,11 @@ A `watch` value is the state with its `because`
 value and always reads the latest state, so it never lags. A slow one skips
 states: it sees the version jump by more than one and treats `because` as
 absent, which rebuilds everything
-([the *nothing* case](71-03-version.md#three-categories-of-change)). The move list
-is part of the state, so nothing is lost. Push notifications come from
-Notifications, which the Game service reports each event to, so a skipped watch
-value loses none. Today a lagging server receiver ends the socket; here it skips
-states and carries on, and the client already ignores a version it has passed
+([the *nothing* case](71-03-version.md#three-categories-of-change)).
+The move list is part of the state, so nothing is lost. Push notifications come from Notifications, which
+the Game service reports each event to, so a skipped watch value loses none.
+Today a lagging server receiver ends the socket; here it skips states and
+carries on, and the client already ignores a version it has passed
 (`should_apply_update`, `crates/ui/src/app.rs`).[^watch]
 
 **What leaves the seat list, and a game's channel:**
@@ -347,7 +352,7 @@ sequenceDiagram
   participant ES as Event stream
   participant GW as Game watch
   participant SW as Seat-list watches
-  participant U as updates_for, one per subscriber
+  participant U as updates_for, one per subscriber (the bot task's included)
   participant BT as Bot task (the glue)
   participant B as Bot object
 
@@ -355,19 +360,20 @@ sequenceDiagram
   ES->>GW: drop the sender
   ES->>SW: write the new seat list of each account seated in it
   GW--)U: the channel closes
-  U--)B: GameRemoved, and the link ends
+  U--)BT: GameRemoved
+  BT--)B: GameRemoved, and the link ends
   SW--)BT: the seat list, without the SeatRef
   BT->>B: drop the object
   Note over B,BT: dropping an object that has ended is harmless, so the<br>two arrive in either order
 ```
 
-**The server never iterates over its clients, and nothing dispatches on the kind
-of subscriber.** `publish` writes the new state to the game's `watch` once.
-Every subscriber is its own task compiled for one concrete type: a WebSocket
-task converts the state to a frame and writes its socket, and a bot's task gives
-the state to its objects, each of which gives it to its engine. Each WebSocket task
-runs `updates_for` for its socket. The glue runs one task for each listed bot,
-which runs `updates_for` once over every seated game.[^watch]
+**`publish` writes once, and each subscriber is its own task.** `publish` writes
+the new state to the game's `watch`. Every subscriber is its own task compiled
+for one concrete type, so the server treats a WebSocket and a bot alike: a
+WebSocket task converts the state to a frame and writes its socket, and a bot's
+task gives the state to its objects, each of which gives it to its engine. Each
+WebSocket task runs `updates_for` for its socket. The glue runs one task for
+each listed bot, which runs `updates_for` once over every seated game.[^watch]
 
 ## The blocking pool and the semaphore
 
@@ -395,24 +401,25 @@ Three tools turn a computation that never awaits into bounded work
 The search is CPU-bound, so it runs through `spawn_blocking`, as today; the
 change is what bounds it, and what happens when it fails.
 
-- **How many searches run at once is bounded.** Once a search holds no lock, N
+- - **How many searches run at once is bounded.** Once a search holds no lock, N
   bot games on turn are N parallel searches, so every search and every hint
   takes an `engine_limit` permit before it starts, for as long as the hint is
-  computed in the server ([what the hint is](71-09-open-questions.md#open-questions-about-the-shapes)).
-  `engine_limit` is `TILE_LITE_ELITE_ENGINE_CONCURRENCY`, default 2, the VM's
-  core count, and it replaces the lock's accident [^d62]. This is the pattern
-  `with_hash_permit` in `app/auth.rs` already follows for password hashing.
+  computed in the server
+  ([what the hint is](71-09-open-questions.md#open-questions-about-the-shapes)).
+  `engine_limit` is `TILE_LITE_ELITE_ENGINE_CONCURRENCY`, default 2, the VM's core count, and
+  it replaces the lock's accident [^d62]. This is the pattern `with_hash_permit`
+  in `app/auth.rs` already follows for password hashing.
 - **The permit lives as long as the thread does.** It moves into the blocking
   thread and is released only when the engine returns, not when the time runs
   out, so a search that overran its time and cannot be cancelled still counts.
   `ENGINE_TURN_TIMEOUT` starts once the permit is held, so a queued bot loses
   none of its time; the queue itself is bounded by the move time limit.
-- **An engine is asked to stop, and a broken one keeps its permit.**
+- - **An engine is asked to stop, and a broken one keeps its permit.**
   `EngineRequest` gains a `stop: &AtomicBool`, set when the time runs out, and
   an engine checks it as it searches. One that ignores it, or has hung, holds
-  its permit until it returns: the bound stays true at the cost of capacity, and a
-  permit held well past its time is logged as an alert. Only a restart frees it.
-  Forcing a stop needs a separate process or a sandbox such as a WebAssembly
+  its permit until it returns: the bound stays true at the cost of capacity, and
+  a permit held well past its time is logged as an alert. Only a restart frees
+  it. Forcing a stop needs a separate process or a sandbox such as a WebAssembly
   runtime with deadline interruption, which is the reason to adopt either, for
   an engine not trusted to honour the signal.
 - **A search that fails stays the bot's problem.** An engine error, a panic
@@ -423,17 +430,17 @@ change is what bounds it, and what happens when it fails.
 ```mermaid
 sequenceDiagram
   title The life of a search permit
-  participant BT as Bot object
+  participant B as Bot object
   participant S as engine_limit
   participant T as Blocking thread
 
-  BT->>S: acquire_owned, waiting its turn
-  S-->>BT: the permit
-  Note over BT: ENGINE_TURN_TIMEOUT starts
-  BT->>T: spawn_blocking, the permit moves in
+  B->>S: acquire_owned, waiting its turn
+  S-->>B: the permit
+  Note over B: ENGINE_TURN_TIMEOUT starts
+  B->>T: spawn_blocking, the permit moves in
   T->>T: the engine searches, checking the stop flag
-  Note over BT,T: time runs out: the timeout ends the wait and sets the<br>stop flag, and the permit stays with the thread
-  BT->>BT: log it, leave the seat on turn
+  Note over B,T: time runs out: the timeout ends the wait and sets the<br>stop flag, and the permit stays with the thread
+  B->>B: log it, leave the seat on turn
   T-->>T: the engine returns
   T->>S: the permit drops
 ```

@@ -1,12 +1,12 @@
 # 71 The engine: levels, the server's bots and lifting it out
 
-This is the second of two files on the engine, split because one would pass
-25 KB, and it is read after [`71-06-engine.md`](71-06-engine.md), which holds the
-as-is, the model of a bot as a client and the technologies, and whose terms this
-file uses: the glue, a listed bot, a bot object and the layers. This file holds
-what only the engine needs on top of that: levels, the glue's calls, the bots
-the server runs, what makes lifting the engine out possible and where it runs.
-It is followed by [`71-07-client.md`](71-07-client.md).
+This is the second of two files on the engine, and it is read second. The first,
+[`71-06-engine.md`](71-06-engine.md), holds the as-is, the model of a bot as a
+client and the technologies, and defines the terms this file uses: the glue, a
+listed bot, a bot object and the layers. This file holds what only the engine
+needs on top of that: levels, the glue's calls, the bots the server runs, what
+makes lifting the engine out possible and where it runs. It is followed by
+[`71-07-client.md`](71-07-client.md).
 
 ## The engine
 
@@ -57,20 +57,19 @@ pub fn take_turn(
 ```
 
 Over the external transport an object's link is one game, one WebSocket per
-game, for the games the account's game list names. The subscription to every
-seated game carries the seat list, and what a harness does with
-`Seats` is #10's.
-
-**The bot hears it is on turn from the channel of its game**, the stream every
-client of that game subscribes to, and never from the caller of `apply`: no
-caller spawns a bot task. The request that applies a move returns at once.
+game. The two subscription scopes are in
+[How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch),
+and what a harness does with `Seats` is #10's. A bot hears it is on turn from
+its game's channel, as [the engine is a client](71-06-engine.md#what-changes)
+says.
 
 **The in-process glue joins under the Transport API at two calls**:
-`updates_for` to hear ([the Event stream](71-06-engine.md#how-the-event-stream-uses-watch)),
-and the Game service's submit function to act. `submit` calls the same Game
-service function a route handler calls after its sign-in check, passing the
-bot's account ID as the caller. The service still checks that the caller holds
-the seat and that it is on turn, and calls `apply`.
+`updates_for` to hear
+([the Event stream](71-06-engine.md#how-the-event-stream-uses-watch)), and the Game
+service's submit function to act. `submit` calls the same Game service function
+a route handler calls after its sign-in check, passing the bot's account ID as
+the caller. The service still checks that the caller holds the seat and that it
+is on turn, and calls `apply`.
 
 A seat added while the server runs starts from its own trigger, a creator adding
 the bot's seat:
@@ -132,10 +131,9 @@ The server runs the bots its settings list.
 
 ### A bot posts what a person posts
 
-There is no proxy and no bot-specific route. An external bot posts the action a
-person posts, over the session of the bot's own account, and the in-process bot
-calls the function that route calls, as the bot's own account. Either way its
-rating moves because the account is the bot's.
+An external bot posts the action a person posts, over the session of the bot's
+own account, and the in-process bot calls the function that route calls, as the
+bot's own account. Either way its rating moves because the account is the bot's.
 
 An external harness posts like any client and can be answered 429 with
 `Retry-After`; its retry policy is #10's. The rate limiter protects the service
