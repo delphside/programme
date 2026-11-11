@@ -10,7 +10,7 @@ and redraws the application's design map around it. What is wrong now and why
 is in [`71-design.md`](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/application-game-architecture/71-one-game-model/71-design.md),
 *What is wrong now*.
 
-**Six work packages, deliveries decided per package** (D56, #442). The
+**Seven work packages, deliveries decided per package** (D56, #442; WP G, #582, added 2026-11-11). The
 requirements below are folded into this project, not into its packages; the
 allocation is a plan, and packages may move a requirement between them during
 design. How the line between Core and Additional is drawn is in `71-design.md`,
@@ -28,7 +28,7 @@ design. How the line between Core and Additional is drawn is in `71-design.md`,
 | an invitation outlives its seat or its game | **#268 Core** (D67, #467) | aborting cancels pending invitations; seat messages are refused after the start |
 | #142 reconnect catch-up, #80 a rename reaches others, #106 inviting yourself accepts, #105 withdrawing hides the game | **#268 Core** | true by construction (D67, #467) |
 | #571 the code meets the 4.1.0 rules this project's design questions decided: RATE-4, GAME-12, ADM-2, GAME-11, ACC-6, RATE-5, NOTE-1, DEL-4, TIME-2 | **#268 Core**; NOTE-1 to **#270** beside #87; DEL-4 and TIME-2 with RET-3 (#68) | each ends with a test citing the rule (folded 2026-11-09) |
-| #572 a test for the engine move timeout | **#268 Core** | Core rewrites the engine's turn; `71-test-approach.md` already carries the case (folded 2026-11-11) |
+| #572 a test for the engine move timeout | **#582 WP G** | ahead of #71, guarding today's timeout path until #268 replaces it (owner, 2026-11-11) |
 | the design map: each kind of logic named with the one module that owns it, and #428's Application & Game Architecture row | **#268 Core** starts it; each package adds its part | Core lays down the single points the map names |
 | #157 a staged tile survives Remove and Abort | **#269 Core Client UI** (D57, #443) | the composition key; the two `fixme` cases in `e2e/tests/ui-state.spec.ts` are its acceptance |
 | #152 removing a game clears the board and rack, #88 out-of-turn staging | **#269 Core Client UI** | composition behaviour (D67, #467) |
@@ -144,6 +144,7 @@ The generated header above lists what this waits on and what needs it.
 | 1 | #268 Core Game Lifecycle, #269 Core Client UI | 1.0.0 |
 | later | #290 Dioxus upgrade, before #269's UI work | when scheduled |
 | later | #270, #271, #272, each its own | when scheduled |
+| ahead of 1.0.0 | #582 WP G, the engine timeout test | the day it merges |
 
 ## Post-deployment checks against requirements
 
