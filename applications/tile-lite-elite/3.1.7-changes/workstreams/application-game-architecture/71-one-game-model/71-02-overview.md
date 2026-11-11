@@ -18,8 +18,8 @@ technical design, 71-01 to 71-10, of which this file is the second:
 | [`71-03-version.md`](71-03-version.md) | one version, moved in one place: the session, the counters, the categories of change, the message and the one handler |
 | [`71-04-seats.md`](71-04-seats.md) | seat state: states, addresses and invitations, how the seat carries them, the seat as written, access |
 | [`71-05-wire.md`](71-05-wire.md) | the wire: invisible DTOs, the types on the wire, the interface layer |
-| [`71-06-engine.md`](71-06-engine.md) | the engine as a client: how it runs today, why that changes, and the watch channels, blocking pool and generic type it uses |
-| [`71-06b-engine-bots.md`](71-06b-engine-bots.md) | the engine as a client, continued: levels, who calls it, the in-process glue, what makes lifting it possible |
+| [`71-06-engine.md`](71-06-engine.md) | the engine as a client, read first: how it runs today, the model, and Tokio, the watch channels, the blocking pool and the generic type it uses |
+| [`71-06b-engine-bots.md`](71-06b-engine-bots.md) | the engine as a client, read second: levels, the glue's calls, the bots the server runs, what makes lifting the engine out possible |
 | [`71-07-client.md`](71-07-client.md) | the client: its state, its composition key, the three tile states, how updates are centralised |
 | [`71-08-storage.md`](71-08-storage.md) | migration, the database schema and the modules that change |
 | [`71-09-open-questions.md`](71-09-open-questions.md) | the open questions, and the ones settled |
@@ -116,7 +116,7 @@ today, one lock each. The whole-state-per-update wire costs a few kilobytes per
 message per connection, which is what is sent today. Each game has its own
 `watch` channel holding the latest state, so a change costs that game's
 receivers only, however many games and players there are
-([The engine](71-06b-engine-bots.md#the-engine)).
+([How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch)).
 
 **Assumption: routing.** Every connection for a game must reach the server that
 owns the game, because the channels are in-process; bots on another server are

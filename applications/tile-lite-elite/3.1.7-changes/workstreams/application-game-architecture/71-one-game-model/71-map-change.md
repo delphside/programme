@@ -42,7 +42,7 @@ Invitations, the Scheduler's timeouts and reminders, the admin routes (Admin
 endpoints) and the account service (Accounts) for a rename. The engine proxy
 goes; the in-process bot is a client of the game, hears it is on turn from the
 Event stream and submits through the
-[in-process glue](71-06b-engine-bots.md#the-engine) to the Game service, which
+[in-process glue](71-06-engine.md#the-engine-is-a-client) to the Game service, which
 calls `apply` for it. The server builds each `GameView`; the `game-wire` crate
 (Game wire) converts it to and from the DTOs, which stay in `crates/api`.
 
@@ -56,8 +56,8 @@ A notifications component reports each event to the players' browsers.
 workspace extends model.dsl {
     model {
         // 71-06-engine.md, "The engine is a client" and 71-10-documents-changed.md, "1.2 — the component
-        // diagram" ("Engine Proxy goes"), and 71-06b-engine-bots.md, "The
-        // engine" ("There is no proxy"): an engine reaches the game as a
+        // diagram" ("Engine Proxy goes"), and 71-06b-engine-bots.md, "A bot
+        // posts what a person posts" ("There is no proxy"): an engine reaches the game as a
         // client does.
         !element tle.server.proxy {
             tags "removed" "wp:268"
@@ -77,7 +77,7 @@ workspace extends model.dsl {
             description "GameSession: one game's authoritative state, and apply, the one method that changes it."
         }
         // 71-08-storage.md, "Modules" (app/events.rs): publish saves,
-        // logs and publishes in one place, on the game's own channel (71-06b-engine-bots.md, "The engine").
+        // logs and publishes in one place, on the game's own channel (71-06-engine.md, "How the Event stream uses watch").
         !element tle.server.events {
             tags "changed" "wp:268"
             description "Saves each applied change, logs it and pushes the game's latest state, with its cause, to its players over a watch channel per game."
@@ -119,17 +119,16 @@ workspace extends model.dsl {
 
         !element tle.server {
             // 71-06-engine.md, "The engine is a client", and 71-06b-engine-bots.md,
-            // "The engine". The design names no path.
+            // "The bots the server runs". The design names no path.
             bot = component "In-process bot" "An engine seat as a client of the game: one bot object per seat, over the glue and the in-process link." {
                 tags "new" "wp:268"
                 properties {
                     "artefact" "crates/server-game/src/bot.rs (proposed)"
                 }
             }
-            // 71-06-engine.md, "The engine is a client" (the four layers), and
-            // 71-06b-engine-bots.md, "The engine": the in-process transport,
-            // which joins under the Transport API (71-06b-engine-bots.md, "The engine" gives the two
-            // calls). The client core is game-wire's (71-05-wire.md, "The interface layer"), so it is not
+            // 71-06-engine.md, "The model" (the four layers): the in-process transport,
+            // which joins under the Transport API (71-06b-engine-bots.md,
+            // "What changes: who calls it" gives the two calls). The client core is game-wire's (71-05-wire.md, "The interface layer"), so it is not
             // drawn.
             glue = component "In-process glue" "The in-process transport: the bot's two calls without a socket." {
                 tags "new" "wp:268"
@@ -207,7 +206,7 @@ workspace extends model.dsl {
         }
 
         // publish writes the game's state, with its cause, to that game's
-        // watch (71-06b-engine-bots.md, "The engine"), so the old label
+        // watch (71-06-engine.md, "How the Event stream uses watch"), so the old label
         // "publishes GameEventDto to" is replaced on these five by the
         // relationships below.
         !relationships "tle.server.games -> tle.server.events" {
@@ -246,8 +245,8 @@ workspace extends model.dsl {
             tags "new" "wp:268"
         }
 
-        // The replacements for the five above, 71-06b-engine-bots.md, "The
-        // engine".
+        // The replacements for the five above, 71-06-engine.md, "How the
+        // Event stream uses watch".
         tle.server.games -> tle.server.events "publishes the game's state, with its cause, to" {
             tags "new" "wp:268"
         }
@@ -269,7 +268,7 @@ workspace extends model.dsl {
         // Game service as the bot's account. The glue joins under the
         // Transport API at two calls, so it skips the rate limiter; the Game
         // service calls apply (see "The in-process glue joins under the
-        // Transport API at two calls" in 71-06b-engine-bots.md, "The engine").
+        // Transport API at two calls" in 71-06b-engine-bots.md, "What changes: who calls it").
         tle.server.bot -> tle.server.glue "hears of each change through, and submits its move through" {
             tags "new" "wp:268"
         }
