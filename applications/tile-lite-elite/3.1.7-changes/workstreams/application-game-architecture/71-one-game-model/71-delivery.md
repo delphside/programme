@@ -52,7 +52,9 @@ like it in a diff.
 Existing games are deleted rather than migrated; users, ratings and rating
 history are kept. That makes the delivery a schema change with a data loss that
 has already been agreed, so the release owes a rehearsal against production's
-data shape and a plainly worded note about what players lose.
+data shape and a plainly worded note about what players lose. The migration
+also needs sqlx 0.9 (delphside/tile-lite-elite#576) first
+([*Migration*](71-08-storage.md#migration)).
 
 ## Workstream
 

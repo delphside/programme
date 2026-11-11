@@ -249,8 +249,7 @@ how the turn is driven.
 
 **6 — the client state model (#157).** `selected_game` as real state, and the
 composition keyed to the game and seat it belongs to and matched on read rather
-than cleared. See
-[*The client has the same defect*](71-07-client.md#the-model). Client-only: no server
+than cleared. See [*The model*](71-07-client.md#the-model) of the client. Client-only: no server
 change, no API move, no migration. It is delivered in Core Client UI (#269), and
 its failing tests (`e2e/tests/ui-state.spec.ts`) are that package's acceptance.
 

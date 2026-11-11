@@ -2,8 +2,9 @@
 
 This is the second of two files on the wire, and it is read second. The first,
 [`71-05-wire.md`](71-05-wire.md), holds the as-is, the model, the technologies
-(serde, Cargo workspaces and axum) and the interface layer, and defines the
-terms this file uses: the DTO, the view and the interface layer. This file holds
+(traits and generic types, serde, WebAssembly, Cargo workspaces and axum), why
+the DTOs are invisible and the interface layer, and defines the terms this file
+uses: the DTO, the view and the interface layer. This file holds
 the types that cross the wire: the seat, the game, structured descriptions, the
 envelope and the error body. It is followed by
 [`71-06-engine.md`](71-06-engine.md).
@@ -54,11 +55,11 @@ pub struct PlayerRefDto {
 }
 ```
 
-**`players` is what makes the lookup rule renderable.** The game holds ids; the
+**`players` is what makes the lookup rule renderable.** The game holds IDs; the
 client needs names; resolving at DTO-build time is what makes a rename arrive
 without anything being copied into game data. It carries every player the game
 mentions — seats, chat authors, event subjects — so a client never has a
-dangling id.
+dangling ID.
 
 `racks: Vec<RackDto>` disappears from the top level: a rack belongs to a seat,
 and hiding one is `SeatRackDto::Hidden`, not an empty rack.
@@ -115,7 +116,7 @@ a placement is a board change, undoing a pass is a game change. That falls out
 if the event carries what it reversed, which it must anyway for the log to be
 readable.
 
-Seat numbers and player ids, not sentences. The client renders them, which is
+Seat numbers and player IDs, not sentences. The client renders them, which is
 the only way any of it is readable in a language other than the one the server
 was written in — and this service already ships Spanish dictionaries.
 
@@ -144,11 +145,12 @@ pub struct SeatRefDto { pub game_id: String, pub seat: u8 }
 (`ErrorDto`, next), so the envelope has no variant for it. Which socket carries
 `Seats` for an external harness, one per account or a separate route, is #10's.
 
-**Whole state, never a diff.** A diff needs the client to hold the prior
-version and needs the server to know which one it holds; the state is small,
-and `should_apply_update`'s version comparison already discards what a client
-has. `because` is what the log records and what a client shows in the move
-list — it is not applied.
+**Whole state, never a diff.** A diff needs the client to hold the prior version
+and needs the server to know which one it holds; the state is small, and the
+client's version comparison, `should_apply_update`
+([as-is](71-07-client.md#worth-keeping)), already discards what it has.
+`because` is what the log records and what a client shows in the move list — it
+is not applied.
 
 ## The error body, shared by every endpoint
 
@@ -167,7 +169,7 @@ pub struct ErrorDto {
 
 `ApplyError` maps onto `code`, so a client tells a stale submission from an
 illegal move without reading prose. Every response carries the same headers,
-the API version among them, and #402 adds the correlation id to them.
+the API version among them, and #402 adds the correlation ID to them.
 
 [^d65]: Decision #465 (D65): #71 Core designs the shared error body and
     response header.

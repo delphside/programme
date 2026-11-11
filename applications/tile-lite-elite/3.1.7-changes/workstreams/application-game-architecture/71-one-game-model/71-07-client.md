@@ -1,13 +1,16 @@
 # 71 The client
 
-This file holds the client: the defect it shares with the server, how its
-composition is keyed, the three tile states, deriving against accumulating and
-where its state lives. It follows
+This file holds the client: what is worth keeping from today and what to move
+away from, the model, the technologies it is built on (Dioxus, and WebAssembly
+as the client uses it), then the design: stop clearing and start matching,
+where the state lives, how updates are centralised, how the composition is
+keyed, the three tile states and deriving against accumulating. It follows
 [`71-06b-engine-bots.md`](71-06b-engine-bots.md) and is followed by
 [`71-08-storage.md`](71-08-storage.md). Tokio and `watch`, which the server
 side of this design uses, are explained in
-[`71-06-engine.md`](71-06-engine.md); Dioxus and WebAssembly, which the client
-is built on, are explained here, once.
+[`71-03-version.md`](71-03-version.md#the-tokio-technology); WebAssembly in
+[`71-05-wire.md`](71-05-wire.md#the-webassembly-technology); Dioxus is
+explained here, once.
 
 ## As-is
 
@@ -24,8 +27,8 @@ natively for a desktop build. Its state is in `RootApp` (`app.rs`, 5,522 lines).
   versions) stop when `websocket_game_id` no longer names their game, so a
   connection left over from a game the player has left cannot write to the
   selected one.
-- **`clear_session_state`** deselects and resets together, the right shape:
-  the login modal had appeared over the previous player's board.
+- **`clear_session_state`** deselects and resets together, which is the right
+  shape for signing out.
 - **`rack_order`** is the one value already matched rather than cleared: the
   render body rebuilds it when its length differs from the rack's
   (`app.rs`, near `unordered_rack_tiles`).
@@ -33,23 +36,26 @@ natively for a desktop build. Its state is in `RootApp` (`app.rs`, 5,522 lines).
   `tile-face tile-face-staged` (`board_view.rs`); a tile of the last move has
   `board-cell-last-move` on its cell, from `last_move_board_indices`
   (`views/home.rs`, unit-tested on `positions`); other tiles are `tile-face`.
-- **The client runs the rules.** `client_rules.rs` adapts the DTOs to
-  `rules-shared`, which validates and scores a staged word before anything is
-  sent (`app.rs`, the move preview).
 - **Nearly everything is derived on render**: 80 `use_signal`, 3 `use_effect`
   and no `use_memo` across the crate.
 - **`e2e/tests/ui-state.spec.ts`** states the rule from outside the client:
   after any event that changes which game is selected, every dependent pane
-  matches the new selection, including when the new selection is nothing.
+  matches the new selection, including when the new selection is nothing. It
+  has eight cases, written against the intended behaviour, and six pass. The
+  Remove case was mutation-tested: deleting `game.set(None)` from
+  `on_remove_game` turns *Remove clears the board and rack* red with seven rack
+  tiles still on screen, so the passing tests hold something up and do not pass
+  vacuously.
 
 ### To move away from
 
-- **No selection state.** `selected_id` is read back out of the loaded DTO
-  (`game().as_ref().map(|current| current.id.clone())`, `app.rs`), so
+- - **No selection state.** `selected_id` is read back out of the loaded DTO (a
+  data transfer object, defined in [*The model*](71-05-wire.md#the-model) of the
+  wire) (`game().as_ref().map(|current| current.id.clone())`, `app.rs`), so
   `game: Signal<Option<GameStateDto>>` holds both *what is selected* and *what
   has been loaded*. "Selected, not loaded yet" cannot be said, and "nothing
-  selected" means discarding the DTO, so deselecting and clearing the panes
-  are the same action and one can happen without the other.
+  selected" means discarding the DTO, so deselecting and clearing the panes are
+  the same action and one can happen without the other.
 - **A placeholder game keeps the board mounted.** With nothing selected the
   view uses `empty_live_game()` and carries `is_live: game().is_some()`
   separately (`app.rs`), so nothing forces a dependent pane to recompute when
@@ -69,7 +75,9 @@ natively for a desktop build. Its state is in `RootApp` (`app.rs`, 5,522 lines).
   socket loops, never touch the composer. A server-pushed change, including one
   that ends the game, leaves a half-composed move in place. Two cases of the
   e2e file fail for this and are `test.fixme`: *aborting a game clears the move
-  being composed*, and *Remove after composing a move leaves nothing behind*.
+  being composed*, where the staged tile survives onto a game that is over, and
+  *Remove after composing a move leaves nothing behind*, where the staged tile
+  is left drawing on an empty board with no game selected.
 - **The scoreless rule is an accumulator.** `consecutive_scoreless_turns: u8`
   (`game_state.rs`, server) is reset by any placement and incremented by a pass
   and by an exchange, against `SCORELESS_TURN_LIMIT` (6).
@@ -81,13 +89,17 @@ The client holds four groups of state, by what makes each invalid:
 - The *selection*, `selected_game: Option<GameId>`: intent, and nothing else.
 - The *server cache*, `game` and `game_summaries`: replaced, never edited, and
   valid only for the current selection.
-- The *composition*, the seven composer signals: the move a player is building
-  from staged tiles, a cursor and an exchange choice. Valid only against one
-  game and seat, while its cells are free and its tiles still in the seat's
-  rack.
+- The *composition*: the move a player is building from staged tiles, a cursor
+  and an exchange choice. It is six of the seven composer signals
+  (`staged_placements`, `selected_cell`, `direction_override`,
+  `selected_blank_letter`, `exchange_mode` and `exchange_selected`), and is
+  valid only against one game and seat, while its cells are free and its tiles
+  still in the seat's rack.
 - The **session**, the **transport** (`IS_ONLINE`, `websocket_game_id`) and the
-  **presentation** (`rack_order`, chat visibility), which are orthogonal to all
-  of it.
+  **presentation** (`rack_order`, chat visibility and `dragging_tile_id`, the
+  seventh composer signal), which are orthogonal to all of it. A tile being
+  dragged is a gesture in progress and ends with the gesture; what it drops
+  becomes a placement in the composition.
 
 The composition is the only group that goes stale, and it has a *composition
 key*, the game and the seat. The rule is **stop clearing, start matching**: the
@@ -104,19 +116,22 @@ does and does not do for the client.
 
 ### The Dioxus technology
 
-Dioxus is a Rust framework for user interfaces in the style of React. This file
-describes version 0.6.3, the one in `Cargo.lock` (`dioxus`, `dioxus-core`,
-`dioxus-signals`, `dioxus-web`); #290 (WP F) moves the client to 0.7, and its
-tests are what show that what is used here still holds.
+Dioxus is a Rust framework for user interfaces built from components, functions
+that describe what to show for the current state. This file describes version
+0.6.3, the one in `Cargo.lock` (`dioxus`, `dioxus-core`, `dioxus-signals`,
+`dioxus-web`); #290 (WP F) moves the client to 0.7, and its tests are what show
+that what is used here still holds.
 
 - A *component* is a function, marked `#[component]`, that returns an `Element`
   built with the `rsx!` macro. Its arguments are its *props*, which must be
   `Clone` and `PartialEq` so that Dioxus can tell whether a child needs to run
   again.
-- Running a component produces a *virtual DOM*, a tree that describes the
-  interface. Dioxus compares it with the previous one and changes only the
-  difference in the real page, through `dioxus-web` in a browser. A `key`
-  attribute on repeated elements says which is which between renders.
+- The Document Object Model (DOM) is the browser's tree of the elements of the
+  page. A *virtual DOM* is a tree of the same kind that Dioxus holds in
+  memory: running a component builds a new one, Dioxus compares it with the
+  previous and changes only the difference in the real page, through
+  `dioxus-web` in a browser. A `key` attribute on repeated elements says which
+  is which between renders.
 - A *hook* is a function named `use_…` that keeps state for a component between
   runs. Hooks are called on every run, in the same order, never inside a
   condition.
@@ -137,8 +152,6 @@ tests are what show that what is used here still holds.
 
 ### How the client uses Dioxus
 
-#### Propagation is free, invalidation is not
-
 - **Propagation, free.** Read a signal in the render body and the component
   runs again when it changes. The client leans on that everywhere: derived
   values such as `can_start`, `can_stage_moves` and `selected_id` are computed
@@ -147,13 +160,33 @@ tests are what show that what is used here still holds.
   tells it that `staged_placements` stopped meaning anything when `game`
   changed, because nothing in the code says the two are related.
 
-The server's answer, one event type and one handler, is the wrong answer on this
-side, and not because the client deserves less rigour. Dioxus is already an
-update mechanism, so a reducer would not replace anything; it would sit on top
-of the framework's own propagation and duplicate it, at the cost of rewriting a
-5,500-line component.
+The client takes a different shape from the server's one event type and one
+handler, and the reason is Dioxus: it is already an update mechanism, so a
+reducer would sit on top of the framework's own propagation and duplicate it,
+at the cost of rewriting a 5,500-line component.
 
-#### Stop clearing; start matching
+## WebAssembly
+
+WebAssembly is explained in
+[`71-05-wire.md`](71-05-wire.md#the-webassembly-technology), the first file to
+rely on it.
+
+### How the client uses WebAssembly
+
+- **One crate, two targets.** `cfg(target_arch = "wasm32")` selects `gloo-net`
+  for HTTP and WebSocket, `gloo-storage` for the token and `gloo-timers`; the
+  native build selects `reqwest`, `tokio-tungstenite` and `tokio`.
+- **The rules run in the browser.** `rules-shared` is compiled into the wasm
+  module, and `client_rules.rs` validates and scores a staged word with it, as
+  [the wire's as-is](71-05-wire.md#worth-keeping) records. Where a dictionary
+  is compiled in natively, on wasm it is fetched (`load_client_dictionary`). The
+  composition's [validity re-check](#the-composition-is-keyed-by-game-and-seat)
+  is this code run on every board change.
+- **A search in the browser would run on the main thread** unless moved to a
+  worker, which bears on where an engine can run
+  ([lifting the engine](71-06b-engine-bots.md#what-makes-lifting-it-possible)).
+
+## Stop clearing; start matching
 
 **Clearing is a push model**: every writer must participate, and one that does
 not is a defect found in testing, which is how ten remembered calls and the
@@ -162,13 +195,13 @@ participates, and a writer that forgets cannot cause the failure.
 `on_remove_game` sets the selection to `None` and is finished; the staged tile
 disappears because it no longer matches, not because anything remembered it.
 
-Matching is not new in this codebase. The `rack_order` reset
-([worth keeping](#worth-keeping)) is the same idea, inline, and is why it is not
-one of the composition's signals.
+Matching is already in this codebase: the `rack_order` reset
+([worth keeping](#worth-keeping)) is the same idea, inline, which is why it is
+not one of the composition's signals.
 
-What survives of "one transition per invariant" is small:
+Three kinds of state remain, and each has a maintainer:
 
-| kind | where it lives | who maintains it |
+| Kind | Where it lives | Who maintains it |
 | --- | --- | --- |
 | derived (`selected_id`, `can_stage_moves`, …) | not stored, computed on render | Dioxus |
 | keyed (the composition) | stored with its key, filtered on read | Dioxus |
@@ -179,7 +212,7 @@ ignored, not destroyed, so leaving a game mid-turn to check another and coming
 back restores the half-typed word. That is better behaviour than clearing it
 and costs nothing: the bug fix and the small feature are the same change.
 
-#### Where the state lives
+## Where the state lives
 
 ```rust
 selected_game: Signal<Option<GameId>>,        // intent
@@ -196,12 +229,14 @@ pub struct Composition {
 }
 ```
 
-The seven composer signals become one optional struct with a key, whose
-fields are in [the composition key](#the-composition-is-keyed-by-game-and-seat).
-`selected_id` stops being read back out of the loaded DTO, which is what makes *deselect* and
-*clear the panes* the same action today.
+Six of the seven composer signals become one optional struct with a key, whose
+fields are in [the composition key](#the-composition-is-keyed-by-game-and-seat):
+`exchange_mode` and `exchange_selected` become the one `Option`, `exchange`.
+`dragging_tile_id` stays a plain signal among the presentation state. The
+selection is `selected_game` and `selected_id` is no longer read back out of the
+loaded DTO, so *deselect* and *clear the panes* are separate things.
 
-#### How updates are centralised
+## How updates are centralised
 
 **One entry point for anything the server says.** `apply_game_update` is called
 from 21 sites in `app.rs` today, each a place that could forget something. It
@@ -213,54 +248,18 @@ becomes one:
 fn on_server_state(&mut self, incoming: GameStateDto, because: Option<GameEventDto>) {
     if !should_apply(self.cache.peek().as_ref(), &incoming) { return; }  // as today
     self.cache.set(Some(incoming));
-    // nothing else. No clearing, no cascade.
+    // nothing else: no clearing, no cascade.
 }
 ```
 
-**And nothing clears the composition.** It is read through
-`live_composition`, in
-[the key's section](#the-composition-is-keyed-by-game-and-seat), so a writer
-that forgets cannot cause the failure, because no writer participates.
+The centralisation worth having is **one writer of the server cache**, and the
+rest stays with Dioxus. The composition is read through `live_composition`, in
+[the key's section](#the-composition-is-keyed-by-game-and-seat), so no writer
+has to participate and a writer that forgets cannot cause the failure.
 
 **Two side effects stay explicit**, because they are not state: storing the
 session token, and tearing down the socket. Everything else is derived on
 render.
-
-#### What this does not become
-
-Not a reducer over an event enum. The centralisation that is worth having is
-**one writer of the server cache**, not one writer of everything.
-
-## WebAssembly
-
-### The WebAssembly technology
-
-WebAssembly (wasm) is a compact binary instruction format that a browser runs
-in a sandbox beside JavaScript, at close to native speed. Rust compiles to it
-with the `wasm32` target; this client's browser build is that.
-
-- A wasm module cannot reach the page, the network or storage itself. It calls
-  browser functions through JavaScript glue that `wasm-bindgen` generates
-  (0.2.103 in `Cargo.lock`), and `web-sys` and `js-sys` give Rust names to
-  those functions.
-- A default build runs on the browser's main thread, the one that also draws
-  the page: it has no operating-system threads, so Tokio's multi-thread runtime
-  is not there, and a long computation holds the page still until it returns.
-
-### How the client uses WebAssembly
-
-- **One crate, two targets.** `cfg(target_arch = "wasm32")` selects `gloo-net`
-  for HTTP and WebSocket, `gloo-storage` for the token and `gloo-timers`; the
-  native build selects `reqwest`, `tokio-tungstenite` and `tokio`.
-- **The rules run in the browser.** `rules-shared` is compiled into the wasm
-  module, and `client_rules.rs` validates and scores a staged word with it.
-  Where a dictionary is compiled in natively, on wasm it is fetched
-  (`load_client_dictionary`). The composition's
-  [validity re-check](#the-composition-is-keyed-by-game-and-seat) is this code
-  run on every board change.
-- **A search in the browser would run on the main thread** unless moved to a
-  worker, which bears on where an engine can run
-  ([lifting the engine](71-06b-engine-bots.md#what-makes-lifting-it-possible)).
 
 ## The composition key
 
@@ -304,12 +303,17 @@ fn live_composition(&self) -> Option<Composition> {
 }
 ```
 
-**Both conditions compare against the state the DTO already carries**: the
-cells are empty, the tiles are still in the rack. The rack check covers what
-the board check cannot: a rack changes without the board changing, after an
-exchange or a timeout returning tiles to the bag, and a composition names tiles
-by rack position. Nothing is stored, nothing is bumped, and nothing can be
-forgotten in a handler.
+**Both conditions compare against the state the DTO already carries**: the cells
+are empty, the tiles are still in the rack. The rack check covers what the board
+check cannot: a rack changes without the board changing, after an exchange or a
+timeout returning tiles to the bag, and a composition names tiles by rack
+position. Nothing is stored, nothing is bumped and nothing can be forgotten in a
+handler.
+
+`live_composition` has no condition that fails when the game is `Aborted` or
+`Finished`, so a staged word survives onto a game that is over. That is open
+([*Open questions about the shapes*](71-09-open-questions.md#open-questions-about-the-shapes)),
+with the two `test.fixme` cases.
 
 **Composing does not need the turn; submitting does.** A composition survives
 an opponent's turn, so a player can arrange a word while waiting (#88, carried
@@ -321,25 +325,22 @@ throw work away. An opponent playing *adjacent* to a staged word leaves its
 cells free but may make the word illegal: a cross-word that no longer exists,
 or a connection that has become something else.
 
-| | |
+| Case | What happens |
 | --- | --- |
 | the cells are taken | the tiles come back to the rack. There is nowhere for them to be |
 | the cells are free but the word is now illegal | **the tiles stay**, and the client says so |
 
-The client already runs the rules engine, so it can re-validate on every board
-change and mark the word rather than silently dismantling it.
+Because the client runs the rules, it can re-validate on every board change and
+mark the word rather than silently dismantling it.
 
 ## Three tile states, and all three already exist
 
 Owner, 2026-08-29: *"we will need to make sure that staged, just played, and
 previously played tiles are easily distinguished"*, and *"we currently
-distinguish tile played in the last move."*
+distinguish tile played in the last move."* This is a **requirement to
+preserve**, and the third state is on the **cell**:
 
-Both are true, and this is a **requirement to preserve rather than to build**.
-An earlier revision of this section said the board could draw only two states,
-from reading the tile-face classes alone. The third is on the **cell**:
-
-| state | drawn as | driven by |
+| State | Drawn as | Driven by |
 | --- | --- | --- |
 | **staged** | `tile-face tile-face-staged` | the composition |
 | **just played** | `board-cell-last-move` on the cell | `last_move_cells: HashSet<usize>` |
@@ -360,7 +361,7 @@ Under the current *clear on any change* behaviour the staged class simply
 disappears, which no test would notice because disappearing is what it is
 supposed to do eventually.
 
-### An enhancement this makes cheap, not part of the change
+### An enhancement this makes cheap, outside this change
 
 *"Just played"* means the **last move**. A player returning after several moves
 sees only the most recent one highlighted, and what they actually want is
@@ -377,10 +378,9 @@ pub struct MoveRecordDto {
 }
 ```
 
-One field, no server state, and the log wants it anyway. Worth listing
-separately rather than folding in: it is a change to what a player sees, and it
-should be somebody's decision rather than something that arrives with a
-refactor.
+One field, no server state, and the log wants it anyway. It is listed
+separately and not folded in, because it is a change to what a player sees, and
+that is somebody's decision and does not arrive with a refactor.
 
 ## Deriving beats accumulating, and the scoreless rule is the case
 
@@ -402,9 +402,8 @@ let scoreless = self.turn - self.last_scoring_turn;
 log; `consecutive_scoreless_turns` is a number that can only be trusted. A
 count that nothing can contradict is a count that can be wrong for a long time.
 
-**The rule stops being baked into the stored value.** Changing the limit from
-six to eight is a comparison changing, not stored counters meaning something
-new.
+**The rule is not baked into the stored value.** Changing the limit from six to
+eight is a comparison changing, not stored counters meaning something new.
 
 **And it survives undo without unwinding.** Undo produces a new higher version
 whose content is an earlier state, so every field is restored together, and a
@@ -414,33 +413,14 @@ same way is also right; the difference appears if undo is ever implemented as
 own decrement and one that is forgotten is silently wrong. Deriving means there
 is nothing to forget.
 
-**The honest caveat**: as the design has undo, restore and not inverse, the
-accumulator would also survive, so this is not a fix for a bug that exists. It
-is choosing the shape that stays correct under a change of undo strategy, at a
-cost of nothing.
+This is a choice of shape and fixes no bug that exists: as the design has undo,
+restore and not inverse, the accumulator would also survive. The derived shape
+stays correct if the undo strategy changes, at a cost of nothing.
 
-**One thing it does not change.** *Scoreless* still means what it means today:
-a pass or an exchange, each a turn, so `turn` advances for both, and any
-placement ends the run. If either ever stops advancing the turn, this
-derivation breaks silently, which is worth a test rather than a comment.
-
-## How the client will be known to be right
-
-`e2e/tests/ui-state.spec.ts` states the rule from outside the client: **after
-any event that changes which game is selected, every dependent pane matches the
-new selection, including when the new selection is nothing.** Eight cases,
-written against the intended behaviour rather than the current one. Six pass
-today. Two are `test.fixme` and are the bug that prompted this design:
-
-- *aborting a game clears the move being composed*: the staged tile survives
-  onto a game that is over.
-- *Remove after composing a move leaves nothing behind*: the staged tile is
-  left drawing on an empty board with no game selected.
-
-The Remove case was mutation-tested: deleting `game.set(None)` from
-`on_remove_game` turns *Remove clears the board and rack* red with seven rack
-tiles still on screen, so the passing tests are holding something up rather
-than passing vacuously.
+*Scoreless* keeps its meaning: a pass or an exchange, each a turn, so `turn`
+advances for both, and any placement ends the run. If either ever stops
+advancing the turn, this derivation breaks silently, which is worth a test
+rather than a comment.
 
 ## This is delivered in Core Client UI
 
@@ -450,6 +430,7 @@ staged tile left behind after a game is removed is a symptom of how state
 changes are managed today, so the fix is the composition key, delivered in #269
 (Core Client UI) rather than as a separate release.[^d57] The fault stays live
 until #269 ships, and the two `test.fixme` cases in
-`e2e/tests/ui-state.spec.ts` are #269's acceptance tests.
+`e2e/tests/ui-state.spec.ts`, which [the as-is](#to-move-away-from) names, are
+the acceptance tests of #269.
 
 [^d57]: Decision #443 (D57): fixed in #269 by the composition key.
