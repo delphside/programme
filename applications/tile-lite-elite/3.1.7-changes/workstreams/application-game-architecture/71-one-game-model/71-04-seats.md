@@ -1,6 +1,9 @@
 # 71 Seats
 
-This file holds seat state: why it belongs to the seat, what each state carries, the principles for addresses and invitations, how the seat carries them, the seat as written, and access. The design as a whole, and the list of its files, is in [`71-02-overview.md`](71-02-overview.md).
+This file holds seat state: why it belongs to the seat, what each state carries,
+the principles for addresses and invitations, how the seat carries them, the
+seat as written, and access. It follows [`71-03-version.md`](71-03-version.md)
+and is followed by [`71-05-wire.md`](71-05-wire.md).
 
 ## Seat state belongs to the seat
 
@@ -51,11 +54,11 @@ pub enum SeatRack {
 }
 ```
 
-**One lifecycle, three ways of filling a seat.** Accept and decline are the
-same transitions whether the seat was aimed at a player, at an address, or at
-anyone. Only the mechanics differ — what adding the seat sends, and who is
-allowed to accept — so the difference is a field the states are read against, not a
-set of states.
+**One lifecycle, three ways of filling a seat.** Accept and decline are the same
+transitions whether the seat was aimed at a player, at an address, or at anyone.
+Only the mechanics differ — what adding the seat sends, and who is allowed to
+accept — so the difference is a field the states are read against, not a set of
+states.
 
 An earlier draft of this design split them: `UnsentToName → InvitedByName`,
 `UnsentToEmail → InvitedByEmail`, `UnsentOpen → Open`. Drawn out, those are
@@ -150,7 +153,8 @@ case. The owner confirmed them on 2026-10-14 under D72.[^d72]
 10. **The server decides.** Every rule holds at the REST API; a client only
     presents what the API allows.
 
-What they settle. The owner answered the invitation rows on 2026-10-14; the two #439 rows and the DEL-2 row are still open.
+What they settle. The owner answered the invitation rows on 2026-10-14; the
+two #439 rows and the DEL-2 row are still open.
 
 | point | principle | answer |
 | --- | --- | --- |
@@ -173,9 +177,10 @@ with a table of how each drives the other, are in `71-functional.md`, *An
 address and its invitations*. This is how the seat carries them.
 
 - **At send.** When the address is one an account has verified and still
-  holds, the seat is invited to that player, `Invited { addressee:
-  Some(player) }`, and the email is a notification linking to the application, not the invitation (INV-1).
-  Otherwise the addressee is `None` and the email carries the link (INV-2).
+holds, the seat is invited to that player, `Invited { addressee: Some(player)
+}`, and the email is a notification linking to the application, not the
+invitation (INV-1). Otherwise the addressee is `None` and the email carries the
+link (INV-2).
 - **A link followed.** The person signs in, or registers and activates, and
   only then does the server apply `InvitationPassed { seat, to }` for that
   account. The seat stays `Invited`, now with an addressee, and the link is
@@ -316,8 +321,10 @@ remembers that engines are exempt.
 ### The lifecycles are in the functional views
 
 The state machine for the game and its seats, and how its arrows line up with
-the messages above, are in [`71-functional.md`](71-functional.md),
-*Lifecycles*, where the journeys are checked against them.[^d71]
+the messages in [*The message*](71-03-version.md#the-message), are in
+[`71-functional.md`](71-functional.md),
+[*Lifecycles*](71-functional.md#lifecycles), where the journeys are checked
+against them.[^d71]
 
 ## The seat
 

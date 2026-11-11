@@ -1,6 +1,9 @@
 # 71 The client
 
-This file holds the client: the defect it shares with the server, how its composition is keyed, the three tile states, deriving against accumulating, and where its state lives. The design as a whole, and the list of its files, is in [`71-02-overview.md`](71-02-overview.md).
+This file holds the client: the defect it shares with the server, how its
+composition is keyed, the three tile states, deriving against accumulating, and
+where its state lives. It follows [`71-06-engine.md`](71-06-engine.md) and is
+followed by [`71-08-storage.md`](71-08-storage.md).
 
 ## The client has the same defect
 
@@ -129,12 +132,13 @@ and it costs nothing. The bug fix and the small feature are the same change.
 
 ### What the composition is keyed on
 
-The key is **the game and the seat**, and nothing else. A composition stays
-live while its cells are still empty and its tiles are still in the seat's
-rack; it is discarded when a tile is played in one of its cells or a tile it
-uses leaves the rack (owner, 2026-08-29). Both are comparisons against the
-state the client already holds, so nothing is stored or bumped to maintain
-them. [*The composition is keyed by game and seat*](#the-composition-is-keyed-by-game-and-seat) has the code.
+The key is **the game and the seat**, and nothing else. A composition stays live
+while its cells are still empty and its tiles are still in the seat's rack; it
+is discarded when a tile is played in one of its cells or a tile it uses leaves
+the rack (owner, 2026-08-29). Both are comparisons against the state the client
+already holds, so nothing is stored or bumped to maintain them. [*The
+composition is keyed by game and
+seat*](#the-composition-is-keyed-by-game-and-seat) has the code.
 
 `version` cannot serve. It moves for any change, including an opponent's chat
 message, and keying on it would wipe a half-typed word every time somebody
@@ -378,8 +382,8 @@ fn live_composition(&self) -> Option<Composition> {
 }
 ```
 
-That is the design's *stop clearing, start matching*, made concrete: a writer that
-forgets cannot cause the failure, because no writer participates.
+That is the design's *stop clearing, start matching*, made concrete: a writer
+that forgets cannot cause the failure, because no writer participates.
 
 **Two side effects stay explicit**, because they are not state: storing the
 session token, and tearing down the socket. Everything else is derived on

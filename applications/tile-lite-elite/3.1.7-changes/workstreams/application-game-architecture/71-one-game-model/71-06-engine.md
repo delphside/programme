@@ -1,6 +1,9 @@
 # 71 The engine
 
-This file holds the engine as a client: the argument, then what the engine gains, who calls it, and what makes lifting it possible. The design as a whole, and the list of its files, is in [`71-02-overview.md`](71-02-overview.md).
+This file holds the engine as a client: the argument, then what the engine
+gains, who calls it, and what makes lifting it possible. It follows
+[`71-05-wire.md`](71-05-wire.md) and is followed by
+[`71-07-client.md`](71-07-client.md).
 
 ## The engine is a client
 
@@ -106,10 +109,11 @@ and only the third differs by where the bot runs:
 2. **Client core**: `GameLink`, [the interface layer](71-05-wire.md#the-interface-layer). It yields a `GameUpdate` and submits a
    `GameMessage`, the two enums `game-wire` defines.
 3. **Transport**, an adapter behind `GameLink` that moves those enums.
-   *External*: `ExternalLink` turns them into JSON and back over
-   HTTPS and the WebSocket. *In-process glue*: `InProcessLink` hands them over
-   as Rust values, over `updates_for` and the Game service's submit function.
-   Each build compiles one ([the interface layer](71-05-wire.md#the-interface-layer)): the server's bots are `Bot<InProcessLink>`.
+*External*: `ExternalLink` turns them into JSON and back over HTTPS and the
+WebSocket. *In-process glue*: `InProcessLink` hands them over as Rust values,
+over `updates_for` and the Game service's submit function. Each build compiles
+one ([the interface layer](71-05-wire.md#the-interface-layer)): the server's
+bots are `Bot<InProcessLink>`.
 4. **Server**: Transport API, Game service, `apply`; `publish` sends each
    change to its game's channel in the Event stream, and `updates_for`
    subscribes to the channels in its scope and redacts for one viewer, under
@@ -175,8 +179,9 @@ channel on its first subscriber and drops it with its last. `publish` writes the
 full, unredacted state to its game's channel only, so an event reaches the
 sockets of its game and no others, and the cost of a change grows with that
 game's receivers only. **Each account also has a `watch` of its full list of
-seats**, a `Vec<SeatRef>` ([the interface layer](71-05-wire.md#the-interface-layer)), which `publish` and the deletion of a game
-write. A seat leaves the list when it is removed or its game is deleted;
+seats**, a `Vec<SeatRef>` ([the interface
+layer](71-05-wire.md#the-interface-layer)), which `publish` and the deletion of
+a game write. A seat leaves the list when it is removed or its game is deleted;
 finishing a game keeps its seats, and a bot object takes a turn only in an
 active game. The scope decides what a subscriber receives:
 
@@ -197,14 +202,16 @@ to a frame with `game_to_dto`; the glue gives each view, as it is, to the bot
 object of each seat the bot holds in that game.
 
 **The state supersedes; the `because` of a skipped state is dropped by design.**
-A `watch` value is the state with its `because` ([the envelope](71-05-wire.md#the-envelope)). A receiver that
-keeps up sees every value and always reads the latest state, so it never lags. A
-slow one skips states: it sees the version jump by more than one and treats
-`because` as absent, which rebuilds everything ([the *nothing* case](71-03-version.md#three-categories-of-change)). The move
-list is part of the state, so nothing is lost. Push notifications come from
-Notifications, which the Game service reports each event to, so a skipped watch
-value loses none. Today a lagging server receiver ends the socket; here it skips
-states and carries on, and the client already ignores a version it has passed
+A `watch` value is the state with its `because` ([the
+envelope](71-05-wire.md#the-envelope)). A receiver that keeps up sees every
+value and always reads the latest state, so it never lags. A slow one skips
+states: it sees the version jump by more than one and treats `because` as
+absent, which rebuilds everything ([the *nothing*
+case](71-03-version.md#three-categories-of-change)). The move list is part of
+the state, so nothing is lost. Push notifications come from Notifications, which
+the Game service reports each event to, so a skipped watch value loses none.
+Today a lagging server receiver ends the socket; here it skips states and
+carries on, and the client already ignores a version it has passed
 (`should_apply_update`, `crates/ui/src/app.rs`).[^watch]
 
 **`updates_for` leaves a game's channel when the game is removed or the account
@@ -222,16 +229,17 @@ that game's channel only when the list holds no seat in it.
 **The server never iterates over its clients, and nothing dispatches on the kind
 of subscriber.** `publish` writes the new state to the game's `watch` once.
 Every subscriber is its own task compiled for one concrete type: a WebSocket
-task converts the state to a frame and writes its socket; a bot's task gives
-the state to its objects, and each object to its engine. Each WebSocket task runs
+task converts the state to a frame and writes its socket; a bot's task gives the
+state to its objects, and each object to its engine. Each WebSocket task runs
 `updates_for` for its socket. The glue runs one task per listed bot, which runs
 `updates_for` once over every seated game and holds one `Bot` object per seat
-that bot holds, made and dropped by
-[the glue's loop](#what-changes-who-calls-it).[^watch]
+that bot holds, made and dropped by [the glue's
+loop](#what-changes-who-calls-it).[^watch]
 
 A person's move reaches both tasks and the bot replies (the arrows are those of
-[the move sequence in 71-10-documents-changed.md](71-10-documents-changed.md#12--the-move-sequence): `->>` a
-call, `-->>` a return, `--)` an asynchronous delivery):
+[the move sequence in
+71-10-documents-changed.md](71-10-documents-changed.md#12--the-move-sequence):
+`->>` a call, `-->>` a return, `--)` an asynchronous delivery):
 
 ```mermaid
 sequenceDiagram
@@ -380,12 +388,12 @@ today redaction is indistinguishable from an empty rack. Lifting the engine out
 without fixing that would give it a confident wrong answer rather than an
 absent one.
 
-### Where the engine runs is not in the data model
+### Where the engine runs is not in the schema
 
 A bot seat carries an account id whichever side runs the search. The in-process
 glue passes that account id to the Game service; a harness signs in as the same
 account. Nothing downstream (ratings, stats, DEL-2) can tell the difference, and
-that is the goal at the top of the design note stated as a property of the
+that is [the goal](71-02-overview.md#the-goal) stated as a property of the
 schema.
 
 [^d62]: Decision #462 (D62): `engine_limit` bounds parallel searches and hints;

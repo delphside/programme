@@ -8,11 +8,13 @@ entity/event matrix and entity life history, tried here before the rule is
 written into docs/1.2.
 
 The entities and events come from [`71-02-overview.md`](71-02-overview.md),
-[`71-03-version.md`](71-03-version.md), [`71-04-seats.md`](71-04-seats.md), [`71-05-wire.md`](71-05-wire.md), [`71-08-storage.md`](71-08-storage.md) and [`71-06-engine.md`](71-06-engine.md), and the journeys and
-lifecycles in [`71-functional.md`](71-functional.md). This file adds no design
-of its own except where the design gave no answer: each of those is a numbered
-gap under [*Gaps the matrix found*](#gaps-the-matrix-found), with its proposed
-answer, and the design documents change once it is agreed.
+[`71-03-version.md`](71-03-version.md), [`71-04-seats.md`](71-04-seats.md),
+[`71-05-wire.md`](71-05-wire.md), [`71-08-storage.md`](71-08-storage.md) and
+[`71-06-engine.md`](71-06-engine.md), and the journeys and lifecycles in
+[`71-functional.md`](71-functional.md). This file adds no design of its own
+except where the design gave no answer: each of those is a numbered gap under
+[*Gaps the matrix found*](#gaps-the-matrix-found), with its proposed answer, and
+the design documents change once it is agreed.
 
 Issue numbers are Tile Lite Elite's unless written otherwise. WP A's one-off
 migration, which deletes every game and rekeys the ratings, is not an event in
@@ -140,8 +142,8 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 | E27 | — | — | — | — | — | — | U, submits or stays on turn | C before the search, D when the engine returns |
 | E28 | — | — | D | — | — | **G4** | — | — |
 
-The Seat-list watch column shows G3's proposed answer, which differs from [the engine](71-06-engine.md#the-engine)
-in when a watch exists.
+The Seat-list watch column shows G3's proposed answer, which differs from [the
+engine](71-06-engine.md#the-engine) in when a watch exists.
 
 Every change that moves the version also sets and clears the Game entry's
 `unsaved` flag under its lock; that is the Game entry's U in E3 to E18. E19
@@ -177,8 +179,8 @@ stateDiagram-v2
 | Searching | — (the search goes on) | — (the search goes on) | → Submitted | → Waiting | impossible | impossible | **G2** | → ended, the search abandoned |
 | Submitted | — | — | impossible | impossible | → Waiting | → Waiting, **G6** | **G2** | → ended |
 
-A move from a search the game has overtaken is refused on arrival ([the engine](71-06-engine.md#the-engine)), so a
-newer view does not stop a search.
+A move from a search the game has overtaken is refused on arrival ([the
+engine](71-06-engine.md#the-engine)), so a newer view does not stop a search.
 
 ### Subscription
 
@@ -255,15 +257,16 @@ live until the game is deleted, up to seven days later (RET-1). Proposed: the
 glue drops a seat's object when a view shows its game `Finished` or `Aborted`,
 and makes none for such a game's seats in `Seats`.
 
-**G3.** [The engine](71-06-engine.md#the-engine) gives every account a seat-list watch, written by `publish` and by
-deleting a game, and drops a seat when it is removed or its game deleted. It
-does not say whether an `Invited` seat is in its addressee's list, nor which
-accounts a change writes. Proposed: a seat is in an account's list while that
-account is its player, or for an `Invited` seat its addressee, in any state, so
-E5 adds the seat to the addressee's list; `publish` writes the list of each
-account whose set of `SeatRef`s the change altered. This also changes [the engine](71-06-engine.md#the-engine) on one
-point: a watch exists while it has a subscriber and is built from the stored
-seats when the first subscribes, rather than for every account.
+**G3.** [The engine](71-06-engine.md#the-engine) gives every account a seat-list
+watch, written by `publish` and by deleting a game, and drops a seat when it is
+removed or its game deleted. It does not say whether an `Invited` seat is in its
+addressee's list, nor which accounts a change writes. Proposed: a seat is in an
+account's list while that account is its player, or for an `Invited` seat its
+addressee, in any state, so E5 adds the seat to the addressee's list; `publish`
+writes the list of each account whose set of `SeatRef`s the change altered. This
+also changes [the engine](71-06-engine.md#the-engine) on one point: a watch
+exists while it has a subscriber and is built from the stored seats when the
+first subscribes, rather than for every account.
 
 **G4.** Two questions:
 
@@ -278,10 +281,11 @@ seats when the first subscribes, rather than for every account.
 
 **G5.** The design logs every applied message, chat and hide included, in
 `game_events (game_id, version, …)`, but `Hide` and `ReminderSent` save without
-moving the version, so their rows would repeat a key. ([The session](71-03-version.md#the-session)'s counter
-table also has a hidden seat moving the version, against the design; that row is
-corrected with this gap.) Proposed: the log gains its own sequence,
-`(game_id, seq)`, with `version` as a column.
+moving the version, so their rows would repeat a key. ([The
+session](71-03-version.md#the-session)'s counter table also has a hidden seat
+moving the version, against the design; that row is corrected with this gap.)
+Proposed: the log gains its own sequence, `(game_id, seq)`, with `version` as a
+column.
 
 **G6.** A bot hears it is on turn only from a publish. A refused move is either
 overtaken, and that move's publish follows, or illegal, and the design already
@@ -305,7 +309,9 @@ Two answers are worth reading once:
 
 ## What follows from it
 
-Once G1 to G7 are answered, the answers go into [`71-03-version.md`](71-03-version.md), [`71-05-wire.md`](71-05-wire.md) and
-[`71-06-engine.md`](71-06-engine.md), [`71-09-open-questions.md`](71-09-open-questions.md)'s *Open questions*, and acceptance boxes in
-[`71-test-wp-a.md`](71-test-wp-a.md), one per gap. #542's rule then takes this
-file's shape as its template.
+Once G1 to G7 are answered, the answers go into
+[`71-03-version.md`](71-03-version.md), [`71-05-wire.md`](71-05-wire.md) and
+[`71-06-engine.md`](71-06-engine.md),
+[`71-09-open-questions.md`](71-09-open-questions.md)'s *Open questions*, and
+acceptance boxes in [`71-test-wp-a.md`](71-test-wp-a.md), one per gap. #542's
+rule then takes this file's shape as its template.
