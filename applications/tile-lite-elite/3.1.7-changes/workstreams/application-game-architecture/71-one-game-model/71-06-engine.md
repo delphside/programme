@@ -17,7 +17,11 @@ handlers in `crates/server-game/src/app/games.rs` end by calling
 `run_engine_turns`: `start_game`, `submit_action` and `suggest_move`. The loop
 runs until the seat on turn is not an engine's, the game finishes or
 `MAX_ENGINE_TURNS_PER_TRIGGER` (400) turns have run, and the request does not
-return until it ends. The diagram shows `start_game` and `submit_action`.
+return until it ends. The ceiling is a safety stop, not a game rule, and a game
+can pass it: any placement resets the scoreless count, so each of the 100 tiles
+may follow five scoreless turns, about 600 turns in all. An all-engine game that
+reaches it stalls, because no request follows to run the loop again. The
+diagram shows `start_game` and `submit_action`.
 
 ```mermaid
 sequenceDiagram
