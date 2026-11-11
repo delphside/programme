@@ -207,13 +207,27 @@ only while its game is selected, fixes the Remove `test.fixme` case in
 Options: (a) a status condition in `live_composition`; (b) a clear on a status
 change, which brings back the push model the design retires. Open, for #269.
 
-**What does a bot account hold in `email` and `password_hash`?** Both are
-`not null` on `players`, and a bot has neither an address nor a password. The
-migration creates one account per engine with rating rows
-([*Migration*](71-08-storage.md#migration)), so it needs the answer. Options:
-(a) a reserved address per engine and a hash nothing can match; (b) make both
-nullable, with a check that only a bot account leaves them empty. Open, for
-WP A; it sits beside G4, deleting a listed bot's account.
+**What is a bot account's `players` row?** The migration creates one account
+per engine with rating rows ([*Migration*](71-08-storage.md#migration)), and
+the row must satisfy today's schema (migrations 0004 and 0006). Three parts
+need an answer:
+
+- **`email` and `password_hash`** are `not null`, and a bot has neither.
+  Options: (a) a reserved address per engine and a hash nothing can match;
+  (b) make both nullable, with a check that only a bot account leaves them
+  empty.
+- **`display_name`** is `not null` and unique, and so is its folded form
+  (`idx_players_display_name_folded`). An engine's name can clash with a
+  player's, which would fail the migration, so the migration checks for a
+  clash first or the bot's name is one no player can register.
+- **Which listed bot inherits the rows.** Each listed bot has its own account
+  ([*The bots the server runs*](71-06b-engine-bots.md#the-bots-the-server-runs)),
+  so the list must find the account the migration made, or the first start
+  makes a second one and the migrated ratings belong to nobody.
+
+`created_at` and `updated_at` take the migration's time. Open, for WP A; it
+sits beside G4, deleting a listed bot's account
+([71-life-histories](71-life-histories.md)).
 
 **What is the hint?** Answered (owner, 2026-11-11): nothing uses `suggest_move`
 today. No client calls `POST /games/{game_id}/suggest`. A hint may be offered
