@@ -134,7 +134,7 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 | E19 | U | — (nothing published) | — | — | — | — | — | — |
 | E20 | U | — (nothing published) | — | — | — | — | — | — |
 | E21 | D | D, its receivers closed | U, each seated account's | U, yields `GameRemoved`, leaves | U, sends `GameRemoved`, then D | — | D | — |
-| E22 | — | — | — | — | — | — | — (re-validated on arrival, [the engine](71-06-engine.md#what-changes)) | — |
+| E22 | — | — | — | — | — | — | — (re-validated on arrival, [the engine](71-06-engine.md#what-follows-from-the-engine-being-a-client)) | — |
 | E23 | U, `unsaved` cleared by the reload | — (nothing published) | — | — | — | — | **G6**, when the bot sent it | — |
 | E24 | R | C, if it is the first | — | C, one game: its view, then each change | C | — | — | — |
 | E25 | — | D, if it was the last | — | D | D | — | — | — |
@@ -180,7 +180,7 @@ stateDiagram-v2
 | Submitted | — | — | impossible | impossible | → Waiting | → Waiting, **G6** | **G2** | → ended |
 
 A move from a search the game has overtaken is refused on arrival
-([the engine](71-06-engine.md#what-changes)), so a newer view does not stop a search.
+([the engine](71-06-engine.md#what-follows-from-the-engine-being-a-client)), so a newer view does not stop a search.
 
 ### Subscription
 

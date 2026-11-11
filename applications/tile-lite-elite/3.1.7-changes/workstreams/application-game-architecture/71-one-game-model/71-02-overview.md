@@ -15,13 +15,14 @@ technical design, 71-01 to 71-10, of which this file is the second:
 | [`71-journey-questions.md`](71-journey-questions.md) | the functional questions the journeys raise, Q1 to Q15 |
 | [`71-01-as-is.md`](71-01-as-is.md) | how it works today, and what is wrong with it |
 | [`71-02-overview.md`](71-02-overview.md) | this file: the goal, what it makes possible, the non-functional design and the work packages |
-| [`71-03-version.md`](71-03-version.md) | one version, moved in one place: the session, the counters, the categories of change, the message and the one handler |
-| [`71-04-seats.md`](71-04-seats.md) | seat state: states, addresses and invitations, how the seat carries them, the seat as written, access |
-| [`71-05-wire.md`](71-05-wire.md) | the wire: invisible DTOs, the types on the wire, the interface layer |
-| [`71-06-engine.md`](71-06-engine.md) | the engine as a client, read first: how it runs today, the model, and Tokio, the watch channels, the blocking pool and the generic type it uses |
+| [`71-03-version.md`](71-03-version.md) | one version, moved in one place: as-is, the model, the enum, Tokio and module privacy technologies, then the session, the counters, the categories of change, the message and the one handler |
+| [`71-04-seats.md`](71-04-seats.md) | seats: as-is, the seat-state model and how it uses enums, spent seats and the start, bots as users, addresses and invitations, the seat as written, access |
+| [`71-05-wire.md`](71-05-wire.md) | the wire, read first: as-is, the model (DTOs are invisible), the serde, Cargo workspace and axum technologies, the interface layer |
+| [`71-05b-wire-types.md`](71-05b-wire-types.md) | the wire, read second: the seat, the game, structured descriptions, the envelope and the error body |
+| [`71-06-engine.md`](71-06-engine.md) | the engine as a client, read first: as-is, the model, and the watch channels, the blocking pool and the generic type it uses |
 | [`71-06b-engine-bots.md`](71-06b-engine-bots.md) | the engine as a client, read second: levels, the glue's calls, the bots the server runs, what makes lifting the engine out possible |
-| [`71-07-client.md`](71-07-client.md) | the client: its state, its composition key, the three tile states, how updates are centralised |
-| [`71-08-storage.md`](71-08-storage.md) | migration, the database schema and the modules that change |
+| [`71-07-client.md`](71-07-client.md) | the client: as-is, the model, the Dioxus and WebAssembly technologies, the composition key, the three tile states, deriving against accumulating |
+| [`71-08-storage.md`](71-08-storage.md) | storage: as-is, the model, the SQLite and sqlx technologies, migration, the database schema and the modules that change |
 | [`71-09-open-questions.md`](71-09-open-questions.md) | the open questions, and the ones settled |
 | [`71-10-documents-changed.md`](71-10-documents-changed.md) | the documents this changes, and the two diagrams that move into 1.2 |
 
@@ -199,7 +200,7 @@ touches is in [`71-life-histories.md`](71-life-histories.md) (#542).
 ### WP B, #269 Core Client UI
 
 **Takes**:
-[*The client has the same defect*](71-07-client.md#the-client-has-the-same-defect) — one writer of the
+[*The client has the same defect*](71-07-client.md#the-model) — one writer of the
 server cache, matching rather than clearing, the composition keyed by game and
 seat — and whatever client change WP A's wire change forces, with #152 and #88,
 both composition behaviour [^d67]. It also changes how a creator fills the seats

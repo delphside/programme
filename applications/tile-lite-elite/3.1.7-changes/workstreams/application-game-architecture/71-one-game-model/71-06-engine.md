@@ -1,100 +1,72 @@
 # 71 The engine
 
-This is the first of two files on the engine, and it is read first. It holds how
-an engine turn runs today, the model the design replaces it with, and the
-technologies the model rests on: Tokio, watch channels, the blocking pool with a
-semaphore and a generic type over a trait.
+This is the first of two files on the engine, and it is read first. It holds
+what is worth keeping from how an engine turn runs today and what to move away
+from, the model the design replaces it with, and the technologies the model
+rests on: watch channels, the blocking pool with a semaphore and a generic type
+over a trait. Tokio, which they all sit on, is explained in
+[`71-03-version.md`](71-03-version.md#the-tokio-technology), the first file to
+rely on it.
 [`71-06b-engine-bots.md`](71-06b-engine-bots.md) holds what only the engine
 needs on top of that: levels, the bots the server runs, what makes lifting the
 engine out possible and where it runs. This file follows
-[`71-05-wire.md`](71-05-wire.md); the second is followed by
+[`71-05b-wire-types.md`](71-05b-wire-types.md); the second is followed by
 [`71-07-client.md`](71-07-client.md).
 
 ## As-is
 
-An engine seat is played by a loop inside the request that triggered it. Three
-handlers in `crates/server-game/src/app/games.rs` end by calling
-`run_engine_turns`: `start_game`, `submit_action` and `suggest_move`. The loop
-runs until the seat on turn is not an engine's, the game finishes or
-`MAX_ENGINE_TURNS_PER_TRIGGER` (400) turns have run, and the request does not
-return until it ends. The ceiling is a safety stop, not a game rule, and a game
-can pass it: any placement resets the scoreless count, and the first move uses
-at least two tiles, so up to 99 placements may each follow five scoreless turns,
-about 590 turns in all. An all-engine game that
-reaches it stalls, because no request follows to run the loop again. The
-diagram shows `start_game` and `submit_action`.
+### Worth keeping
 
-```mermaid
-sequenceDiagram
-  title An engine turn today
-  participant C as Person's client
-  participant H as Route handler
-  participant L as run_engine_turns
-  participant G as Games lock
-  participant E as Blocking pool
-  participant B as Events broadcast
-
-  C->>H: start or submit an action over HTTPS
-  H->>H: apply the person's move, release the lock
-  H->>L: run the engine turns
-  loop until the seat is not an engine's, the game finishes or 400 turns
-    L->>G: take the write lock
-    L->>E: choose_action under a 5 s timeout
-    E-->>L: the action
-    L->>L: apply it, as a person's action is applied
-    L->>G: release the write lock
-    L->>B: send StateUpdated or GameFinished
-    L->>L: sleep 120 ms
-  end
-  L-->>H: whether it announced the state
-  H-->>C: response, after the whole loop
-```
-
-What the code does, and where:
-
-- **The games map is one lock.** `AppState.games` is an
-  `Arc<RwLock<HashMap<String, GameSession>>>` (`app.rs`). `run_engine_turns`
-  takes its write lock afresh for each turn, not once for the loop, so a
-  WebSocket's read lock in `game_events` can get in between turns.
-- **The search holds that lock.** `GameSession::maybe_run_engine_turn`
-  (`game_state.rs`) runs `choose_action` through `tokio::task::spawn_blocking`,
-  inside `tokio::time::timeout`, with the write lock held across the wait.
-  `ENGINE_TURN_TIMEOUT` is 5 seconds and is also passed to the engine as
-  `time_budget_ms`. The lock makes searches run one at a time, by accident. The
-  wait itself is bounded on purpose, by that timeout and by
-  `MAX_ENGINE_TURNS_PER_TRIGGER` (`games.rs`). Every other request needing the
-  games lock waits for each search.
-- **Nothing bounds how many run.** `AppState.engine_limit` is a `Semaphore`
-  sized from `TILE_LITE_ELITE_ENGINE_CONCURRENCY` (default 2, `app.rs`) and
-  nothing acquires it. Password hashing acquires its twin, `hash_limit`, in
-  `with_hash_permit` (`app/auth.rs`).
-- **Each turn is announced as it happens.** After a turn the loop attaches the
-  current ratings to the state, saves the game first if it finished, sends the
-  state on `AppState.events`, a `broadcast::Sender<GameEventDto>` of capacity
-  64, and sleeps `ENGINE_TURN_BROADCAST_DELAY` (120 ms) so that a watching
-  client sees each move
-  ([what paces it after](71-09-open-questions.md#open-questions-about-the-shapes)).
-  The handler broadcasts again afterwards unless the loop's
-  `EngineTurnsOutcome.announced` says it already did.
-- **A search past 5 seconds makes the seat pass**, with a warning logged. Every
-  other failure returns an error from `maybe_run_engine_turn` that the handler
-  answers with 400 to the person whose request triggered it: a panic in the
-  engine, an engine action that `apply_*` refuses, an unknown engine, a missing
-  engine ID, a missing seat and an engine that does not support the game's
-  variant (`game_state.rs`).
-- **`suggest_move` does not use the engine crate.** It searches inline in the
-  async handler, under the write lock, with no `spawn_blocking`: it enumerates
-  and validates every legal move, applies the best for the seat on turn and
-  then calls `run_engine_turns` (`games.rs`).
 - **The engine contract is small.** `crates/engine-core/src/lib.rs` has
-  `GameEngine::choose_action(EngineRequest) -> EngineResponse`.
-  `EngineRequest` borrows `&GameState`, `&Rack` and `&VariantRules` and carries
-  `seat_number` and `time_budget_ms`. There is no level and no stop signal.
-  `EngineAction` is `Place`, `Pass`, `Exchange` or `Resign`.
+  `GameEngine::choose_action(EngineRequest) -> EngineResponse`. `EngineRequest`
+  borrows `&GameState`, `&Rack` and `&VariantRules` and carries `seat_number`
+  and `time_budget_ms`. `EngineAction` is `Place`, `Pass`, `Exchange` or
+  `Resign`.
+- **An engine's action goes through the methods a person's does.**
+  `maybe_run_engine_turn` (`game_state.rs`) applies it with `apply_*`, so the
+  server stays the authority over engine moves.
+- **The search is CPU-bound work off the async workers.**
+  `maybe_run_engine_turn` runs `choose_action` through
+  `tokio::task::spawn_blocking`, inside `tokio::time::timeout`.
+  `ENGINE_TURN_TIMEOUT` is 5 seconds and is also passed to the engine as
+  `time_budget_ms` (`games.rs`).
+- **A permit already bounds password hashing.** `hash_limit` is a `Semaphore`
+  that `with_hash_permit` acquires (`app/auth.rs`); `engine_limit`, sized from
+  `TILE_LITE_ELITE_ENGINE_CONCURRENCY` (default 2, `app.rs`), is its twin.
+- **Each turn is announced as it happens, paced.** After a turn,
+  `run_engine_turns` sends the state on `AppState.events` and sleeps
+  `ENGINE_TURN_BROADCAST_DELAY` (120 ms) so that a watching client sees each
+  move
+  ([what paces it after](71-09-open-questions.md#open-questions-about-the-shapes)).
 
-The loop is what is wrong. A person's request lasts as long as every bot turn
-that follows it, the games lock is held for the whole of each search, and the
-bot can be reached only from inside the server.
+### To move away from
+
+- **The engine runs in the request that triggered it.** `start_game`,
+  `submit_action` and `suggest_move` (`games.rs`) end by calling
+  `run_engine_turns`, and the request does not return until the loop ends, so a
+  person waits for every bot turn that follows their move.
+- **The games lock is held across each search.** `AppState.games` is one
+  `Arc<RwLock<HashMap<String, GameSession>>>` (`app.rs`), and
+  `maybe_run_engine_turn` holds its write lock across the `spawn_blocking`
+  wait, so every other request needing it waits for each search. Searches run
+  one at a time by that accident.
+- **Nothing bounds how many searches run.** `engine_limit` is never acquired.
+- **A search past 5 seconds makes the seat pass**, with a warning logged. Every
+  other failure, such as a panic in the engine, an action `apply_*` refuses or
+  an unknown engine, is answered with 400 to the person whose request
+  triggered it (`game_state.rs`).
+- **`suggest_move` does not use the engine crate.** It enumerates and validates
+  every legal move inline in the async handler, under the write lock, with no
+  `spawn_blocking`, then calls `run_engine_turns` (`games.rs`).
+- **The contract has no level and no stop signal.**
+- **A slow receiver ends its socket.** `AppState.events` is a
+  `broadcast::Sender<GameEventDto>` of capacity 64, and `stream_events`
+  (`app/events.rs`) leaves its loop on the first `Lagged` error.
+- **The 400-turn ceiling is a safety stop and not a game rule.**
+  `MAX_ENGINE_TURNS_PER_TRIGGER` ends the loop, and a game can pass it, at about
+  590 turns, because any placement resets the scoreless count and the first move
+  uses at least two tiles. An all-engine game that reaches it stalls, because no
+  request follows to run the loop again.
 
 ## The engine is a client
 
@@ -205,20 +177,7 @@ sequenceDiagram
   P->>GW: write the state with its cause, and the delivery repeats
 ```
 
-### What changes
-
-| Aspect | Today | After | Section |
-| --- | --- | --- | --- |
-| a person's request | waits for every bot turn that follows | returns once its move is applied; the bot is a client | the bullets after this table |
-| the lock | the one games lock, held across each search | [a per-game lock](71-03-version.md#one-version-moved-in-one-place), which replaces it, taken only to submit a move | the bullets after this table |
-| searches at once | one at a time, by the lock | bounded by the `engine_limit` permit | [The blocking pool](#how-the-engine-uses-the-blocking-pool) |
-| a search past its time | the seat passes after 5 s | the seat is left on turn, and the move time limit retires it | [The blocking pool](#how-the-engine-uses-the-blocking-pool) |
-| an engine failure | 400 to the person whose request triggered it | logged | [The blocking pool](#how-the-engine-uses-the-blocking-pool) |
-| a slow receiver | the global broadcast lags and ends the socket | the game's watch skips states and the receiver carries on | [Watch channels](#how-the-event-stream-uses-watch) |
-| the engine contract | no level and no stop signal | `Level`, `start` and a `stop` flag | [Levels](71-06b-engine-bots.md#what-the-engine-gains-levels) |
-| pacing | `ENGINE_TURN_BROADCAST_DELAY` sleeps 120 ms between engine turns | open | [Open questions](71-09-open-questions.md#open-questions-about-the-shapes) |
-
-What follows from the engine being a client:
+### What follows from the engine being a client
 
 - The request that triggers a bot's turn returns as soon as the human's move
   is applied. `MAX_ENGINE_TURNS_PER_TRIGGER` stops being needed: it bounds a
@@ -238,27 +197,10 @@ What follows from the engine being a client:
 
 ## Tokio
 
-### The Tokio technology
-
-Tokio is the Rust async runtime the server runs on (`#[tokio::main]`,
-`main.rs`;
-[docs.rs](https://docs.rs/tokio/latest/tokio/runtime/index.html)):
-
-- A *task* is a unit of async work, such as one request or one WebSocket. The
-  multi-thread runtime runs many tasks on a few *worker threads*, one for each
-  CPU by default.
-- A *future* is a value that stands for async work not yet done, which a task
-  polls. A task gives up its worker only at an `.await`. Code that computes
-  without awaiting, as a move search does, keeps its worker until it returns.
-- `Send` marks a type that may move between threads, which a task's future
-  must be. A guard from `std::sync` held across an `.await` can deadlock and
-  makes the future not `Send`. Tokio's own `RwLock` allows it, and then every
-  other task that wants the lock waits for the whole `.await`, which is today's
-  search.
-
 ### How the engine uses Tokio
 
-Each WebSocket and each listed bot's glue is its own task. A search leaves the
+[The Tokio technology](71-03-version.md#the-tokio-technology) is explained in
+71-03. Each WebSocket and each listed bot's glue is its own task. A search leaves the
 worker through [the blocking pool](#the-blocking-pool-and-the-semaphore), and
 the per-game lock, which replaces the one games lock, is held only to read the
 game or to submit a move, never across a search.
@@ -328,7 +270,7 @@ is played:
 
 **The state supersedes; the `because` of a skipped state is dropped by design.**
 A `watch` value is the state with its `because`
-([the envelope](71-05-wire.md#the-envelope)). A receiver that keeps up sees every
+([the envelope](71-05b-wire-types.md#the-envelope)). A receiver that keeps up sees every
 value and always reads the latest state, so it never lags. A slow one skips
 states: it sees the version jump by more than one and treats `because` as
 absent, which rebuilds everything

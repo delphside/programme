@@ -1,9 +1,164 @@
 # 71 Version
 
-This file holds how one version is moved in one place: the argument, then the
-session, the counters, the three categories of change, the message and the one
-handler. It follows [`71-02-overview.md`](71-02-overview.md) and is followed by
+This file holds how one version is moved in one place: what is worth keeping
+from today and what to move away from, the model, the technologies it rests on
+(Rust enums with exhaustive `match`, Tokio's lock and `Arc`, and module
+privacy), the argument, then the session, the counters, the three categories of
+change, the message and the one handler. It follows
+[`71-02-overview.md`](71-02-overview.md) and is followed by
 [`71-04-seats.md`](71-04-seats.md).
+
+## As-is
+
+### Worth keeping
+
+- **The version is already a counter that never decreases.**
+  `GameSession.version` is an `i64` that `mark_changed` increments, called from
+  each mutator in `game_state.rs`, among them start, abort, seat, chat and hide.
+  Over-bumping is harmless; only monotonicity matters.
+- **The client already drops what it holds.** `should_apply_update`
+  (`crates/ui/src/app.rs`) applies an update for another game, or one whose
+  `version` is greater than the one shown, and discards the rest.
+- **`touch()` bumps the version for a change the session cannot see.** An
+  invitation's status lives in `game_invitations`, not on `GameSession`.
+- **A change is saved under the write lock before it is sent.**
+  `announce_invitation_change` (`app/invitations.rs`) bumps, saves, then sends
+  the state on `AppState.events`.
+
+### To move away from
+
+- **Nothing makes a writer announce its change.** Handlers in `app/games.rs`,
+  `app/roster.rs`, `app/invitations.rs` and `app/sweeps_game.rs` each call a
+  mutator, then save and send for themselves.
+- **The stopgap is a convention.** `announce_invitation_change` carries a
+  comment saying it works only while the change travels with a change to the
+  session, and that sending and declining an invitation went unnoticed until a
+  page reload.
+- **A save can fail after the change is applied.** `submit_action`
+  (`app/games.rs`) applies a move in one write-lock section, runs any engine
+  turns, and saves in a later one, so a failed save leaves memory ahead of the
+  database.
+- **Hiding a game moves the version.** `remove_for_player`
+  (`game_state.rs`) calls `mark_changed`, though no other client is shown
+  anything.
+- **One lock guards every game.** `AppState.games` is an
+  `Arc<RwLock<HashMap<String, GameSession>>>` (`app.rs`), so work on one game
+  blocks all.
+- **The scoreless count is accumulated.** `consecutive_scoreless_turns`
+  (`game_state.rs`) is incremented and reset in place, and `turn_number` is the
+  only turn counter.
+
+## The model
+
+A game has one *version*, a counter that moves for every change a client can
+see and never decreases. Every change is a *message*, an enum value, and one
+*handler*, `GameSession::apply`, is the only code that writes to a game: it
+applies the message, advances the version, records the event and publishes.
+A game also has a *turn*, which is game state and walks back under undo. The
+*category* of an event (board, the game or periphery) tells a client what to
+redraw. A change has happened only when it is saved, under the game's own lock,
+with an *unsaved flag* for the case where saving fails.
+
+## Rust enums with exhaustive `match`
+
+### The enum technology
+
+A Rust `enum` is a type whose value is exactly one of a fixed set of
+*variants*, and each variant may carry data of its own shape
+([the Rust Book](https://doc.rust-lang.org/book/ch06-00-enums.html)). It is
+the *sum type* of functional languages, a tagged union whose tag the compiler
+keeps honest:
+
+- A variant carries nothing (`Abort`), named fields
+  (`Place { seat: u8, candidate: MoveCandidate }`) or an unnamed tuple
+  (`Some(x)`). A value holds the data of the variant it is and none of the
+  others: a field a variant does not have cannot be read, and code that tries
+  does not compile.
+- `Option<T>` is itself such an enum, `None` or `Some(T)`. Rust has no null: a
+  value that may be absent says so in its type, and the compiler refuses code
+  that uses it without handling `None`.
+- A `match` reads a value by its variant and binds that variant's fields. **It
+  must cover every variant**, or the program does not compile, so adding a
+  variant makes the compiler name every `match` that must now decide what it
+  means. A catch-all `_` arm opts out of that check and is used sparingly.
+  `matches!(value, Pattern)` asks only whether a value is a variant.
+
+The design practice is *making invalid states unrepresentable*: shape the type
+so that the combinations that must never happen cannot be written down, rather
+than checking for them. A struct of flat fields and flags allows every
+combination of them and relies on each caller to avoid the wrong ones; an enum
+allows only its variants, each with only its own fields.
+
+### How the message uses enums
+
+`GameMessage` has one variant for every way a game can change, and `apply`
+matches on it with no catch-all arm. A new kind of change cannot be added
+without the compiler naming each place that has to handle it, which is the
+property the freshness problem lacks today. `ApplyError`, the other enum in
+[*The message*](#the-message), names each way a message is refused in the same
+way.
+
+## Tokio
+
+### The Tokio technology
+
+Tokio is the Rust async runtime the server runs on (`#[tokio::main]`,
+`main.rs`;
+[docs.rs](https://docs.rs/tokio/latest/tokio/runtime/index.html)):
+
+- A *task* is a unit of async work, such as one request or one WebSocket. The
+  multi-thread runtime runs many tasks on a few *worker threads*, one for each
+  CPU by default.
+- A *future* is a value that stands for async work not yet done, which a task
+  polls. A task gives up its worker only at an `.await`. Code that computes
+  without awaiting, as a move search does, keeps its worker until it returns.
+- `Send` marks a type that may move between threads, which a task's future
+  must be. A guard from `std::sync` held across an `.await` can deadlock and
+  makes the future not `Send`.
+- `tokio::sync::RwLock<T>`
+  ([docs.rs](https://docs.rs/tokio/latest/tokio/sync/struct.RwLock.html)) is a
+  lock taken with `.await`: `read().await` admits any number of readers,
+  `write().await` admits one writer and no reader, and a guard releases the lock
+  when it drops. The queue is first come first served, so a reader that arrives
+  after a waiting writer waits behind it. Unlike `std::sync`'s, its guard may be
+  held across an `.await`, and then every other task that wants the lock waits
+  for the whole `.await`.
+- `Arc<T>`, from `std::sync`, is a pointer that shares one value among owners
+  and counts them. `Arc::clone` adds an owner without copying the value, and the
+  value is dropped with the last owner. `Arc<RwLock<T>>` is how tasks share a
+  value that some of them change.
+
+### How the version uses Tokio
+
+**Locking is per game.** `AppState.games` becomes `HashMap<String,
+Arc<RwLock<GameSession>>>`, so the map's lock guards insertion and removal and
+each game has its own. A handler takes the map's read lock only long enough to
+clone the game's `Arc`, then locks the game. One game's work stops blocking
+every other game, which is what makes an engine search off the request path
+affordable. No lock is held across an await on anything slow: an engine search,
+or a database write of another game. The game's own write lock is held across
+the save of that game, which is the point of
+[*A change has happened only once it is in the database*](#one-version-moved-in-one-place).
+This project owns the map's shape; #408 designs its deadline index, loading and
+eviction on top of it [^d70]. The engine takes the per-game lock only to submit
+a move
+([How the engine uses Tokio](71-06-engine.md#how-the-engine-uses-tokio)).
+
+## Module privacy
+
+### The module privacy technology
+
+A Rust field with no `pub` is visible only inside the module that defines its
+struct, and in that module's children
+([the Rust Book](https://doc.rust-lang.org/book/ch07-02-defining-modules-to-control-scope-and-privacy.html)).
+Code elsewhere can read it only through a method the module offers, and cannot
+assign to it. This is checked at compile time.
+
+### How the handler uses module privacy
+
+The fields of `GameSession` that `apply` changes are private to the module
+holding `apply`, so a second writer does not compile
+([*The one handler*](#the-one-handler)).
 
 ## One version, moved in one place
 
@@ -67,9 +222,7 @@ failing database raises beyond this game are #402's. The rules stay in Rust;
 the database records the outcome and does not apply it.
 
 That is the whole of the fix for the freshness problem. There is no obligation
-to remember, because there is nowhere else to write. The current stopgap,
-`announce_invitation_change`, is a convention with nothing enforcing it, and
-conventions of that kind have already been forgotten twice.
+to remember, because there is nowhere else to write.
 
 **The version is a counter, not a description.** A game can return to a state
 it already held — two seats swapped and swapped back — so anything
@@ -78,13 +231,8 @@ the update. A timestamp is the same counter with worse properties. This also
 constrains undo: undo cannot set the version back, it produces a *new, higher*
 version whose content is an earlier state.
 
-**Locking is per game.** `AppState.games` becomes `HashMap<String,
-Arc<RwLock<GameSession>>>`, so the map lock guards insertion and removal and
-each game has its own. One game's work stops blocking every other game, which is
-what makes an engine search off the request path affordable. No lock is held
-across an await on anything slow — an engine search, a database write of another
-game. This project owns the map's shape; #408 designs its deadline index,
-loading and eviction on top of it [^d70].
+**Locking is per game**, as
+[How the version uses Tokio](#how-the-version-uses-tokio) says.
 
 **Ordering does not need more than that**, and the reason is not that
 out-of-turn messages commute. It is that there is no order to preserve.
@@ -117,7 +265,7 @@ a different bag as a result.
 Every message is answered with the resulting state and its version, so a
 client knows the change landed rather than merely that it was accepted. A
 client that waits for that before sending its next message never has two in
-flight, and the window above does not exist for it.
+flight, and that window does not exist for it.
 
 The same version then earns a second keep. The client sees each change twice —
 once in the response to its own message, once in the update that goes to
@@ -129,9 +277,10 @@ apply its own move twice, or need to recognise its own echo some other way.
 game by who a change affects would be fragile and buys nothing — no change to a
 game is invisible to everybody, and the cost of not choosing is a refetch
 nobody needed. Each game has its own channel
-([How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch)), so an update reaches no other game's
-clients. Per-viewer concerns stay where they are: redaction decides what each
-connection may see, and hiding a game is a flag on a seat.
+([How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch)),
+so an update reaches no other game's clients. Per-viewer concerns stay where
+they are: redaction decides what each connection may see, and hiding a game is
+a flag on a seat.
 
 ## The session
 
@@ -182,7 +331,7 @@ it already held, it keys nothing — the same reason the design gives for
 | category | what is in it | changed by |
 | --- | --- | --- |
 | **board** | the tiles played on the board, and nothing else | a placement; undo or redo of one |
-| **the game** | the board, plus racks, scores, the turn, resignations and timeouts | everything above, plus pass, exchange, resign, force-resign, timeout, start, abort |
+| **the game** | the board, plus racks, scores, the turn, resignations and timeouts | everything in the board row, plus pass, exchange, resign, force-resign, timeout, start, abort |
 | **periphery** | chat messages | posting a message |
 
 **The categories are not counters.** `version` moves for all three and answers
@@ -206,8 +355,8 @@ the rack is checked on its own
 ## The message
 
 `GameMessage` is in the design and is defined in `game-wire`
-([the interface layer](71-05-wire.md#the-interface-layer)). What it needs alongside it is the
-result:
+([the interface layer](71-05-wire.md#the-interface-layer)). What it needs
+alongside it is the result:
 
 ```rust
 pub struct Applied {
