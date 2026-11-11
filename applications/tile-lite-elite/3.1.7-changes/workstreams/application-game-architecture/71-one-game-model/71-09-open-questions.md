@@ -22,8 +22,8 @@ it, as RET-3's "keep" requires.
 **The freshness counter is `version`**, on `GameSession`, moved by any change —
 a resignation, an abort and a timeout each take one, and none is a move. Records
 carry the version they happened at. `move_number` stays what it is, the sequence
-number of a move record, and `turn` is game state alongside them (see [*What the
-composition is keyed on*](71-07-client.md#what-the-composition-is-keyed-on)).
+number of a move record, and `turn` is game state alongside them (see
+[*What the composition is keyed on*](71-07-client.md#what-the-composition-is-keyed-on)).
 
 **State fields and message fields are different things**, which resolves the
 ratings. `rating_before` and `rating_after` describe what *this game did* to a
@@ -142,8 +142,8 @@ and a bot playing in the server are the same game.
 **An external client authenticates as a person before it can assume a bot.**
 Everything but `/health`, registering and logging in requires a session, and a
 bot session is taken on top of a human one. The in-process bot holds no session:
-its link is built with the identity the settings list ([The
-engine](71-06-engine.md#the-engine)). For an external bot, rating follows the
+its link is built with the identity the settings list
+([The engine](71-06-engine.md#the-engine)). For an external bot, rating follows the
 bot and accountability follows the person, so one behaving badly has an owner to
 disable.
 
@@ -177,8 +177,8 @@ the test client, which make any client possible; #10 then attaches
 
 ## Open questions about the shapes
 
-**Does `apply` persist, or does its caller?** Written as [*The one
-handler*](71-03-version.md#the-one-handler) has it: `apply` mutates in memory
+**Does `apply` persist, or does its caller?** Written as
+[*The one handler*](71-03-version.md#the-one-handler) has it: `apply` mutates in memory
 and returns `Applied`; `events::publish` persists and publishes. That keeps
 `GameSession` free of the database, and makes `apply` a pure function of state
 and message — which is what makes it testable without a pool. The cost is that a
@@ -186,8 +186,8 @@ caller can forget to publish. Enforceable by making `Applied` `#[must_use]`,
 which is weaker than the type-level guarantee the server side otherwise gets.
 
 **How does the server act as the bot accounts it runs in-process, and do they
-need an owner?** Settled by owner, 2026-10-20: see [The
-engine](71-06-engine.md#the-engine).
+need an owner?** Settled by owner, 2026-10-20: see
+[The engine](71-06-engine.md#the-engine).
 
 **How does an external harness learn of a game it is newly seated in?**
 Settled by owner, 2026-10-20: see [The engine](71-06-engine.md#the-engine).

@@ -1,7 +1,7 @@
 # 71 The client
 
 This file holds the client: the defect it shares with the server, how its
-composition is keyed, the three tile states, deriving against accumulating, and
+composition is keyed, the three tile states, deriving against accumulating and
 where its state lives. It follows [`71-06-engine.md`](71-06-engine.md) and is
 followed by [`71-08-storage.md`](71-08-storage.md).
 
@@ -136,9 +136,9 @@ The key is **the game and the seat**, and nothing else. A composition stays live
 while its cells are still empty and its tiles are still in the seat's rack; it
 is discarded when a tile is played in one of its cells or a tile it uses leaves
 the rack (owner, 2026-08-29). Both are comparisons against the state the client
-already holds, so nothing is stored or bumped to maintain them. [*The
-composition is keyed by game and
-seat*](#the-composition-is-keyed-by-game-and-seat) has the code.
+already holds, so nothing is stored or bumped to maintain them.
+[*The composition is keyed by game and seat*](#the-composition-is-keyed-by-game-and-seat)
+has the code.
 
 `version` cannot serve. It moves for any change, including an opponent's chat
 message, and keying on it would wipe a half-typed word every time somebody

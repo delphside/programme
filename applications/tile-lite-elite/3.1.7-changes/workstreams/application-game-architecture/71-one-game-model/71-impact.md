@@ -174,13 +174,13 @@ drives it.
 a registry of `watch` channels, and `updates_for` subscribes to those instead of
 filtering one shared channel. The server's settings gain `TILE_LITE_ELITE_BOTS`
 (proposed), the list of bots it runs in-process, which the configuration
-reference documents ([4.4.1
-Configuration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md)).
-The generic `Bot<L: GameLink>` is in [The interface
-layer](71-05-wire.md#the-interface-layer); the mechanism and the bot list are in
+reference documents
+([4.4.1 Configuration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md)).
+The generic `Bot<L: GameLink>` is in
+[The interface layer](71-05-wire.md#the-interface-layer); the mechanism and the bot list are in
 [The engine](71-06-engine.md#the-engine). `client_rules.rs` in `ui` loses its
-copies of the conversions, as [DTOs are invisible, and redaction is in the
-model](#dtos-are-invisible-and-redaction-is-in-the-model) says.
+copies of the conversions, as
+[DTOs are invisible, and redaction is in the model](#dtos-are-invisible-and-redaction-is-in-the-model) says.
 
 **A comment becomes untrue.** In `app/throttle.rs`, the comment on the test
 `a_caller_that_obeys_retry_after_is_served` ("A remote client barely exercises
@@ -248,8 +248,8 @@ how the turn is driven.
 
 **6 — the client state model (#157).** `selected_game` as real state, and the
 composition keyed to the game and seat it belongs to and matched on read rather
-than cleared. See [*The client has the same
-defect*](71-07-client.md#the-client-has-the-same-defect). Client-only: no server
+than cleared. See
+[*The client has the same defect*](71-07-client.md#the-client-has-the-same-defect). Client-only: no server
 change, no API move, no migration. It is delivered in Core Client UI (#269), and
 its failing tests (`e2e/tests/ui-state.spec.ts`) are that package's acceptance.
 

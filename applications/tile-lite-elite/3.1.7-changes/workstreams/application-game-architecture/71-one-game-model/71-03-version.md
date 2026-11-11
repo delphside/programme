@@ -1,7 +1,7 @@
 # 71 Version
 
 This file holds how one version is moved in one place: the argument, then the
-session, the counters, the three categories of change, the message, and the one
+session, the counters, the three categories of change, the message and the one
 handler. It follows [`71-02-overview.md`](71-02-overview.md) and is followed by
 [`71-04-seats.md`](71-04-seats.md).
 
@@ -157,8 +157,8 @@ pub struct GameSession {
 | `turn` | turns taken since the game started — **game state** | **no**: undo takes it back, redo returns it |
 
 `turn` is game state: it is what undo walks, what the scoreless rule reads
-(derived, in [*Deriving beats
-accumulating*](71-07-client.md#deriving-beats-accumulating-and-the-scoreless-rule-is-the-case))
+(derived, in
+[*Deriving beats accumulating*](71-07-client.md#deriving-beats-accumulating-and-the-scoreless-rule-is-the-case))
 and what a player is shown (owner, 2026-08-29). Because it can return to a value
 it already held, it keys nothing — the same reason the design gives for
 `version` being a counter rather than a description.
@@ -200,13 +200,13 @@ event rather than comparing numbers:
 
 **Exchange is the case that shows why.** It changes the game and not the board:
 a staged word survives it, but the exchanging seat's rack does not, which is why
-the rack is checked on its own ([*The composition is keyed by game and
-seat*](71-07-client.md#the-composition-is-keyed-by-game-and-seat)).
+the rack is checked on its own
+([*The composition is keyed by game and seat*](71-07-client.md#the-composition-is-keyed-by-game-and-seat)).
 
 ## The message
 
-`GameMessage` is in the design and is defined in `game-wire` ([the interface
-layer](71-05-wire.md#the-interface-layer)). What it needs alongside it is the
+`GameMessage` is in the design and is defined in `game-wire`
+([the interface layer](71-05-wire.md#the-interface-layer)). What it needs alongside it is the
 result:
 
 ```rust
@@ -229,8 +229,8 @@ pub enum ApplyError {
 **A bot's turn is noticed from the game's channel, not from `Applied`.** Every
 change publishes the new state, which names the seat on turn, so a bot comes on
 turn after a timeout, a force-resign or a seat leaving just as it does after a
-move, and no caller of `apply` hands it anything ([the
-engine](71-06-engine.md#the-engine)).
+move, and no caller of `apply` hands it anything
+([the engine](71-06-engine.md#the-engine)).
 
 ## The one handler
 

@@ -26,8 +26,9 @@ technical design, 71-01 to 71-10, of which this file is the second:
 
 **The documents run top-down, one file per stage.**[^d71]
 The functional set is the use case diagram, the journeys and the lifecycles.
-The files 71-01 to 71-10 are the technical design, overall first and then a
-section scoping each work package. How it is proved is
+The files 71-01 to 71-10 are the technical design: the as-is, then this
+overview with a section scoping each work package, then the topic files.
+How it is proved is
 [`71-test-approach.md`](71-test-approach.md), with one test file per package
 written to fit it.
 
@@ -173,12 +174,12 @@ client changes Core's server changes require.
 
 ### WP A, #268 Core Game Lifecycle
 
-**Takes**: [*One version, moved in one
-place*](71-03-version.md#one-version-moved-in-one-place), with every
+**Takes**:
+[*One version, moved in one place*](71-03-version.md#one-version-moved-in-one-place), with every
 `GameMessage` variant except undo and redo; per-game locking; the seat model and
 its lifecycle; [*DTOs are invisible*](71-05-wire.md#dtos-are-invisible),
-including the opponent tile count and the shared error body (D65); [*The engine
-is a client*](71-06-engine.md#the-engine-is-a-client), with the in-process glue
+including the opponent tile count and the shared error body (D65);
+[*The engine is a client*](71-06-engine.md#the-engine-is-a-client), with the in-process glue
 under the bot; the append-only game log (D61);
 [*Migration*](71-08-storage.md#migration), with the schema version, foreign keys
 and the rating key; the user-details lookup rule; and the code-review findings
@@ -193,8 +194,8 @@ touches is in [`71-life-histories.md`](71-life-histories.md) (#542).
 
 ### WP B, #269 Core Client UI
 
-**Takes**: [*The client has the same
-defect*](71-07-client.md#the-client-has-the-same-defect) — one writer of the
+**Takes**:
+[*The client has the same defect*](71-07-client.md#the-client-has-the-same-defect) — one writer of the
 server cache, matching rather than clearing, the composition keyed by game and
 seat — and whatever client change WP A's wire change forces, with #152 and #88,
 both composition behaviour [^d67]. It also changes how a creator fills the seats

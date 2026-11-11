@@ -88,8 +88,8 @@ against them: a step that changes something with no matching transition is a
 missing transition, and a transition no step reaches is internal, like a sweep,
 or not needed. The types behind the states are in
 [`71-04-seats.md`](71-04-seats.md), *Seat state belongs to the seat*, and in
-[*The seat*](71-04-seats.md#the-seat) and [*The
-session*](71-03-version.md#the-session).
+[*The seat*](71-04-seats.md#the-seat) and
+[*The session*](71-03-version.md#the-session).
 
 ### The game and its seats
 
