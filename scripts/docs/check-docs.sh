@@ -307,6 +307,18 @@ elif ! "$SELF/design-map/design-map.py" --check; then
   FAILED=1
 fi
 
+# 9. document size -- the programme's docs/1.5. A measure, not a gate: the
+# documents over the limit, which the weekly document-review restructures
+# (docs/1.4). The limit and what it leaves out are board/size.py's, shared with
+# board-check.py's section on issue bodies. Run bare, as 7 is.
+echo
+bold "9. document size (a measure)"
+if (( PROGRAMME_ONLY )); then
+  "$SELF/doc-size.py" --programme
+else
+  "$SELF/doc-size.py"
+fi
+
 echo
 if (( FAILED )); then
   bold "FAILED"
