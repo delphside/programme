@@ -224,8 +224,8 @@ whatever it says. **WP A therefore depends on delphside/tile-lite-elite#576
    deleted. Before the rating tables are copied, one `players` row is inserted
    for each engine that has rating rows (each distinct `subject_id` whose
    `subject_kind` is `engine`), and that engine's rows are copied to the new
-   account's ID; without it, step 6 counts every bot row. What a bot account
-   holds in `email` and `password_hash`, which are `not null`, is open
+   account's ID; without it, step 6 counts every bot row. What that row holds,
+   and how a listed bot finds it, is open
    ([71-09](71-09-open-questions.md#open-questions-about-the-shapes)).
    `password_reset_tokens` is rebuilt without its rows: a token is
    short-lived, so a player with one pending requests another.
