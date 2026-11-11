@@ -5,23 +5,24 @@
 settled it on 2026-10-02: one file per stage, functional views before the
 technical design. This file is the functional set for #71: who uses the
 service, what each may do, and the journeys and lifecycles that follow from
-that. It comes before [`71-02-overview.md`](71-02-overview.md) and
-the files it lists, and the requirements it surfaces are
-raised on #71 before any technical decision they touch.
+that. It is the first file of the design and is followed by
+[`71-journeys-u1-u3.md`](71-journeys-u1-u3.md). The requirements it surfaces
+are raised on #71 before any technical decision they touch.
 
 It is the **to-be**: the service as #71 leaves it. The views follow
-[docs/diagrams/README.md](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md). Rule ids are
+[docs/diagrams/README.md](https://github.com/delphside/tile-lite-elite/blob/main/docs/diagrams/README.md).
+Rule ids are
 [docs/1.0](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md)'s.
 
 ## Use case
 
 One diagram for the service. Each oval is a use case, a goal an actor comes to
-the service for; each labelled line names the journeys below by which the
-actor pursues it, and is a permission: auth (2.5) and seats and invitations (2.7) enforce it. A
-game's creator is a role one player holds in one game, separate from any seat
-they hold (GAME-8), so it is drawn as a kind of player. A bot is an account,
-and plays through the same use cases a player does. Time stands for what
-nobody asks for.
+the service for; each labelled line names the journeys, listed after the
+diagram, by which the actor pursues it, and is a permission: auth (2.5) and
+seats and invitations (2.7) enforce it. A game's creator is a role one player
+holds in one game, separate from any seat they hold (GAME-8), so it is drawn as
+a kind of player. A bot is an account, and plays through the same use cases a
+player does. Time stands for what nobody asks for.
 
 ```mermaid
 flowchart LR
@@ -61,15 +62,34 @@ flowchart LR
 - [U5 Follow my games](71-journeys-u4-u6.md#u5-follow-my-games): [U5.1](71-journeys-u4-u6.md#u51-see-my-games-ratings-and-history) See my games, ratings and history, [U5.2](71-journeys-u4-u6.md#u52-remove-a-game-from-my-list) Remove a game from my list
 - [U6 Look after the service](71-journeys-u4-u6.md#u6-look-after-the-service): [U6.1](71-journeys-u4-u6.md#u61-force-end-a-game) Force-end a game, [U6.2](71-journeys-u4-u6.md#u62-delete-an-account) Delete an account, [U6.3](71-journeys-u4-u6.md#u63-remove-expired-games) Remove expired games, [U6.4](71-journeys-u4-u6.md#u64-delete-a-game) Delete a game, [U6.5](71-journeys-u4-u6.md#u65-sign-a-player-out) Sign a player out
 
+## Reading the journeys
+
+The journeys are in [`71-journeys-u1-u3.md`](71-journeys-u1-u3.md) and
+[`71-journeys-u4-u6.md`](71-journeys-u4-u6.md). Each use case above expands
+into an activity diagram showing how its actions fit together, and each
+action, or a few that share a path, expands again into its own journey beneath
+it. In a journey each step either causes a transition in a lifecycle
+([*Lifecycles*](#lifecycles)) or only reads state, and cites the rules it
+exercises, so the end-to-end scenarios come from the journeys and coverage is
+read against them. A step's swimlane is its actor; *Server* is the server
+acting on a request. Every action is drawn. Steps cite the rules in docs/1.0,
+the living documents these diagrams will move into; a design document that
+covers a whole journey is named at the head of that journey, and a question
+still open is cited as Q and its number, which is a heading in
+[`71-journey-questions.md`](71-journey-questions.md). Technical refusals, such
+as rate limits, are left out. A step that changes something no lifecycle
+covers, such as a session or a version, is marked *(no transition)*.
+
 ## Lifecycles
 
 The state machines for the game and its seats, and for an email and its
-invitations. Each journey step above is
-checked against them: a step that changes something with no matching
-transition is a missing transition, and a transition no step reaches is
-internal, like a sweep, or not needed. The types behind the states are in
+invitations. Each step of every journey, in the two journey files, is checked
+against them: a step that changes something with no matching transition is a
+missing transition, and a transition no step reaches is internal, like a sweep,
+or not needed. The types behind the states are in
 [`71-04-seats.md`](71-04-seats.md), *Seat state belongs to the seat*, and in
-[*The seat*](71-04-seats.md#the-seat) and [*The session*](71-03-version.md#the-session).
+[*The seat*](71-04-seats.md#the-seat) and [*The
+session*](71-03-version.md#the-session).
 
 ### The game and its seats
 
@@ -105,11 +125,11 @@ stateDiagram-v2
 ```
 
 Two simplifications, both deliberate. **Finished and Aborted share a box**
-because they do not differ in seat terms — either way the seats stop where
-they are, and this diagram is about seats. Where they differ is rating, which
-`71-09-open-questions.md` covers. And **seats leaving the roster are not drawn** — removed by the
-creator, or dropped as spent when the game starts. They cease to exist rather
-than reaching a state.
+because they do not differ in seat terms — either way the seats stop where they
+are, and this diagram is about seats. Where they differ is rating, which
+[Q1](71-journey-questions.md#q1-aborting-changes-nobodys-rating) covers. And
+**seats leaving the roster are not drawn** — removed by the creator, or dropped
+as spent when the game starts. They cease to exist rather than reaching a state.
 
 Aborting gives up every seat (GAME-1) by making the game `Aborted`, not by
 moving any seat: every seat freezes as it stands, whether `Playing`,
@@ -143,10 +163,11 @@ bookkeeping to be cleared away.
 
 ### An email and its invitations
 
-An email has two uses that change independently, so they are drawn as
-two parallel regions.[^d72f] **Its use by an account** has one state at a time;
-the states and their rules are #439's (R3), with [Q5](71-journey-questions.md#q5-the-email-rules-are-not-in-docs10). **Its use by emailed
-invitations** has one state per invitation, and there may be several. A
+An email has two uses that change independently, so they are drawn as two
+parallel regions.[^d72f] **Its use by an account** has one state at a time; the
+states and their rules are #439's (R3), with
+[Q5](71-journey-questions.md#q5-the-email-rules-are-not-in-docs10). **Its use by
+emailed invitations** has one state per invitation, and there may be several. A
 `Passed` invitation is the seat's `Invited` with an addressee
 ([`71-04-seats.md`](71-04-seats.md), *Who may accept*).
 
@@ -210,7 +231,7 @@ or the game going does.
 ### Do the arrows match the messages?
 
 No, and it is worth being precise about how they fail to, because two of the
-four mismatches are the reason this note exists.
+four mismatches are the reason this design exists.
 
 **One command, several arrows.** Creating a game sets up every seat at once,
 and each may land in a different state depending on its invitation. Starting
@@ -226,7 +247,7 @@ exactly why `Departure` is a field rather than three states.
 seats, chatting. These change the game — the board, the racks, the scores —
 without moving any seat between states. **This is the class of change that was
 invisible to clients**, because change was tied to writing a seat or
-invitation row. It is the defect the whole note is about, and the diagram is
+invitation row. It is the defect the whole design is about, and the diagram is
 where it becomes obvious: most of what happens in a game is not on it.
 
 **Arrows with no command.** Timing out and being swept away are the clock, not
@@ -252,7 +273,7 @@ that keeps the seat enum honest: a seat's state is a field, not a fold over
 rows.
 
 It also disposes of a habit worth naming, because two documents currently
-encode it. Both this note's predecessor in 2.4 and the user-deletion test plan
+encode it. Both this design's predecessor in 2.4 and the user-deletion test plan
 classify an unstarted game into one of four roster situations, ordered so that
 exactly one applies. That was a convenience for arguing about retention and
 for making a test partition clean. It is not a description of the system, and

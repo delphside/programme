@@ -14,20 +14,23 @@ written otherwise.
 
 1. #71's body: the allocation table, the Decisions table, and the code-review
    findings routed from #460.
-2. [`71-02-overview.md`](71-02-overview.md): the table of the design's files, the
-   *Pending decisions* paragraph at the top, then the work-package sections.
-   The topic files it lists are read as the work needs them:
-   [`71-03-version.md`](71-03-version.md), [`71-04-seats.md`](71-04-seats.md),
-   [`71-05-wire.md`](71-05-wire.md), [`71-06-engine.md`](71-06-engine.md),
-   [`71-07-client.md`](71-07-client.md), [`71-08-storage.md`](71-08-storage.md),
+2. The functional set, in order: [`71-functional.md`](71-functional.md) (the use
+   case, how to read the journeys, and the lifecycles),
+   [`71-journeys-u1-u3.md`](71-journeys-u1-u3.md),
+   [`71-journeys-u4-u6.md`](71-journeys-u4-u6.md), and
+   [`71-journey-questions.md`](71-journey-questions.md) (Q1 to Q15, all
+   answered).
+3. [`71-01-as-is.md`](71-01-as-is.md), then
+   [`71-02-overview.md`](71-02-overview.md): the table of the design's files,
+   the *Pending decisions* paragraph after it, then the goal and the
+   work-package sections. The other technical files are read as the work needs
+   them: [`71-03-version.md`](71-03-version.md),
+   [`71-04-seats.md`](71-04-seats.md), [`71-05-wire.md`](71-05-wire.md),
+   [`71-06-engine.md`](71-06-engine.md), [`71-07-client.md`](71-07-client.md),
+   [`71-08-storage.md`](71-08-storage.md),
    [`71-09-open-questions.md`](71-09-open-questions.md) and
    [`71-10-documents-changed.md`](71-10-documents-changed.md).
-3. [`71-delivery.md`](71-delivery.md): `release/1.0.0` for #268 and #269.
-4. [`71-functional.md`](71-functional.md): the use case and the lifecycles;
-   the journeys are in [`71-journeys-u1-u3.md`](71-journeys-u1-u3.md) and
-   [`71-journeys-u4-u6.md`](71-journeys-u4-u6.md), and *Questions the journeys
-   raise* (Q1 to Q15, all answered) in
-   [`71-journey-questions.md`](71-journey-questions.md).
+4. [`71-delivery.md`](71-delivery.md): `release/1.0.0` for #268 and #269.
 5. Tile Lite Elite's [4.1.0 rules](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md),
    which the journeys cite.
 
@@ -42,8 +45,8 @@ written otherwise.
   owner reviews and approves before it merges.
 - **Decisions** are issues D56 to D72 (#442 to #479), applied in the documents
   and closed once applied.
-- **Single writer.** This thread writes this folder, #71's body and the D-issues
-  above. Other threads, the local WSL sessions included, send changes through
+- **Single writer.** This thread writes this folder, #71's body and the Decision
+  issues. Other threads, the local WSL sessions included, send changes through
   the coordinator.
 
 ## Open, and whose move it is

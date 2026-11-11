@@ -1,6 +1,8 @@
 # 71 Storage
 
-This file holds migration, the database schema and which modules change. The design as a whole, and the list of its files, is in [`71-02-overview.md`](71-02-overview.md).
+This file holds migration, the database schema, and which modules change. It
+follows [`71-07-client.md`](71-07-client.md) and is followed by
+[`71-09-open-questions.md`](71-09-open-questions.md).
 
 ## Migration
 
@@ -97,7 +99,7 @@ separate from `version` is in the design's *So that this is the last deletion*.
 `snapshot_json`, because a sweep needs to find games by state without
 deserialising every snapshot, and because a column can be indexed.
 
-**Migration is a deletion.** The note settles this: existing games are deleted,
+**Migration is a deletion.** This design settles it: existing games are deleted,
 users and ratings kept. So the migration is a schema rewrite plus
 `delete from games`, and the risk is entirely in what it must *not* delete —
 `players`, `player_ratings`, `rating_history`, `sessions`. The rating tables are

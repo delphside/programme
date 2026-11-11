@@ -1,6 +1,9 @@
 # 71 Version
 
-This file holds how one version is moved in one place: the argument, then the session, the counters, the three categories of change, the message and the one handler. The design as a whole, and the list of its files, is in [`71-02-overview.md`](71-02-overview.md).
+This file holds how one version is moved in one place: the argument, then the
+session, the counters, the three categories of change, the message, and the one
+handler. It follows [`71-02-overview.md`](71-02-overview.md) and is followed by
+[`71-04-seats.md`](71-04-seats.md).
 
 ## One version, moved in one place
 
@@ -75,13 +78,13 @@ the update. A timestamp is the same counter with worse properties. This also
 constrains undo: undo cannot set the version back, it produces a *new, higher*
 version whose content is an earlier state.
 
-**Locking is per game.** `AppState.games` becomes
-`HashMap<String, Arc<RwLock<GameSession>>>`, so the map lock guards insertion
-and removal and each game has its own. One game's work stops blocking every
-other game, which is what makes an engine search off the request path
-affordable. No lock is held across an await on anything slow — an engine
-search, a database write of another game. This project owns the map's
-shape; #408 designs its deadline index, loading and eviction on top of it [^d70].
+**Locking is per game.** `AppState.games` becomes `HashMap<String,
+Arc<RwLock<GameSession>>>`, so the map lock guards insertion and removal and
+each game has its own. One game's work stops blocking every other game, which is
+what makes an engine search off the request path affordable. No lock is held
+across an await on anything slow — an engine search, a database write of another
+game. This project owns the map's shape; #408 designs its deadline index,
+loading and eviction on top of it [^d70].
 
 **Ordering does not need more than that**, and the reason is not that
 out-of-turn messages commute. It is that there is no order to preserve.
@@ -142,7 +145,7 @@ pub struct GameSession {
     pub current_seat: u8,
     pub turn: i64,                        // was `turn_number`; game state, walks back under undo
     pub version: i64,                     // every change, of any kind. Never decreases
-    pub last_scoring_turn: i64,           // replaces `consecutive_scoreless_turns`; see below
+    pub last_scoring_turn: i64,           // replaces `consecutive_scoreless_turns`
 }
 ```
 
@@ -153,10 +156,12 @@ pub struct GameSession {
 | `version` | every change a client can see, including chat and a rename | **yes, always** |
 | `turn` | turns taken since the game started — **game state** | **no**: undo takes it back, redo returns it |
 
-`turn` is game state: it is what undo walks, what the scoreless rule reads and
-what a player is shown (owner, 2026-08-29). Because it can return to a value it
-already held, it keys nothing — the same reason the design gives for `version`
-being a counter rather than a description.
+`turn` is game state: it is what undo walks, what the scoreless rule reads
+(derived, in [*Deriving beats
+accumulating*](71-07-client.md#deriving-beats-accumulating-and-the-scoreless-rule-is-the-case))
+and what a player is shown (owner, 2026-08-29). Because it can return to a value
+it already held, it keys nothing — the same reason the design gives for
+`version` being a counter rather than a description.
 
 ## Which changes move which counter
 
@@ -188,19 +193,21 @@ event rather than comparing numbers:
 
 | the client is told | it does |
 | --- | --- |
-| a **board** event | redraw the board; a staged word whose cells are now taken is discarded by the occupancy check below |
+| a **board** event | redraw the board; a staged word whose cells are now taken is discarded by [the occupancy check](71-07-client.md#the-composition-is-keyed-by-game-and-seat) |
 | a **game** event | redraw the panes — racks, scores, whose turn. Notify if it is now this player's turn |
 | a **periphery** event | a chat badge. Nothing else moves |
 | **nothing** — a refetch or a reconnect | rebuild everything, because there is no event to classify |
 
-**Exchange is the case that shows why.** It changes the game and not the
-board: a staged word survives it, but the exchanging seat's rack does not,
-which is why the rack is checked on its own below.
+**Exchange is the case that shows why.** It changes the game and not the board:
+a staged word survives it, but the exchanging seat's rack does not, which is why
+the rack is checked on its own ([*The composition is keyed by game and
+seat*](71-07-client.md#the-composition-is-keyed-by-game-and-seat)).
 
 ## The message
 
-`GameMessage` is in the design and is defined in `game-wire` ([the interface layer](71-05-wire.md#the-interface-layer)). What it needs
-alongside it is the result:
+`GameMessage` is in the design and is defined in `game-wire` ([the interface
+layer](71-05-wire.md#the-interface-layer)). What it needs alongside it is the
+result:
 
 ```rust
 pub struct Applied {
@@ -222,7 +229,8 @@ pub enum ApplyError {
 **A bot's turn is noticed from the game's channel, not from `Applied`.** Every
 change publishes the new state, which names the seat on turn, so a bot comes on
 turn after a timeout, a force-resign or a seat leaving just as it does after a
-move, and no caller of `apply` hands it anything ([the engine](71-06-engine.md#the-engine)).
+move, and no caller of `apply` hands it anything ([the
+engine](71-06-engine.md#the-engine)).
 
 ## The one handler
 
@@ -251,14 +259,14 @@ build games through `GameSession::new` and `apply`, the public path, so a test
 cannot reach a state the handler could not produce.
 
 **What a failed save leaves** is nothing [^d69]. `GameSession` carries an
-`unsaved: bool`, which `apply` sets. `events::publish`, under the game's write lock, saves the
-change `apply` made and clears the flag, then publishes. A save error that
-`ApiProblem::from_sqlx` classes as transient is retried in place, within #402's
-bounds. One that still fails answers 503 with `Retry-After`, replaces the
-session with `GameSession::from_snapshot` of the stored row, and publishes
-nothing; a reader that finds `unsaved` set does the same reload before it
-reads, and a game whose reload fails answers 503 to every message. The database is
-the source of truth for #408.
+`unsaved: bool`, which `apply` sets. `events::publish`, under the game's write
+lock, saves the change `apply` made and clears the flag, then publishes. A save
+error that `ApiProblem::from_sqlx` classes as transient is retried in place,
+within #402's bounds. One that still fails answers 503 with `Retry-After`,
+replaces the session with `GameSession::from_snapshot` of the stored row, and
+publishes nothing; a reader that finds `unsaved` set does the same reload before
+it reads, and a game whose reload fails answers 503 to every message. The
+database is the source of truth for #408.
 
 [^d69]: Decision #469 (D69): the database holds what has happened. A failed
     save is retried by its error's class, then fails into a reload, under the

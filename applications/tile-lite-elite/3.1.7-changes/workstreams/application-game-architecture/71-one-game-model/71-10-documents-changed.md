@@ -1,11 +1,15 @@
 # 71 Documents this changes
 
-This file holds the documents the change edits and the two diagrams that move into 1.2 as it lands. The design as a whole, and the list of its files, is in [`71-02-overview.md`](71-02-overview.md).
+This file holds the documents the change edits, and the two diagrams that move
+into 1.2 as it lands. It follows
+[`71-09-open-questions.md`](71-09-open-questions.md), and is the last file of
+the technical design; the test approach,
+[`71-test-approach.md`](71-test-approach.md), follows.
 
 Each of these is edited on this branch, in the commit that makes it true, so
-no commit describes a system that does not exist. The two diagrams below are
-the exception the change-note convention allows: they are the agreed design
-before there is code, and they move into 1.2 as it lands.
+no commit describes a system that does not exist. The two diagrams in this
+file are the exception the change-note convention allows: they are the agreed
+design before there is code, and they move into 1.2 as it lands.
 
 ## 1.2 — the move sequence
 
@@ -129,16 +133,21 @@ rather than editing from this design — the design says what was agreed, and th
 stamp claims what was checked.
 
 Four documents describe the current arrangement and will contradict this one
-until they are revised: [4.1.1 Architecture](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.1-architecture.md)'s
-*Engines*, which says engines run only on the server, in-process;
-[4.2.3 Engine Interface](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.3-engine-interface.md), which already
-points to this change for taking the engine out of the server;
-[4.2.4 Persistence](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.4-persistence.md) on how game state is written,
-and foreign keys and the snapshot's schema version; and
-[4.2.7 Seats And Invitations](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.7-authentication-and-invitations.md)
+until they are revised: [4.1.1
+Architecture](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.1-architecture.md)'s
+*Engines*, which says engines run only on the server, in-process; [4.2.3 Engine
+Interface](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.3-engine-interface.md),
+which already points to this change for taking the engine out of the server;
+[4.2.4
+Persistence](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.4-persistence.md)
+on how game state is written, and foreign keys and the snapshot's schema
+version; and [4.2.7 Seats And
+Invitations](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.7-authentication-and-invitations.md)
 on invitations as their own lifecycle.
 
-And [4.1.0 Rules](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md) gains what this settles:
+And [4.1.0
+Rules](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md)
+gains what this settles:
 
 - user details — name, email, rating — are always a lookup, never copied into
   game data, and changing them bumps and republishes every game that player is

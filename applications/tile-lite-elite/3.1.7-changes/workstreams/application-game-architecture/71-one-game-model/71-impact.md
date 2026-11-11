@@ -1,9 +1,10 @@
 # #71 — impact assessment
 
-What the design note beside this one will touch, measured against the code as
-it stands. **This is not a second design.** The note decides; this says what
-each decision costs, where it lands, and where the change can be cut into
-pieces that ship separately.
+What the technical design, [`71-02-overview.md`](71-02-overview.md) and the
+files it lists, will touch, measured against the code as it stands. **This is
+not a second design.** The design decides; this says what each decision costs,
+where it lands, and where the change can be cut into pieces that ship
+separately.
 
 Measured 2026-08-16 against `main` at `2179771`. Anything not read from the
 code today says so.
@@ -47,8 +48,8 @@ which applies, advances the version, records and publishes.
 
 **Measured**: `game_state.rs` has **33 `pub fn`**, of which **17 call
 `mark_changed()`**. Those 17 are the candidate message variants, and they line
-up closely with the note's enum — turn flow, roster, chat, and the
-administrative endings.
+up closely with the design's [message enum](71-03-version.md#the-message) — turn
+flow, roster, chat, and the administrative endings.
 
 The other 16 are readers and helpers, which stay.
 
@@ -56,9 +57,9 @@ The other 16 are readers and helpers, which stay.
 currently call methods directly (`game.remove_seat(n)`), so each call site
 becomes a message. *Inferred*: roughly 40–60 call sites across `games.rs`,
 `roster.rs`, `invitations.rs`, `admin.rs` and the sweeps (`sweeps.rs` when
-measured, now `sweeps_game.rs`, `sweeps_capacity.rs` and `scheduler_jobs.rs`) — I counted the lock
-acquisitions rather than the method calls, so treat this as an order of
-magnitude.
+measured, now `sweeps_game.rs`, `sweeps_capacity.rs` and `scheduler_jobs.rs`) —
+I counted the lock acquisitions rather than the method calls, so treat this as
+an order of magnitude.
 
 **What it buys, precisely.** Today the coupling between "changed something a
 client renders" and "moved the version" is enforced by nothing. Verified:
@@ -93,8 +94,8 @@ removes; under one write path it deletes itself.
 **The design**: `HashMap<String, Arc<RwLock<GameSession>>>`.
 
 **Measured**: **35 call sites** take `state.games.read()` or `.write()`, across
-six modules — `games.rs` 15, `roster.rs` 6, `admin.rs` 5, `sweeps.rs` 5 (since split),
-`invitations.rs` 3, `events.rs` 1 — plus **27 more** in `tests.rs` and
+six modules — `games.rs` 15, `roster.rs` 6, `admin.rs` 5, `sweeps.rs` 5 (since
+split), `invitations.rs` 3, `events.rs` 1 — plus **27 more** in `tests.rs` and
 `tests_account_lifecycle.rs`. Every one changes shape: today they hold the map
 lock and index it; afterwards they take the map lock briefly, clone an `Arc`,
 and lock the game.
@@ -121,12 +122,12 @@ remains the record of who was asked and when.
 queries, and `snapshot_json`), plus a migration. `attach_invitation_status`
 disappears, and with it the per-read fold in `app/common.rs:42`.
 
-**The cost the note weighed** was the deletion guard —
+**The cost the design weighed** was the deletion guard —
 *which games still mention this player* — cheap in SQL against
 `game_invitations`, a scan over `snapshot_json` otherwise. Verified: that query
 (`game_ids_mentioning_player`) has **one caller**, `admin_delete_user`, on an
 admin path with no latency budget. Worth confirming that is the only cost
-before the note's judgement is relied on.
+before the design's judgement is relied on.
 
 ### DTOs are invisible, and redaction is in the model
 
@@ -139,9 +140,10 @@ redaction, and the client for the count display. The conversions move to
 copies. **This is the change that moves `API_VERSION` by a major**, because an
 old client cannot read the new shapes.
 
-*Worth noting for the plan*: the note calls the opponent tile count "UI work,
-not just a data fix" — so this work package has a visible, user-testable component,
-where the others largely do not. It is the one that earns a preview pass.
+*Worth noting for the plan*: the design calls the opponent tile count "UI work,
+not just a data fix" — so this work package has a visible, user-testable
+component, where the others largely do not. It is the one that earns a preview
+pass.
 
 ### The engine is a client
 
@@ -149,7 +151,7 @@ where the others largely do not. It is the one that earns a preview pass.
 search runs without holding the lock; the submitted move is re-validated on
 arrival.
 
-**Where the work is**: `engine-core` (503 lines) barely changes — the note
+**Where the work is**: `engine-core` (503 lines) barely changes — the design
 says the rules engine, dictionaries, scoring and validation do not change. The
 work is in how it is driven, which lives in `games.rs`: `run_engine_turns`
 (`:945`), `MAX_ENGINE_TURNS_PER_TRIGGER` (400), `ENGINE_TURN_TIMEOUT` (5s), and
@@ -168,18 +170,17 @@ stream and submits through the
 [in-process glue](71-06-engine.md#the-engine), so no caller of `apply`
 drives it.
 
-**Artefacts WP A adds for the bot.** The Event stream in `app/events.rs`
-becomes a registry of `watch` channels, and `updates_for` subscribes to those
-instead of filtering one shared channel. The server's settings gain
-`TILE_LITE_ELITE_BOTS` (proposed), the list of bots it runs in-process, which
-the configuration reference documents
-([4.4.1 Configuration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md)).
-The generic `Bot<L: GameLink>` is in
-[The interface layer](71-05-wire.md#the-interface-layer); the mechanism and the bot list
-are in [The engine](71-06-engine.md#the-engine). `client_rules.rs` in `ui`
-loses its copies of the conversions, as
-[DTOs are invisible, and redaction is in the model](#dtos-are-invisible-and-redaction-is-in-the-model)
-says.
+**Artefacts WP A adds for the bot.** The Event stream in `app/events.rs` becomes
+a registry of `watch` channels, and `updates_for` subscribes to those instead of
+filtering one shared channel. The server's settings gain `TILE_LITE_ELITE_BOTS`
+(proposed), the list of bots it runs in-process, which the configuration
+reference documents ([4.4.1
+Configuration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md)).
+The generic `Bot<L: GameLink>` is in [The interface
+layer](71-05-wire.md#the-interface-layer); the mechanism and the bot list are in
+[The engine](71-06-engine.md#the-engine). `client_rules.rs` in `ui` loses its
+copies of the conversions, as [DTOs are invisible, and redaction is in the
+model](#dtos-are-invisible-and-redaction-is-in-the-model) says.
 
 **A comment becomes untrue.** In `app/throttle.rs`, the comment on the test
 `a_caller_that_obeys_retry_after_is_served` ("A remote client barely exercises
@@ -239,28 +240,28 @@ deletion-guard question. Depends on 2 being the single write path, or it
 multiplies the places to change.
 
 **4 — DTOs and redaction.** `SeatRack`, the round-trip property test, the
-opponent tile count in the UI. Moves `API_VERSION` by a major. The only work package
-with something for a person to look at.
+opponent tile count in the UI. Moves `API_VERSION` by a major. The only work
+package with something for a person to look at.
 
 **5 — the engine as a client.** Depends on 1. Small in `engine-core`, mostly in
 how the turn is driven.
 
 **6 — the client state model (#157).** `selected_game` as real state, and the
 composition keyed to the game and seat it belongs to and matched on read rather
-than cleared. See
-*The client has the same defect* in the note. Client-only: no server change, no
-API move, no migration. It is delivered in Core Client UI (#269), and its
-failing tests (`e2e/tests/ui-state.spec.ts`) are that package's acceptance.
+than cleared. See [*The client has the same
+defect*](71-07-client.md#the-client-has-the-same-defect). Client-only: no server
+change, no API move, no migration. It is delivered in Core Client UI (#269), and
+its failing tests (`e2e/tests/ui-state.spec.ts`) are that package's acceptance.
 
 1 and 2 are independent of the design's open questions and useful whatever
-the note concludes. They are the natural first cuts.
+the design concludes. They are the natural first cuts.
 
 ---
 
 ## 4. What I could not establish
 
 - **The real cost of the deletion guard** against `snapshot_json` rather than
-  SQL. A measurement, not a judgement, and it decides whether the note's
+  SQL. A measurement, not a judgement, and it decides whether the design's
   rejected option was rejected for the right reason.
 - **Whether any current version comparison is affected by per-viewer
   redaction.** Two clients receive different DTOs from one published state; if a
