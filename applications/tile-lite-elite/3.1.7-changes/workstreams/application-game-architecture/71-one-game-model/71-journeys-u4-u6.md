@@ -1,6 +1,6 @@
 # 71 Journeys U4 to U6
 
-This file holds the journeys of U4 Play a game, U5 Follow my games, and U6 Look
+This file holds the journeys of U4 Play a game, U5 Follow my games and U6 Look
 after the service. It follows [`71-journeys-u1-u3.md`](71-journeys-u1-u3.md) and
 is followed by [`71-journey-questions.md`](71-journey-questions.md).
 
@@ -24,11 +24,11 @@ flowchart TD
   s0 --> a6["U4.5 Abort a game"]
 ```
 
-Journeys: [U4.1 Take a turn](#u41-take-a-turn), [U4.2 Ask for a suggested
-move](#u42-ask-for-a-suggested-move), [U4.3 Chat in a
-game](#u43-chat-in-a-game), [U4.4 Leave a game in
-play](#u44-leave-a-game-in-play), [U4.5 Abort a game](#u45-abort-a-game), [U4.6
-Remind the player on turn](#u46-remind-the-player-on-turn).
+Journeys: [U4.1 Take a turn](#u41-take-a-turn),
+[U4.2 Ask for a suggested move](#u42-ask-for-a-suggested-move),
+[U4.3 Chat in a game](#u43-chat-in-a-game),
+[U4.4 Leave a game in play](#u44-leave-a-game-in-play), [U4.5 Abort a game](#u45-abort-a-game),
+[U4.6 Remind the player on turn](#u46-remind-the-player-on-turn).
 
 ### U4.1 Take a turn
 
@@ -114,9 +114,9 @@ flowchart TD
   a1 --> a2["U5.2 Remove a game from my list"]
 ```
 
-Journeys: [U5.1 See my games, ratings and
-history](#u51-see-my-games-ratings-and-history), [U5.2 Remove a game from my
-list](#u52-remove-a-game-from-my-list).
+Journeys:
+[U5.1 See my games, ratings and history](#u51-see-my-games-ratings-and-history),
+[U5.2 Remove a game from my list](#u52-remove-a-game-from-my-list).
 
 ### U5.1 See my games, ratings and history
 
@@ -160,9 +160,9 @@ flowchart TD
   s0 --> a5["U6.5 Sign a player out"]
 ```
 
-Journeys: [U6.1 Force-end a game](#u61-force-end-a-game), [U6.2 Delete an
-account](#u62-delete-an-account), [U6.3 Remove expired
-games](#u63-remove-expired-games), [U6.4 Delete a game](#u64-delete-a-game),
+Journeys: [U6.1 Force-end a game](#u61-force-end-a-game),
+[U6.2 Delete an account](#u62-delete-an-account),
+[U6.3 Remove expired games](#u63-remove-expired-games), [U6.4 Delete a game](#u64-delete-a-game),
 [U6.5 Sign a player out](#u65-sign-a-player-out).
 
 ### U6.1 Force-end a game

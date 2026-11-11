@@ -142,8 +142,8 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 | E27 | — | — | — | — | — | — | U, submits or stays on turn | C before the search, D when the engine returns |
 | E28 | — | — | D | — | — | **G4** | — | — |
 
-The Seat-list watch column shows G3's proposed answer, which differs from [the
-engine](71-06-engine.md#the-engine) in when a watch exists.
+The Seat-list watch column shows G3's proposed answer, which differs from
+[the engine](71-06-engine.md#the-engine) in when a watch exists.
 
 Every change that moves the version also sets and clears the Game entry's
 `unsaved` flag under its lock; that is the Game entry's U in E3 to E18. E19
@@ -179,8 +179,8 @@ stateDiagram-v2
 | Searching | — (the search goes on) | — (the search goes on) | → Submitted | → Waiting | impossible | impossible | **G2** | → ended, the search abandoned |
 | Submitted | — | — | impossible | impossible | → Waiting | → Waiting, **G6** | **G2** | → ended |
 
-A move from a search the game has overtaken is refused on arrival ([the
-engine](71-06-engine.md#the-engine)), so a newer view does not stop a search.
+A move from a search the game has overtaken is refused on arrival
+([the engine](71-06-engine.md#the-engine)), so a newer view does not stop a search.
 
 ### Subscription
 
@@ -281,8 +281,8 @@ first subscribes, rather than for every account.
 
 **G5.** The design logs every applied message, chat and hide included, in
 `game_events (game_id, version, …)`, but `Hide` and `ReminderSent` save without
-moving the version, so their rows would repeat a key. ([The
-session](71-03-version.md#the-session)'s counter table also has a hidden seat
+moving the version, so their rows would repeat a key.
+([The session](71-03-version.md#the-session)'s counter table also has a hidden seat
 moving the version, against the design; that row is corrected with this gap.)
 Proposed: the log gains its own sequence, `(game_id, seq)`, with `version` as a
 column.

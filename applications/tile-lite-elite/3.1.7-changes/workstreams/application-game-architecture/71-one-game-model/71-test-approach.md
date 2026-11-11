@@ -1,7 +1,9 @@
 # 71 Test approach
 
 **How #71 is built and tested.** The design is in
-[`71-02-overview.md`](71-02-overview.md); this says how it is proved. Agreed
+[`71-01-as-is.md`](71-01-as-is.md) to
+[`71-10-documents-changed.md`](71-10-documents-changed.md), and this file
+follows it; this says how it is proved. Agreed
 with the owner on 2026-08-28.
 
 **Server first, tested by a test client; then the real client.** Owner: *"maybe
@@ -76,8 +78,7 @@ because the client initiates everything.
 
 **The client's decisions are pure functions**, so Core Client UI (#269) is
 testable without a server, a browser or timing. The client is not a reducer
-([*Stop clearing; start
-matching*](71-07-client.md#stop-clearing-start-matching)): it has one writer of
+([*Stop clearing; start matching*](71-07-client.md#stop-clearing-start-matching)): it has one writer of
 the server cache and matches everything else on read. What that leaves to test
 is three functions of plain values — `should_apply` (is this update newer than
 what I hold), `current_key` (which composition belongs to this selection) and

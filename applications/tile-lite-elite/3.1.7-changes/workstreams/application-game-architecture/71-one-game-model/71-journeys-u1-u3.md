@@ -1,6 +1,6 @@
 # 71 Journeys U1 to U3
 
-This file holds the journeys of U1 Manage my account, U2 Set up a game, and U3
+This file holds the journeys of U1 Manage my account, U2 Set up a game and U3
 Join a game. It follows [`71-functional.md`](71-functional.md) and is followed
 by [`71-journeys-u4-u6.md`](71-journeys-u4-u6.md).
 
@@ -21,10 +21,10 @@ flowchart TD
   a1 --> a4["U1.3 Change my password"]
 ```
 
-Journeys: [U1.1 Register and sign in](#u11-register-and-sign-in), [U1.2 Change
-my details](#u12-change-my-details), [U1.3 Change my
-password](#u13-change-my-password), [U1.4 Reset my
-password](#u14-reset-my-password).
+Journeys: [U1.1 Register and sign in](#u11-register-and-sign-in),
+[U1.2 Change my details](#u12-change-my-details),
+[U1.3 Change my password](#u13-change-my-password),
+[U1.4 Reset my password](#u14-reset-my-password).
 
 ### U1.1 Register and sign in
 
@@ -136,9 +136,9 @@ flowchart TD
   a1 -- "gives up" --> a4["U4.5 Abort a game"]
 ```
 
-Journeys: [U2.1 Create and start a game](#u21-create-and-start-a-game), [U2.2
-Arrange the seats](#u22-arrange-the-seats), and [U4.5 Abort a
-game](71-journeys-u4-u6.md#u45-abort-a-game) under Play a game.
+Journeys: [U2.1 Create and start a game](#u21-create-and-start-a-game),
+[U2.2 Arrange the seats](#u22-arrange-the-seats), and
+[U4.5 Abort a game](71-journeys-u4-u6.md#u45-abort-a-game) under Play a game.
 
 ### U2.1 Create and start a game
 
@@ -157,8 +157,8 @@ flowchart TD
 
 ### U2.2 Arrange the seats
 
-An invited seat's invitation is sent as the seat is added, as in [U2.1 Create
-and start a game](#u21-create-and-start-a-game). The creator can also hide
+An invited seat's invitation is sent as the seat is added, as in
+[U2.1 Create and start a game](#u21-create-and-start-a-game). The creator can also hide
 `Declined` and `Withdrawn` seats so the list shows only the seats still in play.
 Hiding is the client's alone: the service keeps those seats until the start
 drops them.
@@ -198,10 +198,10 @@ flowchart TD
   a2 --> a3
 ```
 
-Journeys: [U3.1 Accept or decline an
-invitation](#u31-accept-or-decline-an-invitation), [U3.2 Take an open
-seat](#u32-take-an-open-seat), [U3.3 Withdraw from my
-seat](#u33-withdraw-from-my-seat).
+Journeys:
+[U3.1 Accept or decline an invitation](#u31-accept-or-decline-an-invitation),
+[U3.2 Take an open seat](#u32-take-an-open-seat),
+[U3.3 Withdraw from my seat](#u33-withdraw-from-my-seat).
 
 ### U3.1 Accept or decline an invitation
 

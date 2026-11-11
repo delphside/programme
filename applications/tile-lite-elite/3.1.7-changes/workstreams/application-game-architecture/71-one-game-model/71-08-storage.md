@@ -1,6 +1,6 @@
 # 71 Storage
 
-This file holds migration, the database schema, and which modules change. It
+This file holds migration, the database schema and which modules change. It
 follows [`71-07-client.md`](71-07-client.md) and is followed by
 [`71-09-open-questions.md`](71-09-open-questions.md).
 

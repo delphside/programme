@@ -1,7 +1,7 @@
 # 71 The engine
 
 This file holds the engine as a client: the argument, then what the engine
-gains, who calls it, and what makes lifting it possible. It follows
+gains, who calls it and what makes lifting it possible. It follows
 [`71-05-wire.md`](71-05-wire.md) and is followed by
 [`71-07-client.md`](71-07-client.md).
 
@@ -179,8 +179,8 @@ channel on its first subscriber and drops it with its last. `publish` writes the
 full, unredacted state to its game's channel only, so an event reaches the
 sockets of its game and no others, and the cost of a change grows with that
 game's receivers only. **Each account also has a `watch` of its full list of
-seats**, a `Vec<SeatRef>` ([the interface
-layer](71-05-wire.md#the-interface-layer)), which `publish` and the deletion of
+seats**, a `Vec<SeatRef>`
+([the interface layer](71-05-wire.md#the-interface-layer)), which `publish` and the deletion of
 a game write. A seat leaves the list when it is removed or its game is deleted;
 finishing a game keeps its seats, and a bot object takes a turn only in an
 active game. The scope decides what a subscriber receives:
@@ -202,12 +202,12 @@ to a frame with `game_to_dto`; the glue gives each view, as it is, to the bot
 object of each seat the bot holds in that game.
 
 **The state supersedes; the `because` of a skipped state is dropped by design.**
-A `watch` value is the state with its `because` ([the
-envelope](71-05-wire.md#the-envelope)). A receiver that keeps up sees every
+A `watch` value is the state with its `because`
+([the envelope](71-05-wire.md#the-envelope)). A receiver that keeps up sees every
 value and always reads the latest state, so it never lags. A slow one skips
 states: it sees the version jump by more than one and treats `because` as
-absent, which rebuilds everything ([the *nothing*
-case](71-03-version.md#three-categories-of-change)). The move list is part of
+absent, which rebuilds everything
+([the *nothing* case](71-03-version.md#three-categories-of-change)). The move list is part of
 the state, so nothing is lost. Push notifications come from Notifications, which
 the Game service reports each event to, so a skipped watch value loses none.
 Today a lagging server receiver ends the socket; here it skips states and
@@ -233,8 +233,8 @@ task converts the state to a frame and writes its socket; a bot's task gives the
 state to its objects, and each object to its engine. Each WebSocket task runs
 `updates_for` for its socket. The glue runs one task per listed bot, which runs
 `updates_for` once over every seated game and holds one `Bot` object per seat
-that bot holds, made and dropped by [the glue's
-loop](#what-changes-who-calls-it).[^watch]
+that bot holds, made and dropped by
+[the glue's loop](#what-changes-who-calls-it).[^watch]
 
 A person's move reaches both tasks and the bot replies (the arrows are those of
 [the move sequence in
