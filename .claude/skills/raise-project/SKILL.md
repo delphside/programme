@@ -46,7 +46,7 @@ both:
 
 **Source requirements**: #nnn, #nnn.
 
-| | from | |
+| | From | |
 | --- | --- | --- |
 | R1 | #nnn | what must be true when this is done |
 
