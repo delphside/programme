@@ -1,32 +1,24 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
-**Claude writes it; the owner reviews it.**
-
-**Where:** a section of the issue body when the project has no other
-documents, otherwise this file in its folder, pointed to from the body
-(docs/1.2). Either way the body carries section 6's lessons under
-`## Lessons learnt`. When the review is in the body, section 6 takes that title
+**Where it goes:** [1.2](../1.2-change-lifecycle.md#the-parents-lifecycle-is-shorter).
+When the review is in the body, section 6 takes the title `## Lessons learnt`
 without its number, and the review's other headings sit one level below the
-body's. A work package that delegates its lessons writes `Delegated to #P`
-there, `P` being the parent's number (docs/1.2).
-
-**When:** once the project's last delivery is live and has been used. Wait a
-week, so the failures surface.
+body's.
 
 The findings go to the next weekly digest as a note,
 and a finding that needs a change also takes a pre-approved change, a
 requirement or a project
 ([1.2](../1.2-change-lifecycle.md#where-a-possible-change-goes)).
 
-Placeholders: `#N` is the project's number; the date is ISO 8601,
+Placeholders: `#N` is the work package's number; the date is ISO 8601,
 `2026-10-17`.
 
 Replace each prompt with its answer. Delete these comments as you go.
 -->
 
-# Post-deployment review: *project*
+# Post-deployment review: *work package*
 
-Project: `#N` · deliveries: *milestone or `main`, each* · reviewed: *date*
+Work package: `#N` · delivery: *milestone or `main`* · reviewed: *date*
 
 ## 1. Was the intended scope delivered?
 

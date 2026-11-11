@@ -1,12 +1,22 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
 Who holds each role. The roles themselves are docs/1.7.
-Fill it in as the programme-wide holders, records 2.2, or as an application's
-role holders, 3.n.5, where `n` is the application's index. A 3.n.5 keeps the
-rows for design authority, release manager and environments manager, and
-security (the controls half only); 2.2 holds the other roles for every
-application. Delete these comments.
+Fill it in as the programme-wide holders, records/2.2, or as an application's
+role holders, `3.n.5`, where `n` is the application's index in records/2.1.
+Copy it to `records/2.2-roles.md` or
+`applications/<application>/3.n.5-roles.md`, and delete this comment.
+
+A 3.n.5 keeps the rows for design authority, release manager and environments
+manager, and security (the controls only: 2.2 holds the policy), and leaves
+the other roles to 2.2. Release manager and environments manager are one row
+while one holder holds both. The service owner is a row of 2.2, which a 3.n.5
+links to for its design authority.
 -->
+
+# 2.2 Programme role holders, or 3.n.5 *Application* role holders
+
+*Who holds the roles for the programme, or for the application that 2.2 does
+not hold them for. The roles are defined in 1.7; the form is this template.*
 
 ## Who holds each role here
 
@@ -29,4 +39,4 @@ For each on-call authority:
 
 | Authority | Its documents | Its skill |
 | --- | --- | --- |
-| *name* | *the document sections that define it* | *the skill saying what it signs off and what it defers to, or none yet* |
+| *name* | *the document sections that define it* | *the skill of that authority, or none yet* |

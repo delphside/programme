@@ -22,5 +22,6 @@ Save the block's contents, without its fence, as a GitHub saved reply
 
 ### What triage found that the raiser did not know
 
-*Never blank: where triage found nothing new, say so.*
+*Never blank: where triage found nothing new, say so. Add the impact where it
+is not obvious.*
 ````

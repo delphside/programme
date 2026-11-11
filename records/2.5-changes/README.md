@@ -7,8 +7,8 @@ belong to Process Definition and Programme Tooling
 [1.2 §2.4](../../docs/1.2-change-lifecycle.md#24-where-a-document-lives-about-the-work-or-a-product-of-it)
 sets out; a work package's design goes in its parent's folder. A new folder
 takes its delphside/programme issue number; older folders carry
-delphside/tile-lite-elite's number. `process-review.md` and `glossary.md` sit at
-workstream level, outside the layout.
+delphside/tile-lite-elite's number. `process-review.md` and `glossary.md` are
+history, grandfathered at workstream level outside the layout.
 
 | Folder | Holds |
 | --- | --- |
@@ -16,7 +16,6 @@ workstream level, outside the layout.
 | `programme-tooling/` | the programme's own scripts, hooks, skills and agents, the board model, this repository's design and the generic deliver tool |
 
 A change document changes with its issue and expires with it. What stays true
-once the change ships goes to the `docs/1.x` document that owns it. Tile Lite
-Elite's
-[3.1.7-changes/README.md](../../applications/tile-lite-elite/3.1.7-changes/README.md)
-shows the form of a change document.
+once the change ships goes to the `docs/1.x` document that owns it. What a
+change document holds is
+[1.2 §2.4](../../docs/1.2-change-lifecycle.md#24-where-a-document-lives-about-the-work-or-a-product-of-it).

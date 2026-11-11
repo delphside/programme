@@ -7,7 +7,7 @@ The guide is docs/1.9, *How a test design specification is built*.
    `test-design.md`, for example `<issue>-<name>/test-design.md`.
 2. Fill in the header: replace `Project` with `Issue` where there is no
    project.
-3. Keep all ten headings, in order.
+3. Keep all ten headings, in order; docs/1.9 says what an empty one says.
 4. Delete these comments.
 
 Placeholders: `N` is the project's or issue's number; `<issue>` is the parent
@@ -27,7 +27,8 @@ Project: `#N` · type of change: *`functional`, or the change's own* · route: *
 
 <!-- Intent, before anything derives from it. Write each rule from what the
 system is supposed to do — the application's rules document (Tile Lite Elite's
-docs/4.1.0-rules.md), the issue or the design note — and not from the code.
+docs/4.1.0-rules.md), the issue's body or the design note — and not from the
+code.
 Claude checks the rules before section 2. Number them; everything below
 refers back. -->
 

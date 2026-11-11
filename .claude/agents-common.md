@@ -1,7 +1,9 @@
 # What every agent does
 
 Every agent in `.claude/agents/` reads this file first, then its own. Its own
-file adds to these rules and never relaxes them.
+file adds to these rules and never relaxes them. This file owns the rules an
+agent follows when it runs; [1.1](../docs/1.1-programme-tooling.md#claudes-tooling)
+says what each agent is for and how Claude runs a review.
 
 ## Where things are
 
