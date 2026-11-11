@@ -190,11 +190,15 @@ fi
 # `--no-verify`, in the same shape as the check above it -- it is asking *did
 # you mean this*, not forbidding it.
 #
+# **The one exception is a pin move made on its own**: a web session cannot push
+# to `main`, so it carries that commit in a pull request (docs/1.1). Staged with
+# anything else, the pin is still refused.
+#
 # **The list is the model's**, `programme/scripts/board/documents.py` (#421), asked
-# through `board-documents.py` rather than held here.
+# through `board-documents.py branch` rather than held here.
 
 if [ "$MERGING" -eq 0 ] && [ "$BRANCH" != "main" ]; then
-  run_board board-documents.py programme <<< "$STAGED"
+  run_board board-documents.py branch <<< "$STAGED"
   ONMAIN="$BOARD_OUT"
   if [ -n "$ONMAIN" ]; then
     {

@@ -493,7 +493,7 @@ def live_version(url: str, timeout: float = 5.0) -> str | None:
 # a release's range: which commits name which issue, and which tags lie in it
 # --------------------------------------------------------------------------
 #
-# Moved from `scripts/deliver/deliver` (`refs_in`, `refs_effective`,
+# Moved from `scripts/deliver/turpin` (`refs_in`, `refs_effective`,
 # `local_tags_in_range`), which kept the board's Refs rule and the revert rule in
 # bash. A release gate that cannot read git must refuse, so these raise
 # `Unavailable` where `_git` would return nothing: an unreadable range read as

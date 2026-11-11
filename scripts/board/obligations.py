@@ -437,9 +437,12 @@ OBLIGATIONS: tuple[Obligation, ...] = (
     # ---- Pull request, by PR State --------------------------------------
     Obligation(
         "pr-linked", (PullRequest,), ANY_STEP,
-        "a linked issue — `Refs #N` or `Closes #N`",
-        "a change with no issue has no requirement",
-        lambda i: bool(refs.named(i.body)),
+        "a linked issue — `Refs #N` or `Closes #N` — or `Activity: <id>` for BAU",
+        "a change with no issue has no requirement; BAU work names its docs/1.4 "
+        "activity instead, and a bot's pull request (Dependabot's) owes neither: "
+        "its pull request is the record, or a row in a dependency update project "
+        "names it — CLAUDE.md",
+        lambda i: bool(refs.named(i.body)) or refs.activity(i.body) is not None or i.raw.bot,
     ),
     Obligation(
         "pr-scope-stated", (PullRequest,),

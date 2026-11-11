@@ -326,6 +326,23 @@ One.
         self.expect("a pull request with no Refs is reported", Answer.MISSING, ids.get("pr-linked"))
         self.expect("and one with neither heading is too", Answer.MISSING, ids.get("pr-scope-stated"))
 
+    def test_a_bau_or_bot_pull_request_owes_no_linked_issue(self):
+        """BAU names its activity, and a bot's pull request owes no issue"""
+        # CLAUDE.md: programme BAU work needs no issue, its commits saying
+        # `Activity: <id>`; a Dependabot pull request cannot write `Refs`, and its
+        # pull request (or a dependency update project's row) is the record.
+        # TLE #565 and #568 (document review) and #564 (Dependabot) were reported.
+        def linked(raw):
+            return {f.obligation.id: f.answer for f in assess(classify(raw))}.get("pr-linked")
+        self.expect("an Activity line is a link", Answer.MET,
+                    linked(issue(568, kind="PullRequest", body="Activity: document-review\n\nx")))
+        self.expect("a bot's pull request needs none", Answer.MET,
+                    linked(_replace(issue(564, kind="PullRequest", body="Bumps caddy."), bot=True)))
+        self.expect("an Activity in prose is not one", Answer.MISSING,
+                    linked(issue(1, kind="PullRequest", body="the Activity: document-review line")))
+        self.expect("nor is a person's pull request with neither", Answer.MISSING,
+                    linked(issue(2, kind="PullRequest", body="Bumps caddy.")))
+
     def test_pr_state_is_read_with_the_one_ladder_in_its_order(self):
         """PR State is read with the ladder board-pr-state.py writes with, in its order"""
         # Two answers to one question is the disagreement this model exists to remove.

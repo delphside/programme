@@ -1,8 +1,10 @@
 # 71 Test approach
 
 **How #71 is built and tested.** The design is in
-[`71-design.md`](71-design.md); this says how it is proved. Agreed with the
-owner on 2026-08-28.
+[`71-01-as-is.md`](71-01-as-is.md) to
+[`71-10-documents-changed.md`](71-10-documents-changed.md), and this file
+follows it; this says how it is proved. Agreed
+with the owner on 2026-08-28.
 
 **Server first, tested by a test client; then the real client.** Owner: *"maybe
 we do the server first, and stub the client for testing. Then develop the real
@@ -24,10 +26,11 @@ doing something. That is exactly the *"second client watching"* without which,
 as #71 says, none of its three faults would have been caught.
 
 **It compiles against `crates/game-wire`**, like both real sides
-(`71-data-model.md` §3), so it rebuilds the same domain objects they do and
-asserts on the **state it receives** rather than on rendered output. That is the right level for
-Core Game Lifecycle (#268): what the server *sent* is the question, and a browser can only
-show what a client chose to draw.
+([`71-05-wire.md`](71-05-wire.md#the-interface-layer)), so it rebuilds the same
+domain objects they do and asserts on the **state it receives** rather than on
+rendered output. That is the right level for Core Game Lifecycle (#268): what
+the server *sent* is the question, and a browser can only show what a client
+chose to draw.
 
 **A stub is not needed for the contract**, and would be harmful. The DTOs are a
 shared crate both sides compile against, so a disagreement is a build failure
@@ -75,13 +78,13 @@ because the client initiates everything.
 
 **The client's decisions are pure functions**, so Core Client UI (#269) is
 testable without a server, a browser or timing. The client is not a reducer
-(the note's *Stop clearing; start matching*): it has one writer of the server
-cache and matches everything else on read. What that leaves to test is three
-functions of plain values — `should_apply` (is this update newer than what I
-hold), `current_key` (which composition belongs to this selection) and
-`live_composition` (is the staged word still placeable) — and each is a table
-of inputs and expected answers. *Reconnected and missed three updates* becomes
-a row.
+([*Stop clearing; start matching*](71-07-client.md#stop-clearing-start-matching)): it has one writer of
+the server cache and matches everything else on read. What that leaves to test
+is three functions of plain values — `should_apply` (is this update newer than
+what I hold), `current_key` (which composition belongs to this selection) and
+`live_composition` (is the staged word still placeable) — and each is a table of
+inputs and expected answers. *Reconnected and missed three updates* becomes a
+row.
 
 **So Playwright shrinks to what it is good at.** With the layers below carrying
 ordering, delivery and state, the browser suite needs only enough to show the

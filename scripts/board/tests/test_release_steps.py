@@ -1,7 +1,7 @@
 """What happens after the gates: settling the board from the record, the next
 milestone, the GitHub Release and the retrospective issue, and the CI read.
 
-From the rules (design §7 and §8), not the code. GitHub is an in-memory
+From the rules (design §10 and §12), not the code. GitHub is an in-memory
 fixture with the same calls as `sources.py`; a call can be made to fail.
 
   settle     a carried work package goes to Post-deployment and is told so once;
@@ -211,7 +211,7 @@ class SettlingFromTheRecord(Cases):
             self.expect("no comment", {}, gh.comments)
 
     def test_the_worked_example(self):
-        """design §8: items of an undeployed release are settled with its words, the dropped one is taken out"""
+        """design §12: items of an undeployed release are settled with its words, the dropped one is taken out"""
         earlier = {"version": "0.10.2", "work_packages": [], "issues": [1, 3], "dropped": [2]}
         issues = [raw(1, milestone="0.10.2"), raw(2, milestone="0.10.2"), raw(3, milestone="0.10.2"), raw(4, milestone="0.10.3")]
         with GitHub(issues, milestones=[{"number": 7, "title": "0.10.2", "state": "open"},

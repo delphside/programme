@@ -104,6 +104,7 @@ try {
   const dom = new JSDOM("<!DOCTYPE html><body></body>", { pretendToBeVisual: true });
   globalThis.window = dom.window;
   globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option; // sequence-diagram box colours
   mermaid = (await import("mermaid")).default;
   mermaid.initialize({ startOnLoad: false });
 } catch {

@@ -1,6 +1,6 @@
 """The calls a release makes to GitHub, and how they fail.
 
-From the rules (design §11): the board model is deliver's GitHub adapter, reading
+From the rules (design §4): the board model is Turpin's GitHub adapter, reading
 over GraphQL where the token allows it and REST where it is refused, and **a read
 that no route answers refuses, never reads as empty**. No network: `subprocess.run`
 is replaced, so `gh` is never started.

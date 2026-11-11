@@ -400,7 +400,7 @@ this section used to carry are answered below.
 
 | | |
 | --- | --- |
-| namespace · bucket | `axbbaaptgyab` · `tile-lite-elite-backups` |
+| namespace · bucket | `NAMESPACE` · `tile-lite-elite-backups` |
 | region · compartment | `uk-cardiff-1` (UK West, Newport) · `stephenmor (root)` |
 | tier · visibility | Standard · private |
 | **credential** | a **bucket-scoped PAR, access type *permit object writes*, object listing off** |

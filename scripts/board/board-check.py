@@ -43,6 +43,8 @@ from board.overtaken import check as check_overtaken
 from board.overtaken import render as render_overtaken
 from board.release import outstanding as tests_outstanding
 from board.release import render as render_tests
+from board.size import oversized, size_of
+from board.size import render as render_size
 from board.repo import last_release_at, mentions_on
 from board.sources import (Unavailable, fetch, issues_by_number, issues_in_full,
                            remote_branches, step_ages)  # noqa: E402
@@ -164,6 +166,16 @@ def main(argv=None) -> int:
             failing = failing or bool(stale_found) or bool(links)
         except Unavailable as exc:
             text += f"\n\n  context: cannot say — {exc}"
+
+        # Issue bodies over the size limit (the programme's docs/1.5), the
+        # documents' measure applied to the board. A measure, so it never sets
+        # `failing`: the weekly document-review proposes the restructure.
+        # Open issues only: a closed issue is history and is not edited.
+        if not args.closed:
+            bodies = [(r.title if r.title.startswith(f"#{r.number} ") else f"#{r.number} {r.title}",
+                       size_of(r.body))
+                      for r in snapshot.issues if r.issue_type != "PullRequest"]
+            text += "\n\n" + render_size(oversized(bodies), "issue bodies")
 
     # Stripped at the boundary rather than threaded through the renderer:
     # nineteen call sites would each have to remember, and one that forgot

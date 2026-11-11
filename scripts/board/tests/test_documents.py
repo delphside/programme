@@ -16,7 +16,11 @@ from .cli import run
 
 
 def of(which: str, *paths: str) -> list[str]:
-    return run("board/board-documents.py", which, stdin="".join(p + "\n" for p in paths)).stdout.split()
+    # The status is asserted, so a command that crashed or printed its usage is
+    # never read as the empty answer "nothing here".
+    out = run("board/board-documents.py", which, stdin="".join(p + "\n" for p in paths))
+    assert out.returncode == 0, out.stderr
+    return out.stdout.split()
 
 
 class ProgrammeDocuments(unittest.TestCase):
@@ -50,6 +54,26 @@ class ProgrammeDocuments(unittest.TestCase):
     def test_the_lists_are_the_profiles_not_a_built_in_one(self):
         # The real application's roadmap is not this application's.
         self.assertEqual([], of("programme", "docs/4.1.4-roadmap.md"))
+
+
+class RefusedOnBranch(unittest.TestCase):
+    """What a commit on a branch may not carry: the programme's documents, except a
+    pin move made on its own, which a web session carries in a pull request
+    because it cannot push to main (the programme's docs/1.1)."""
+
+    def test_a_pin_move_on_its_own_is_not_refused(self):
+        self.assertEqual([], of("branch", "programme"))
+
+    def test_the_pin_with_anything_else_is(self):
+        self.assertEqual(["programme"], of("branch", "programme", "docs/9.4.3-api-schema.md"))
+        self.assertEqual(["programme", "CLAUDE.md"], of("branch", "programme", "CLAUDE.md"))
+
+    def test_every_other_programme_document_still_is(self):
+        paths = ("CLAUDE.md", "docs/9.1.4-roadmap.md", "programme/docs/1.2-change-lifecycle.md")
+        self.assertEqual(list(paths), of("branch", *paths))
+
+    def test_an_application_document_is_not(self):
+        self.assertEqual([], of("branch", "docs/9.4.3-api-schema.md"))
 
 
 class ApplicationDocuments(unittest.TestCase):

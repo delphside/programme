@@ -2,7 +2,7 @@
 
 Fitted to [`71-test-approach.md`](71-test-approach.md), which holds the layers
 and what each can answer; this file says what WP C uses of them. The scope is
-in [`71-design.md`](71-design.md), *Work packages*.
+in [`71-02-overview.md`](71-02-overview.md), *Work packages*.
 
 ## What it proves
 

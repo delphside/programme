@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # rollback: the same switch to `previous`, with restore-state, on demand
-# (design §9). Run by `deliver-host rollback` from the payload of the deploy being
+# (design §11). Run by `turpin-host rollback` from the payload of the deploy being
 # rolled back from, with the lock held.
 set -uo pipefail
 PAYLOAD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,7 +8,7 @@ PAYLOAD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$PAYLOAD/lib/common.sh"
 # shellcheck source=steps.sh
 . "$PAYLOAD/steps.sh"
-DELIVER_CMD="deliver-host"
+TURPIN_CMD="turpin-host"
 host_ctx_load
 
 CUR="$(link_n current || true)"; PREV="$(link_n previous || true)"

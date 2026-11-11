@@ -37,6 +37,31 @@ class AMessage(unittest.TestCase):
         self.assertEqual({1234}, refs.named("Refs #1234"))
 
 
+class AnActivity(unittest.TestCase):
+    """BAU work names its docs/1.4 activity in place of an issue (CLAUDE.md)."""
+
+    def test_the_line_names_it(self):
+        self.assertEqual("document-review", refs.activity("Activity: document-review\n\n## x"))
+
+    def test_among_other_trailers(self):
+        self.assertEqual("weekly-digest", refs.activity("x\n\nActivity: weekly-digest\nInitiative: i-1"))
+
+    def test_a_full_stop_after_it_is_allowed(self):
+        # TLE #565 wrote it at the end of a paragraph's line.
+        self.assertEqual("reference-review", refs.activity("x\n\nActivity: reference-review.\n"))
+
+    def test_a_body_saved_by_the_browser_with_crlf(self):
+        # GitHub's web form saves a body with CRLF line endings.
+        self.assertEqual("document-review", refs.activity("Activity: document-review\r\n\r\n## x"))
+
+    def test_in_prose_it_is_not_one(self):
+        self.assertIsNone(refs.activity("the Activity: document-review line"))
+
+    def test_nor_without_an_id(self):
+        self.assertIsNone(refs.activity("Activity:\n"))
+        self.assertIsNone(refs.activity("Activity: Document Review"))
+
+
 class APullRequest(unittest.TestCase):
     def test_the_titles_leading_number(self):
         self.assertEqual({414}, refs.pull_request_names("#414 Scheduler core", ""))

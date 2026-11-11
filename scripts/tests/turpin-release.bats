@@ -1,13 +1,13 @@
 #!/usr/bin/env bats
 
-# `deliver release` and the rehearsal's level (test-design.md S17 to S28, S48 to S53a;
+# `turpin release` and the rehearsal's level (test-design.md S17 to S28, S48 to S53a;
 # rules R15 to R25). The gates are shown to fail before they pass: each test
 # gives the refusal first and the success after.
 
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert
-  load deliver_world
+  load turpin_world
   world_new
 }
 
@@ -54,7 +54,7 @@ two_builds() {   # P (production's) and Q (another)
   assert_output --partial "refused at gate rehearsal-level"
   run grep -c '"event":"ssh-read","env":"production"' "$(run_log_latest deploy)"
   assert_output 1
-  assert_regex "$(cat "$W/logs/ssh.log")" "ssh prod: deliver-host status acme production"
+  assert_regex "$(cat "$W/logs/ssh.log")" "ssh prod: turpin-host status acme production"
   run d deploy rehearsal "$p2"
   assert_success
 }
@@ -72,11 +72,11 @@ two_builds() {   # P (production's) and Q (another)
   assert_success
 }
 
-@test "a rehearsal with no production deliver state needs --off-level too (S39 shape, R15)" {
+@test "a rehearsal with no production turpin state needs --off-level too (S39 shape, R15)" {
   commit_change one; build_ok "$SHA"
   run d deploy rehearsal "$SHA"
   assert_failure 1
-  assert_output --partial "production has no deliver state"
+  assert_output --partial "production has no turpin state"
 }
 
 # ---------------------------------------------------------------- the release
@@ -225,7 +225,7 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
 
 @test "the same two cuts with production's record read from its host state (S50, R17)" {
   emergency_world
-  # production has deliver state and its record names 0.10.0
+  # production has turpin state and its record names 0.10.0
   git -C "$W/work" checkout -q -f "$E"; build_ok "$E"; git -C "$W/work" checkout -q -f main
   fake_production 0.10.0 "$E"
   gh_milestone 0.10.2 "30|Requirement||0|"
@@ -288,7 +288,7 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   # a record for it is in releases from another commit
   mkdir -p "$W/registry/reg.test/ns/acme/releases"
   printf '{"record":1,"commit":"deadbeef","images":{}}\n' > "$W/rec.json"
-  ( cd "$W/work" && . "$DELIVER_SRC/lib/common.sh" && . "$DELIVER_SRC/lib/registry.sh" && export DELIVER_REGISTRY=reg.test/ns REGISTRY_AUTH_FILE="$HOME/.config/deliver/auth/acme/copier.json" && record_push acme/releases 0.10.2-record "$W/rec.json" )
+  ( cd "$W/work" && . "$TURPIN_SRC/lib/common.sh" && . "$TURPIN_SRC/lib/registry.sh" && export TURPIN_REGISTRY=reg.test/ns REGISTRY_AUTH_FILE="$HOME/.config/turpin/auth/acme/copier.json" && record_push acme/releases 0.10.2-record "$W/rec.json" )
   run d release --expect 0.10.2
   assert_failure 1
   assert_output --partial "another commit or other digests"
@@ -435,19 +435,19 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   run hook_calls
   assert_regex "$output" "release-check"
   # the release step's hook runs on the controller
-  assert_regex "$(hook_log_for release-check)" "DELIVER_ROLE=controller"
+  assert_regex "$(hook_log_for release-check)" "TURPIN_ROLE=controller"
 }
 
 @test "release_refuses_a_mistyped_confirmation (S25, R16)" {
   ref_commit "a feature" 12
   release_ready "12|Requirement||0|"
-  run bash -c "cd '$W/work' && printf '0.10.3\n' | '$DELIVER' release"
+  run bash -c "cd '$W/work' && printf '0.10.3\n' | '$TURPIN' release"
   assert_failure 1
   assert_output --partial 'confirmation "0.10.3" is not 0.10.2'
   run d release --expect 0.10.3
   assert_failure 1
   [ -z "$(git -C "$W/remote.git" tag -l v0.10.2)" ]
-  run bash -c "cd '$W/work' && printf '0.10.2\n' | '$DELIVER' release"
+  run bash -c "cd '$W/work' && printf '0.10.2\n' | '$TURPIN' release"
   assert_success
   assert_output --partial "released 0.10.2"
 }

@@ -7,7 +7,7 @@
 setup() {
   bats_load_library bats-support
   bats_load_library bats-assert
-  load deliver_world
+  load turpin_world
   world_new
 }
 
@@ -64,8 +64,8 @@ setup() {
   local canary="hunter2-canary" h
   printf '%s' "$canary" > "$W/token"; printf 'key' > "$W/key"
   printf '#!/bin/sh\nexit 0\n' > "$W/bin/oci"; chmod +x "$W/bin/oci"
-  local lines; lines="$(printf 'DELIVER_OCI_TOKEN_CMD="cat %s"\nDELIVER_REGISTRY_USER=tenancy/user\nOCI_CLI_KEY_FILE=%s\n' "$W/token" "$W/key")"
-  printf '%s\n' "$lines" >> "$HOME/.config/deliver/acme.env"
+  local lines; lines="$(printf 'TURPIN_OCI_TOKEN_CMD="cat %s"\nTURPIN_REGISTRY_USER=tenancy/user\nOCI_CLI_KEY_FILE=%s\n' "$W/token" "$W/key")"
+  printf '%s\n' "$lines" >> "$HOME/.config/turpin/acme.env"
   printf '%s\n' "$lines" >> "$(host_state_dir rehearsal rehearsal)/.env"
   printf '%s\n' "$lines" >> "$(host_state_dir prod production)/.env"
   sed -i 's/"docker-config"/"oci-api-key"/' "$W/work/app-profile.toml"
@@ -90,12 +90,12 @@ setup() {
 }
 
 @test "env_create_and_destroy_leave_nothing_behind; the secret is read at a hidden prompt (S41, R37, R34)" {
-  mkdir -p "$W/payload"; cp -a "$W/work/deliver/hooks" "$W/payload/hooks"
-  export DELIVER_PROFILE="$W/work/app-profile.toml" DELIVER_PAYLOAD="$W/payload"
-  run bash -c "printf 's3cret-canary\n' | '$DELIVER' env create e3"
+  mkdir -p "$W/payload"; cp -a "$W/work/turpin/hooks" "$W/payload/hooks"
+  export TURPIN_PROFILE="$W/work/app-profile.toml" TURPIN_PAYLOAD="$W/payload"
+  run bash -c "printf 's3cret-canary\n' | '$TURPIN' env create e3"
   assert_success
   refute_regex "$output" "s3cret-canary"
-  local envdir="$W/hosts/local/var/lib/deliver/acme/e3"
+  local envdir="$W/hosts/local/var/lib/turpin/acme/e3"
   [ -d "$envdir" ]
   assert_equal "$(stat -c %a "$envdir/.env")" 600
   run cat "$envdir/.env"
@@ -107,7 +107,7 @@ setup() {
   assert_output "env-create"
   run grep -rl "s3cret-canary" "$W" --exclude=.env
   [ "$status" -eq 1 ]
-  run "$DELIVER" env destroy e3
+  run "$TURPIN" env destroy e3
   assert_success
   [ ! -e "$envdir" ]
   assert_equal "$(cat "$W/hosts/local/.users")" ""
@@ -120,18 +120,18 @@ env-destroy"
   run d host-install rehearsal
   assert_success
   local root="$W/hosts/rehearsal"
-  [ -x "$root/usr/local/bin/deliver-host" ]
-  cmp "$root/usr/local/bin/deliver-host" "$DELIVER_SRC/deliver-host"
-  cmp "$root/usr/local/lib/deliver/common.sh" "$DELIVER_SRC/lib/common.sh"
-  [ -f "$root/usr/local/lib/deliver/toml.awk" ]
-  run cat "$root/etc/sudoers.d/deliver-host"
-  assert_output --regexp '^[a-z0-9_-]+ ALL=\(root\) NOPASSWD: /usr/local/bin/deliver-host root-ops \*$'
-  assert_equal "$(stat -c %a "$root/etc/sudoers.d/deliver-host")" 440
+  [ -x "$root/usr/local/bin/turpin-host" ]
+  cmp "$root/usr/local/bin/turpin-host" "$TURPIN_SRC/turpin-host"
+  cmp "$root/usr/local/lib/turpin/common.sh" "$TURPIN_SRC/lib/common.sh"
+  [ -f "$root/usr/local/lib/turpin/toml.awk" ]
+  run cat "$root/etc/sudoers.d/turpin-host"
+  assert_output --regexp '^[a-z0-9_-]+ ALL=\(root\) NOPASSWD: /usr/local/bin/turpin-host root-ops \*$'
+  assert_equal "$(stat -c %a "$root/etc/sudoers.d/turpin-host")" 440
   # again: an update, not a failure
-  echo '# changed' >> "$root/usr/local/lib/deliver/common.sh"
+  echo '# changed' >> "$root/usr/local/lib/turpin/common.sh"
   run d host-install rehearsal
   assert_success
-  cmp "$root/usr/local/lib/deliver/common.sh" "$DELIVER_SRC/lib/common.sh"
+  cmp "$root/usr/local/lib/turpin/common.sh" "$TURPIN_SRC/lib/common.sh"
 }
 
 @test "host_install refuses a host missing a tool the login adapter needs (S42, R38, R39)" {
@@ -146,17 +146,17 @@ env-destroy"
 }
 
 @test "login adapters: the three are named, and an unknown one is refused (R39)" {
-  run bash -c ". '$DELIVER_SRC/lib/common.sh'; . '$DELIVER_SRC/lib/registry.sh'; login_adapters"
+  run bash -c ". '$TURPIN_SRC/lib/common.sh'; . '$TURPIN_SRC/lib/registry.sh'; login_adapters"
   assert_output "docker-config
 oci-api-key
 oci-instance-principal"
-  run bash -c ". '$DELIVER_SRC/lib/common.sh'; . '$DELIVER_SRC/lib/registry.sh'; login_run nonsense; echo \$REG_ERR"
+  run bash -c ". '$TURPIN_SRC/lib/common.sh'; . '$TURPIN_SRC/lib/registry.sh'; login_run nonsense; echo \$REG_ERR"
   assert_output --partial "unknown login adapter nonsense"
 }
 
 @test "oci-api-key refuses without a key and succeeds with one (R39, X14 shape)" {
-  run bash -c ". '$DELIVER_SRC/lib/common.sh'; . '$DELIVER_SRC/lib/registry.sh'; printf '#!/bin/sh\n' > '$W/bin/oci'; chmod +x '$W/bin/oci'; printf '#!/bin/sh\ncat >/dev/null\n' > '$W/bin/docker-login-sink'
-    export DELIVER_OCI_TOKEN_CMD='echo tok' DELIVER_REGISTRY_USER=u DELIVER_REGISTRY=reg.test/ns HOME='$W/nohome'
+  run bash -c ". '$TURPIN_SRC/lib/common.sh'; . '$TURPIN_SRC/lib/registry.sh'; printf '#!/bin/sh\n' > '$W/bin/oci'; chmod +x '$W/bin/oci'; printf '#!/bin/sh\ncat >/dev/null\n' > '$W/bin/docker-login-sink'
+    export TURPIN_OCI_TOKEN_CMD='echo tok' TURPIN_REGISTRY_USER=u TURPIN_REGISTRY=reg.test/ns HOME='$W/nohome'
     login_run oci-api-key; echo \"rc=\$? \$REG_ERR\""
   assert_output --partial "needs an API key"
 }
@@ -193,28 +193,28 @@ oci-instance-principal"
 }
 
 @test "tool_names_no_application (S45, R1)" {
-  run grep -rniE 'tile[ -]?lite|dark[ -]?portal|oracle|ocid|oci\.oraclecloud|tenancy-' "$DELIVER_SRC"
+  run grep -rniE 'tile[ -]?lite|dark[ -]?portal|oracle|ocid|oci\.oraclecloud|tenancy-' "$TURPIN_SRC"
   assert_failure 1
 }
 
 @test "registry_address_never_comes_from_the_profile (S45, R2)" {
-  rm "$HOME/.config/deliver/acme.env"
+  rm "$HOME/.config/turpin/acme.env"
   sed -i 's|^candidates = .*|&\nregistry = "reg.test/ns"|' "$W/work/app-profile.toml"
   commit_change one
   run d build "$SHA"
   assert_failure 1
-  assert_output --partial "DELIVER_REGISTRY is not set"
+  assert_output --partial "TURPIN_REGISTRY is not set"
   assert_output --partial "the profile never holds it"
 }
 
 @test "a second dummy application drives build, deploy and release (S45, R1)" {
   # another application: other names, other images, other registry repositories
   sed -i '/^src = /!s/acme/widget/g; s/"server", "web"/"api", "ui"/; s/payload_image = "server"/payload_image = "api"/' "$W/work/app-profile.toml"
-  mv "$HOME/.config/deliver/acme.env" "$HOME/.config/deliver/widget.env"
-  mv "$HOME/.config/deliver/auth/acme" "$HOME/.config/deliver/auth/widget"
+  mv "$HOME/.config/turpin/acme.env" "$HOME/.config/turpin/widget.env"
+  mv "$HOME/.config/turpin/auth/acme" "$HOME/.config/turpin/auth/widget"
   local h
-  for h in rehearsal prod local; do mv "$W/hosts/$h/var/lib/deliver/acme" "$W/hosts/$h/var/lib/deliver/widget"; done
-  export DELIVER_GH_REPO=widget/widget
+  for h in rehearsal prod local; do mv "$W/hosts/$h/var/lib/turpin/acme" "$W/hosts/$h/var/lib/turpin/widget"; done
+  export TURPIN_GH_REPO=widget/widget
   local e; for e in preview rehearsal production; do run d host-install "$e"; assert_success; done
   ref_commit "a feature" 12
   run d build "$SHA"
@@ -224,7 +224,7 @@ oci-instance-principal"
   [ -f "$W/registry/reg.test/ns/widget/candidates/tags/$SHA-api" ]
   run d deploy rehearsal "$SHA" --off-level first
   assert_success
-  [ -L "$W/hosts/rehearsal/var/lib/deliver/widget/rehearsal/current" ]
+  [ -L "$W/hosts/rehearsal/var/lib/turpin/widget/rehearsal/current" ]
   gh_fixture "repos_widget_widget_commits_${SHA}_check-runs" '{"check_runs":[{"name":"e2e","conclusion":"success"}]}'
   jq -nc '[{number:12,title:"issue 12",state:"open",type:{name:"Requirement"},milestone:{title:"0.10.2"},
     sub_issues_summary:{total:0},issue_dependencies_summary:{},labels:[]}]' > "$W/gh/fix/repos_widget_widget_issues.json"

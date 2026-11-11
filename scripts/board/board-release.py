@@ -8,7 +8,7 @@
     board-release.py publish TAG [--notes-start-tag PREV]
                        [--retrospective REASON --version V --commit SHA]
 
-Run by `deliver` (delphside/programme#117) in the application's checkout, which is
+Run by `turpin` (delphside/programme#117) in the application's checkout, which is
 where git is read. JSON in on standard input, JSON out on standard output. Exit:
 
     0   passed, or done
@@ -16,7 +16,7 @@ where git is read. JSON in on standard input, JSON out on standard output. Exit:
     3   some of it is done and some is left (`settle`, `next`, `publish`): named
     70  a profile error or a crash, which no caller reads as an answer
 
-The repository is `DELIVER_GH_REPO` or the origin URL's; the rules are the board
+The repository is `TURPIN_GH_REPO` or the origin URL's; the rules are the board
 model's (`release.py`, `milestone.py`, `repo.py`) and every GitHub call is
 `sources.py`'s, over GraphQL where the token allows it and REST where it is
 refused. A read that cannot be made refuses; it is never read as empty.
@@ -48,9 +48,9 @@ def _out(data: dict) -> None:
 def _environment() -> None:
     """The repository GitHub calls go to, and the programme file `set_field` reads
     the organisation from (this tool's own, where none is named)."""
-    slug = os.environ.get("DELIVER_GH_REPO") or repo.origin_slug()
+    slug = os.environ.get("TURPIN_GH_REPO") or repo.origin_slug()
     if not slug:
-        raise Unavailable("cannot tell the GitHub repository (set DELIVER_GH_REPO=owner/name)")
+        raise Unavailable("cannot tell the GitHub repository (set TURPIN_GH_REPO=owner/name)")
     os.environ[profile.ENV_REPOSITORY] = slug
     if not os.environ.get(profile.ENV_CONFIG):
         own = Path(__file__).resolve().parents[2] / "config" / "programme.toml"

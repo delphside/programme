@@ -7,12 +7,14 @@ is the first use of
 entity/event matrix and entity life history, tried here before the rule is
 written into docs/1.2.
 
-The entities and events come from [`71-design.md`](71-design.md),
-[`71-data-model.md`](71-data-model.md) §1, §3, §5 and §8, and the journeys and
-lifecycles in [`71-functional.md`](71-functional.md). This file adds no design
-of its own except where the design gave no answer: each of those is a numbered
-gap under [*Gaps the matrix found*](#gaps-the-matrix-found), with its proposed
-answer, and the design documents change once it is agreed.
+The entities and events come from [`71-02-overview.md`](71-02-overview.md),
+[`71-03-version.md`](71-03-version.md), [`71-04-seats.md`](71-04-seats.md),
+[`71-05-wire.md`](71-05-wire.md), [`71-08-storage.md`](71-08-storage.md) and
+[`71-06-engine.md`](71-06-engine.md), and the journeys and lifecycles in
+[`71-functional.md`](71-functional.md). This file adds no design of its own
+except where the design gave no answer: each of those is a numbered gap under
+[*Gaps the matrix found*](#gaps-the-matrix-found), with its proposed answer, and
+the design documents change once it is agreed.
 
 Issue numbers are Tile Lite Elite's unless written otherwise. WP A's one-off
 migration, which deletes every game and rekeys the ratings, is not an event in
@@ -22,25 +24,25 @@ the life of any entity here and is left out.
 
 | entity | kind | one per | where it is defined |
 | --- | --- | --- | --- |
-| Game | stored | game | `GameSession`, data model §1 |
-| Seat | stored | seat of a game | `Seat`, data model §1 |
-| Invitation | stored | invited seat | `Invitation`; `game_invitations`, data model §5 |
-| Log row | stored | applied change | `game_events`, design *Open questions* (D61) |
-| Rating | stored | account and edition | D58; `rating_history`, data model §5 |
-| Game entry | runtime | game in memory | the games map, its per-game lock and the `unsaved` flag, design *One version, moved in one place* and data model §1 (D69, D70) |
-| Game watch | runtime | game with a subscriber | Event stream registry, data model §8 |
-| Seat-list watch | runtime | account | data model §8 |
-| Subscription | runtime | call of `updates_for` | data model §8 |
-| WebSocket task | runtime | open socket | data model §8 |
-| Bot task | runtime | listed bot | data model §8 |
-| Bot object | runtime | seat a listed bot holds | `Bot<InProcessLink>`, with its `EnginePlayer`, data model §8 |
-| Search permit | runtime | search or hint running | `engine_limit`, data model §8 (D62) |
+| Game | stored | game | `GameSession`, [`71-03-version.md`](71-03-version.md#the-session) |
+| Seat | stored | seat of a game | `Seat`, [`71-04-seats.md`](71-04-seats.md#the-seat) |
+| Invitation | stored | invited seat | `Invitation`; `game_invitations`, [`71-08-storage.md`](71-08-storage.md#database) |
+| Log row | stored | applied change | `game_events`, [*Open questions*](71-09-open-questions.md#open-questions) (D61) |
+| Rating | stored | account and edition | D58; `rating_history`, [`71-08-storage.md`](71-08-storage.md#database) |
+| Game entry | runtime | game in memory | the games map, its per-game lock and the `unsaved` flag, [*One version, moved in one place*](71-03-version.md#one-version-moved-in-one-place) and [*The one handler*](71-03-version.md#the-one-handler) (D69, D70) |
+| Game watch | runtime | game with a subscriber | Event stream registry, [The engine](71-06-engine.md#the-engine) |
+| Seat-list watch | runtime | account | [The engine](71-06-engine.md#the-engine) |
+| Subscription | runtime | call of `updates_for` | [The engine](71-06-engine.md#the-engine) |
+| WebSocket task | runtime | open socket | [The engine](71-06-engine.md#the-engine) |
+| Bot task | runtime | listed bot | [The engine](71-06-engine.md#the-engine) |
+| Bot object | runtime | seat a listed bot holds | `Bot<InProcessLink>`, with its `EnginePlayer`, [The engine](71-06-engine.md#the-engine) |
+| Search permit | runtime | search or hint running | `engine_limit`, [The engine](71-06-engine.md#the-engine) (D62) |
 
 ## The events
 
 | id | event | from |
 | --- | --- | --- |
-| E1 | the server starts | data model §8 |
+| E1 | the server starts | [The engine](71-06-engine.md#the-engine) |
 | E2 | the server stops | — |
 | E3 | a game is created, with its seats | U2.1 |
 | E4 | a seat is added: a bot's `Claimed`, any other `Invited` | U2.2 |
@@ -61,12 +63,12 @@ the life of any entity here and is left out.
 | E19 | a player hides the game from their list | U5.2 |
 | E20 | a reminder is sent | U4.6 |
 | E21 | the game is deleted: RET-1, RET-3 or `admin_delete_game` | U6.3, U6.4 |
-| E22 | a game message is refused | data model §1 |
+| E22 | a game message is refused | [The one handler](71-03-version.md#the-one-handler) |
 | E23 | a save fails and the game is reloaded | D69 |
-| E24 | a WebSocket opens on a game | data model §8 |
-| E25 | a WebSocket closes | data model §8 |
-| E26 | a receiver falls behind | data model §8 |
-| E27 | a bot's search ends: a move, a failure or the search time limit | data model §8 |
+| E24 | a WebSocket opens on a game | [The engine](71-06-engine.md#the-engine) |
+| E25 | a WebSocket closes | [The engine](71-06-engine.md#the-engine) |
+| E26 | a receiver falls behind | [The engine](71-06-engine.md#the-engine) |
+| E27 | a bot's search ends: a move, a failure or the search time limit | [The engine](71-06-engine.md#the-engine) |
 | E28 | an account is deleted | U6.2 |
 
 ## The matrix
@@ -132,7 +134,7 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 | E19 | U | — (nothing published) | — | — | — | — | — | — |
 | E20 | U | — (nothing published) | — | — | — | — | — | — |
 | E21 | D | D, its receivers closed | U, each seated account's | U, yields `GameRemoved`, leaves | U, sends `GameRemoved`, then D | — | D | — |
-| E22 | — | — | — | — | — | — | — (re-validated on arrival, §8) | — |
+| E22 | — | — | — | — | — | — | — (re-validated on arrival, [the engine](71-06-engine.md#the-engine)) | — |
 | E23 | U, `unsaved` cleared by the reload | — (nothing published) | — | — | — | — | **G6**, when the bot sent it | — |
 | E24 | R | C, if it is the first | — | C, one game: its view, then each change | C | — | — | — |
 | E25 | — | D, if it was the last | — | D | D | — | — | — |
@@ -140,8 +142,8 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 | E27 | — | — | — | — | — | — | U, submits or stays on turn | C before the search, D when the engine returns |
 | E28 | — | — | D | — | — | **G4** | — | — |
 
-The Seat-list watch column shows G3's proposed answer, which differs from §8
-in when a watch exists.
+The Seat-list watch column shows G3's proposed answer, which differs from
+[the engine](71-06-engine.md#the-engine) in when a watch exists.
 
 Every change that moves the version also sets and clears the Game entry's
 `unsaved` flag under its lock; that is the Game entry's U in E3 to E18. E19
@@ -177,8 +179,8 @@ stateDiagram-v2
 | Searching | — (the search goes on) | — (the search goes on) | → Submitted | → Waiting | impossible | impossible | **G2** | → ended, the search abandoned |
 | Submitted | — | — | impossible | impossible | → Waiting | → Waiting, **G6** | **G2** | → ended |
 
-A move from a search the game has overtaken is refused on arrival (§8), so a
-newer view does not stop a search.
+A move from a search the game has overtaken is refused on arrival
+([the engine](71-06-engine.md#the-engine)), so a newer view does not stop a search.
 
 ### Subscription
 
@@ -255,15 +257,16 @@ live until the game is deleted, up to seven days later (RET-1). Proposed: the
 glue drops a seat's object when a view shows its game `Finished` or `Aborted`,
 and makes none for such a game's seats in `Seats`.
 
-**G3.** §8 gives every account a seat-list watch, written by `publish` and by
-deleting a game, and drops a seat when it is removed or its game deleted. It
-does not say whether an `Invited` seat is in its addressee's list, nor which
-accounts a change writes. Proposed: a seat is in an account's list while that
-account is its player, or for an `Invited` seat its addressee, in any state, so
-E5 adds the seat to the addressee's list; `publish` writes the list of each
-account whose set of `SeatRef`s the change altered. This also changes §8 on one
-point: a watch exists while it has a subscriber and is built from the stored
-seats when the first subscribes, rather than for every account.
+**G3.** [The engine](71-06-engine.md#the-engine) gives every account a seat-list
+watch, written by `publish` and by deleting a game, and drops a seat when it is
+removed or its game deleted. It does not say whether an `Invited` seat is in its
+addressee's list, nor which accounts a change writes. Proposed: a seat is in an
+account's list while that account is its player, or for an `Invited` seat its
+addressee, in any state, so E5 adds the seat to the addressee's list; `publish`
+writes the list of each account whose set of `SeatRef`s the change altered. This
+also changes [the engine](71-06-engine.md#the-engine) on one point: a watch
+exists while it has a subscriber and is built from the stored seats when the
+first subscribes, rather than for every account.
 
 **G4.** Two questions:
 
@@ -278,10 +281,11 @@ seats when the first subscribes, rather than for every account.
 
 **G5.** The design logs every applied message, chat and hide included, in
 `game_events (game_id, version, …)`, but `Hide` and `ReminderSent` save without
-moving the version, so their rows would repeat a key. (Data model §1's counter
-table also has a hidden seat moving the version, against the design; that row is
-corrected with this gap.) Proposed: the log gains its own sequence,
-`(game_id, seq)`, with `version` as a column.
+moving the version, so their rows would repeat a key.
+([The session](71-03-version.md#the-session)'s counter table also has a hidden seat
+moving the version, against the design; that row is corrected with this gap.)
+Proposed: the log gains its own sequence, `(game_id, seq)`, with `version` as a
+column.
 
 **G6.** A bot hears it is on turn only from a publish. A refused move is either
 overtaken, and that move's publish follows, or illegal, and the design already
@@ -305,7 +309,9 @@ Two answers are worth reading once:
 
 ## What follows from it
 
-Once G1 to G7 are answered, the answers go into `71-data-model.md` §1, §3 and
-§8, `71-design.md`'s *Open questions*, and acceptance boxes in
-[`71-test-wp-a.md`](71-test-wp-a.md), one per gap. #542's rule then takes this
-file's shape as its template.
+Once G1 to G7 are answered, the answers go into
+[`71-03-version.md`](71-03-version.md), [`71-05-wire.md`](71-05-wire.md) and
+[`71-06-engine.md`](71-06-engine.md),
+[`71-09-open-questions.md`](71-09-open-questions.md)'s *Open questions*, and
+acceptance boxes in [`71-test-wp-a.md`](71-test-wp-a.md), one per gap. #542's
+rule then takes this file's shape as its template.

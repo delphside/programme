@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# steps.sh: the host-side steps of a deploy and a rollback (design §9). Sourced
-# by `deploy` and `rollback`, which `deliver-host` starts from the payload taken
+# steps.sh: the host-side steps of a deploy and a rollback (design §11). Sourced
+# by `deploy` and `rollback`, which `turpin-host` starts from the payload taken
 # out of the image, with the environment's lock already held. Names no
 # application: the profile (profile.json in the payload) and the hooks say.
 
 host_ctx_load() {   # reads the request and the payload's profile into shell variables
-  REQ="$DELIVER_REQUEST"
+  REQ="$TURPIN_REQUEST"
   H_APP="$(jq -r .app "$REQ")"; H_ENV="$(jq -r .env "$REQ")"; H_ROLE="$(jq -r .role "$REQ")"
   H_SHA="$(jq -r '.sha // ""' "$REQ")"; H_VERSION="$(jq -r '.version // ""' "$REQ")"
   H_STATE="$ENVDIR"
@@ -13,7 +13,7 @@ host_ctx_load() {   # reads the request and the payload's profile into shell var
   if [[ "$(jq -r '.local' "$REQ")" == true ]]; then
     H_IMAGES="$(jq -r '(.images // {}) | to_entries[] | "\(.key)=\(.value)"' "$REQ")"
   else
-    H_IMAGES="$(jq -r --arg r "$DELIVER_REGISTRY/$(jq -r '.repo // ""' "$REQ")" '(.images // {}) | to_entries[] | "\(.key)=\($r)@\(.value)"' "$REQ")"
+    H_IMAGES="$(jq -r --arg r "$TURPIN_REGISTRY/$(jq -r '.repo // ""' "$REQ")" '(.images // {}) | to_entries[] | "\(.key)=\($r)@\(.value)"' "$REQ")"
   fi
   PROJECT="$(jq -r '.project // empty' "$REQ")"; PROJECT="${PROJECT:-$H_APP-$H_ENV}"
   PJSON="$PAYLOAD/profile.json"
@@ -26,7 +26,7 @@ host_ctx_load() {   # reads the request and the payload's profile into shell var
     true) HOST_FILES=1 ;; false) HOST_FILES=0 ;;
     *) case "$H_ROLE" in rehearsal|production) HOST_FILES=1 ;; *) HOST_FILES=0 ;; esac ;;
   esac
-  FALLBACK="$(jq -r '.deliver.fallback // "the application has named no fallback"' "$PJSON")"
+  FALLBACK="$(jq -r '.turpin.fallback // "the application has named no fallback"' "$PJSON")"
 }
 
 state_read()  { head -1 "$ENVDIR/state" 2>/dev/null || true; }
@@ -51,7 +51,7 @@ compose_args() {  # N -> prints the base arguments for the deploy folder, NUL se
   local dir; dir="$(deploy_dir "$1")"
   local args=(compose -p "$PROJECT" --project-directory "$dir")
   [[ -f "$ENVDIR/.env" ]] && args+=(--env-file "$ENVDIR/.env")
-  args+=(--env-file "$dir/deliver.env")
+  args+=(--env-file "$dir/turpin.env")
   local f
   while read -r f; do
     case "$f" in *.yml|*.yaml) args+=(-f "$dir/$f") ;; esac
@@ -87,7 +87,7 @@ verify_running() {   # N: every digest of the deploy is what runs
 # ------------------------------------------------------------------ host files
 
 root_ops() {   # ARGS...: through the one sudo rule, unless already root
-  if [[ "$(id -u)" -eq 0 ]]; then deliver-host root-ops "$@"; else sudo -n deliver-host root-ops "$@"; fi
+  if [[ "$(id -u)" -eq 0 ]]; then turpin-host root-ops "$@"; else sudo -n turpin-host root-ops "$@"; fi
 }
 
 # install_set DIR: make the host's installed files exactly DIR's payload set.
@@ -99,7 +99,7 @@ install_set() {
     [[ -n "$src" ]] || continue
     root_ops install "$payload/host_files/$src" "$dest" "${mode:-0644}" || return 1
     printf '%s\t%s\n' "$dest" "$enable" >> "$new"; changed=1
-  done < <(jq -r '(.deliver.host_files // [])[] | [.src, .dest, (.mode // "0644"), ((.enable // false) | tostring)] | @tsv' "$pj")
+  done < <(jq -r '(.turpin.host_files // [])[] | [.src, .dest, (.mode // "0644"), ((.enable // false) | tostring)] | @tsv' "$pj")
   # a file the previous set installed and this one does not carry is removed
   if [[ -f "$listed" ]]; then
     while IFS=$'\t' read -r dest enable; do
@@ -129,7 +129,7 @@ install_set() {
 # be the empty string (a first deploy: nothing to go back to). Returns 1 when the
 # restore itself failed (restore-state, the host files or bringing the previous
 # containers up): the state is then left interrupted, so nothing deploys over it
-# until `deliver rollback` or a person has put it right, and the failed deploy's
+# until `turpin rollback` or a person has put it right, and the failed deploy's
 # folder is kept for that.
 restore_to() {
   local good="$1" failed="$2" prevprev="$3" bad=0
@@ -158,13 +158,13 @@ restore_to() {
 prune_host_images() {
   local keep="" line repo digest id f state_root
   state_root="$(dirname "$(dirname "$ENVDIR")")"
-  for f in "$state_root"/*/*/current/deliver.env "$state_root"/*/*/previous/deliver.env; do
+  for f in "$state_root"/*/*/current/turpin.env "$state_root"/*/*/previous/turpin.env; do
     [[ -f "$f" ]] && keep+="$(sed -n 's/^[^=]*=.*@//p' "$f")"$'\n'
   done
   while read -r line; do
     [[ -n "$line" ]] || continue
     read -r repo digest id <<< "$line"
-    [[ "$repo" == "$DELIVER_REGISTRY/"* ]] || continue
+    [[ "$repo" == "$TURPIN_REGISTRY/"* ]] || continue
     grep -qxF "$digest" <<< "$keep" && continue
     docker rmi "${repo%:*}@$digest" >/dev/null 2>&1 || true
   done < <(docker image ls --digests --format '{{.Repository}}:{{.Tag}} {{.Digest}} {{.ID}}' 2>/dev/null)
@@ -172,7 +172,7 @@ prune_host_images() {
 }
 
 # prune_deploys: the deploy folders other than the current and previous (and the
-# one a failed restore keeps for `deliver rollback`) are removed.
+# one a failed restore keeps for `turpin rollback`) are removed.
 prune_deploys() {
   local d n cur prev keepn
   cur="$(link_n current || true)"; prev="$(link_n previous || true)"

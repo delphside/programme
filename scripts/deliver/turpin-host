@@ -1,46 +1,46 @@
 #!/usr/bin/env bash
-# deliver-host: the host command (design §4, §9). `deliver host-install ENV`
+# turpin-host: the host command (design §6, §11). `turpin host-install ENV`
 # installs it with its libraries. The controller calls it over ssh, or locally
 # where the environment's host is the controller:
 #
-#   deliver-host deploy APP ENV < request.json   pull by digest, take the payload
+#   turpin-host deploy APP ENV < request.json   pull by digest, take the payload
 #                                                out of the image, run its steps
-#   deliver-host rollback APP ENV < request.json
-#   deliver-host status APP ENV --json
-#   deliver-host env create|destroy NAME
-#   deliver-host copy APP < request.json   the release copier's work: copy images
+#   turpin-host rollback APP ENV < request.json
+#   turpin-host status APP ENV --json
+#   turpin-host env create|destroy NAME
+#   turpin-host copy APP < request.json   the release copier's work: copy images
 #                                           from candidates to releases by digest
 #                                           and push the record image
-#   deliver-host delete APP < request      the builder's work for prune: delete the
+#   turpin-host delete APP < request      the builder's work for prune: delete the
 #                                           candidates the controller chose
-#   deliver-host login APP COMPONENT [ENV] < user, token   the owner's one login
-#   deliver-host root-ops install|rm|systemctl|useradd|userdel ...
+#   turpin-host login APP COMPONENT [ENV] < user, token   the owner's one login
+#   turpin-host root-ops install|rm|systemctl|useradd|userdel ...
 #
 # It holds the environment's lock for the whole deploy or rollback (descriptor 9,
 # inherited by the payload's steps). State lives in
-# ${DELIVER_STATE_DIR:-/var/lib/deliver}/APP/ENV/ (design §9).
+# ${TURPIN_STATE_DIR:-/var/lib/turpin}/APP/ENV/ (design §11).
 #
-# DELIVER_HOST_ROOT prefixes every path this command touches. It is empty on a
+# TURPIN_HOST_ROOT prefixes every path this command touches. It is empty on a
 # real host; the tests point it at a scratch directory so a "host" can be a folder.
 
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -z "${DELIVER_LIB:-}" ]]; then
-  if [[ -f "$HERE/lib/common.sh" ]]; then DELIVER_LIB="$HERE/lib"; else DELIVER_LIB=/usr/local/lib/deliver; fi
+if [[ -z "${TURPIN_LIB:-}" ]]; then
+  if [[ -f "$HERE/lib/common.sh" ]]; then TURPIN_LIB="$HERE/lib"; else TURPIN_LIB=/usr/local/lib/turpin; fi
 fi
-export DELIVER_LIB
+export TURPIN_LIB
 # shellcheck source=lib/common.sh
-. "$DELIVER_LIB/common.sh"
+. "$TURPIN_LIB/common.sh"
 # shellcheck source=lib/registry.sh
-[[ -f "$DELIVER_LIB/registry.sh" ]] && . "$DELIVER_LIB/registry.sh"
+[[ -f "$TURPIN_LIB/registry.sh" ]] && . "$TURPIN_LIB/registry.sh"
 # shellcheck source=lib/toml.sh
-. "$DELIVER_LIB/toml.sh"
-DELIVER_CMD="deliver-host"
+. "$TURPIN_LIB/toml.sh"
+TURPIN_CMD="turpin-host"
 need_jq
 
 ROOT="$(host_root)"
-STATE_ROOT="$ROOT${DELIVER_STATE_DIR:-/var/lib/deliver}"
+STATE_ROOT="$ROOT${TURPIN_STATE_DIR:-/var/lib/turpin}"
 
 env_dir() { printf '%s/%s/%s' "$STATE_ROOT" "$1" "$2"; }
 
@@ -52,14 +52,14 @@ state_settled() {
 # the registry address of this machine: its own .env, else its environment
 host_registry() {
   local f="$1/.env" v="" k
-  [[ -f "$f" ]] && v="$(sed -n 's/^DELIVER_REGISTRY=//p' "$f" | head -1)"
-  DELIVER_REGISTRY="${v:-${DELIVER_REGISTRY:-}}"
-  [[ -n "$DELIVER_REGISTRY" ]] || die "DELIVER_REGISTRY is not set in $f or the environment"
-  export DELIVER_REGISTRY
+  [[ -f "$f" ]] && v="$(sed -n 's/^TURPIN_REGISTRY=//p' "$f" | head -1)"
+  TURPIN_REGISTRY="${v:-${TURPIN_REGISTRY:-}}"
+  [[ -n "$TURPIN_REGISTRY" ]] || die "TURPIN_REGISTRY is not set in $f or the environment"
+  export TURPIN_REGISTRY
   # the login adapter's settings, from the same file (design section 10): these
   # lines only, read as text and never sourced
   if [[ -f "$f" ]]; then
-    for k in DELIVER_OCI_TOKEN_CMD DELIVER_REGISTRY_USER OCI_CLI_AUTH OCI_CLI_KEY_FILE OCI_CLI_CONFIG_FILE; do
+    for k in TURPIN_OCI_TOKEN_CMD TURPIN_REGISTRY_USER OCI_CLI_AUTH OCI_CLI_KEY_FILE OCI_CLI_CONFIG_FILE; do
       v="$(sed -n "s/^$k=//p" "$f" | head -1)"; v="${v#\"}"; v="${v%\"}"
       [[ -z "$v" ]] || export "$k=$v"
     done
@@ -68,14 +68,14 @@ host_registry() {
 
 # take_lock ENVDIR LOCKFILE WAIT: the lock is descriptor 9, held to the end.
 take_lock() {
-  local lock="$2" wait="$3" waited=0 unit="${DELIVER_WAIT_UNIT:-60}"
+  local lock="$2" wait="$3" waited=0 unit="${TURPIN_WAIT_UNIT:-60}"
   mkdir -p "$(dirname "$lock")"
   exec 9>>"$lock"
-  DELIVER_WAIT_USED=0; export DELIVER_WAIT_USED
+  TURPIN_WAIT_USED=0; export TURPIN_WAIT_USED
   if flock -n 9; then gate_ok lock "free"; return 0; fi
   if [[ -z "$wait" ]]; then gate_fail lock "the lock $lock is held by another deploy or run"; fi
   while ! flock -w "$unit" 9; do
-    waited=$((waited + 1)); DELIVER_WAIT_USED=$waited
+    waited=$((waited + 1)); TURPIN_WAIT_USED=$waited
     if (( waited >= wait )); then gate_fail lock "still held after waiting $wait minute(s) for the lock $lock"; fi
   done
   gate_ok lock "free after waiting $waited minute(s)"
@@ -88,7 +88,7 @@ cmd_deploy() {
   HOST_TMP+=("$req"); trap 'host_cleanup $?' EXIT
   cat > "$req"
   jq -e . "$req" >/dev/null 2>&1 || die "the request is not JSON"
-  DELIVER_LOG_DIR="$envdir/log"; run_log_start "." deploy "$app" "$env" 2>/dev/null || true
+  TURPIN_LOG_DIR="$envdir/log"; run_log_start "." deploy "$app" "$env" 2>/dev/null || true
   trap 'host_cleanup $?' EXIT
   RUN_LOG="${RUN_LOG:-}"
   GATE_EMIT=1
@@ -102,12 +102,12 @@ cmd_deploy() {
   take_lock "$envdir" "$lock" "$wait"
 
   if ! state_settled "$envdir"; then
-    gate_fail state "the last deploy did not finish (state: $(state_line "$envdir")); run deliver rollback ENV to put the last good deploy back (a redeploy is refused until then)"
+    gate_fail state "the last deploy did not finish (state: $(state_line "$envdir")); run turpin rollback ENV to put the last good deploy back (a redeploy is refused until then)"
   fi
   gate_ok state "$(state_line "$envdir")"
 
   # every image by digest; the label must be the commit; then the payload
-  # the machine user's own docker login (design §10)
+  # the machine user's own docker login (design §3)
   REG_COMPONENT="$(jq -r '.login_component // empty' "$req")"; REG_COMPONENT="${REG_COMPONENT:-$env}"
   [[ -z "$login" ]] || login_run "$login" || gate_fail digests "registry login ($login) failed: $REG_ERR"
   local name digest ref labels rev
@@ -118,7 +118,7 @@ cmd_deploy() {
       rev="$(docker image inspect "$ref" --format '{{json .Config.Labels}}' 2>/dev/null | jq -r '.["org.opencontainers.image.revision"] // empty')" \
         || gate_fail digests "local image $name ($ref) is not there"
     else
-      ref="$DELIVER_REGISTRY/$repo@$digest"
+      ref="$TURPIN_REGISTRY/$repo@$digest"
       local pcode=0 perr
       perr="$(timeout "$timeout" docker pull -q "$ref" 2>&1 >/dev/null)" || pcode=$?
       if [[ $pcode -eq 124 ]]; then gate_fail digests "pulling $name took longer than pull_timeout ($timeout s)"; fi
@@ -134,14 +134,14 @@ cmd_deploy() {
   local pimg pref tmp cid
   pimg="$(jq -r --arg n "$payload" '.images[$n] // empty' "$req")"
   [[ -n "$pimg" ]] || die "the request names no image $payload to take the payload from"
-  if [[ "$local_build" == true ]]; then pref="$pimg"; else pref="$DELIVER_REGISTRY/$repo@$pimg"; fi
+  if [[ "$local_build" == true ]]; then pref="$pimg"; else pref="$TURPIN_REGISTRY/$repo@$pimg"; fi
   tmp="$(mktemp -d "$envdir/payload.XXXXXX")"; HOST_TMP+=("$tmp")
-  cid="$(docker create "$pref")" || die "cannot create a container from $payload to read /deliver/"
-  docker cp "$cid:/deliver/." "$tmp" >/dev/null || { docker rm "$cid" >/dev/null 2>&1; die "the image $payload has no /deliver/"; }
+  cid="$(docker create "$pref")" || die "cannot create a container from $payload to read /turpin/"
+  docker cp "$cid:/turpin/." "$tmp" >/dev/null || { docker rm "$cid" >/dev/null 2>&1; die "the image $payload has no /turpin/"; }
   docker rm "$cid" >/dev/null 2>&1
   [[ -x "$tmp/deploy" ]] || die "the payload has no deploy step"
 
-  export PAYLOAD_DIR="$tmp" DELIVER_REQUEST="$req" ENVDIR="$envdir" RUN_LOG GATE_EMIT
+  export PAYLOAD_DIR="$tmp" TURPIN_REQUEST="$req" ENVDIR="$envdir" RUN_LOG GATE_EMIT
   local code=0
   "$tmp/deploy" || code=$?
   [[ $code -eq 0 ]] || code=1
@@ -165,7 +165,7 @@ cmd_rollback() {
   envdir="$(env_dir "$app" "$env")"; mkdir -p "$envdir"
   req="$(mktemp "$envdir/request.XXXXXX")"; HOST_TMP+=("$req"); trap 'host_cleanup $?' EXIT
   cat > "$req"
-  DELIVER_LOG_DIR="$envdir/log"; run_log_start "." rollback "$app" "$env" 2>/dev/null || true
+  TURPIN_LOG_DIR="$envdir/log"; run_log_start "." rollback "$app" "$env" 2>/dev/null || true
   trap 'host_cleanup $?' EXIT
   GATE_EMIT=1
   host_registry "$envdir"
@@ -182,14 +182,14 @@ cmd_rollback() {
   if [[ -z "$payload" || ! -x "$payload/rollback" ]]; then
     gate_fail rollback-target "nothing is deployed here to roll back (no payload on disk); use the application's fallback"
   fi
-  export DELIVER_REQUEST="$req" ENVDIR="$envdir" RUN_LOG GATE_EMIT
+  export TURPIN_REQUEST="$req" ENVDIR="$envdir" RUN_LOG GATE_EMIT
   local code=0
   "$payload/rollback" || code=$?
   [[ $code -eq 0 ]] || code=1
   exit "$code"
 }
 
-# allowlist APP < lines: run by `deliver host-install` as root. It writes the application's
+# allowlist APP < lines: run by `turpin host-install` as root. It writes the application's
 # host_files.allow from the profile's lines (destination, source, mode, enable), and
 # keeps an entry the new list lacks for as long as the current or previous deploy of an
 # environment (with host files installed) still lists it, so a rollback or a restore across
@@ -213,7 +213,7 @@ cmd_allowlist() {
         meta="$(dirname "$(dirname "$pj")")/meta.json"
         [[ "$(jq -r '.host_files' "$meta" 2>/dev/null)" == true ]] || continue
         if jq -e --arg d "$dest" --arg s "$src" --arg m "$mode" \
-          'any((.deliver.host_files // [])[]; .dest == $d and .src == $s and (((.mode // "0644") | ltrimstr("0")) == ($m | ltrimstr("0"))))' "$pj" >/dev/null 2>&1; then
+          'any((.turpin.host_files // [])[]; .dest == $d and .src == $s and (((.mode // "0644") | ltrimstr("0")) == ($m | ltrimstr("0"))))' "$pj" >/dev/null 2>&1; then
           used=1; break
         fi
       done
@@ -242,9 +242,9 @@ cmd_copy() {
   local app="$1" req conf
   req="$(cat)"
   jq -e . >/dev/null 2>&1 <<< "$req" || die "the request is not JSON"
-  conf="${DELIVER_CONFIG_DIR:-$HOME/.config/deliver}/$app.env"
+  conf="${TURPIN_CONFIG_DIR:-$HOME/.config/turpin}/$app.env"
   if [[ -f "$conf" ]]; then set -a; . "$conf"; set +a; fi
-  [[ -n "${DELIVER_REGISTRY:-}" ]] || die "DELIVER_REGISTRY is not set for the release copier: put it in $conf"
+  [[ -n "${TURPIN_REGISTRY:-}" ]] || die "TURPIN_REGISTRY is not set for the release copier: put it in $conf"
   local login candidates releases digest dest have code
   login="$(jq -r '.login // empty' <<< "$req")"
   candidates="$(jq -r .candidates <<< "$req")"; releases="$(jq -r .releases <<< "$req")"
@@ -283,9 +283,9 @@ cmd_delete() {
   local app="$1" req conf
   req="$(cat)"
   jq -e . >/dev/null 2>&1 <<< "$req" || die "the request is not JSON"
-  conf="${DELIVER_CONFIG_DIR:-$HOME/.config/deliver}/$app.env"
+  conf="${TURPIN_CONFIG_DIR:-$HOME/.config/turpin}/$app.env"
   if [[ -f "$conf" ]]; then set -a; . "$conf"; set +a; fi
-  [[ -n "${DELIVER_REGISTRY:-}" ]] || die "DELIVER_REGISTRY is not set for the builder: put it in $conf"
+  [[ -n "${TURPIN_REGISTRY:-}" ]] || die "TURPIN_REGISTRY is not set for the builder: put it in $conf"
   local login candidates tag digest code have failed=0
   login="$(jq -r '.login // empty' <<< "$req")"
   candidates="$(jq -r '.candidates // empty' <<< "$req")"
@@ -316,11 +316,11 @@ cmd_delete() {
 cmd_login() {
   local app="$1" comp="$2" env="${3:-}" conf user token
   APP="$app"
-  conf="${DELIVER_CONFIG_DIR:-$HOME/.config/deliver}/$app.env"
+  conf="${TURPIN_CONFIG_DIR:-$HOME/.config/turpin}/$app.env"
   case "$comp" in
     controller|builder|copier)
       if [[ -f "$conf" ]]; then set -a; . "$conf"; set +a; fi
-      [[ -n "${DELIVER_REGISTRY:-}" ]] || die "DELIVER_REGISTRY is not set: put it in $conf"
+      [[ -n "${TURPIN_REGISTRY:-}" ]] || die "TURPIN_REGISTRY is not set: put it in $conf"
       auth_use "$(auth_file_of "$comp")" "$comp" ;;
     deployer)
       [[ -n "$env" ]] || die "login deployer needs the environment"
@@ -370,7 +370,7 @@ cmd_status() {
       elif ! cmp -s "$ROOT$dest" "$p/host_files/$src"; then have="differs"
       elif [[ "$(stat -c %a "$ROOT$dest")" != "${mode#0}" && "$(stat -c %a "$ROOT$dest")" != "$mode" ]]; then have="differs (mode)"; fi
       jq -nc --arg d "$dest" --arg s "$have" '{dest:$d,status:$s}'
-    done < <(jq -r '(.deliver.host_files // [])[] | [.src, .dest, (.mode // "0644")] | @tsv' "$p/profile.json") | jq -sc '.')"
+    done < <(jq -r '(.turpin.host_files // [])[] | [.src, .dest, (.mode // "0644")] | @tsv' "$p/profile.json") | jq -sc '.')"
   fi
   jq -nc --arg state "$state" --argjson cur "$curj" --argjson prev "$prevj" --argjson deploys "$deploys" \
     --argjson running "$running" --argjson files "$files" \
@@ -391,14 +391,14 @@ path_ok() { [[ "$1" == /* && "$1" != *..* ]]; }
 
 # root-ops: the one thing the sudo rule lets this command do as root, and it does
 # less than the rule's wildcard allows. What it may do is decided by files only
-# root writes, under ${ROOT}/etc/deliver/APP/ (root:root, written by
-# `deliver host-install` from the profile at install time, and by root-ops itself):
+# root writes, under ${ROOT}/etc/turpin/APP/ (root:root, written by
+# `turpin host-install` from the profile at install time, and by root-ops itself):
 #   host_files.allow  the destinations a host file may be installed at
 #   ephemeral.prefix  the user_prefix of the ephemeral environments' users
 #   installed         what root-ops has installed, so only that can be removed
 # Nothing under the state folder, which the deploy user writes, is trusted: not a
 # payload's profile, not the lists a deploy keeps there.
-ALLOW_ROOT="$ROOT/etc/deliver"
+ALLOW_ROOT="$ROOT/etc/turpin"
 allow_app_of() {   # a path under the state folder -> the application it belongs to
   local rel="${1#"$STATE_ROOT"/}"; printf '%s' "${rel%%/*}"
 }
@@ -460,7 +460,7 @@ cmd_root_ops() {
       app="$(allow_app_of "$src")"
       [[ ! -L "$src" && -f "$src" ]] || die "root-ops: the source is not a regular file"
       rel="${src#*/payload/host_files/}"
-      host_file_entry "$app" "$dest" "$rel" "$want_mode" || die "root-ops: $dest with source $rel and mode ${want_mode:-?} is not on the host's allowlist for $app: rerun deliver host-install after changing the profile's host_files"
+      host_file_entry "$app" "$dest" "$rel" "$want_mode" || die "root-ops: $dest with source $rel and mode ${want_mode:-?} is not on the host's allowlist for $app: rerun turpin host-install after changing the profile's host_files"
       # a regular file, not a link, resolved under this application's own deploy folders and
       # the one file this destination is listed for
       [[ ! -L "$src" && -f "$src" ]] || die "root-ops: the source is not a regular file"
@@ -495,27 +495,27 @@ cmd_root_ops() {
 # ------------------------------------------------------------------ env create / destroy
 
 ephemeral_payload() {   # APP -> the newest payload folder of any environment
-  if [[ -n "${DELIVER_PAYLOAD:-}" ]]; then printf '%s' "$DELIVER_PAYLOAD"; return; fi
+  if [[ -n "${TURPIN_PAYLOAD:-}" ]]; then printf '%s' "$TURPIN_PAYLOAD"; return; fi
   local p; p="$(ls -1dt "$STATE_ROOT/$1"/*/deploys/*/payload 2>/dev/null | head -1)"
   printf '%s' "$p"
 }
 
-root_via_sudo() { if [[ "$(id -u)" -eq 0 ]]; then cmd_root_ops "$@"; else sudo -n deliver-host root-ops "$@"; fi; }
+root_via_sudo() { if [[ "$(id -u)" -eq 0 ]]; then cmd_root_ops "$@"; else sudo -n turpin-host root-ops "$@"; fi; }
 
 cmd_env() {
   local op="${1:-}" name="${2:-}"
-  [[ -n "$op" && -n "$name" ]] || die "usage: deliver-host env create|destroy NAME"
+  [[ -n "$op" && -n "$name" ]] || die "usage: turpin-host env create|destroy NAME"
   [[ "$name" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "environment names are lower case letters, digits and dashes"
-  local prof="${DELIVER_PROFILE:-}"
-  [[ -f "$prof" ]] || die "DELIVER_PROFILE must name the application's profile (app-profile.toml or the payload's profile.json)"
+  local prof="${TURPIN_PROFILE:-}"
+  [[ -f "$prof" ]] || die "TURPIN_PROFILE must name the application's profile (app-profile.toml or the payload's profile.json)"
   local pj; if [[ "$prof" == *.json ]]; then pj="$(cat "$prof")"; else pj="$(toml_to_json "$prof")"; fi
   local app prefix home project envdir user
   app="$(jq -r '.application // empty' <<< "$pj")"
-  prefix="$(jq -r '.deliver.ephemeral.user_prefix // empty' <<< "$pj")"
-  home="$(jq -r '.deliver.ephemeral.home // empty' <<< "$pj")"
-  [[ -n "$app" && -n "$prefix" && -n "$home" ]] || die "the profile needs application and [deliver.ephemeral] user_prefix and home"
+  prefix="$(jq -r '.turpin.ephemeral.user_prefix // empty' <<< "$pj")"
+  home="$(jq -r '.turpin.ephemeral.home // empty' <<< "$pj")"
+  [[ -n "$app" && -n "$prefix" && -n "$home" ]] || die "the profile needs application and [turpin.ephemeral] user_prefix and home"
   user="$prefix$name"; project="$app-$name"; envdir="$(env_dir "$app" "$name")"
-  DELIVER_LOG_DIR="$STATE_ROOT/$app/log"; run_log_start "$app" "env-$op" "$name" 2>/dev/null || true
+  TURPIN_LOG_DIR="$STATE_ROOT/$app/log"; run_log_start "$app" "env-$op" "$name" 2>/dev/null || true
   local payload; payload="$(ephemeral_payload "$app")"
   HOOKS_DIR="$payload/hooks"; REQUIRED_HOOKS=""
   H_APP="$app"; H_ENV="$name"; H_ROLE="ephemeral"; H_SHA=""; H_VERSION=""; H_STATE="$envdir"; H_IMAGES=""
@@ -527,14 +527,14 @@ cmd_env() {
       ( umask 077
         {
           printf 'COMPOSE_PROJECT_NAME=%s\n' "$project"
-          [[ -z "${DELIVER_REGISTRY:-}" ]] || printf 'DELIVER_REGISTRY=%s\n' "$DELIVER_REGISTRY"
+          [[ -z "${TURPIN_REGISTRY:-}" ]] || printf 'TURPIN_REGISTRY=%s\n' "$TURPIN_REGISTRY"
           local s v
           while read -r s <&3; do
             [[ -n "$s" ]] || continue
             printf '%s: ' "$s" >&2
             IFS= read -rs v || true; printf '\n' >&2
             printf '%s=%s\n' "$s" "$v"
-          done 3< <(jq -r '(.deliver.ephemeral.secrets // [])[]' <<< "$pj")
+          done 3< <(jq -r '(.turpin.ephemeral.secrets // [])[]' <<< "$pj")
         } > "$envdir/.env" )
       chmod 600 "$envdir/.env"
       hook_step env-create || die "the env-create hook failed"
@@ -546,23 +546,23 @@ cmd_env() {
       drop_tmp "$envdir"
       root_via_sudo userdel "$user" "$app" || warn "cannot remove the user $user"
       say "environment $name destroyed" ;;
-    *) die "usage: deliver-host env create|destroy NAME" ;;
+    *) die "usage: turpin-host env create|destroy NAME" ;;
   esac
 }
 
 main() {
   local sub="${1:-}"; shift || true
   case "$sub" in
-    deploy) [[ $# -ge 2 ]] || die "usage: deliver-host deploy APP ENV < request"; cmd_deploy "$@" ;;
-    rollback) [[ $# -ge 2 ]] || die "usage: deliver-host rollback APP ENV < request"; cmd_rollback "$@" ;;
-    status) [[ $# -ge 2 ]] || die "usage: deliver-host status APP ENV --json"; cmd_status "$@" ;;
-    allowlist) [[ $# -ge 1 ]] || die "usage: deliver-host allowlist APP < lines"; cmd_allowlist "$@" ;;
-    delete) [[ $# -ge 1 ]] || die "usage: deliver-host delete APP < request"; cmd_delete "$@" ;;
-    login) [[ $# -ge 2 ]] || die "usage: deliver-host login APP COMPONENT [ENV] < user-and-token"; cmd_login "$@" ;;
-    copy) [[ $# -ge 1 ]] || die "usage: deliver-host copy APP < request"; cmd_copy "$@" ;;
+    deploy) [[ $# -ge 2 ]] || die "usage: turpin-host deploy APP ENV < request"; cmd_deploy "$@" ;;
+    rollback) [[ $# -ge 2 ]] || die "usage: turpin-host rollback APP ENV < request"; cmd_rollback "$@" ;;
+    status) [[ $# -ge 2 ]] || die "usage: turpin-host status APP ENV --json"; cmd_status "$@" ;;
+    allowlist) [[ $# -ge 1 ]] || die "usage: turpin-host allowlist APP < lines"; cmd_allowlist "$@" ;;
+    delete) [[ $# -ge 1 ]] || die "usage: turpin-host delete APP < request"; cmd_delete "$@" ;;
+    login) [[ $# -ge 2 ]] || die "usage: turpin-host login APP COMPONENT [ENV] < user-and-token"; cmd_login "$@" ;;
+    copy) [[ $# -ge 1 ]] || die "usage: turpin-host copy APP < request"; cmd_copy "$@" ;;
     root-ops) cmd_root_ops "$@" ;;
     env) cmd_env "$@" ;;
-    *) die "usage: deliver-host deploy|rollback|status|copy|delete|login|allowlist|env|root-ops" ;;
+    *) die "usage: turpin-host deploy|rollback|status|copy|delete|login|allowlist|env|root-ops" ;;
   esac
 }
 main "$@"

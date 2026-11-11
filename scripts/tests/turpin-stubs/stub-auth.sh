@@ -26,7 +26,7 @@ stub_auth_role() {
     [[ -n "$f" && -f "$f" ]] || { echo none; return; }
     jq -r '[.auths[]?.auth][0] // "none"' "$f" 2>/dev/null || echo none
   else
-    local f="${DELIVER_HOST_ROOT:-${STUB_LOCAL_ROOT:?}}/.docker/login.json"
+    local f="${TURPIN_HOST_ROOT:-${STUB_LOCAL_ROOT:?}}/.docker/login.json"
     [[ -f "$f" ]] || { echo none; return; }
     jq -r '.role // "none"' "$f" 2>/dev/null || echo none
   fi

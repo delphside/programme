@@ -67,6 +67,7 @@ query($owner:String!, $repo:String!, $cursor:String) {
       pageInfo { hasNextPage endCursor }
       nodes {
         number title state body createdAt updatedAt headRefName
+        author { __typename }
         isDraft reviewDecision
         reviewRequests(first:1) { totalCount }
         milestone { title }
@@ -279,6 +280,7 @@ def _pr_to_raw(node: dict) -> RawIssue:
         updated_at=node.get("updatedAt"),
         closed_at=node.get("closedAt"),
         head_ref=node.get("headRefName"),
+        bot=(node.get("author") or {}).get("__typename") == "Bot",
     )
 
 
@@ -1115,7 +1117,8 @@ def _rest_pull_requests(rest: _Rest, owner: str, repo: str, pr_states: str) -> l
             labels=frozenset(label["name"] for label in p.get("labels") or []),
             created_at=p.get("created_at"), updated_at=p.get("updated_at"),
             closed_at=p.get("closed_at") or p.get("merged_at"),
-            head_ref=(p.get("head") or {}).get("ref")))
+            head_ref=(p.get("head") or {}).get("ref"),
+            bot=(p.get("user") or {}).get("type") == "Bot"))
     return out
 
 
@@ -1212,7 +1215,7 @@ def fetch(states: str = "OPEN", with_bodies: bool = True,
 # a release's reads and writes (moved from `scripts/deliver/lib/github.sh`)
 # --------------------------------------------------------------------------
 #
-# Every call `deliver` makes to GitHub is here, so the tool keeps no GitHub
+# Every call `turpin` makes to GitHub is here, so the tool keeps no GitHub
 # code and its tests stub the one command, `gh`. Reads take GraphQL where it is
 # allowed and REST where it is refused; a write is REST (the milestone, the
 # issue, the Release) except a field, which only GraphQL sets (`set_field`).

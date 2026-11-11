@@ -1,7 +1,7 @@
 """A release's range in git: which commits name which issue once reverts are
 counted, which release tags lie in it, and what a tag carries.
 
-From the rules (design §6 *The milestone gate*, §7 *The record*), against a real
+From the rules (design §9 *The milestone gate*, §10 *The record*), against a real
 history because the answer is git's:
 
   evidence   a commit a later commit in the range reverts, and the revert, name

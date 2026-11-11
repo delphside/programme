@@ -25,7 +25,7 @@ the seven headings and change its type.
 no work packages is a standalone project, which carries all seven and a
 `Route`.
 
-| heading | parent | work package |
+| Heading | Parent | Work package |
 | --- | --- | --- |
 | Requirements | **owns** | links |
 | Design | **owns** | links, adding only what is its own |
@@ -46,7 +46,7 @@ both:
 
 **Source requirements**: #nnn, #nnn.
 
-| | from | |
+| | From | |
 | --- | --- | --- |
 | R1 | #nnn | what must be true when this is done |
 
@@ -78,7 +78,7 @@ section is read.
 
 ## Deliveries
 
-| # | what it delivers | route | milestone | work package or steps |
+| # | What it delivers | Route | Milestone | Work package or steps |
 | --- | --- | --- | --- | --- |
 
 *Then one subsection per delivery: its artefacts as a table, a row per route,
@@ -87,7 +87,7 @@ per delivery, a table per subsection".*
 
 ### Delivery 1 — <what it delivers>
 
-| route | in this delivery | artefacts | branch | PR |
+| Route | In this delivery | Artefacts | Branch | PR |
 | --- | --- | --- | --- | --- |
 | **Production Release** | yes/no | | **always yes** | **always yes** |
 | **Application Tooling** | yes/no | | yes | yes |
@@ -101,25 +101,25 @@ per subsection").*
 
 ## Post-deployment checks against requirements
 
-| requirement | how the check is done | |
+| Requirement | How the check is done | |
 | --- | --- | --- |
 ```
 
 **The source requirements are listed as well as parented** (owner, 2026-09-08),
 separately from the requirements table, which may move on during scoping.
 
-| | is | changes when |
+| | Is | Changes when |
 | --- | --- | --- |
 | **Source requirements** | the issues this project took, by number | a requirement moves in or out. It matches the `Requirement` sub-issues exactly |
 | the **Requirements table** | R1…Rn, what must be true when this is done | scoping restructures them — two sources merge into one R, one splits into three, a source is dropped as out of scope |
 
-**The `from` column is not a substitute.** It says which source produced an R,
+**The `From` column is not a substitute.** It says which source produced an R,
 which is useful and which stops being complete the moment scoping merges or drops
 one. The source list is provenance and does not move; the table is the current
 statement of the work and does.
 
 **A decision is not a source requirement.** It routes work — it raises or adds
-requirements and is then closed — so it is named in the `from` column of the
+requirements and is then closed — so it is named in the `From` column of the
 rows it produced, never in the source list: nothing folds a decision.
 
 **A project raised directly says so** rather than leaving the line out — `none —
@@ -148,7 +148,7 @@ and takes no sub-project: the parent and the child would say the same thing.
 
 ## Naming
 
-| | form |
+| | Form |
 | --- | --- |
 | a parent | `#N MAIN PROJECT: <what it is>` |
 | a work package, alone in its delivery | `#N WP A Del 1 of 2: <what it delivers>` |

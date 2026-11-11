@@ -2,7 +2,7 @@
 
 **What #71's body does not say about how it reaches production.** The packages,
 their requirements and their deliveries are in #71's body, which the board
-reads; the design is in [`71-design.md`](71-design.md) and how it is proved is
+reads; the design is in [`71-02-overview.md`](71-02-overview.md) and how it is proved is
 in [`71-test-approach.md`](71-test-approach.md).
 
 ## Core ships as one release
@@ -26,6 +26,9 @@ later packages need, so the migration that deletes games and rewrites tables
 runs once, and #270, #271, #272 and #290 ship as ordinary releases with no
 schema change of their own. Each later package's design names its schema needs
 before #268's migration is written.
+
+**#582, WP G, ships alone ahead of 1.0.0**, as Application Tooling, with no
+release.
 
 **The later packages carry no milestone until each is scheduled**, and then take
 the normal route: a work-package branch off `main`, merged once tested.

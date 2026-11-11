@@ -8,7 +8,7 @@
 
 # toml_to_json FILE: prints the document as JSON.
 toml_to_json() {
-  awk -f "${DELIVER_LIB:-$(dirname "${BASH_SOURCE[0]}")}/toml.awk" "$1" | jq -Rsc '
+  awk -f "${TURPIN_LIB:-$(dirname "${BASH_SOURCE[0]}")}/toml.awk" "$1" | jq -Rsc '
     reduce (split("\n") | map(select(length > 0)) | .[]) as $line (
       {doc: {}, cur: []};
       ($line | split("\t")) as $f
