@@ -22,10 +22,9 @@ from typing import Iterable, Sequence
 LIMIT_BYTES = 25 * 1024
 
 
-# What the limit leaves out: what docs/1.4's `document-review` leaves out, since
-# that is where a restructure is proposed. A log or a report records a moment
-# and is never reworked; a test fixture is data; a change folder's documents
-# belong to their project, except its README and an activity's runbook.
+# What the limit leaves out: a log or a report records a moment and is never
+# reworked, and a test fixture is data. Change documents are measured, because
+# a project's design grows into the permanent design (owner, 2026-11-11).
 # Generated documents are the caller's to leave out, from the technical profile.
 _EXEMPT = (
     re.compile(r"(^|/)(tests?|fixtures?)/"),
@@ -36,17 +35,11 @@ _EXEMPT = (
     # The design map, drawn by design-map.py from the Structurizr sources.
     re.compile(r"(^|/)docs/\d+\.2\.0-design-map\.md$"),
 )
-_CHANGE_FOLDER = re.compile(r"^records/2\.5-changes/|(^|/)3\.\d+\.7-changes/")
 
 
 def exempt(path: str) -> bool:
     """Whether a document, by its path in its repository, is outside the limit."""
-    if any(p.search(path) for p in _EXEMPT):
-        return True
-    if _CHANGE_FOLDER.search(path):
-        name = path.rsplit("/", 1)[-1]
-        return not (name == "README.md" or "runbook" in name)
-    return False
+    return any(p.search(path) for p in _EXEMPT)
 
 
 @dataclass(frozen=True)
