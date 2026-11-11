@@ -2,7 +2,7 @@
 
 This file holds the client: the defect it shares with the server, how its
 composition is keyed, the three tile states, deriving against accumulating and
-where its state lives. It follows [`71-06-engine.md`](71-06-engine.md) and is
+where its state lives. It follows [`71-06b-engine-bots.md`](71-06b-engine-bots.md) and is
 followed by [`71-08-storage.md`](71-08-storage.md).
 
 ## The client has the same defect

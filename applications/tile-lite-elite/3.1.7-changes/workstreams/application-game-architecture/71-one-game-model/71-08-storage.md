@@ -114,10 +114,10 @@ survives the move to `(player_id, edition)`.
 | `app/games.rs` (1,030 lines) | the action handlers become thin: parse, build a `GameMessage`, call `apply`, publish. `run_engine_turns` and `MAX_ENGINE_TURNS_PER_TRIGGER` go |
 | `app/roster.rs` (391) | seat add/remove/swap become `GameMessage`s |
 | `app/invitations.rs` (442) | send/accept/decline become `GameMessage`s; the table write stays, the seat write moves into `apply` |
-| `app/events.rs` (105) | gains `publish(Applied)` — persist, publish, one place — and `updates_for`, the one redacted subscription, that a socket and the in-process glue both use; the channels and their rules are in [The engine](71-06-engine.md#the-engine) |
+| `app/events.rs` (105) | gains `publish(Applied)` — persist, publish, one place — and `updates_for`, the one redacted subscription, that a socket and the in-process glue both use; the channels and their rules are in [How the engine uses watch](71-06-engine.md#how-the-engine-uses-watch) |
 | `app/sweeps_game.rs` (301), `app/scheduler_jobs.rs` (297) | timeouts and reminders go through `apply` rather than writing rows, which is what makes them visible to clients. A scheduler job is a caller like any other |
-| `app/sweeps_capacity.rs` (81) | expiring a finished or aborted game deletes it rather than changing it, so it does not call `apply`; it goes through the Event stream ([The engine](71-06-engine.md#the-engine)) |
-| `app/admin.rs` (430) | force-resign and force-end become `GameMessage`s; `admin_delete_game` goes through the Event stream ([The engine](71-06-engine.md#the-engine)) |
+| `app/sweeps_capacity.rs` (81) | expiring a finished or aborted game deletes it rather than changing it, so it does not call `apply`; it goes through the Event stream ([How the engine uses watch](71-06-engine.md#how-the-engine-uses-watch)) |
+| `app/admin.rs` (430) | force-resign and force-end become `GameMessage`s; `admin_delete_game` goes through the Event stream ([How the engine uses watch](71-06-engine.md#how-the-engine-uses-watch)) |
 | `stats.rs`, `app/ratings.rs` | unchanged in substance; read `Applied.finished` instead of inspecting status transitions |
 | `crates/ui/src/app.rs` (5,522) | section 7 |
 | `crates/engine-core` | **unchanged.** The trait already takes a request and returns an action; what changes is who calls it |

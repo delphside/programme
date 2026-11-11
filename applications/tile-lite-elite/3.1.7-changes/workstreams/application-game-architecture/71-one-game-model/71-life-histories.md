@@ -30,19 +30,19 @@ the life of any entity here and is left out.
 | Log row | stored | applied change | `game_events`, [*Open questions*](71-09-open-questions.md#open-questions) (D61) |
 | Rating | stored | account and edition | D58; `rating_history`, [`71-08-storage.md`](71-08-storage.md#database) |
 | Game entry | runtime | game in memory | the games map, its per-game lock and the `unsaved` flag, [*One version, moved in one place*](71-03-version.md#one-version-moved-in-one-place) and [*The one handler*](71-03-version.md#the-one-handler) (D69, D70) |
-| Game watch | runtime | game with a subscriber | Event stream registry, [The engine](71-06-engine.md#the-engine) |
-| Seat-list watch | runtime | account | [The engine](71-06-engine.md#the-engine) |
-| Subscription | runtime | call of `updates_for` | [The engine](71-06-engine.md#the-engine) |
-| WebSocket task | runtime | open socket | [The engine](71-06-engine.md#the-engine) |
-| Bot task | runtime | listed bot | [The engine](71-06-engine.md#the-engine) |
-| Bot object | runtime | seat a listed bot holds | `Bot<InProcessLink>`, with its `EnginePlayer`, [The engine](71-06-engine.md#the-engine) |
-| Search permit | runtime | search or hint running | `engine_limit`, [The engine](71-06-engine.md#the-engine) (D62) |
+| Game watch | runtime | game with a subscriber | Event stream registry, [The engine](71-06b-engine-bots.md#the-engine) |
+| Seat-list watch | runtime | account | [The engine](71-06b-engine-bots.md#the-engine) |
+| Subscription | runtime | call of `updates_for` | [The engine](71-06b-engine-bots.md#the-engine) |
+| WebSocket task | runtime | open socket | [The engine](71-06b-engine-bots.md#the-engine) |
+| Bot task | runtime | listed bot | [The engine](71-06b-engine-bots.md#the-engine) |
+| Bot object | runtime | seat a listed bot holds | `Bot<InProcessLink>`, with its `EnginePlayer`, [The engine](71-06b-engine-bots.md#the-engine) |
+| Search permit | runtime | search or hint running | `engine_limit`, [The engine](71-06b-engine-bots.md#the-engine) (D62) |
 
 ## The events
 
 | id | event | from |
 | --- | --- | --- |
-| E1 | the server starts | [The engine](71-06-engine.md#the-engine) |
+| E1 | the server starts | [The engine](71-06b-engine-bots.md#the-engine) |
 | E2 | the server stops | — |
 | E3 | a game is created, with its seats | U2.1 |
 | E4 | a seat is added: a bot's `Claimed`, any other `Invited` | U2.2 |
@@ -65,10 +65,10 @@ the life of any entity here and is left out.
 | E21 | the game is deleted: RET-1, RET-3 or `admin_delete_game` | U6.3, U6.4 |
 | E22 | a game message is refused | [The one handler](71-03-version.md#the-one-handler) |
 | E23 | a save fails and the game is reloaded | D69 |
-| E24 | a WebSocket opens on a game | [The engine](71-06-engine.md#the-engine) |
-| E25 | a WebSocket closes | [The engine](71-06-engine.md#the-engine) |
-| E26 | a receiver falls behind | [The engine](71-06-engine.md#the-engine) |
-| E27 | a bot's search ends: a move, a failure or the search time limit | [The engine](71-06-engine.md#the-engine) |
+| E24 | a WebSocket opens on a game | [The engine](71-06b-engine-bots.md#the-engine) |
+| E25 | a WebSocket closes | [The engine](71-06b-engine-bots.md#the-engine) |
+| E26 | a receiver falls behind | [The engine](71-06b-engine-bots.md#the-engine) |
+| E27 | a bot's search ends: a move, a failure or the search time limit | [The engine](71-06b-engine-bots.md#the-engine) |
 | E28 | an account is deleted | U6.2 |
 
 ## The matrix
@@ -134,7 +134,7 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 | E19 | U | — (nothing published) | — | — | — | — | — | — |
 | E20 | U | — (nothing published) | — | — | — | — | — | — |
 | E21 | D | D, its receivers closed | U, each seated account's | U, yields `GameRemoved`, leaves | U, sends `GameRemoved`, then D | — | D | — |
-| E22 | — | — | — | — | — | — | — (re-validated on arrival, [the engine](71-06-engine.md#the-engine)) | — |
+| E22 | — | — | — | — | — | — | — (re-validated on arrival, [the engine](71-06b-engine-bots.md#the-engine)) | — |
 | E23 | U, `unsaved` cleared by the reload | — (nothing published) | — | — | — | — | **G6**, when the bot sent it | — |
 | E24 | R | C, if it is the first | — | C, one game: its view, then each change | C | — | — | — |
 | E25 | — | D, if it was the last | — | D | D | — | — | — |
@@ -143,7 +143,7 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 | E28 | — | — | D | — | — | **G4** | — | — |
 
 The Seat-list watch column shows G3's proposed answer, which differs from
-[the engine](71-06-engine.md#the-engine) in when a watch exists.
+[the engine](71-06b-engine-bots.md#the-engine) in when a watch exists.
 
 Every change that moves the version also sets and clears the Game entry's
 `unsaved` flag under its lock; that is the Game entry's U in E3 to E18. E19
@@ -180,7 +180,7 @@ stateDiagram-v2
 | Submitted | — | — | impossible | impossible | → Waiting | → Waiting, **G6** | **G2** | → ended |
 
 A move from a search the game has overtaken is refused on arrival
-([the engine](71-06-engine.md#the-engine)), so a newer view does not stop a search.
+([the engine](71-06b-engine-bots.md#the-engine)), so a newer view does not stop a search.
 
 ### Subscription
 
@@ -257,14 +257,14 @@ live until the game is deleted, up to seven days later (RET-1). Proposed: the
 glue drops a seat's object when a view shows its game `Finished` or `Aborted`,
 and makes none for such a game's seats in `Seats`.
 
-**G3.** [The engine](71-06-engine.md#the-engine) gives every account a seat-list
+**G3.** [The engine](71-06b-engine-bots.md#the-engine) gives every account a seat-list
 watch, written by `publish` and by deleting a game, and drops a seat when it is
 removed or its game deleted. It does not say whether an `Invited` seat is in its
 addressee's list, nor which accounts a change writes. Proposed: a seat is in an
 account's list while that account is its player, or for an `Invited` seat its
 addressee, in any state, so E5 adds the seat to the addressee's list; `publish`
 writes the list of each account whose set of `SeatRef`s the change altered. This
-also changes [the engine](71-06-engine.md#the-engine) on one point: a watch
+also changes [the engine](71-06b-engine-bots.md#the-engine) on one point: a watch
 exists while it has a subscriber and is built from the stored seats when the
 first subscribes, rather than for every account.
 
