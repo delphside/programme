@@ -185,13 +185,13 @@ and message — which is what makes it testable without a pool. The cost is that
 caller can forget to publish. Enforceable by making `Applied` `#[must_use]`,
 which is weaker than the type-level guarantee the server side otherwise gets.
 
-**What is the hint?** The design says every search and every hint takes an
-`engine_limit` permit ([the blocking pool](71-06-engine.md#how-the-engine-uses-the-blocking-pool)).
-Today `suggest_move` (`games.rs`) searches inline in the async handler under the
-games write lock, with no `spawn_blocking` and without the engine crate, and
-applies the best move for the seat on turn. Either it becomes a search that takes
-a permit and runs on the blocking pool, or the hint is something else and the
-permit has nothing to cover. Open, for the owner.
+**What is the hint?** Answered (owner, 2026-11-11): nothing uses
+`suggest_move` today. No client calls `POST /games/{game_id}/suggest`. A hint
+may be offered later, using it makes the game unrated, and it may come from a
+different engine from the one playing, possibly run in the client; that is
+[delphside/tile-lite-elite#585](https://github.com/delphside/tile-lite-elite/issues/585),
+outside #71. Until then #71 leaves `suggest_move` as it is, and a hint, once
+built, takes an `engine_limit` permit like any other search.
 
 **What paces the engine's moves?** `ENGINE_TURN_BROADCAST_DELAY` (`games.rs`)
 sleeps 120 ms between engine turns so that a person watching an engine game

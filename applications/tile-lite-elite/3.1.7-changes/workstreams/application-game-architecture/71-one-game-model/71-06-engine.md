@@ -403,10 +403,10 @@ The search is CPU-bound, so it runs through `spawn_blocking`, as today; the
 change is what bounds it, and what happens when it fails.
 
 - **How many searches run at once is bounded.** Once a search holds no lock, N
-  bot games on turn are N parallel searches, so every search and every hint
-  takes an `engine_limit` permit before it starts, for as long as the hint is
-  computed in the server
-  ([what the hint is](71-09-open-questions.md#open-questions-about-the-shapes)).
+  bot games on turn are N parallel searches, so every search takes an
+  `engine_limit` permit before it starts. A hint, which nothing offers today,
+  takes one too once it is built
+  ([the hint](71-09-open-questions.md#open-questions-about-the-shapes)).
   `engine_limit` is `TILE_LITE_ELITE_ENGINE_CONCURRENCY`, default 2, the VM's
   core count, and it replaces the lock's accident [^d62]. This is the pattern
   `with_hash_permit` in `app/auth.rs` already follows for password hashing.
