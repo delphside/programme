@@ -58,7 +58,7 @@ is what makes concurrent submissions from one client a non-question.
 
 `Engine Proxy` goes. An engine reaches the game as a client does. In the
 harness or on somebody's laptop it comes through the API. In the server it
-comes through the [glue](71-06-engine.md#the-engine), which joins under
+comes through the [glue](71-06b-engine-bots.md#the-engine), which joins under
 the Transport API at two calls, `updates_for` to hear and the Game service's
 submit function to act, so it sits below the rate limiter:
 
