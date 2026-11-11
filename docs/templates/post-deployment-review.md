@@ -1,9 +1,11 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
-**Where it goes:** [1.2](../1.2-change-lifecycle.md#the-parents-lifecycle-is-shorter).
-When the review is in the body, section 6 takes the title `## Lessons learnt`
-without its number, and the review's other headings sit one level below the
-body's.
+**Where it goes:**
+[1.2](../1.2-change-lifecycle.md#the-parents-lifecycle-is-shorter). When the
+review is in the body, section 6 takes the title `## Lessons learnt` without its
+number, and the review's other headings sit one level below the body's. When it
+is a file in the project's folder, it is named `<N>-post-deployment-review.md`,
+where `N` is the work package's issue number.
 
 The findings go to the next weekly digest as a note,
 and a finding that needs a change also takes a pre-approved change, a

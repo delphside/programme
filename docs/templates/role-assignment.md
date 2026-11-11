@@ -15,8 +15,8 @@ links to for its design authority.
 
 # 2.2 Programme role holders, or 3.n.5 *Application* role holders
 
-*Who holds the roles for the programme, or for the application that 2.2 does
-not hold them for. The roles are defined in 1.7; the form is this template.*
+*Who holds the roles for the programme, or for one application, where 2.2
+does not hold them. The roles are defined in 1.7; the form is this template.*
 
 ## Who holds each role here
 

@@ -19,8 +19,7 @@ workstream with no section. A boundary `####` section per neighbour, its
 heading saying where the line falls; leave it out where there is none.
 
 The table of generic workstreams with no instance stays, each with its reason;
-leave it out only where every generic workstream has one, and in
-records/2.6, which lists the programme's own.
+leave it out only where every generic workstream has one.
 -->
 
 # 3.n.4 *Application*'s workstreams

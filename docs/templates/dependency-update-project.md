@@ -30,7 +30,7 @@ row that needs a test this template lacks.
 
 | Requirement | From | Statement |
 | --- | --- | --- |
-| R1 | | Every update in the table reaches production in `X.Y.Z` without changing behaviour, except where a row says what a user will notice |
+| R1 | | Every update in the table reaches production in `X.Y.Z` without changing behaviour |
 | R2 | *advisory requirements, or "none"* | No finding of the application's advisory check that reaches the application remains in what `X.Y.Z` ships |
 
 | Update | Why | Pull request | Targeted test | Result |
@@ -65,18 +65,6 @@ None.
 | # | What it delivers | Route | Milestone | Work package or steps |
 | --- | --- | --- | --- | --- |
 | 1 | the updates in the table | Production Release | `X.Y.Z` | this project |
-
-### Delivery 1 — the updates in the table
-
-| Route | In this delivery | Artefacts | Branch | PR |
-| --- | --- | --- | --- | --- |
-| **Production Release** | yes | *each row's dependency, base image or toolchain: modified* | yes | yes, one per row |
-| **Application Tooling** | no | — | — | — |
-| **Docs and Programme Tooling** | no | — | — | — |
-| **Other** | no | — | — | — |
-
-1. Each row's pull request merges once its targeted test has passed.
-2. The updates ship with `X.Y.Z`.
 
 ## Post-deployment checks against requirements
 
