@@ -60,8 +60,9 @@ is what makes concurrent submissions from one client a non-question.
 harness or on somebody's laptop it comes through the API. In the server it
 comes through the [glue](71-06-engine.md#the-model), which joins under
 the Transport API at
-[two calls](71-06b-engine-bots.md#what-changes-who-calls-it), `updates_for` to hear and the Game service's
-submit function to act, so it sits below the rate limiter:
+[two calls](71-06b-engine-bots.md#what-changes-who-calls-it),
+`updates_for` to hear and the Game service's submit function to act, so it
+sits below the rate limiter:
 
 ```mermaid
 flowchart LR

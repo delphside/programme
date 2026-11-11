@@ -60,7 +60,7 @@ Over the external transport an object's link is one game, one WebSocket per
 game. The two subscription scopes are in
 [How the Event stream uses watch](71-06-engine.md#how-the-event-stream-uses-watch),
 and what a harness does with `Seats` is #10's. A bot hears it is on turn from
-its game's channel, as [the engine is a client](71-06-engine.md#what-changes)
+its game's channel, as [*What changes*](71-06-engine.md#what-changes)
 says.
 
 **The in-process glue joins under the Transport API at two calls**:
@@ -133,7 +133,8 @@ The server runs the bots its settings list.
 
 An external bot posts the action a person posts, over the session of the bot's
 own account, and the in-process bot calls the function that route calls, as the
-bot's own account. Either way its rating moves because the account is the bot's.
+bot's own account. Either way its rating moves because the account is the
+bot's. A bot uses only the routes a person uses.
 
 An external harness posts like any client and can be answered 429 with
 `Retry-After`; its retry policy is #10's. The rate limiter protects the service
