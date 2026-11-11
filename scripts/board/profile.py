@@ -373,6 +373,11 @@ def repository(root: Path | None = None) -> tuple[str, str]:
     return owner, name
 
 
+def repository_name(root: Path | None = None) -> str:
+    """This application's repository as `owner/name`."""
+    return "/".join(repository(root))
+
+
 def organisation(root: Path | None = None) -> str:
     return programme_file(root).string("organisation.login")
 

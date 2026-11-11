@@ -548,43 +548,119 @@ class MergedPullRequest:
     title: str
     body: str
     bot: bool = False
+    # Whether its repository is private, so the digest, which is committed to a
+    # public repository, leaves its title and files out.
+    private: bool = False
+
+
+class MergedPullRequests(tuple):
+    """The merged pull requests found, and in `unread` the repositories that
+    could not be read, so their silence is never taken for a quiet week."""
+
+    unread: tuple[str, ...] = ()
 
 
 def _merged_repositories() -> list[str]:
-    return list(dict.fromkeys(["/".join(_repository()),
-                               profile.programme_file().string("programme.repository")]))
+    """This application's repository, then every one the programme file names."""
+    return list(dict.fromkeys([profile.repository_name(), *profile.watched_repositories()]))
 
 
-def merged_pull_requests(since: str) -> tuple[MergedPullRequest, ...]:
+def visibility(repos: Sequence[str]) -> dict[str, bool | None]:
+    """Whether each repository is private, from `repos/{r}`; None where it could
+    not be read. This application's own repository is never private here, and
+    never unread. A
+    repository whose answer names no `private` is private. Read once, so every
+    use of a run agrees."""
+    own = profile.repository_name()
+    rest = _Rest()
+    out: dict[str, bool | None] = {}
+    for r in repos:
+        try:
+            private = bool(rest.get(f"repos/{r}").get("private", True))
+        except Unavailable:
+            # Never private, so still searched: a failed read must not drop it.
+            out[r] = False if r == own else None
+        else:
+            out[r] = False if r == own else private
+    return out
+
+
+def removed_files(found: Sequence[MergedPullRequest]) -> tuple[dict[tuple[str, int], tuple[str, ...]],
+                                                               tuple[tuple[str, int], ...]]:
+    """The files each of these merged pull requests removed, by (repository,
+    number), and the pull requests whose files could not be read, so a failed
+    read is never taken for nothing removed."""
+    rest = _Rest()
+    removed: dict[tuple[str, int], tuple[str, ...]] = {}
+    unread = []
+    for p in found:
+        try:
+            removed[(p.repository, p.number)] = tuple(
+                f["filename"] for f in rest.items(f"repos/{p.repository}/pulls/{p.number}/files")
+                if f.get("status") == "removed")
+        except Unavailable:
+            unread.append((p.repository, p.number))
+    return removed, tuple(unread)
+
+
+_SEARCH_PAGES = 10
+
+
+def _search_merged(repos: Sequence[str], since: str) -> tuple[list[MergedPullRequest] | None, str]:
+    """The merged list by search, every page, or None and the refusal where the
+    search does not answer or its last page is full, which a search cannot go
+    past (1000 results)."""
+    query = " ".join(f"repo:{r}" for r in repos) + f" is:pr is:merged merged:>={since}"
+    out: list[MergedPullRequest] = []
+    for page in range(1, _SEARCH_PAGES + 1):
+        try:
+            run = subprocess.run(
+                ["gh", "api", "-X", "GET", "search/issues", "-f", f"q={query}",
+                 "-f", "per_page=100", "-f", f"page={page}",
+                 "--jq", ".items[] | [.repository_url, .number, .title, (.body // \"\"), .user.type == \"Bot\"] | @json"],
+                capture_output=True, text=True, timeout=60)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise Unavailable(f"could not search for merged pull requests: {exc}") from exc
+        if run.returncode != 0:
+            return None, run.stderr.strip()[:200]
+        lines = run.stdout.splitlines()
+        for line in lines:
+            url, number, title, body, bot = json.loads(line)
+            out.append(MergedPullRequest("/".join(url.split("/")[-2:]), number, title, body, bot))
+        if len(lines) < 100:
+            return out, ""
+    return None, f"more than {_SEARCH_PAGES * 100} results"
+
+
+def merged_pull_requests(since: str, seen: dict[str, bool | None] | None = None) -> MergedPullRequests:
     """Pull requests merged on or after `since` (YYYY-MM-DD) in this
-    application's repository and the programme's.
+    application's repository and every repository the programme file names.
+
+    Each repository is read first (`seen`, from `visibility`, where the caller
+    has it), and one that cannot be read is in the result's `unread` and
+    searched for no more, as a search ignores a repository it cannot see.
 
     Raises `Unavailable` rather than returning nothing, so a search that did not
     answer never reads as a week with no reviews. Where the search API is
-    refused, as it is to a cloud session, the same list is read from each
-    repository's closed pull requests over REST.
+    refused, as it is to a cloud session, or cannot give every result, the same
+    list is read from each repository's closed pull requests over REST.
     """
     repos = _merged_repositories()
-    query = " ".join(f"repo:{r}" for r in repos) + f" is:pr is:merged merged:>={since}"
-    try:
-        run = subprocess.run(
-            ["gh", "api", "-X", "GET", "search/issues", "-f", f"q={query}",
-             "-f", "per_page=100",
-             "--jq", ".items[] | [.repository_url, .number, .title, (.body // \"\"), .user.type == \"Bot\"] | @json"],
-            capture_output=True, text=True, timeout=60)
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Unavailable(f"could not search for merged pull requests: {exc}") from exc
-    if run.returncode != 0:
-        return _rest_merged_pull_requests(repos, since, run.stderr.strip()[:200])
-    out = []
-    for line in run.stdout.splitlines():
-        url, number, title, body, bot = json.loads(line)
-        out.append(MergedPullRequest("/".join(url.split("/")[-2:]), number, title, body, bot))
-    return tuple(sorted(out, key=lambda p: (p.repository, p.number)))
+    seen = visibility(repos) if seen is None else seen
+    readable = [r for r in repos if seen.get(r) is not None]
+    found: list[MergedPullRequest] = []
+    if readable:
+        found, refusal = _search_merged(readable, since)
+        if found is None:
+            found = _rest_merged_pull_requests(readable, since, refusal)
+    out = MergedPullRequests(sorted((replace(p, private=bool(seen[p.repository])) for p in found),
+                                    key=lambda p: (p.repository, p.number)))
+    out.unread = tuple(r for r in repos if seen.get(r) is None)
+    return out
 
 
 def _rest_merged_pull_requests(repos: Sequence[str], since: str,
-                               refusal: str) -> tuple[MergedPullRequest, ...]:
+                               refusal: str) -> list[MergedPullRequest]:
     """The merged list over `repos/{r}/pulls?state=closed`, newest update first.
 
     A pull request cannot be merged after it was last updated, so the listing
@@ -604,7 +680,7 @@ def _rest_merged_pull_requests(repos: Sequence[str], since: str,
     except Unavailable as exc:
         raise Unavailable(f"could not search for merged pull requests ({refusal}), "
                           f"nor list them over REST: {exc}") from None
-    return tuple(sorted(out, key=lambda p: (p.repository, p.number)))
+    return out
 
 
 def issues_by_number(numbers: Sequence[int]) -> dict[int, RawIssue]:
@@ -1011,27 +1087,36 @@ class _Rest:
     def __init__(self) -> None:
         self.pages = 0
 
+    def _read(self, path: str, url: str):
+        try:
+            run = subprocess.run(["gh", "api", url], capture_output=True, text=True, timeout=120)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise Unavailable(f"GitHub did not answer: {exc}") from exc
+        if run.returncode != 0:
+            raise Unavailable(f"GitHub refused {path}: {run.stderr.strip()[:300]}")
+        try:
+            data = json.loads(run.stdout)
+        except json.JSONDecodeError as exc:
+            raise Unavailable(f"GitHub returned no JSON for {path}: {exc}") from exc
+        self.pages += 1
+        return data
+
+    def get(self, path: str) -> dict:
+        """One object, such as a repository."""
+        data = self._read(path, path)
+        if not isinstance(data, dict):
+            raise Unavailable(f"{path} did not return an object")
+        return data
+
     def items(self, path: str):
         """The items of a list endpoint, a page at a time, so a caller that has
         read enough can stop before the next page is asked for."""
         page = 1
         sep = "&" if "?" in path else "?"
         while True:
-            try:
-                run = subprocess.run(
-                    ["gh", "api", f"{path}{sep}per_page={self.PER_PAGE}&page={page}"],
-                    capture_output=True, text=True, timeout=120)
-            except (OSError, subprocess.TimeoutExpired) as exc:
-                raise Unavailable(f"GitHub did not answer: {exc}") from exc
-            if run.returncode != 0:
-                raise Unavailable(f"GitHub refused {path}: {run.stderr.strip()[:300]}")
-            try:
-                data = json.loads(run.stdout)
-            except json.JSONDecodeError as exc:
-                raise Unavailable(f"GitHub returned no JSON for {path}: {exc}") from exc
+            data = self._read(path, f"{path}{sep}per_page={self.PER_PAGE}&page={page}")
             if not isinstance(data, list):
                 raise Unavailable(f"{path} did not return a list")
-            self.pages += 1
             yield from data
             if len(data) < self.PER_PAGE:
                 return

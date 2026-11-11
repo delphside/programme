@@ -121,6 +121,16 @@ class Digest:
     # Merged pull requests with neither rounds nor `None owed`.
     unrecorded: list[tuple[str, int, str]] | None = None
     unparsed: list = field(default_factory=list)
+    # Merged pull requests outside the running application's repository, or None
+    # when the search did not answer, and the files they removed (the pull
+    # requests whose files could not be read are in `removed_unread`).
+    elsewhere: list | None = field(default_factory=list)
+    # Repositories whose merged pull requests could not be read.
+    unread_repositories: list = field(default_factory=list)
+    # Merged pull requests in private repositories, left out of the review record.
+    private_unread: int = 0
+    removed: dict = field(default_factory=dict)
+    removed_unread: list = field(default_factory=list)
     problems: list[dict] = field(default_factory=list)
     initiatives: list[dict] = field(default_factory=list)
 
@@ -136,6 +146,9 @@ class Digest:
     waiting: list[tuple[int | str, str, str]] = field(default_factory=list)
     # Repositories whose pull requests could not be read: said, never read as none.
     waiting_unread: list[str] = field(default_factory=list)
+    # Open pull requests waiting on the owner in a private repository, by
+    # repository: counted, their titles left out of a public report.
+    waiting_private: dict[str, int] = field(default_factory=dict)
 
     @property
     def share(self) -> int:
@@ -337,8 +350,13 @@ def unparsed(pull_requests) -> list[tuple[str, int, str]]:
             if not pr.bot and (text := _record(pr)) and not _none_owed(text) and not readable(text)]
 
 
-_FINDING = re.compile(r"^\s*-\s*R\d+\s+(\S+)\s+—\s*(.*)$")
-_ALSO = re.compile(r"\(also (\S+?)\)")
+# `- R1 reader — text`, and with markers before the dash, `- R1 reader (on
+# resume) — …`, and a second reviewer, `- R1 reader and R1 truth (on resume) — …`
+# (both credited). The docs/1.1 form puts the markers at the end.
+_FINDING = re.compile(r"^\s*-\s*R\d+\s+(?P<who>\S+)(?:\s+and\s+R\d+\s+(?P<and>\S+))?"
+                      r"(?P<marks>(?:\s+\([^)]*\))*)\s+—\s*(?P<text>.*)$")
+# `(also truth)`, or with words after the reviewer, `(also truth, minor)`.
+_ALSO = re.compile(r"\(also ([^\s,)]+)(?:,[^)]*)?\)")
 # `(from a fix to R3 truth)`, `(from a fix to R3 reader truth)` for a shared
 # finding, or `(from a fix to owner)`; an older record's bare `(from a fix)`
 # names no finding.
@@ -355,6 +373,12 @@ _COUNT = re.compile(r"\(count ([1-9]\d*)\)")
 _COUNT_ANY = re.compile(r"\(\s*count(?![a-z])[^)]*\)", re.I)
 _COST = re.compile(r"^\s*-\s*R\d+\s+cost:\s*(.*)$")
 _ROUND = re.compile(r"^\s*-\s*R(\d+)")
+# A line shaped like a round line, whether or not it is read: a bullet opening
+# `R<n>`, or a table row whose first cell is `R<n>`, or a bare number under a
+# round heading.
+_ROUND_SHAPED = re.compile(r"^\s*-\s*R\d+\b|^\s*\|\s*R\d+\s*\|")
+_NUMBER_ROW = re.compile(r"^\s*\|\s*\d+\s*\|")
+_ROUND_HEADING = re.compile(r"^#{1,6}\s+.*\bround", re.I)
 _SPENT = re.compile(r"([A-Za-z]+)\s+(\d+(?:\.\d+)?)k\b", re.I)
 _TOKENS = re.compile(r"(?<![\w,.])(\d+(?:\.\d+)?)k\b", re.I)
 # Anything shaped like a figure in k, read or not, so a malformed one is counted.
@@ -368,14 +392,38 @@ REVIEWERS = {"reader", "truth", "change", "owner"}
 PLACEHOLDER = "Anything noticed during the week, for the review."
 
 
+def _reads(line: str) -> bool:
+    """Whether this is a line the digest reads."""
+    return bool(_FINDING.match(line) or _COST.match(line) or _NONE.match(line)
+                or _OWNER.match(line) or _DOC.match(line))
+
+
+def unread_round_lines(text: str, rounds: bool = False) -> list[str]:
+    """The lines that look like round lines and that no pattern reads, outside
+    code fences, so what a record leaves unread is counted and shown. A row
+    whose first cell is a bare number counts under a heading naming a round,
+    or anywhere in a record that is a *Review rounds* section (`rounds`)."""
+    out, fenced, under_round = [], False, rounds
+    for line in (text or "").splitlines():
+        if line.strip().startswith("```"):
+            fenced = not fenced
+        elif fenced:
+            continue
+        elif line.startswith("#"):
+            under_round = rounds or bool(_ROUND_HEADING.match(line))
+        elif not _reads(line) and (_ROUND_SHAPED.match(line)
+                                   or (under_round and _NUMBER_ROW.match(line))):
+            out.append(line.strip())
+    return out
+
+
 def note_records(notes: str) -> list[str]:
     """The notes split into records, one per top-level `- ` line other than a
     round, `R<n> none`, cost, owner or `doc:` line, so each record's cost lines pay only for its own
     findings; such a line stays with the record above it."""
     records, current = [], []
     for line in (notes or "").splitlines():
-        rounds = (_FINDING.match(line) or _COST.match(line) or _OWNER.match(line)
-                  or _DOC.match(line) or _NONE.match(line))
+        rounds = (_reads(line) or _ROUND_SHAPED.match(line))
         if line.startswith("- ") and not rounds and current:
             records.append("\n".join(current))
             current = []
@@ -422,13 +470,16 @@ class RoundCount:
     # Findings in a costed round with a reviewer its cost line gives no figure,
     # so no finding leaves the by-reviewer list unsaid.
     unfigured: int = 0
+    # Lines shaped like round lines that were not read, as written.
+    unread_lines: list[str] = field(default_factory=list)
     # Bang for buck, from the rounds that carry cost lines: tokens and
     # findings by reviewer and by round number.
     spent: collections.Counter = field(default_factory=collections.Counter)
     found: collections.Counter = field(default_factory=collections.Counter)
 
-    def add(self, text: str) -> "RoundCount":
+    def add(self, text: str, rounds: bool = False) -> "RoundCount":
         lines = (text or "").splitlines()
+        self.unread_lines += unread_round_lines(text, rounds)
         # A record's cost lines first, so each finding is charged to its own round.
         costed: dict[str, set[str]] = {}
         for line in lines:
@@ -457,11 +508,11 @@ class RoundCount:
                 self.unread_counts += bool(_COUNT_ANY.search(line))
                 continue
             if m := _FINDING.match(line):
-                if m.group(2).strip().lower() == "none":
+                if m["text"].strip().lower() == "none":
                     continue
-                n = self._weight(m.group(2))
+                n = self._weight(m["marks"] + " " + m["text"])
                 self.findings += n
-                who = {w.lower() for w in {m.group(1)} | set(_ALSO.findall(line))}
+                who = {w.lower() for w in {m["who"], m["and"] or m["who"]} | set(_ALSO.findall(line))}
                 round_ = f"R{int(_ROUND.match(line).group(1))}"
                 for reviewer in who:
                     self.by_reviewer[reviewer] += n
@@ -498,13 +549,14 @@ class RoundCount:
         return 1
 
     def __bool__(self) -> bool:
-        return bool(self.by_reviewer) or bool(self.owner) or bool(self.cost_lines)
+        return (bool(self.by_reviewer) or bool(self.owner) or bool(self.cost_lines)
+                or bool(self.unread_lines))
 
     def summary(self) -> str:
         found = ", ".join(f"{who} {n}" for who, n in sorted(self.by_reviewer.items())) or "none"
         return (f"material findings: {found}; found by both {PAIR[0]} and {PAIR[1]}: {self.both}; "
                 f"from a fix: {self.from_fix}, of them crossed (only other reviewers made the finding fixed): {self.crossed}; found on resume: {self.on_resume}; missed by an earlier round: {self.missed}; "
-                f"found by the owner afterwards: {self.owner}")
+                f"found by the owner afterwards: {self.owner}; round lines not read: {len(self.unread_lines)}")
 
     def missed_share(self) -> str:
         """The share of findings a later round proved an earlier one could have
@@ -550,8 +602,7 @@ class RoundCount:
 def readable(text: str) -> bool:
     """Whether any line is one the digest reads: a finding, a cost line,
     `R<n> none`, an owner line or a `doc:` line."""
-    return any(_FINDING.match(line) or _COST.match(line) or _NONE.match(line)
-               or _OWNER.match(line) or _DOC.match(line) for line in (text or "").splitlines())
+    return any(_reads(line) for line in (text or "").splitlines())
 
 
 # The docs/1.1 record's `doc:` line: a document's inputs, known before its review.
@@ -673,10 +724,19 @@ def documents(text: str, where: str) -> tuple[list[Document], int, int]:
     return rows, without, unread
 
 
+def elsewhere(prs) -> list:
+    """The merged pull requests outside the running application's repository."""
+    own = profile.repository_name()
+    return [p for p in prs if p.repository != own]
+
+
 def build(open_snapshot: Snapshot, closed_snapshot: Snapshot | None,
           since: str, until: str = "HEAD", registers: str = "",
           merged_prs=None, other_prs: dict[str, Sequence] | None = None,
-          unread: Sequence[str] = ()) -> Digest:
+          unread: Sequence[str] = (), removed: dict | None = None,
+          removed_unread: Sequence[tuple[str, int]] = (),
+          private_repositories: Sequence[str] = (),
+          unread_repositories: Sequence[str] = ()) -> Digest:
     d = Digest(since=since, until=until)
     start = window_start(since)
 
@@ -715,7 +775,9 @@ def build(open_snapshot: Snapshot, closed_snapshot: Snapshot | None,
     for repository, found in (other_prs or {}).items():
         for raw in found:
             w = waiting_on_owner(classify(raw))
-            if w:
+            if w and repository in private_repositories:
+                d.waiting_private[repository] = d.waiting_private.get(repository, 0) + 1
+            elif w:
                 d.waiting.append((f"{repository}#{raw.number}", raw.title, w.asked))
     d.waiting_unread = list(unread)
 
@@ -724,9 +786,15 @@ def build(open_snapshot: Snapshot, closed_snapshot: Snapshot | None,
     d.raised, d.closed = d.window.raised, d.window.closed
     d.lessons = issue_lessons(closed_raw, start)
     d.unlessoned = unlessoned_projects(closed_raw, start)
-    d.reviews = review_rounds(merged_prs) if merged_prs is not None else None
-    d.unrecorded = unrecorded(merged_prs) if merged_prs is not None else None
-    d.unparsed = unparsed(merged_prs) if merged_prs is not None else []
+    d.elsewhere = elsewhere(merged_prs) if merged_prs is not None else None
+    d.unread_repositories = list(unread_repositories)
+    d.removed, d.removed_unread = dict(removed or {}), list(removed_unread)
+    # A private repository's pull requests are counted, not read into the digest.
+    public = [p for p in merged_prs if not p.private] if merged_prs is not None else None
+    d.reviews = review_rounds(public) if public is not None else None
+    d.unrecorded = unrecorded(public) if public is not None else None
+    d.unparsed = unparsed(public) if public is not None else []
+    d.private_unread = len(merged_prs) - len(public) if public is not None else 0
     d.problems = register_rows(registers, "The problem register")
     d.initiatives = register_rows(registers, "The continual improvement register")
     return d
@@ -780,6 +848,112 @@ def notes_for_write(existing: str | None) -> str | None:
     return notes_of(existing) if DRAFT in existing else None
 
 
+def _code(text: str) -> str:
+    """`text` as an inline code span, whatever backticks it holds."""
+    fence = "``" if "`" in text else "`"
+    return f"{fence} {text} {fence}" if fence == "``" else f"`{text}`"
+
+
+def _unread_list(count: "RoundCount", limit: int = 10) -> list[str]:
+    """The round lines a record left unread, quoted, so the reviewer sees what
+    was skipped; empty when none was."""
+    if not count.unread_lines:
+        return []
+    out = [f"*Round lines not read ({len(count.unread_lines)}):*", ""]
+    out += [f"- {_code(line)}" for line in count.unread_lines[:limit]]
+    if len(count.unread_lines) > limit:
+        out.append(f"- …and {len(count.unread_lines) - limit} more")
+    return out + [""]
+
+
+def _relink(text: str) -> str:
+    """The markdown links in a register row made relative to this report's
+    folder: the registers are in `records/`, the digests one folder down."""
+    return re.sub(r"(\]\()(?!https?:|#|/|mailto:)([^)\s]+)", r"\1../\2", text)
+
+
+def _by_repository(prs) -> dict[str, list]:
+    out: dict[str, list] = {}
+    for p in sorted(prs, key=lambda p: (p.repository, p.number)):
+        out.setdefault(p.repository, []).append(p)
+    return out
+
+
+def _landed(d: Digest) -> list[str]:
+    """*What landed*: the application's own commits, then every other
+    repository's merged pull requests by repository, a private repository's
+    by count only. A repository that could not be read is under *Not read*."""
+    count = (f"{len(d.elsewhere)} pull requests elsewhere" if d.elsewhere is not None
+             else "pull requests elsewhere not read")
+    out = [f"## What landed — {len(d.landed)} commits, {count}", ""]
+    for sha, subject in d.landed[:40]:
+        out.append(f"- `{sha}` {subject}")
+    if len(d.landed) > 40:
+        out.append(f"- …and {len(d.landed) - 40} more")
+    if d.elsewhere:
+        out += ["", "Merged pull requests in the other repositories:", ""]
+        for repository, prs in _by_repository(d.elsewhere).items():
+            if prs[0].private:
+                out.append(f"- {repository}: {len(prs)} pull request(s) in a private repository, not listed")
+            else:
+                out += [f"- {repository}#{p.number} {p.title}" for p in prs]
+    unread = []
+    if d.elsewhere is None:
+        unread.append("the merged pull requests of the other repositories, because the search "
+                      "for them did not answer")
+    if d.unread_repositories:
+        unread.append("the merged pull requests of " + ", ".join(d.unread_repositories))
+    if unread:
+        out += ["", "*Not read:* " + "; ".join(unread) + "."]
+    return out
+
+
+def _deleted(d: Digest) -> list[str]:
+    """*What was deleted*: the application's files removed, and those the
+    other repositories' merged pull requests removed, as `owner/name#N: path`.
+    What could not be read is under *Not read*, never read as removing
+    nothing."""
+    out = ["## What was deleted", ""]
+    for path in d.files_deleted:
+        out.append(f"- `{path}`")
+    unread = []
+    if d.elsewhere is None:
+        unread.append("the pull requests merged in the other repositories, so what they removed")
+    else:
+        private = {p.repository for p in d.elsewhere if p.private}
+        removed_any = bool(d.files_deleted)
+        for repository, prs in _by_repository(d.elsewhere).items():
+            if prs[0].private:
+                count = sum(len(d.removed.get((repository, p.number), ())) for p in prs)
+                if count:
+                    out.append(f"- {repository}: {count} file(s) removed in a private repository, not listed")
+                    removed_any = True
+                continue
+            for p in prs:
+                for path in d.removed.get((repository, p.number), ()):
+                    out.append(f"- {repository}#{p.number}: `{path}`")
+                    removed_any = True
+        public_unread = [f"{r}#{n}" for r, n in d.removed_unread if r not in private]
+        private_unread = sum(r in private for r, _ in d.removed_unread)
+        if public_unread:
+            unread.append("the files removed by " + ", ".join(public_unread))
+        if private_unread:
+            unread.append(f"the files removed by {private_unread} pull request(s) in private repositories")
+        if d.unread_repositories:
+            unread.append("the pull requests of " + ", ".join(d.unread_repositories)
+                          + ", so what they removed")
+        if not removed_any and not unread:
+            out.append("Nothing was removed this week.")
+    if unread:
+        if len(out) > 2:
+            out.append("")
+        out.append("*Not read:* " + "; ".join(unread) + ".")
+    out.append("")
+    out.append(f"{d.lines_added} lines added, {d.lines_removed} removed. "
+               "D54: *removing tooling is as much in scope as adding it.*")
+    return out
+
+
 def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> str:
     until = date.today().isoformat() if d.until == "HEAD" else d.until[:10]
     out = [f"# Weekly digest, {window_start(d.since)} to {until}", ""]
@@ -818,13 +992,16 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
         out.append(f"| `{kind}` | {w.raised_by_type[kind]} | {w.closed_by_type[kind]} | {d.by_type[kind]} | "
                    f"{w.raised_before[kind]} | {w.closed_before[kind]} | {w.open_before[kind]} | {reading} |")
     out.append("")
-    if d.waiting:
-        things = "thing" if len(d.waiting) == 1 else "things"
-        out.append(f"**{len(d.waiting)}** {things} GitHub reports as waiting on you:")
+    waiting = len(d.waiting) + sum(d.waiting_private.values())
+    if waiting:
+        things = "thing" if waiting == 1 else "things"
+        out.append(f"**{waiting}** {things} GitHub reports as waiting on you:")
         out.append("")
         for number, title, action in d.waiting:
             ref = f"#{number}" if isinstance(number, int) else number
             out.append(f"- {ref} {title}: {action}")
+        for repository, count in sorted(d.waiting_private.items()):
+            out.append(f"- {repository}: {count} pull request(s) in a private repository, not listed")
     else:
         out.append("**Nothing** GitHub reports as waiting on you.")
     if d.waiting_unread:
@@ -839,24 +1016,8 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
                "was agreed. Not the target: the 45% figure is provisional until "
                "#383's model has replaced the tooling it is replacing.")
     out.append("")
-    out.append(f"## What landed — {len(d.landed)} commits")
-    out.append("")
-    for sha, subject in d.landed[:40]:
-        out.append(f"- `{sha}` {subject}")
-    if len(d.landed) > 40:
-        out.append(f"- …and {len(d.landed) - 40} more")
-
-    out.append("")
-    out.append("## What was deleted")
-    out.append("")
-    if d.files_deleted:
-        for path in d.files_deleted:
-            out.append(f"- `{path}`")
-    else:
-        out.append("Nothing was removed this week.")
-    out.append("")
-    out.append(f"{d.lines_added} lines added, {d.lines_removed} removed. "
-               "D54: *removing tooling is as much in scope as adding it.*")
+    out += _landed(d)
+    out += _deleted(d)
 
     if d.raised or d.closed:
         out.append("")
@@ -913,14 +1074,24 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
         out.append("")
         out.append(below(text))
         out.append("")
-        out.append(RoundCount().add(text).summary() + "." if readable(text) else
+        record = RoundCount().add(text, rounds=True)
+        out.append(record.summary() + "." if readable(text) else
                    "No line of this record is one the digest reads, so it counts no findings.")
         out.append("")
-        total.add(text)
+        out += _unread_list(record)
+        total.add(text, rounds=True)
         found, missing, bad = documents(text, f"{repository}#{number}")
         rows += found
         without += missing
         unread += bad
+    if d.unread_repositories:
+        out.append("*Not read:* the review records of " + ", ".join(d.unread_repositories)
+                   + ", so this week's counts are not complete.")
+        out.append("")
+    if d.private_unread:
+        out.append(f"{d.private_unread} merged pull request(s) in private repositories are not read here: "
+                   "their titles and records stay out of a report committed to a public repository.")
+        out.append("")
     if d.unrecorded:
         out.append("Merged with neither *Review rounds* nor `None owed`: "
                    + ", ".join(f"{r}#{n}" for r, n, _ in d.unrecorded) + ".")
@@ -937,6 +1108,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     if in_notes:
         out.append(f"From the notes below (changes with no pull request, and findings after a merge): {in_notes.summary()}.")
         out.append("")
+        out += _unread_list(in_notes)
         for entry in entries:
             total.add(entry)
     for entry in entries:
@@ -983,7 +1155,7 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
         for r in live:
             new = " **new this week**" if r.get("raised", "") >= start else ""
             detail = r.get("initiative") if what == "problem" else r.get("state")
-            out.append(f"- {r.get('id', '')} {r.get(what, '')}: {detail}{new}")
+            out.append(_relink(f"- {r.get('id', '')} {r.get(what, '')}: {detail}{new}"))
         out.append("")
 
     out.append("## Notes from the week")

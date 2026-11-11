@@ -31,8 +31,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from board import profile, records  # noqa: E402
-from board.digest import build, draft, notes_for_write, render, report_code, window_start  # noqa: E402
-from board.sources import Unavailable, fetch, merged_pull_requests, open_pull_requests  # noqa: E402
+from board.digest import build, draft, elsewhere, notes_for_write, render, report_code, window_start  # noqa: E402
+from board.sources import Unavailable, fetch, merged_pull_requests, open_pull_requests, removed_files, visibility  # noqa: E402
 
 
 def main(argv=None) -> int:
@@ -62,16 +62,21 @@ def main(argv=None) -> int:
         print(f"cannot say: {exc}", file=sys.stderr)
         return 2
 
+    # Whether each repository is private, read once for everything below.
+    own = profile.repository_name()
+    seen = visibility([own, *profile.watched_repositories()])
+    private = [r for r, is_private in seen.items() if is_private is not False]
     # The week's review rounds. A search that does not answer is reported in
     # the digest, not read as a week with no reviews.
     try:
-        merged = merged_pull_requests(window_start(args.since))
+        merged = merged_pull_requests(window_start(args.since), seen)
     except Unavailable:
         merged = None
+    # What the other repositories' merged pull requests removed: one read each.
+    removed, removed_unread = removed_files(elsewhere(merged or ()))
 
     # Pull requests waiting on the owner in the programme's and every other
     # repository the programme file names. This application's are in the snapshot.
-    own = "/".join(profile.repository())
     other_prs, unread = {}, []
     for repository in profile.watched_repositories():
         if repository == own:
@@ -83,7 +88,10 @@ def main(argv=None) -> int:
 
     registers = registers_file.read_text()
     digest = build(open_snapshot, closed, since=args.since, registers=registers,
-                   merged_prs=merged, other_prs=other_prs, unread=unread)
+                   merged_prs=merged, other_prs=other_prs, unread=unread,
+                   removed=removed, removed_unread=removed_unread,
+                   private_repositories=private,
+                   unread_repositories=merged.unread if merged is not None else ())
     text = render(digest, args.decided)
 
     if args.write:

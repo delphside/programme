@@ -1,0 +1,61 @@
+#### docs/1.2
+
+- R1 reader — 1.5 *Wrap prose at 80 characters* — opening paragraphs have 356-character lines, a garbled sentence, hedges, and a misleading "pre-approved route" claim
+- R1 reader — 1.5 *Every section has an audience and a use case* — rule summary table (L515–533) has drifted from the sections it summarises
+- R1 reader — 1.5 *Document numbers as link text* — bare section numbers as link text collide with document and record numbers
+- R1 reader — 1.5 *Prose for reasons, structure for facts* — make-release and deploy steps packed into table cells
+- R1 truth — 1.5 *What is true now* — claims the only pre-commit refusals concern the image; it refuses three other things
+- R1 truth — 1.5 *What is true now* — release-record mechanism described in present tense; no application has it yet
+- R1 truth — 1.5 *What is true now* — pull-request triggers section says "nothing else" yet says `e2e` runs on pull requests
+- R1 truth — 1.5 *One fact, one home* — branch-deletion moment differs between §1.4 (merged) and §2.12 (live and closed)
+- R1 truth — 1.5 *What is true now* — "when the records move to the programme repository": they have already moved
+- R1 truth — 1.5 *What is true now* — claims settling a milestone closes a parent; `deploy.sh` moves projects to Post-deployment instead
+- R1 cost: reader 144k, 65%; truth 170k, 70%
+- R1 reader (on resume) — 1.5 *Every section has an audience and a use case* — make-release step 1 lost the emergency exception (from a fix to R1 reader) (also truth, minor)
+- R1 reader (on resume) — 1.5 *Say what is* — "the tooling means to read" the deprecated route, which it does not (from a fix to R1 truth) (also truth)
+- R1 truth (on resume) — 1.5 *What is true now* — §3.5 "a merge is made locally" contradicted §2.2's web-session merge (from a fix to R1 truth)
+
+#### docs/1.3
+
+- R1 reader — 1.5 *Every section has an audience and a use case* — "the owning workstream triages it": unnamed actor; a workstream cannot triage or accept
+- R1 reader — 1.5 *Every section has an audience and a use case* — "Authentication" and "client distribution" used as workstream names but defined nowhere
+- R1 truth — 1.5 *What is true now* — "the profile's list of what ships": the 3.n.6 profile holds no such list
+- R1 truth — 1.5 *What is true now* — application assets change "through a project and its branch"; two kinds of asset do not
+- R1 truth — 1.5 *What is true now* — "A deploy is the release" contradicts 1.2 *Making a release, then deploying it*
+- R1 cost: reader 85k, 85%; truth 126k, 80%
+
+#### docs/1.4
+
+- R1 reader — 1.5 *What is true now, with at most a line of reason* — *Why a log and not a date derived from an artefact* is a rejected design with a quotation
+- R1 reader — 1.5 *Every section has an audience and a use case* — "three with nothing behind them" but the table's first row reads "covered"
+- R1 truth — 1.5 *What is true now* — "session-start hook, every session": the hook does not run in every session
+- R1 truth — 1.5 *What is true now* — workflow said to be in each application; only Tile Lite Elite has `programme-activities.yml`
+- R1 truth — 1.5 *What is true now* — "`benchmark-run` is run by hand until #400 ships a scheduler": #400 has shipped
+- R1 cost: reader 100k, 80%; truth 138k, 80%
+- R1 reader and R1 truth (on resume) — 1.5 *What is true now* — "Two of ITIL's 34 practices have no activity" untrue; most have none (from a fix to R1 reader and R1 truth) (also truth)
+
+#### docs/1.5
+
+- R1 reader: no material finding
+- R1 truth — 1.5 *What is true now* — "Two numbered documents are generated" omits Tile Lite Elite's profile and 1.2 listing the same pair
+- R1 truth — 1.5 *What is true now* — comment inventory and "dated ones are its regression list" claim is not true of the tooling
+- R1 cost: reader 90k, 80%; truth 103k, 80%
+- R1 truth (on resume) — 1.5 *What is true now* — cutting "(4.4.7 has none yet)" made "each reference document carries a stamp" untrue (from a fix to R1 reader)
+
+#### docs/1.6
+
+- R1 reader — 1.5 *Every section has an audience and a use case* — "Which level carries which field" table omits Decision and Ticket columns and several fields
+- R1 truth — 1.5 *What is true now* — names Tile Lite Elite's `verify.sh` as a reader of `Project State`, `Post-deployment` and `IssueFieldChangedEvent`
+- R1 truth — 1.5 *What is true now* — "two labels, everything else is a field" is not true
+- R1 truth — 1.5 *What is true now* — app "installed on the organisation for `tile-lite-elite` only" (inferred, not verified)
+- R1 cost: reader 89k, 80%; truth 131k, 80%
+- R1 reader (on resume) — 1.5 *Every section has an audience* — a Decision's fields listed without Workstream and Parent (from a fix to R1 reader)
+
+#### docs/1.7
+
+- R1 reader — 1.5 *Every section has an audience and a use case* — "Claude alone" row for tooling and documentation has no production or irreversible-change exception
+- R1 reader — 1.5 *Every section has an audience and a use case* — "area's owner" undefined and collides with the Owner role
+- R1 reader — 1.5 *Every section has an audience and a use case* — "the brake": nothing says what applying it does or who acts
+- R1 reader — 1.5 *Prose for reasons, structure for facts* — the 60% handover sequence is prose and names nobody who starts the fresh thread
+- R1 reader — 1.5 *Application specifics only as a labelled example* — 3.1.1 reading-list row is Tile Lite Elite's, unlabelled
+- R1 truth: no material finding
