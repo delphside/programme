@@ -50,14 +50,14 @@ numbered document.**
 ## The forms GitHub offers
 
 **The forms GitHub offers when an issue or pull request is opened live in a
-repository's `.github/`**, which is where GitHub reads them. Only Tile Lite
-Elite's repository has them yet, so an issue or pull request opened elsewhere
-gets no form:
+repository's `.github/`**, which is where GitHub reads them. Tile Lite Elite's
+repository has both kinds; the programme's and Dark Portal's have the pull
+request form only:
 
 | Template | Offered when |
 | --- | --- |
 | [`Requirement`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/requirement.yml) · [`Project`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/project.yml) · [`Decision`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/decision.yml) | raising an issue of that type |
-| [`PULL_REQUEST_TEMPLATE.md`](https://github.com/delphside/tile-lite-elite/blob/main/.github/PULL_REQUEST_TEMPLATE.md) | opening a pull request |
+| [Tile Lite Elite's `PULL_REQUEST_TEMPLATE.md`](https://github.com/delphside/tile-lite-elite/blob/main/.github/PULL_REQUEST_TEMPLATE.md) · [the programme's `pull_request_template.md`](../../.github/pull_request_template.md) · [Dark Portal's `pull_request_template.md`](https://github.com/delphside/dark-portal/blob/main/.github/pull_request_template.md) | opening a pull request |
 
 GitHub fills those in front of you. The templates in this folder are copied:
 into the repository; for the post-deployment review, into an issue's body or
