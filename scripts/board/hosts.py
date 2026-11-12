@@ -9,21 +9,28 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Run on a host over ssh; prints one tab-separated line of seven fields:
+# Run on a host over SSH; prints one tab-separated line of seven fields:
 # running kernel, newest installed kernel, Docker version, reboot pending,
 # packages waiting, of which security, packages that need the reboot.
-# Read-only: no `apt-get update`, so the package counts are as fresh as the
-# host's last daily `apt` run. `dist-upgrade` is simulated because plain
-# `upgrade` keeps back a new kernel's meta-package.
+# Read-only for a non-root user, which the hosts' SSH users are: as root, a
+# simulated `apt-get` may refresh its own cache. No `apt-get update`, so the
+# package counts are as fresh as the host's last daily `apt` run.
+# `dist-upgrade` is simulated because plain `upgrade` keeps back a new kernel's
+# meta-package. A fact that cannot be read prints `FAILED`, which `parse`
+# refuses, so a broken `apt` or a missing Docker never reads as current.
 REMOTE_COMMAND = r"""running=$(uname -r)
 newest=$(ls /boot/vmlinuz-* 2>/dev/null | sed 's|^/boot/vmlinuz-||' | sort -V | tail -1)
 docker=$(docker --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 if [ -f /var/run/reboot-required ]; then reboot=yes; else reboot=no; fi
-inst=$(apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null | grep '^Inst ')
-waiting=$(printf '%s\n' "$inst" | grep -c '^Inst ')
-security=$(printf '%s\n' "$inst" | grep '^Inst ' | grep -c -e '-security')
+if sim=$(apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null); then
+  inst=$(printf '%s\n' "$sim" | grep '^Inst ')
+  waiting=$(printf '%s\n' "$inst" | grep -c '^Inst ')
+  security=$(printf '%s\n' "$inst" | grep '^Inst ' | grep -c -e '-security')
+else
+  waiting=FAILED; security=FAILED
+fi
 needing=$(cat /var/run/reboot-required.pkgs 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$running" "$newest" "$docker" "$reboot" "$waiting" "$security" "$needing"
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${running:-FAILED}" "${newest:-FAILED}" "${docker:-FAILED}" "$reboot" "$waiting" "$security" "$needing"
 """
 
 _FIELDS = 7
@@ -51,10 +58,17 @@ class Finding:
 
 def parse(label: str, ssh: str, line: str) -> Reading:
     """Reads the line `REMOTE_COMMAND` prints. `ValueError` when it is not that."""
-    fields = line.rstrip("\r\n").split("\t")
+    lines = [l for l in line.splitlines() if l.strip()]
+    if len(lines) != 1:
+        raise ValueError(f"{label}: expected one line of answer, got {len(lines)}")
+    fields = lines[0].rstrip("\r").split("\t")
     if len(fields) != _FIELDS:
         raise ValueError(f"{label}: expected {_FIELDS} tab-separated fields, got {len(fields)}")
     running, newest, docker, reboot, waiting, security, needing = fields
+    failed = [name for name, value in (("running kernel", running), ("newest kernel", newest),
+                                       ("Docker", docker), ("apt", waiting)) if value == "FAILED"]
+    if failed:
+        raise ValueError(f"{label}: could not read {', '.join(failed)}")
     if not running:
         raise ValueError(f"{label}: no running kernel in the answer")
     if reboot not in ("yes", "no"):
@@ -78,9 +92,14 @@ def findings(readings: list[Reading], pairs: list[tuple[str, str]]) -> list[Find
         if r.newest_kernel and r.newest_kernel != r.running_kernel:
             out.append(Finding(r.label, "kernel",
                                f"{r.label} runs kernel {r.running_kernel} and has {r.newest_kernel} installed"))
-        if r.waiting:
+        # Automatic updates install the security packages themselves (1.2:
+        # the platform maintaining itself), so only the others are owed a
+        # delivery. Both counts are in the table.
+        others = r.waiting - r.security
+        if others > 0:
             out.append(Finding(r.label, "packages",
-                               f"{r.label} has {r.waiting} packages waiting, {r.security} of them security"))
+                               f"{r.label} has {others} packages waiting that automatic updates "
+                               "do not install"))
     by_label = {r.label: r for r in readings}
     for label, other in pairs:
         a, b = by_label.get(label), by_label.get(other)
@@ -96,7 +115,7 @@ def findings(readings: list[Reading], pairs: list[tuple[str, str]]) -> list[Find
             out.append(Finding(pair, "pair-docker",
                                f"{label} and {other} run different Docker versions "
                                f"({a.docker or 'none'}, {b.docker or 'none'}): the runtime under the "
-                               "image is not the same runtime. A rehearsal host may lead deliberately "
+                               "image may not be the same runtime. A rehearsal host may lead deliberately "
                                "while an upgrade is proven there, and this check cannot tell a "
                                "deliberate lead from drift; it reports and the owner decides"))
     return out
