@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Run on a host over SSH; prints one tab-separated line of seven fields:
+# Run on a host over SSH; prints one tab-separated line of eight fields:
 # running kernel, newest installed kernel, Docker version, reboot pending,
-# packages waiting, of which security, packages that need the reboot.
+# packages waiting, of which security, packages that need the reboot, and
+# days since automatic updates last ran (`unattended-upgrades`' stamp).
+# `BOOT_DIR` replaces `/boot` for the test.
 # Read-only for a non-root user, which the hosts' SSH users are: as root, a
 # simulated `apt-get` may refresh its own cache. No `apt-get update`, so the
 # package counts are as fresh as the host's last daily `apt` run.
@@ -19,7 +21,8 @@ from dataclasses import dataclass
 # meta-package. A fact that cannot be read prints `FAILED`, which `parse`
 # refuses, so a broken `apt` or a missing Docker never reads as current.
 REMOTE_COMMAND = r"""running=$(uname -r)
-newest=$(ls /boot/vmlinuz-* 2>/dev/null | sed 's|^/boot/vmlinuz-||' | sort -V | tail -1)
+boot=${BOOT_DIR:-/boot}
+newest=$(ls "$boot"/vmlinuz-* 2>/dev/null | sed "s|^$boot/vmlinuz-||" | sort -V | tail -1)
 docker=$(docker --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 if [ -f /var/run/reboot-required ]; then reboot=yes; else reboot=no; fi
 if sim=$(apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null); then
@@ -30,10 +33,16 @@ else
   waiting=FAILED; security=FAILED
 fi
 needing=$(cat /var/run/reboot-required.pkgs 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${running:-FAILED}" "${newest:-FAILED}" "${docker:-FAILED}" "$reboot" "$waiting" "$security" "$needing"
+stamp=$(stat -c %Y "${STAMP_FILE:-/var/lib/apt/periodic/unattended-upgrades-stamp}" 2>/dev/null)
+if [ -n "$stamp" ]; then updated=$(( ($(date +%s) - stamp) / 86400 )); else updated=FAILED; fi
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${running:-FAILED}" "${newest:-FAILED}" "${docker:-FAILED}" "$reboot" "$waiting" "$security" "$needing" "$updated"
 """
 
-_FIELDS = 7
+_FIELDS = 8
+
+# Automatic updates run daily; two missed days is a stopped service, not a
+# late timer, and its security packages would otherwise pile up unseen.
+STALE_UPDATE_DAYS = 2
 
 
 @dataclass(frozen=True)
@@ -47,6 +56,7 @@ class Reading:
     waiting: int
     security: int
     reboot_packages: str
+    updated_days: int
 
 
 @dataclass(frozen=True)
@@ -64,9 +74,10 @@ def parse(label: str, ssh: str, line: str) -> Reading:
     fields = lines[0].rstrip("\r").split("\t")
     if len(fields) != _FIELDS:
         raise ValueError(f"{label}: expected {_FIELDS} tab-separated fields, got {len(fields)}")
-    running, newest, docker, reboot, waiting, security, needing = fields
+    running, newest, docker, reboot, waiting, security, needing, updated = fields
     failed = [name for name, value in (("running kernel", running), ("newest kernel", newest),
-                                       ("Docker", docker), ("apt", waiting)) if value == "FAILED"]
+                                       ("Docker", docker), ("apt", waiting),
+                                       ("automatic updates' stamp", updated)) if value == "FAILED"]
     if failed:
         raise ValueError(f"{label}: could not read {', '.join(failed)}")
     if not running:
@@ -74,10 +85,11 @@ def parse(label: str, ssh: str, line: str) -> Reading:
     if reboot not in ("yes", "no"):
         raise ValueError(f"{label}: reboot pending must be yes or no, got {reboot!r}")
     try:
-        count, secure = int(waiting), int(security)
+        count, secure, days = int(waiting), int(security), int(updated)
     except ValueError:
-        raise ValueError(f"{label}: package counts must be numbers, got {waiting!r} and {security!r}") from None
-    return Reading(label, ssh, running, newest, docker, reboot == "yes", count, secure, needing)
+        raise ValueError(f"{label}: counts must be numbers, got {waiting!r}, {security!r} "
+                         f"and {updated!r}") from None
+    return Reading(label, ssh, running, newest, docker, reboot == "yes", count, secure, needing, days)
 
 
 def findings(readings: list[Reading], pairs: list[tuple[str, str]]) -> list[Finding]:
@@ -95,6 +107,10 @@ def findings(readings: list[Reading], pairs: list[tuple[str, str]]) -> list[Find
         # Automatic updates install the security packages themselves (1.2:
         # the platform maintaining itself), so only the others are owed a
         # delivery. Both counts are in the table.
+        if r.updated_days > STALE_UPDATE_DAYS:
+            out.append(Finding(r.label, "updates",
+                               f"{r.label}'s automatic updates last ran {r.updated_days} days ago, "
+                               f"so its {r.security} security packages are not being installed"))
         others = r.waiting - r.security
         if others > 0:
             out.append(Finding(r.label, "packages",
@@ -134,7 +150,7 @@ def render(readings: list[Reading], found: list[Finding], colour: bool) -> str:
         lines.extend(f"{start}- {f.message}{end}" for f in found)
     else:
         ok, end = ("\033[32m", "\033[0m") if colour else ("", "")
-        lines.append(f"{ok}Every host is current and the pairs agree.{end}")
+        lines.append(f"{ok}No host owes a delivery and the pairs agree.{end}")
     return "\n".join(lines)
 
 
@@ -143,7 +159,8 @@ def to_json(readings: list[Reading], found: list[Finding]) -> dict:
         "hosts": [{"label": r.label, "ssh": r.ssh, "running_kernel": r.running_kernel,
                    "newest_kernel": r.newest_kernel, "docker": r.docker,
                    "reboot_pending": r.reboot_pending, "waiting": r.waiting,
-                   "security": r.security, "reboot_packages": r.reboot_packages}
+                   "security": r.security, "reboot_packages": r.reboot_packages,
+                   "updated_days": r.updated_days}
                   for r in readings],
         "findings": [{"host": f.host, "kind": f.kind, "message": f.message} for f in found],
     }

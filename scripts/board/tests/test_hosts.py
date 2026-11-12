@@ -16,6 +16,7 @@ import os
 import stat
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -23,7 +24,7 @@ from board import hosts
 from board.tests.cases import Cases
 from board.tests.cli import run
 
-CURRENT = "6.8.0-48\t6.8.0-48\t27.3.1\tno\t0\t0\t"
+CURRENT = "6.8.0-48\t6.8.0-48\t27.3.1\tno\t0\t0\t\t0"
 
 
 def reading(label="production", line=CURRENT):
@@ -32,7 +33,7 @@ def reading(label="production", line=CURRENT):
 
 class Parsing(Cases):
     def test_good_lines(self):
-        r = hosts.parse("p", "ssh-p", "6.8.0-48\t6.8.0-50\t27.3.1\tyes\t12\t3\tlibc6,linux-image")
+        r = hosts.parse("p", "ssh-p", "6.8.0-48\t6.8.0-50\t27.3.1\tyes\t12\t3\tlibc6,linux-image\t0")
         self.expect("kernels", ("6.8.0-48", "6.8.0-50"), (r.running_kernel, r.newest_kernel))
         self.expect("docker", "27.3.1", r.docker)
         self.expect("reboot", True, r.reboot_pending)
@@ -43,19 +44,19 @@ class Parsing(Cases):
     def test_empty_optional_fields(self):
         r = reading()
         self.expect("no packages", "", r.reboot_packages)
-        r = hosts.parse("p", "p", "6.8.0-48\t\t\tno\t0\t0\t\n")
+        r = hosts.parse("p", "p", "6.8.0-48\t\t\tno\t0\t0\t\t0\n")
         self.expect("no newest kernel, no docker", ("", ""), (r.newest_kernel, r.docker))
 
     def test_malformed_lines(self):
         for name, line in (("too few fields", "6.8\t6.8\tno"),
                            ("too many fields", CURRENT + "\textra"),
                            ("empty", ""),
-                           ("no running kernel", "\t\t\tno\t0\t0\t"),
-                           ("reboot not yes or no", "6.8\t6.8\t1.1.1\tmaybe\t0\t0\t"),
-                           ("count not a number", "6.8\t6.8\t1.1.1\tno\tmany\t0\t"),
-                           ("apt failed", "6.8\t6.8\t1.1.1\tno\tFAILED\tFAILED\t"),
-                           ("no Docker", "6.8\t6.8\tFAILED\tno\t0\t0\t"),
-                           ("no kernel on disk", "6.8\tFAILED\t1.1.1\tno\t0\t0\t"),
+                           ("no running kernel", "\t\t\tno\t0\t0\t\t0"),
+                           ("reboot not yes or no", "6.8\t6.8\t1.1.1\tmaybe\t0\t0\t\t0"),
+                           ("count not a number", "6.8\t6.8\t1.1.1\tno\tmany\t0\t\t0"),
+                           ("apt failed", "6.8\t6.8\t1.1.1\tno\tFAILED\tFAILED\t\t0"),
+                           ("no Docker", "6.8\t6.8\tFAILED\tno\t0\t0\t\t0"),
+                           ("no kernel on disk", "6.8\tFAILED\t1.1.1\tno\t0\t0\t\t0"),
                            ("a banner before the line", "Welcome\n" + CURRENT)):
             with self.subTest(name), self.assertRaises(ValueError):
                 hosts.parse("p", "p", line)
@@ -68,20 +69,24 @@ class Findings(Cases):
     def test_per_host(self):
         self.expect("current host", [], self.kinds([reading()]))
         self.expect("reboot", ["reboot"],
-                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tyes\t0\t0\tlibc6")]))
+                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tyes\t0\t0\tlibc6\t0")]))
         self.expect("newer kernel installed", ["kernel"],
-                    self.kinds([reading(line="6.8.0-48\t6.8.0-50\t1.1.1\tno\t0\t0\t")]))
+                    self.kinds([reading(line="6.8.0-48\t6.8.0-50\t1.1.1\tno\t0\t0\t\t0")]))
         self.expect("no kernel found is not a difference", [],
-                    self.kinds([reading(line="6.8.0-48\t\t1.1.1\tno\t0\t0\t")]))
+                    self.kinds([reading(line="6.8.0-48\t\t1.1.1\tno\t0\t0\t\t0")]))
         self.expect("packages automatic updates do not install", ["packages"],
-                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t5\t2\t")]))
+                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t5\t2\t\t0")]))
         self.expect("only security packages waiting: automatic updates take them", [],
-                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t3\t3\t")]))
+                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t3\t3\t\t0")]))
+        self.expect("automatic updates stopped", ["updates"],
+                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t3\t3\t\t9")]))
+        self.expect("automatic updates two days ago is not stopped", [],
+                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t3\t3\t\t2")]))
         self.expect("one other package waiting", ["packages"],
-                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t1\t0\t")]))
+                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t1\t0\t\t0")]))
 
     def test_messages(self):
-        found = hosts.findings([reading(line="6.8\t6.8\t1.1.1\tyes\t5\t2\tlibc6")], [])
+        found = hosts.findings([reading(line="6.8\t6.8\t1.1.1\tyes\t5\t2\tlibc6\t0")], [])
         text = " ".join(f.message for f in found)
         self.expect("count and security", True, "3 packages" in text and "automatic updates" in text)
         self.expect("reboot package named", True, "libc6" in text)
@@ -90,12 +95,12 @@ class Findings(Cases):
         a, b = reading("production"), reading("rehearsal")
         pair = [("rehearsal", "production")]
         self.expect("equal facts", [], self.kinds([a, b], pair))
-        kernel = reading("rehearsal", "6.9\t6.9\t27.3.1\tno\t0\t0\t")
+        kernel = reading("rehearsal", "6.9\t6.9\t27.3.1\tno\t0\t0\t\t0")
         self.expect("kernels differ", ["pair-kernel"], self.kinds([a, kernel], pair))
-        running = reading("rehearsal", "6.9\t6.8.0-48\t27.3.1\tno\t0\t0\t")
+        running = reading("rehearsal", "6.9\t6.8.0-48\t27.3.1\tno\t0\t0\t\t0")
         self.expect("running kernels differ though the newest match", ["kernel", "pair-kernel"],
                     self.kinds([a, running], pair))
-        docker = reading("rehearsal", "6.8.0-48\t6.8.0-48\t28.0.0\tno\t0\t0\t")
+        docker = reading("rehearsal", "6.8.0-48\t6.8.0-48\t28.0.0\tno\t0\t0\t\t0")
         found = hosts.findings([a, docker], pair)
         self.expect("docker differs", ["pair-docker"], [f.kind for f in found])
         self.expect("says the lead may be deliberate", True,
@@ -109,14 +114,14 @@ class Showing(Cases):
         r = reading()
         plain = hosts.render([r], [], False)
         self.expect("table has the host and its docker", True, "production" in plain and "27.3.1" in plain)
-        self.expect("all current line", True, "current" in plain and "agree" in plain)
-        found = hosts.findings([reading(line="6.8\t6.8\t1.1.1\tno\t4\t1\t")], [])
+        self.expect("all current line", True, "owes a delivery" in plain and "agree" in plain)
+        found = hosts.findings([reading(line="6.8\t6.8\t1.1.1\tno\t4\t1\t\t0")], [])
         self.expect("finding listed", True, "3 packages" in hosts.render([r], found, False))
         self.expect("no colour when off", False, "\033[" in hosts.render([r], found, False))
         self.expect("colour when on", True, "\033[" in hosts.render([r], found, True))
 
     def test_json(self):
-        found = hosts.findings([reading(line="6.8\t6.8\t1.1.1\tyes\t4\t1\tlibc6")], [])
+        found = hosts.findings([reading(line="6.8\t6.8\t1.1.1\tyes\t4\t1\tlibc6\t0")], [])
         data = hosts.to_json([reading()], found)
         self.expect("host keys", "production", data["hosts"][0]["label"])
         self.expect("kinds", ["reboot", "packages"], [f["kind"] for f in data["findings"]])
@@ -149,14 +154,26 @@ class TheRemoteCommand(Cases):
                 if body is not None:
                     (bin_ / name).write_text(body)
                     (bin_ / name).chmod(0o755)
-            env = dict(os.environ, PATH=f"{d}:/usr/bin:/bin")
+            boot = bin_ / "boot"
+            boot.mkdir()
+            for name in ("vmlinuz-6.17.0-1020-oracle", "vmlinuz-7.0.0-1013-oracle",
+                         "vmlinuz-6.17.0-1011-oracle"):
+                (boot / name).write_text("")
+            stamp = bin_ / "stamp"
+            stamp.write_text("")
+            old = time.time() - 5 * 86400
+            os.utime(stamp, (old, old))
+            env = dict(os.environ, PATH=f"{d}:/usr/bin:/bin", BOOT_DIR=str(boot),
+                       STAMP_FILE=str(stamp))
             done = subprocess.run(["sh", "-c", hosts.REMOTE_COMMAND], capture_output=True,
                                   text=True, env=env)
             return done.stdout
 
     def test_counts_and_docker(self):
         fields = self.answer(APT_OK).rstrip("\n").split("\t")
-        self.expect("seven fields", 7, len(fields))
+        self.expect("eight fields", 8, len(fields))
+        self.expect("newest kernel by version, not by text", "7.0.0-1013-oracle", fields[1])
+        self.expect("days since automatic updates ran", "5", fields[7])
         self.expect("docker version", "29.6.1", fields[2])
         self.expect("three waiting, one of them security", ("3", "1"), (fields[4], fields[5]))
 
@@ -220,9 +237,9 @@ class Command(Cases):
         self.answer("reh-default", CURRENT)
         done = self.command()
         self.expect("current and agreeing: 0", 0, done.returncode)
-        self.expect("says so", True, "current" in done.stdout)
+        self.expect("says so", True, "owes a delivery" in done.stdout)
 
-        self.answer("reh-default", "6.8.0-48\t6.8.0-48\t28.0.0\tno\t0\t0\t")
+        self.answer("reh-default", "6.8.0-48\t6.8.0-48\t28.0.0\tno\t0\t0\t\t0")
         done = self.command()
         self.expect("a finding: 1", 1, done.returncode)
         self.expect("pair finding shown", True, "Docker" in done.stdout)
@@ -233,7 +250,7 @@ class Command(Cases):
         self.expect("says closed and dead look alike", True, "look alike" in done.stderr)
 
     def test_env_override_and_single_host(self):
-        self.answer("prod-default", "6.8\t6.8\t1.1.1\tyes\t0\t0\t")
+        self.answer("prod-default", "6.8\t6.8\t1.1.1\tyes\t0\t0\t\t0")
         self.answer("other-name", CURRENT)
         self.answer("reh-default", CURRENT)
         done = self.command("--host", "production", BOARD_HOSTS_TEST_PROD="other-name")
