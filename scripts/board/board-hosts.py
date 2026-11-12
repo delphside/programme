@@ -4,6 +4,7 @@
     board-hosts.py                # every host in the profile, as a table and its findings
     board-hosts.py --json         # the same, machine-readable
     board-hosts.py --host <label> # one host
+    board-hosts.py --no-colour    # plain output
     board-hosts.py -C <dir> ...   # against the application at <dir>
 
 Reads the hosts from the application's technical profile (`app-profile.toml`,
@@ -44,15 +45,13 @@ from board import hosts, profile  # noqa: E402
 TIMEOUT_SECONDS = 40  # ssh's own ConnectTimeout is 10; this bounds a host that connects and hangs
 
 
-def ssh_name(table: dict, label: str) -> str:
+def ssh_name(spec: profile.Section, label: str) -> str:
     """The first set variable of `env`, else `ssh`."""
-    for name in table.get("env", []):
-        if os.environ.get(name):
-            return os.environ[name]
-    ssh = table.get("ssh")
-    if not isinstance(ssh, str) or not ssh:
-        raise profile.ProfileError(f"hosts.{label}: `ssh` must be a non-empty string")
-    return ssh
+    if "env" in spec.get(f"hosts.{label}"):
+        for name in spec.strings(f"hosts.{label}.env"):
+            if os.environ.get(name):
+                return os.environ[name]
+    return spec.string(f"hosts.{label}.ssh")
 
 
 def configured(spec: profile.Section) -> dict[str, dict]:
@@ -87,9 +86,11 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="board-hosts.py", description=__doc__.splitlines()[0])
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--host", metavar="LABEL", help="read one host")
+    ap.add_argument("--no-colour", action="store_true")
     args = ap.parse_args(argv)
 
-    table = configured(profile.technical())
+    spec = profile.technical()
+    table = configured(spec)
     if args.host and args.host not in table:
         print(f"board-hosts: no host `{args.host}` in the profile (it has {', '.join(table)})",
               file=sys.stderr)
@@ -98,7 +99,7 @@ def main(argv: list[str]) -> int:
 
     readings, unreadable = [], []
     for label in labels:
-        ssh = ssh_name(table[label], label)
+        ssh = ssh_name(spec, label)
         try:
             readings.append(read_host(label, ssh))
         except ValueError as exc:
@@ -114,7 +115,7 @@ def main(argv: list[str]) -> int:
     if args.json:
         print(json.dumps(hosts.to_json(readings, found), indent=2))
     else:
-        colour = sys.stdout.isatty() and "NO_COLOR" not in os.environ
+        colour = sys.stdout.isatty() and not args.no_colour and "NO_COLOR" not in os.environ
         print(hosts.render(readings, found, colour))
     return 1 if found else 0
 

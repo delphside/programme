@@ -14,6 +14,7 @@ Sections:
 import json
 import os
 import stat
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -51,7 +52,11 @@ class Parsing(Cases):
                            ("empty", ""),
                            ("no running kernel", "\t\t\tno\t0\t0\t"),
                            ("reboot not yes or no", "6.8\t6.8\t1.1.1\tmaybe\t0\t0\t"),
-                           ("count not a number", "6.8\t6.8\t1.1.1\tno\tmany\t0\t")):
+                           ("count not a number", "6.8\t6.8\t1.1.1\tno\tmany\t0\t"),
+                           ("apt failed", "6.8\t6.8\t1.1.1\tno\tFAILED\tFAILED\t"),
+                           ("no Docker", "6.8\t6.8\tFAILED\tno\t0\t0\t"),
+                           ("no kernel on disk", "6.8\tFAILED\t1.1.1\tno\t0\t0\t"),
+                           ("a banner before the line", "Welcome\n" + CURRENT)):
             with self.subTest(name), self.assertRaises(ValueError):
                 hosts.parse("p", "p", line)
 
@@ -68,13 +73,17 @@ class Findings(Cases):
                     self.kinds([reading(line="6.8.0-48\t6.8.0-50\t1.1.1\tno\t0\t0\t")]))
         self.expect("no kernel found is not a difference", [],
                     self.kinds([reading(line="6.8.0-48\t\t1.1.1\tno\t0\t0\t")]))
-        self.expect("packages", ["packages"],
+        self.expect("packages automatic updates do not install", ["packages"],
                     self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t5\t2\t")]))
+        self.expect("only security packages waiting: automatic updates take them", [],
+                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t3\t3\t")]))
+        self.expect("one other package waiting", ["packages"],
+                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t1\t0\t")]))
 
     def test_messages(self):
         found = hosts.findings([reading(line="6.8\t6.8\t1.1.1\tyes\t5\t2\tlibc6")], [])
         text = " ".join(f.message for f in found)
-        self.expect("count and security", True, "5 packages" in text and "2 of them security" in text)
+        self.expect("count and security", True, "3 packages" in text and "automatic updates" in text)
         self.expect("reboot package named", True, "libc6" in text)
 
     def test_pairs(self):
@@ -83,6 +92,9 @@ class Findings(Cases):
         self.expect("equal facts", [], self.kinds([a, b], pair))
         kernel = reading("rehearsal", "6.9\t6.9\t27.3.1\tno\t0\t0\t")
         self.expect("kernels differ", ["pair-kernel"], self.kinds([a, kernel], pair))
+        running = reading("rehearsal", "6.9\t6.8.0-48\t27.3.1\tno\t0\t0\t")
+        self.expect("running kernels differ though the newest match", ["kernel", "pair-kernel"],
+                    self.kinds([a, running], pair))
         docker = reading("rehearsal", "6.8.0-48\t6.8.0-48\t28.0.0\tno\t0\t0\t")
         found = hosts.findings([a, docker], pair)
         self.expect("docker differs", ["pair-docker"], [f.kind for f in found])
@@ -99,7 +111,7 @@ class Showing(Cases):
         self.expect("table has the host and its docker", True, "production" in plain and "27.3.1" in plain)
         self.expect("all current line", True, "current" in plain and "agree" in plain)
         found = hosts.findings([reading(line="6.8\t6.8\t1.1.1\tno\t4\t1\t")], [])
-        self.expect("finding listed", True, "4 packages" in hosts.render([r], found, False))
+        self.expect("finding listed", True, "3 packages" in hosts.render([r], found, False))
         self.expect("no colour when off", False, "\033[" in hosts.render([r], found, False))
         self.expect("colour when on", True, "\033[" in hosts.render([r], found, True))
 
@@ -109,6 +121,55 @@ class Showing(Cases):
         self.expect("host keys", "production", data["hosts"][0]["label"])
         self.expect("kinds", ["reboot", "packages"], [f["kind"] for f in data["findings"]])
         json.dumps(data)
+
+
+# Stubs for the commands `REMOTE_COMMAND` runs, so the command itself is
+# tested: canned `apt-get -s` output with security and other packages.
+APT_OK = """#!/bin/sh
+cat <<'OUT'
+NOTE: This is only a simulation!
+Inst libc6 [2.39-0ubuntu8.3] (2.39-0ubuntu8.4 Ubuntu:24.04/noble-updates [amd64])
+Inst openssl [3.0.13-0ubuntu3.4] (3.0.13-0ubuntu3.5 Ubuntu:24.04/noble-security [amd64])
+Inst docker-ce [5:29.6.1-1] (5:29.8.0-1 Docker CE:stable [amd64])
+Conf libc6 (2.39-0ubuntu8.4 Ubuntu:24.04/noble-updates [amd64])
+OUT
+"""
+APT_NONE = "#!/bin/sh\necho 'NOTE: This is only a simulation!'\n"
+APT_BROKEN = "#!/bin/sh\necho 'E: dpkg was interrupted' >&2\nexit 100\n"
+DOCKER = "#!/bin/sh\necho 'Docker version 29.6.1, build 1234567'\n"
+
+
+class TheRemoteCommand(Cases):
+    """`REMOTE_COMMAND` run under `sh` with `apt-get` and `docker` stubbed."""
+
+    def answer(self, apt, docker=DOCKER):
+        with tempfile.TemporaryDirectory() as d:
+            bin_ = Path(d)
+            for name, body in (("apt-get", apt), ("docker", docker)):
+                if body is not None:
+                    (bin_ / name).write_text(body)
+                    (bin_ / name).chmod(0o755)
+            env = dict(os.environ, PATH=f"{d}:/usr/bin:/bin")
+            done = subprocess.run(["sh", "-c", hosts.REMOTE_COMMAND], capture_output=True,
+                                  text=True, env=env)
+            return done.stdout
+
+    def test_counts_and_docker(self):
+        fields = self.answer(APT_OK).rstrip("\n").split("\t")
+        self.expect("seven fields", 7, len(fields))
+        self.expect("docker version", "29.6.1", fields[2])
+        self.expect("three waiting, one of them security", ("3", "1"), (fields[4], fields[5]))
+
+    def test_nothing_waiting(self):
+        fields = self.answer(APT_NONE).rstrip("\n").split("\t")
+        self.expect("none waiting", ("0", "0"), (fields[4], fields[5]))
+
+    def test_failures_are_marked(self):
+        """`parse` refuses `FAILED` (Parsing), so these never read as current."""
+        fields = self.answer(APT_BROKEN).rstrip("\n").split("\t")
+        self.expect("apt failing", ("FAILED", "FAILED"), (fields[4], fields[5]))
+        fields = self.answer(APT_NONE, docker="#!/bin/sh\nexit 127\n").rstrip("\n").split("\t")
+        self.expect("no Docker", "FAILED", fields[2])
 
 
 PROFILE = """application = "widget"
