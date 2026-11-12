@@ -26,7 +26,7 @@ import unittest
 
 from pathlib import Path
 
-from board.digest import (CONCLUDE, RoundCount, documents, note_records, review_rounds, unparsed, unrecorded, unlessoned_projects, DRAFT, Digest, with_conclusions, Window, draft, in_window, issue_lessons,
+from board.digest import (CONCLUDE, RoundCount, documents, note_records, review_rounds, unparsed, unrecorded, unlessoned_projects, lessons_in_notes, DRAFT, Digest, with_conclusions, Window, draft, in_window, issue_lessons,
                           notes_for_write, notes_of, register_rows, render, section, MEASURED_AT)
 from board.model import RawIssue
 from board.sources import MergedPullRequest
@@ -503,6 +503,73 @@ class ProjectsClosedWithoutLessons(Cases):
                                      closed(3, "## Requirements\n\nx"),
                                      closed(4, "x", issue_type="Decision")], self.START)
         self.expect("only the project with neither", [3], [n for n, _ in found])
+
+
+THIS = "delphside/tile-lite-elite"
+OTHERS = ["programme", "dark-portal"]
+
+
+def noted(notes, numbers):
+    return lessons_in_notes(notes, numbers, THIS, OTHERS)
+
+
+class LessonsInTheNotes(Cases):
+    """CI-11: a closed project whose lessons are in the week's notes is not
+    reported as having none. The fixture is W44's notes, verbatim: #485, #515
+    and #520 recorded theirs there; #516, #518 and #527 are named in them, but
+    only in passing."""
+    NOTES = (Path(__file__).resolve().parent / "fixtures" / "notes" / "w44-lessons.txt").read_text()
+    # W45's note, verbatim: two projects whose lessons were not written.
+    W45 = ("- 2026-11-02, the board sweep: delphside/tile-lite-elite#407 and #427 sat at\n"
+           "  Project Closedown for 15 days with their lessons unwritten, although both\n"
+           "  are Claude's to close.")
+
+    def test_projects_whose_lessons_are_in_the_notes_are_found(self):
+        self.expect("the three W44 named", {485, 515, 520}, noted(self.NOTES, [485, 515, 516, 518, 520, 527]))
+
+    def test_a_note_saying_the_lessons_are_unwritten_is_not_them(self):
+        self.expect("W45, wrapped as written", set(), noted(self.W45, [407, 427]))
+        one_line = "- delphside/tile-lite-elite#407 sat at Project Closedown with its lessons unwritten."
+        self.expect("on one line", set(), noted(one_line, [407]))
+        for said in ("no lessons", "without lessons", "not written", "missing"):
+            self.expect(said, set(), noted(f"- #407 closed, {said}. A lesson.", [407]))
+
+    def test_another_repositorys_issue_is_not_this_ones(self):
+        self.expect("owner/repo#N", set(), noted("- delphside/programme#124 closed. A lesson.", [124]))
+        self.expect("programme #N", set(), noted("- programme #124 closed. A lesson.", [124]))
+        self.expect("this repository's, qualified", {124},
+                    noted("- delphside/tile-lite-elite#124 closed. A lesson.", [124]))
+        self.expect("this repository's, bare", {124}, noted("- #124 closed. A lesson.", [124]))
+
+    def test_a_bare_mention_is_not_a_lesson(self):
+        self.expect("no lesson word", set(), noted("- #485 was merged on Monday.", [485]))
+
+    def test_an_issue_named_only_further_down_a_record_is_not_its_subject(self):
+        notes = "- #520 passed.\n  A lesson: the field was not there since #516."
+        self.expect("#520 only", {520}, noted(notes, [516, 520]))
+
+    def test_a_longer_number_is_not_the_project(self):
+        self.expect("#4851 is not #485", set(), noted("- #4851 closed. A lesson.", [485]))
+
+    def test_a_record_does_not_borrow_the_next_ones_lesson(self):
+        self.expect("only #9", {9}, noted("- #485 closed.\n- #9 closed. A lesson.", [485, 9]))
+
+    def test_a_record_under_a_lessons_heading_counts(self):
+        notes = "### Lessons\n\n- #485 closed.\n\n### Other\n\n- #9 closed."
+        self.expect("the one under it", {485}, noted(notes, [485, 9]))
+
+    def test_a_heading_naming_the_project_and_a_lesson_counts(self):
+        self.expect("heading and body", {485}, noted("#### #485\n\nThe lesson was x.", [485]))
+
+    def test_render_leaves_out_a_project_with_lessons_in_the_notes(self):
+        d = digest(unlessoned=[(485, "a"), (516, "b")])
+        text = render(d, notes=self.NOTES)
+        self.assertIn("no lessons learnt and no delegation: #516.", text)
+        self.assertNotIn("no lessons learnt and no delegation: #485", text)
+
+    def test_render_says_nothing_when_every_one_is_in_the_notes(self):
+        self.assertNotIn("no lessons learnt and no delegation",
+                         render(digest(unlessoned=[(485, "a")]), notes=self.NOTES))
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "reviews"

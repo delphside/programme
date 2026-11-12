@@ -65,6 +65,53 @@ _DUE = re.compile(
     re.M | re.IGNORECASE)
 
 
+def section(body: str, heading: str) -> str:
+    """The text under a markdown heading of any level, up to the next heading
+    of the same or a higher level; empty if there is none."""
+    lines = (body or "").splitlines()
+    for i, line in enumerate(lines):
+        m = re.match(r"^(#{1,6})\s+(.*?)\s*$", line)
+        if m and m.group(2).lower() == heading.lower():
+            level, out = len(m.group(1)), []
+            for rest in lines[i + 1:]:
+                n = re.match(r"^(#{1,6})\s", rest)
+                if n and len(n.group(1)) <= level:
+                    break
+                out.append(rest)
+            return "\n".join(out).strip()
+    return ""
+
+
+def none_owed(text: str) -> bool:
+    """Whether a record's text opens with `None owed`."""
+    return text.strip().lstrip("-* ").lower().startswith("none owed")
+
+
+_REVIEW_HEADING = re.compile(r"^(#{1,6})\s+Review\b(?!\s+rounds)", re.IGNORECASE)
+
+
+def owes_no_review(body: str | None) -> bool:
+    """Whether a pull request's body says the owner's review is not owed: a
+    `Review` section (any heading level; not *Review rounds*, which records agent
+    rounds) opening `No review owed`, optionally after `- ` (docs/1.1). HTML
+    comments are skipped, so a template's guidance comment left in place does
+    not hide the line. Nothing else says it."""
+    lines = re.sub(r"<!--.*?-->", "", body or "", flags=re.DOTALL).splitlines()
+    for i, line in enumerate(lines):
+        m = _REVIEW_HEADING.match(line)
+        if not m:
+            continue
+        for rest in lines[i + 1:]:
+            n = re.match(r"^(#{1,6})\s", rest)
+            if n and len(n.group(1)) <= len(m.group(1)):
+                break
+            if rest.strip():
+                if rest.strip().lstrip("-").strip().lower().startswith("no review owed"):
+                    return True
+                break
+    return False
+
+
 @dataclass(frozen=True)
 class Recurring:
     """Something that falls due again every time it is done."""
@@ -148,6 +195,7 @@ class RawPullRequest:
     review: str | None      # `reviewDecision`; None when nobody has decided
     reviewers: int          # reviews requested and not yet given
     reviews: int            # reviews given
+    body: str = ""          # for whether its review is owed
 
 
 @dataclass(frozen=True)

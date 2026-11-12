@@ -13,7 +13,9 @@ so nothing can widen it to pull requests; adding them here is idempotent.
 **A pull request that requests nobody is waiting on nobody.** `gh pr create
 --reviewer` accepts a login it cannot use and requests no one, and the ladder
 then says Drafting, so nothing tells the owner a review is waiting. It is
-reported, never fixed: requesting a review notifies somebody.
+reported, never fixed: requesting a review notifies somebody. One whose body
+has a `## Review` section opening `No review owed` is not reported: it owes the
+owner none (docs/1.2 §2.2). Its `PR State` is the ladder's, unchanged.
 
 Run by `programme/scripts/board/board-pr-state.py`. The decision is here, apart from GitHub,
 so it can be tested on its own.
@@ -24,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
-from .model import RawBoardItem, RawPullRequest
+from .model import RawBoardItem, RawPullRequest, owes_no_review
 from .sources import Unavailable, pr_state
 
 
@@ -58,9 +60,10 @@ def want(pr: RawPullRequest) -> str:
 
 
 def requests_nobody(pr: RawPullRequest) -> bool:
-    """Open, not a draft, and no review requested, given or decided."""
+    """Open, not a draft, and no review requested, given or decided, though one
+    may be owed: not when the body's `## Review` section says `No review owed`."""
     return (pr.state == "OPEN" and not pr.draft and not pr.reviewers
-            and not pr.review and not pr.reviews)
+            and not pr.review and not pr.reviews and not owes_no_review(pr.body))
 
 
 def plan(prs: Iterable[RawPullRequest],

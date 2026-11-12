@@ -1,0 +1,42 @@
+- **#485 closed (2026-10-20), with its post-deployment review** (programme
+  #64, three review rounds, the third finding nothing material). Its first
+  lesson, that a post-deployment check covers each clause of its requirement,
+  is now in 1.2 and the raise-project skill. The second is left here as a
+  lesson rather than a rule: whoever merges a workflow that needs a secret
+  runs it by hand that day and confirms it did its work, because the board
+  sweep's first run passed green with no token. The owner also set out the
+  phases: deployed moves to `Post-deployment`, checks passed to
+  `Project Closedown`, and lessons documented and actioned closes it.
+  Actioning means putting each finding on a project or requirement issue, or
+  in the next weekly digest; a project does not stay open to implement
+  follow-on changes. *Proposed conclusion:* consider writing the phase
+  meanings into 1.2, which does not yet mention the weekly digest as a home
+  for a finding.
+  - *Conclusion:* Agreed with the owner, 2026-10-27: the phase meanings are programme #68, awaiting the owner's review, so no further action. The secret-workflow lesson: monitor `P-3`, a new occurrence (the sweep passed green with no token).
+- **delphside/tile-lite-elite#520, the Ticket lifecycle, passed its live
+  test (2026-10-20).** Three lessons. The Ticket Kind field was believed to
+  exist since #516 and did not; a field a package depends on is checked by
+  listing it, not from memory. The shared board token needed the
+  organisation's *issue fields* permission as well as Projects, or GraphQL
+  answers FORBIDDEN; the service-desk README names it. The organisation
+  issue-field lookup has to name the concrete field types, because the common
+  interface fails. *Proposed conclusion:* monitor; the token's permissions are
+  recorded where it is set up.
+  - *Conclusion:* Agreed with the owner, 2026-10-27: monitor `P-5`, a new occurrence (a field believed to exist was never checked). The token's permissions are recorded in the service-desk README: no further action.
+- **delphside/tile-lite-elite#515, the support desk, closed (2026-10-22)**
+  after #518 shipped in Tile Lite Elite 0.10.0 and every check passed. On
+  production a support email became a Ticket in 21 seconds, game emails carry
+  the support Reply-To, and the acknowledgement and a `reply` both reached the
+  sender. Two lessons from the release. First, the version gate refused 0.9.2
+  because #518 is functional, a rule (docs/4.3.3 §2.4.2) that the overnight
+  regression brief did not check, so preview and rehearsal had to be run again
+  for 0.10.0. Second, the rename of `programme.toml` left the old name in the
+  profile's `non_shipping` list, so deploys warned falsely about #527 (fixed by
+  TLE #540). *Proposed conclusion:* a release brief reads the milestone's
+  `Type of change` before rehearsal. Whoever renames a file the profile names
+  searches the profile for the old name. The owner's point (2026-10-22): the
+  review should have caught it, and checks will never cover every mistake, so
+  the question for this review is where review stops and an automatic check
+  starts. #540 added a test for this one case.
+  - *Conclusion:* Agreed with the owner, 2026-10-27: the release brief reads the milestone's `Type of change` before rehearsal, a fix to Tile Lite Elite's docs/4.3.3. The rename: monitor `P-2`, a new occurrence (a name in two places drifted). Review catches a mistake the first time, and one with a `P-` row is a candidate for an automatic check: process changed, in 1.4's problem register. #540's test for the profile name is early, but cheap, and stays.
+- 2026-10-26, this digest: `board-digest.py` cannot run from a cloud thread.

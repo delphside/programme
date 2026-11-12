@@ -12,6 +12,12 @@ Replace `N` on the `Refs #N` line with the issue this delivers, or write
 `Activity: <id>`, and `Initiative: <id>` where there is one, for BAU work.
 `Closes #N` is never used: no merge closes an issue.
 
+*Review* says whether the owner's review is owed: the programme holds no
+application, so the default is that it is not, and `board-pr-state.py` then
+does not report the pull request as waiting on nobody. Where a change does owe
+his review, replace the `No review owed:` line with what he is to check, and
+add him as reviewer.
+
 *Review rounds* is the review record, in the form
 [1.1](https://github.com/delphside/programme/blob/main/docs/1.1-programme-tooling.md#claudes-tooling)
 gives. Keep `None owed:` where 1.1's *what owes none* row covers the change;
@@ -32,6 +38,10 @@ Which part of the scope this delivers, named against its issue or activity.
 Scope this pull request does not carry, and why. *Nothing* is a valid answer,
 and a blank heading is not.
 -->
+
+## Review
+
+No review owed: the programme's documents, process and tooling (docs/1.2 §2.2).
 
 ## Review rounds
 
