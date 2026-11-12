@@ -23,7 +23,8 @@ Reports drift (exit 1) from --check when:
   - the board's value disagrees with GitHub's
     -> "  #N says '<have>', GitHub says '<want>'"
   - an open pull request requests nobody's review, which leaves it waiting on
-    nobody; the command to request one is printed, never run
+    nobody, unless its body has a *Review* section opening `No review owed`
+    (docs/1.1); the command to request one is printed, never run
     -> "  #N is open and requests nobody's review — it is waiting on nobody"
 
 Warns without failing (the run continues, exit unaffected) when:

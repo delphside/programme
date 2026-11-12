@@ -94,3 +94,43 @@ OPENED OR CLOSED
   assert [ -e "$F/.claude/.inbox-hook.log" ]
   assert [ ! -e "$F/programme/.claude/.inbox-hook.log" ]
 }
+
+# The pin check at session start: the hook only calls `board-records.py pin`
+# (the logic and its cases are `board/pin.py`'s) and passes its line on.
+records() {   # what the stub board-records.py prints for `pin`
+  printf '#!/usr/bin/env bash\n[[ "$1" == pin ]] && printf "%%s\\n" "%s"\nexit 0\n' "$1" > "$F/programme/scripts/board/board-records.py"
+  chmod +x "$F/programme/scripts/board/board-records.py"
+}
+
+@test "a pin behind the programme is said at session start" {
+  inbox 'INBOX  since 2026-09-20
+
+OPENED OR CLOSED
+  nothing opened or closed'
+  records "The programme pin is 2 commit(s) behind origin/main"
+  context
+  assert_output --partial "The programme pin is 2 commit(s) behind origin/main"
+}
+
+@test "a pin that is not behind adds nothing" {
+  inbox 'INBOX  since 2026-09-20
+
+OPENED OR CLOSED
+  nothing opened or closed'
+  records ""
+  context
+  refute_output --partial "programme pin"
+}
+
+@test "a pin check that hangs does not hold the session" {
+  inbox 'INBOX  since 2026-09-20
+
+OPENED OR CLOSED
+  nothing opened or closed'
+  printf '#!/usr/bin/env bash\n[[ "$1" == pin ]] && sleep 60\nexit 0\n' > "$F/programme/scripts/board/board-records.py"
+  chmod +x "$F/programme/scripts/board/board-records.py"
+  start=$SECONDS
+  context
+  (( SECONDS - start < 20 ))
+  refute_output --partial "programme pin"
+}

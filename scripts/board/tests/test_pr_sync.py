@@ -149,6 +149,59 @@ class WaitingOnNobody(Cases):
             self.expect(name, 0, check(plan([p], [on_board(1, want(p))]), "x").unrequested)
 
 
+NO_REVIEW = "## What is being requested\n\nx\n\n## Review\n\nNo review owed: the programme's documents.\n\n## Review rounds\n\nNone owed:\n"
+
+
+def with_body(body, **kw):
+    p = pr(5, reviewers=0, **kw)
+    return RawPullRequest(p.number, p.node_id, p.state, p.draft, p.review, p.reviewers, p.reviews, body)
+
+
+class WhatOwesNoReview(Cases):
+    """The owner's review is not owed only where a `## Review` section opens
+    `No review owed`; `None owed` under *Review rounds* is about agent rounds."""
+
+    def reported(self, p):
+        return check(plan([p], [on_board(5, want(p))]), "x").unrequested
+
+    def test_a_review_section_saying_no_review_owed_is_not_reported(self):
+        self.expect("not counted", 0, self.reported(with_body(NO_REVIEW)))
+
+    def test_and_its_pr_state_is_the_ladders_unchanged(self):
+        self.expect("drafting", "Drafting", want(with_body(NO_REVIEW)))
+
+    def test_a_bulleted_or_deeper_or_lower_case_heading_will_do(self):
+        for name, body in (("bullet", "## Review\n\n- No review owed: x\n"),
+                           ("level 3", "### Review\n\nno review owed: x\n"),
+                           ("after the template's comment",
+                            "## Review\n\n<!-- `No review owed:` and the reason. -->\n\nNo review owed: x\n"),
+                           ("after a multi-line comment",
+                            "## Review\n\n<!--\nguidance\n-->\nNo review owed: x\n")):
+            self.expect(name, 0, self.reported(with_body(body)))
+
+    def test_none_owed_under_review_rounds_says_nothing_about_the_owner(self):
+        self.expect("reported", 1, self.reported(with_body("## Review rounds\n\nNone owed: a process change.\n")))
+
+    def test_no_review_owed_under_review_rounds_is_not_the_owners_review(self):
+        self.expect("reported", 1, self.reported(with_body("## Review rounds\n\nNo review owed: x\n")))
+
+    def test_other_bodies_are_still_reported(self):
+        for name, body in (("no review section", "## What\n\nx"),
+                           ("an owner checkbox", "## Review\n\n- [ ] **owner** review\n"),
+                           ("the words elsewhere", "## Notes\n\nNo review owed\n"),
+                           ("not first in the section", "## Review\n\nSee below.\n\nNo review owed\n"),
+                           ("under another heading's section", "## Review\n\n## Notes\n\nNo review owed\n"),
+                           ("only the template's comment",
+                            "## Review\n\n<!-- `No review owed:` and the reason. -->\n"),
+                           ("an empty body", "")):
+            self.expect(name, 1, self.reported(with_body(body)))
+
+    def test_a_requested_reviewer_or_a_draft_changes_nothing(self):
+        p = RawPullRequest(5, "PR_5", "OPEN", False, None, 1, 0, NO_REVIEW)
+        self.expect("awaiting review", "Awaiting review", want(p))
+        self.expect("a draft is not reported either way", 0, self.reported(with_body(NO_REVIEW, draft=True)))
+
+
 class TheCommand(Cases):
     def test_help_lists_its_messages_and_exits_0(self):
         out = run("board/board-pr-state.py", "--help")

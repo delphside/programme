@@ -42,7 +42,7 @@ from datetime import date, timedelta
 from typing import Sequence
 
 from . import profile, repo
-from .model import classify
+from .model import classify, none_owed as _none_owed, section
 from .sources import Snapshot
 from .turn import waiting_on_owner
 
@@ -231,23 +231,6 @@ def in_window(open_raw, closed_raw, start: str) -> Window:
     return w
 
 
-def section(body: str, heading: str) -> str:
-    """The text under a markdown heading of any level, up to the next heading
-    of the same or a higher level; empty if there is none."""
-    lines = (body or "").splitlines()
-    for i, line in enumerate(lines):
-        m = re.match(r"^(#{1,6})\s+(.*?)\s*$", line)
-        if m and m.group(2).lower() == heading.lower():
-            level, out = len(m.group(1)), []
-            for rest in lines[i + 1:]:
-                n = re.match(r"^(#{1,6})\s", rest)
-                if n and len(n.group(1)) <= level:
-                    break
-                out.append(rest)
-            return "\n".join(out).strip()
-    return ""
-
-
 def issue_lessons(closed_raw, start: str) -> list[tuple[int, str, str]]:
     """The *Lessons learnt* section of every issue closed in the window."""
     out = []
@@ -285,8 +268,63 @@ def unlessoned_projects(closed_raw, start: str) -> list[tuple[int, str]]:
                   and not section(raw.body, "Lessons learnt") and "Delegated to #" not in (raw.body or ""))
 
 
-def _none_owed(text: str) -> bool:
-    return text.strip().lstrip("-* ").lower().startswith("none owed")
+_SUBJECT = re.compile(r"(?:(?P<repo>[\w.-]+/[\w.-]+)|(?P<word>[A-Za-z][\w-]*)\s)?#(?P<n>\d+)(?!\d)")
+_MISSING = re.compile(r"unwritten|missing|no lessons|without lessons|not written", re.IGNORECASE)
+
+
+def _repositories() -> tuple[str, list[str]]:
+    """This repository as `owner/name`, and the other watched repositories' names."""
+    try:
+        own = profile.repository_name()
+        return own, [r.split("/")[-1] for r in profile.watched_repositories() if r != own]
+    except (profile.ProfileError, SystemExit, KeyError):
+        return "", []
+
+
+def lessons_in_notes(notes: str, numbers, repository: str, others=()) -> set[int]:
+    """Those of `numbers` (issues of `repository`, `owner/name`) whose lessons are
+    in the week's notes (docs/1.4). A record of `note_records` is about the
+    first issue its first line names: `#N` or `repository#N`, not
+    `owner/other#N` and not `<other repository's name> #N` (`others` lists those
+    names). It is that issue's lessons when "lesson" is in the record or in the
+    heading above it, and its opening sentence does not say they are missing
+    (`unwritten`, `missing`, `no lessons`, `without lessons`, `not written`): W45's
+    "#407 and #427 sat ... with their lessons unwritten" is not a lesson. An issue
+    named only further down is not the subject: W44's note on #520 says "since
+    #516"."""
+    others = {o.lower() for o in others}
+    found, sections, current, head = set(), [], [], ""
+    for line in (notes or "").splitlines():
+        if line.startswith("#"):
+            sections.append((head, "\n".join(current)))
+            current, head = [], line
+        else:
+            current.append(line)
+    sections.append((head, "\n".join(current)))
+    for head, body in sections:
+        for record in note_records(body):
+            if "lesson" not in (head + "\n" + record).lower():
+                continue
+            first = (record.strip().splitlines() or [""])[0]
+            subject = _SUBJECT.search(first)
+            if not subject:
+                continue
+            if subject["repo"] and subject["repo"] != repository:
+                continue
+            if not subject["repo"] and (subject["word"] or "").lower() in others:
+                continue
+            opening = re.split(r"(?<=[.!?])\s+(?=[A-Z*])", " ".join(record.split()), maxsplit=1)[0]
+            if not _MISSING.search(opening) and int(subject["n"]) in numbers:
+                found.add(int(subject["n"]))
+        for n in numbers:
+            first = head
+            subject = _SUBJECT.search(first)
+            if (subject and int(subject["n"]) == n and "lesson" in (head + "\n" + body).lower()
+                    and (subject["repo"] in (None, repository))
+                    and (subject["word"] or "").lower() not in others
+                    and not _MISSING.search(head)):
+                found.add(n)
+    return found
 
 
 # Lines a pull request body ends with that are no part of a record: a rule, the
@@ -1055,9 +1093,11 @@ def render(d: Digest, judgements: list[str] | None = None, notes: str = "") -> s
     else:
         out.append("No issue closed this week recorded a lesson.")
         out.append("")
-    if d.unlessoned:
+    noted = lessons_in_notes(notes, [n for n, _ in d.unlessoned], *_repositories())
+    missing = [n for n, _ in d.unlessoned if n not in noted]
+    if missing:
         out.append("Projects closed this week with no lessons learnt and no delegation: "
-                   + ", ".join(f"#{n}" for n, _ in d.unlessoned) + ".")
+                   + ", ".join(f"#{n}" for n in missing) + ".")
         out.append("")
     out.append("### Document reviews")
     out.append("")

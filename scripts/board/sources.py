@@ -845,7 +845,7 @@ def pull_requests() -> tuple[RawPullRequest, ...]:
       repository(owner:$owner, name:$repo) {
         pullRequests(first:100, after:$cursor, states:[OPEN, MERGED, CLOSED]) {
           pageInfo { hasNextPage endCursor }
-          nodes { id number state isDraft reviewDecision
+          nodes { id number state isDraft reviewDecision body
                   reviewRequests { totalCount } reviews { totalCount } } } } }"""
     out: list[RawPullRequest] = []
     cursor = None
@@ -861,7 +861,8 @@ def pull_requests() -> tuple[RawPullRequest, ...]:
             out.append(RawPullRequest(
                 number=n["number"], node_id=n["id"], state=n.get("state") or "",
                 draft=draft, review=review, reviewers=reviewers,
-                reviews=(n.get("reviews") or {}).get("totalCount", 0)))
+                reviews=(n.get("reviews") or {}).get("totalCount", 0),
+                body=n.get("body") or ""))
         if not block["pageInfo"]["hasNextPage"]:
             return tuple(out)
         cursor = block["pageInfo"]["endCursor"]

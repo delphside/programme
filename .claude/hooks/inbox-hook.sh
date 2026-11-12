@@ -88,8 +88,20 @@ log "sid=${SID:-?} start"
 
 # The live programme checkout missing, off main or behind: one line, or nothing.
 # Local git only, never changes the checkout, and never fails the session.
+#
+# The same moment checks the programme pin (`board-records.py pin`, one fetch
+# of at most five seconds): one more line when the pin is behind. It warns and
+# never moves it. Run beside the first, so the two cost the slower, not the sum.
 NOTE=""
-[[ "$MODE" != "--build" ]] && NOTE="$(timeout 10 "$BOARD"/board-records.py check 2>/dev/null || true)"
+if [[ "$MODE" != "--build" ]]; then
+  PIN_OUT="$(mktemp 2>/dev/null)" || PIN_OUT=/dev/null
+  timeout 8 "$BOARD"/board-records.py pin > "$PIN_OUT" 2>/dev/null &
+  NOTE="$(timeout 10 "$BOARD"/board-records.py check 2>/dev/null || true)"
+  wait
+  PIN_NOTE="$(cat "$PIN_OUT" 2>/dev/null || true)"
+  [[ "$PIN_OUT" != /dev/null ]] && rm -f "$PIN_OUT"
+  [[ -n "$PIN_NOTE" ]] && NOTE="${NOTE:+$NOTE$'\n'}$PIN_NOTE"
+fi
 with_note() { if [[ -n "$NOTE" ]]; then printf '%s\n\n%s' "$NOTE" "$1"; else printf '%s' "$1"; fi; }
 # Leave without a summary, still saying so if the checkout has a problem.
 bail() { [[ -n "$NOTE" ]] && emit_json "$NOTE" && mark_delivered "$SID"; exit 0; }
