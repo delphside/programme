@@ -149,7 +149,7 @@ DOCKER = "#!/bin/sh\necho 'Docker version 29.6.1, build 1234567'\n"
 class TheRemoteCommand(Cases):
     """`REMOTE_COMMAND` run under `sh` with `apt-get` and `docker` stubbed."""
 
-    def answer(self, apt, docker=DOCKER):
+    def answer(self, apt, docker=DOCKER, stamps_present=("update-stamp", "upgrade-stamp")):
         with tempfile.TemporaryDirectory() as d:
             bin_ = Path(d)
             for name, body in (("apt-get", apt), ("docker", docker)):
@@ -163,7 +163,9 @@ class TheRemoteCommand(Cases):
                 (boot / name).write_text("")
             stamps = bin_ / "periodic"
             stamps.mkdir()
-            for name, days in (("update-success-stamp", 1), ("upgrade-stamp", 5)):
+            for name, days in (("update-stamp", 1), ("upgrade-stamp", 5)):
+                if name not in stamps_present:
+                    continue
                 (stamps / name).write_text("")
                 old = time.time() - days * 86400 - 60
                 os.utime(stamps / name, (old, old))
@@ -184,6 +186,10 @@ class TheRemoteCommand(Cases):
     def test_nothing_waiting(self):
         fields = self.answer(APT_NONE).rstrip("\n").split("\t")
         self.expect("none waiting", ("0", "0"), (fields[4], fields[5]))
+
+    def test_a_missing_stamp_is_never(self):
+        fields = self.answer(APT_NONE, stamps_present=("update-stamp",)).rstrip("\n").split("\t")
+        self.expect("upgrade never succeeded", "never", fields[7])
 
     def test_failures_are_marked(self):
         """`parse` refuses `FAILED` (Parsing), so these never read as current."""
