@@ -80,6 +80,8 @@ class Findings(Cases):
                     self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t3\t3\t\t0")]))
         self.expect("automatic updates stopped", ["updates"],
                     self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t3\t3\t\t9")]))
+        self.expect("automatic updates never run", ["updates"],
+                    self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t0\t0\t\tnever")]))
         self.expect("automatic updates two days ago is not stopped", [],
                     self.kinds([reading(line="6.8\t6.8\t1.1.1\tno\t3\t3\t\t2")]))
         self.expect("one other package waiting", ["packages"],
@@ -159,12 +161,14 @@ class TheRemoteCommand(Cases):
             for name in ("vmlinuz-6.17.0-1020-oracle", "vmlinuz-7.0.0-1013-oracle",
                          "vmlinuz-6.17.0-1011-oracle"):
                 (boot / name).write_text("")
-            stamp = bin_ / "stamp"
-            stamp.write_text("")
-            old = time.time() - 5 * 86400
-            os.utime(stamp, (old, old))
+            stamps = bin_ / "periodic"
+            stamps.mkdir()
+            for name, days in (("update-success-stamp", 1), ("upgrade-stamp", 5)):
+                (stamps / name).write_text("")
+                old = time.time() - days * 86400 - 60
+                os.utime(stamps / name, (old, old))
             env = dict(os.environ, PATH=f"{d}:/usr/bin:/bin", BOOT_DIR=str(boot),
-                       STAMP_FILE=str(stamp))
+                       STAMP_DIR=str(stamps))
             done = subprocess.run(["sh", "-c", hosts.REMOTE_COMMAND], capture_output=True,
                                   text=True, env=env)
             return done.stdout
@@ -173,7 +177,7 @@ class TheRemoteCommand(Cases):
         fields = self.answer(APT_OK).rstrip("\n").split("\t")
         self.expect("eight fields", 8, len(fields))
         self.expect("newest kernel by version, not by text", "7.0.0-1013-oracle", fields[1])
-        self.expect("days since automatic updates ran", "5", fields[7])
+        self.expect("days since automatic updates succeeded: the older stamp", "5", fields[7])
         self.expect("docker version", "29.6.1", fields[2])
         self.expect("three waiting, one of them security", ("3", "1"), (fields[4], fields[5]))
 

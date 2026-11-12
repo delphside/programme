@@ -12,7 +12,9 @@ from dataclasses import dataclass
 # Run on a host over SSH; prints one tab-separated line of eight fields:
 # running kernel, newest installed kernel, Docker version, reboot pending,
 # packages waiting, of which security, packages that need the reboot, and
-# days since automatic updates last ran (`unattended-upgrades`' stamp).
+# days since automatic updates last succeeded (the older of apt's two
+# success stamps), or `never` where a stamp is missing. `STAMP_DIR` replaces
+# `/var/lib/apt/periodic` for the test.
 # `BOOT_DIR` replaces `/boot` for the test.
 # Read-only for a non-root user, which the hosts' SSH users are: as root, a
 # simulated `apt-get` may refresh its own cache. No `apt-get update`, so the
@@ -33,8 +35,15 @@ else
   waiting=FAILED; security=FAILED
 fi
 needing=$(cat /var/run/reboot-required.pkgs 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-stamp=$(stat -c %Y "${STAMP_FILE:-/var/lib/apt/periodic/unattended-upgrades-stamp}" 2>/dev/null)
-if [ -n "$stamp" ]; then updated=$(( ($(date +%s) - stamp) / 86400 )); else updated=FAILED; fi
+# Each stamp is touched only by a success: the lists' update, and the upgrade
+# run exiting 0. The older of the two is the age that matters.
+dir=${STAMP_DIR:-/var/lib/apt/periodic}
+updated=0
+for f in update-success-stamp upgrade-stamp; do
+  t=$(stat -c %Y "$dir/$f" 2>/dev/null) || { updated=never; break; }
+  age=$(( ($(date +%s) - t) / 86400 ))
+  [ "$age" -gt "$updated" ] && updated=$age
+done
 printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${running:-FAILED}" "${newest:-FAILED}" "${docker:-FAILED}" "$reboot" "$waiting" "$security" "$needing" "$updated"
 """
 
@@ -56,7 +65,7 @@ class Reading:
     waiting: int
     security: int
     reboot_packages: str
-    updated_days: int
+    updated_days: int | None  # None: automatic updates have never run
 
 
 @dataclass(frozen=True)
@@ -76,8 +85,7 @@ def parse(label: str, ssh: str, line: str) -> Reading:
         raise ValueError(f"{label}: expected {_FIELDS} tab-separated fields, got {len(fields)}")
     running, newest, docker, reboot, waiting, security, needing, updated = fields
     failed = [name for name, value in (("running kernel", running), ("newest kernel", newest),
-                                       ("Docker", docker), ("apt", waiting),
-                                       ("automatic updates' stamp", updated)) if value == "FAILED"]
+                                       ("Docker", docker), ("apt", waiting)) if value == "FAILED"]
     if failed:
         raise ValueError(f"{label}: could not read {', '.join(failed)}")
     if not running:
@@ -85,7 +93,8 @@ def parse(label: str, ssh: str, line: str) -> Reading:
     if reboot not in ("yes", "no"):
         raise ValueError(f"{label}: reboot pending must be yes or no, got {reboot!r}")
     try:
-        count, secure, days = int(waiting), int(security), int(updated)
+        count, secure = int(waiting), int(security)
+        days = None if updated == "never" else int(updated)
     except ValueError:
         raise ValueError(f"{label}: counts must be numbers, got {waiting!r}, {security!r} "
                          f"and {updated!r}") from None
@@ -107,10 +116,12 @@ def findings(readings: list[Reading], pairs: list[tuple[str, str]]) -> list[Find
         # Automatic updates install the security packages themselves (1.2:
         # the platform maintaining itself), so only the others are owed a
         # delivery. Both counts are in the table.
-        if r.updated_days > STALE_UPDATE_DAYS:
-            out.append(Finding(r.label, "updates",
-                               f"{r.label}'s automatic updates last ran {r.updated_days} days ago, "
-                               f"so its {r.security} security packages are not being installed"))
+        if r.updated_days is None or r.updated_days > STALE_UPDATE_DAYS:
+            when = ("have never succeeded" if r.updated_days is None
+                    else f"last succeeded {r.updated_days} days ago")
+            waiting = (f", so its {r.security} security packages are not being installed"
+                       if r.security else "")
+            out.append(Finding(r.label, "updates", f"{r.label}'s automatic updates {when}{waiting}"))
         others = r.waiting - r.security
         if others > 0:
             out.append(Finding(r.label, "packages",
