@@ -35,11 +35,11 @@ else
   waiting=FAILED; security=FAILED
 fi
 needing=$(cat /var/run/reboot-required.pkgs 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-# Each stamp is touched only by a success: the lists' update, and the upgrade
+# apt.systemd.daily touches each only on success: the lists' update, and the upgrade
 # run exiting 0. The older of the two is the age that matters.
 dir=${STAMP_DIR:-/var/lib/apt/periodic}
 updated=0
-for f in update-success-stamp upgrade-stamp; do
+for f in update-stamp upgrade-stamp; do
   t=$(stat -c %Y "$dir/$f" 2>/dev/null) || { updated=never; break; }
   age=$(( ($(date +%s) - t) / 86400 ))
   [ "$age" -gt "$updated" ] && updated=$age
