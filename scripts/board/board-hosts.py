@@ -19,7 +19,7 @@ A missing `hosts` table is a profile error, never a built-in default. Each host
 is asked `hosts.REMOTE_COMMAND` over ssh, read-only, and every host is read
 before any is judged. `SSH_COMMAND` replaces `ssh` (a path), so a test can stub it.
 
-Exit status (docs/1.10 *What a script's exit status means*): 0 nothing is pending
+Exit status (docs/1.10 *What a script's exit status means*): 0 no host owes a delivery
 and the pairs agree; 1 there is a finding (a check reporting, not a gate); 2 a
 host could not be read, so the check cannot judge (a closed door and a dead host
 look alike); 70 the profile is missing or broken (`profile.EXIT_PROFILE_ERROR`).
