@@ -102,6 +102,29 @@ age and bound, from the same table. A thread runs it at start and at each wake,
 through the cloud session-start hook as well as WSL's. The owner's list adds
 every `Turn` = `Owner` item to today's three sources.
 
+## Non-functional design
+
+| Question | Answer |
+| --- | --- |
+| capacity | One sweep reads every open issue and pull request in the five repositories: 88 on 2026-11-13. At about four REST calls each (fields, sub-issues, dependencies, the timeline for age), that is about 400 calls, against the 15,000 an hour the token's limit allowed that day. Writes are one call per item that changed. The coordinator's session is one a day, ending at once when nothing is stalled. |
+| failure | A failed run writes what it reached and exits non-zero, naming the item and call that failed; the pinned issue says when the last complete run was. The next run corrects everything, because reconciliation keeps no history. A missed day (Claude's limits, a stopped coordinator) delays nudges by a day and loses nothing. A field the model cannot read is *not visible*, never a default (the existing `Unavailable` rule). |
+| limits and timeouts | Each REST call is cut at 120 s, as `board-add.yml` does today. The bounds are the owner's (7 days; a day for triage), held in the flow table, not in code elsewhere. |
+| secrets and access | None new. The sweep runs with the cloud session's own GitHub access, which is repository-scoped REST; no token is added to a host or to Actions. Creating the two fields is an organisation setting, so it is the owner's. |
+
+## Deliveries
+
+Planned in the order each needs the one before it. The route of each is its
+artefact's ([1.2 §2.15](../../../../docs/1.2-change-lifecycle.md#215-classifying-a-change)).
+
+| # | What it delivers | Route | Milestone | Work package or steps |
+| --- | --- | --- | --- | --- |
+| 1 | the `Turn` and `Claimed by` issue fields, with `Turn`'s options and colours, and the owner's board view | Other | a date, the day it lands | a work package: the owner's steps, with a runbook |
+| 2 | the flow table in `model.py`, `board-flow.py`, `board-actions.py --role`, their tests, and the documents: 1.2's machines, 1.6's fields, 1.4's daily activity, 1.7's movers | Docs and Programme Tooling | none | a work package carrying its tests; then each application's pin move |
+| 3 | the coordinator's daily trigger, the pinned stalled-list issue, and the cloud session-start hook pulling each role's list | Other | a date, the day it lands | a work package |
+
+Left out, for later: retiring `Requirement State`'s `On Hold` in favour of
+`Hold` (design.md question 2), and anything delphside/programme#138 takes.
+
 ## Known gaps on today's tools
 
 The table delphside/programme#138 is judged on.
