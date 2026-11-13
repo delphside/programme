@@ -12,7 +12,7 @@ board model in `scripts/board/`.
 | --- | --- |
 | reading the board | `sources.py` is the only module that talks to GitHub, and already has a REST path (`_rest_fetch`, `_rest_write`) beside GraphQL, so `board-check.py`, `board-status.py` and `board-actions.py` run from cloud threads (since 2026-11-09) |
 | writing fields | `sources.set_field` (GraphQL) and `_rest_write`; issue fields take the option's name over REST |
-| scheduled jobs | GitHub Actions in the programme repository with `BOARD_TOKEN`: `board-add.yml` runs hourly |
+| scheduled jobs | GitHub Actions with `BOARD_TOKEN`: `board-add.yml` runs hourly and `pr-state.yml` on events; both stay, and nothing is added to Actions |
 | events | `pr-state.yml` on pull request and review events; the post-merge hook on a local merge; `deploy.sh` on a deploy |
 | Claude's schedule | the Monday trigger into the coordinator, for the weekly activities |
 | the movers' lists | `board-actions.py` (the owner's) and `--claude` (Claude's, one list), read by the session-start hook in WSL |
@@ -34,43 +34,52 @@ flowchart LR
     model --> check[board-check.py]
 ```
 
-### 2. The daily sweep is a new `board-flow.py`, in two halves
+### 2. The daily sweep is a new `board-flow.py`, run by the coordinator
+
+**No new GitHub Actions jobs** (owner, 2026-11-13: minimise dependence on
+them). `board-flow.py` is plain Python over REST, so where it is scheduled is
+a thin wrapper and can move.
 
 ```mermaid
 sequenceDiagram
-    participant A as Actions, 06:00 daily
-    participant G as GitHub
-    participant C as Coordinator, 07:00 daily
+    participant C as Coordinator, daily trigger
+    participant B as board-flow.py
+    participant G as GitHub (REST)
     participant T as Role threads
-    A->>G: read every repository over REST
-    A->>G: write R7 fixes and each item's Turn
-    A->>G: publish the stalled list (job summary and a pinned issue)
-    C->>G: read the stalled list
+    C->>B: run
+    B->>G: read every repository
+    B->>G: write R7 fixes, each item's Turn, clear stale claims
+    B->>G: publish the stalled list
+    B-->>C: stalled items, by role
     C->>T: nudge each role's thread, or start one
     C-->>C: nothing stalled: end silently
 ```
 
-- **The writing half runs in GitHub Actions**, as `board-add.yml` does. It is
-  deterministic, needs no Claude, and so keeps running when every thread is
-  stopped (R8's black start). It writes R7's starting states, writes `Turn`
-  where the model derives it, clears claims that have gone stale, and
-  publishes the list of stalled items.
-- **The nudging half is a daily cloud trigger into the coordinator**, because
-  only a Claude session can message a thread. It reads the published list and
-  nudges each stalled item's role thread, or starts one where the role has
-  no permanent thread, as most workstreams do not. When nothing is
-  stalled it ends without a message. The Monday trigger stays as it is.
-- **Times** keep both clear of the Claude plan's daily reset (about 21:10 to
+- **Recommended: the coordinator's daily cloud trigger runs it**, then nudges
+  each stalled item's role thread, or starts one where the role has no
+  permanent thread, as most workstreams do not. When nothing is stalled it
+  ends without a message. The Monday trigger stays as it is.
+- **A missed day is tolerated.** A day when Claude's limits are reached runs
+  nothing, and the next run corrects it: reconciliation needs no history. A
+  black start is the owner prompting the coordinator, whose first act is the
+  sweep.
+- **The alternative** is cron on one of the VMs: it runs whatever Claude is
+  doing, but puts a GitHub token on a host.
+- **The time** keeps clear of the Claude plan's daily reset (about 21:10 to
   22:10 UTC).
 
-### 3. Events fill the gaps the model has today
+### 3. Events are moved by the thread that causes them
 
-| Event | Today | Added |
+The sweep makes each event's move within a day whatever happens, so the
+events need no new automation: the thread that causes one makes its move, as
+part of the same action.
+
+| Event | Who moves it | If missed |
 | --- | --- | --- |
-| an issue is raised | `board-add.yml` adds it to the board within the hour | the same run writes its starting state and `Turn` (R7, R10) |
-| a pull request merges on GitHub | nothing moves its work package | an Actions job reads its `Refs #N` with `refs.py` and moves the package by route, as the post-merge hook does locally (#383 R13) |
-| a deploy | `deploy.sh` moves what it ships | unchanged |
-| a pull request changes state | `pr-state.yml`, not in the infrastructure repository | the workflow in every repository (#383 R15) |
+| an issue is raised | the raising thread sets its starting state and `Turn` (R7, R10) | the next sweep writes them |
+| a pull request merges on GitHub | the merging thread moves its work package by route (#383 R13) | the next sweep, reading `Refs #N` with `refs.py` |
+| a deploy | `deploy.sh` moves what it ships | the next sweep |
+| a pull request changes state | `pr-state.yml`, kept as it is, since `PR State` is a board field and needs GraphQL | the infrastructure repository has none (#383 R15); its pull requests' movers are derived from REST |
 
 ### 4. Two new issue fields
 
@@ -103,13 +112,10 @@ The table delphside/programme#138 is judged on.
 | pull requests cannot carry `Turn` or `Claimed by` | derived from `PR State` and the branch's thread | `board-actions.py` |
 | organisation paths are refused from the cloud | the owner creates fields and options by hand | owner, once |
 | the context header needs GraphQL | the WSL session regenerates it | WSL session |
-| a thread cannot be messaged from Actions | the coordinator's daily trigger relays | coordinator |
 
 ## Questions for the owner
 
-1. **Where the daily sweep runs.** Recommended: writes in Actions, nudges by a
-   daily cloud trigger into the coordinator. The alternative, everything in
-   the cloud trigger, is one place but stops writing when Claude's limits are
-   reached, and costs a session every day.
+1. **Where the daily sweep runs.** Recommended: the coordinator's daily
+   trigger. The alternative is cron on a VM.
 2. **Where the stalled list is published** for the coordinator and the owner:
-   a pinned issue rewritten each day, or only the Actions job summary.
+   a pinned issue rewritten each day, or only in the coordinator's message.
