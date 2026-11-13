@@ -147,7 +147,7 @@ delivery 3. Each defect is fixed in delivery 2, in `scripts/board/` and
 | #455-R1 | comments older than Claude's own account (2026-08-25) are never a to-do: a floor, held as a setting. Recommended, awaiting the owner's answer ([question 4](#questions-for-the-owner)) |
 | #455-R2 | every heading names whose move it is; the cache line says *any age* |
 | #455-R3 | `--issue N` goes through the same open-issues rule and the same comment read, pull request diff comments included, as the board-wide path: one function, two callers |
-| #455-R4 | the cap counts comments, so it bounds the lines shown; the 12 that show are the oldest, longest waiting first, as `turn.py` orders; then one line says how many more on how many issues. Recommended, awaiting the owner's answer ([question 3](#questions-for-the-owner)): if he chooses 12 issues, every comment on the 12 oldest-waiting issues shows |
+| #455-R4 | the cap counts comments, so it bounds the lines shown; the 12 that show are the oldest, longest waiting first, as `turn.py` orders; then one line says how many more on how many issues. The owner chose this ([question 3](#questions-for-the-owner)) |
 | #455-R5 | `comment-check.sh` matches every way Claude posts a comment, in [the table of ways](#the-ways-claude-posts-a-comment), and nothing else |
 | #455-R6 | [1.1](../../../../docs/1.1-programme-tooling.md)'s `board-inbox.py` row describes `--open`, `--issue` and `--all` |
 | #455-R7 | each section of the hook is read and shown on its own, so one failed read prints its failure and the others still show |
@@ -318,10 +318,9 @@ is judged on.
    pinned issue in the programme repository, its body rewritten by each sweep,
    so the owner can see stalls without asking and its history shows how they
    changed.
-3. **Whether the to-do cap counts comments or issues (#455-R4).** Awaited. The
-   recommendation is the cap by comments: the 12 oldest-waiting comments show,
-   then one line counts the rest. The alternative is the cap by issues: every
-   comment on the 12 oldest-waiting issues shows.
+3. **Whether the to-do cap counts comments or issues (#455-R4).** Answered
+   (owner, 2026-11-13): comments. The 12 oldest-waiting comments show, then
+   one line counts the rest.
 4. **Whether comments before Claude's account count as to-dos (#455-R1).**
    Awaited. The recommendation is a floor at 2026-08-25, held as a setting, so
    no earlier comment is a to-do. The alternative is no floor.
