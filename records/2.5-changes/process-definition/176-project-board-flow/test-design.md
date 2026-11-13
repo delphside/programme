@@ -28,7 +28,7 @@ Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily
 
 | ID | Rule |
 | --- | --- |
-| R1 | Every open item, in every state, has exactly one named next mover: the owner, a role's thread, or a tool. |
+| R1 | Every open item, in every state, has exactly one holder, whose move it is: the owner, a role's thread, or a tool. Anyone else with a part in that state sees it on their own list. |
 | R2 | Every move has a trigger (event, schedule or person). A wait has a stated bound, past which someone is told. |
 | R3 | The board model is the single source of what needs doing: per type and state, the mover, what it owes and the trigger. Every to-do list is derived from it. |
 | R4 | The model's answers can be read wherever a mover runs: a cloud thread (REST only) or WSL. |
@@ -38,8 +38,8 @@ Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily
 | R8 | Flow recovers from any degree of stoppage, from a black start to every thread running. Every item that is not progressing is found and picked up. |
 | R9 | Before picking up an item, a mover can tell whether it is already being worked, and by whom. Recovery restarts only what has stalled. |
 | R10 | A requirement is triaged when it is raised: by the raising thread where Claude triages alone, or by asking the owner at once where triage is joint. |
-| R11 | Each `Requirement State` has a next mover and a bound (7 days). Past the bound, the requirement appears on that mover's list and in the `board-sweep`, with how long it has sat. |
-| R12 | Each workstream's thread stays on top of its open issues, and the sweep nudges a thread whose issues are past R11's bound. A requirement stays at Scope only while it waits on something specific named under its dependencies. One waiting on the owner has a `Decision` issue. |
+| R11 | Each `Requirement State` has a holder and a bound: a day for triage, 7 days where a move is owed, none for the planning queues. Past the bound, the requirement appears on that holder's list and on the daily sweep's stalled list, with how long it has sat. |
+| R12 | Each workstream's thread stays on top of its open issues; the daily sweep nudges it, or has the coordinator start one, when its issues pass R11's bound. A requirement waiting on something specific has `Turn` = `Hold` with that thing named under its dependencies. A specific question for the owner is a `Decision` issue, except during the first discussion. |
 | R13 | A workstream's thread progresses a requirement until it rests in one of the ten listed resting states. |
 | R14 | The owner can see which resting state each requirement is in, and which wait on him, without reading the issues. |
 
@@ -119,11 +119,11 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 ### Checked for contradiction
 
 - **R11 against M2 and M12:** R11 gives every `Requirement State` a 7-day bound, while M12 sets 1 day for triage and none for the queues. Reconciled by the owner's later answer (design.md Q3, 2026-11-13). The tests assert M12. R11's text in the body should say so.
-- **R11 and R12 against P2 and I3:** R11 and R12 say `board-sweep`; the design moves listing and nudging to the daily `board-flow.py` run. Read as: the daily run lists and nudges, and the weekly `board-sweep` keeps planning. See G25.
+- **R11 and R12 against P2 and I3:** R11 and R12 say `board-sweep`; the design moves listing and nudging to the daily `board-flow.py` run. Settled by the owner rewording R11 and R12 to the daily sweep (G25).
 - **R7 (pull requests included) against I5 and the known-gaps table:** `PR State` cannot be written over REST, and infrastructure has no workflow. Accepted as a known gap (#383 R15). For infrastructure the tests assert a derived mover, not a written state.
 - **Still open, each in part 10:**
-  - R1 against M2, M4 and M8 (more than one mover in a state): G1, waiting on the owner's rewording;
-  - R12 against M2 and docs/1.2 §2.23 (Scope against `On Hold`): G4, likewise;
+  - R1 against M2, M4 and M8 (more than one mover in a state): G1, settled by the owner rewording R1 to *one holder* (2026-11-13);
+  - R12 against M2 and docs/1.2 §2.23 (Scope against `On Hold`): G4, settled by R12's rewording to `Turn` = `Hold`;
   - settled by the design authority: `Hold` naming nobody and a tool mover (S-G2), a derivable state carrying a thread-set `Owner` or `Hold` (S-G3), unset against `Triage` (S-G5), offer against clear (S-G9).
 
 ## 2. Conditions, grouped into dimensions
@@ -246,7 +246,7 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | O11 | The item is reported *not visible*. No `Turn` or state is written to it, and it is not judged stalled on a default value. |
 | O12 | `--role R` prints exactly the items whose mover is R, oldest first, each with age and bound. With none, it says so plainly. |
 | O13 | The owner's list holds every `Turn` = `Owner` item, plus its three existing sources unchanged. |
-| O14 | Across callers, for one world: every open item has exactly one mover; the stalled set equals the past-bound items on the role lists; `board-check.py` agrees. |
+| O14 | Across callers, for one world: every open item has exactly one holder, and anyone else with a part in its state sees it on their own list; the stalled set equals the past-bound items on the role lists; `board-check.py` agrees. |
 | O15 | The run completes with GraphQL refused, and its result matches the same world's expected answer. |
 | O16 | The work package's `Project State` is written `Deployment` (Production Release) or `Post-deployment` (tooling route), and nothing else moves. |
 | O17 | Quiet: the stalled output is empty, the pinned issue says nothing is stalled and gives the run's time, and the exit is 0 (S-G21). |
@@ -370,7 +370,7 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 
 | Rule | Scenarios |
 | --- | --- |
-| R1 | S10, S11, S14, S16, S34, S35 (G1) |
+| R1 | S10, S11, S14, S16, S34, S35 |
 | R2 | S3, S5, S7, S10, S11, S13, S35, S36 |
 | R3 | S32, S34, S35 |
 | R4 | S12, S28, S29, TT1, TT2, TT3, TT5 |
@@ -381,7 +381,7 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | R9 | S20, S21 |
 | R10 | S3 (the 1-day backstop; the thread's own act is a post-deployment check) |
 | R11 | S3, S5, S23 |
-| R12 | S17, S18, S19, S32, S37, TT8 (G4) |
+| R12 | S17, S18, S19, S32, S37, TT8 |
 | R13 | S15, S17, S18, S19 |
 | R14 | S15, S33, S43, UA1 |
 | M1 | S3, S5, S7, S20, S22 |
@@ -597,7 +597,7 @@ One per requirement. Each is answered after a week of daily runs.
 - `role_with_nothing_says_so`
 - `unknown_role_is_refused`
 - `owners_list_adds_turn_owner_items_and_keeps_its_three_sources`
-- `every_open_item_has_exactly_one_mover_across_all_lists`
+- `every_open_item_has_exactly_one_holder_across_all_lists`
 - `stalled_set_matches_past_bound_items_on_the_role_lists`
 - `flow_table_covers_every_option_of_every_state_field`
 - `flow_table_bounds_are_a_day_for_triage_seven_elsewhere_none_for_queues`
@@ -616,14 +616,14 @@ One per requirement. Each is answered after a week of daily runs.
 
 ## 10. Gaps
 
-Each is a question for the owner, or for the design authority. Settled on 2026-11-13 in [implementation.md](implementation.md#details-settled-from-the-test-design), except G1, G4 and G25, which change requirement wording.
+Each is a question for the owner, or for the design authority. Settled on 2026-11-13 in [implementation.md](implementation.md#details-settled-from-the-test-design), and G1, G4 and G25 by the owner rewording R1, R11 and R12 the same day.
 
 | Gap | What would make the missing test fail | What it would take to close it | Why it is acceptable for now | Now |
 | --- | --- | --- | --- | --- |
-| G1 R1 says "exactly one" mover, but `Design and Test Approach` (design authority, test manager, owner), `User testing` (owner, technical lead), `Deployment` (technical lead, release manager) and joint `Triage` (owner first, then the thread) each name more than one. | `every_open_item_has_exactly_one_mover` would fail on any of these states, or pass only by picking one arbitrarily. | Name one mover per state in the flow table (for example, the holder, with the others' boxes on the owner's list), or restate R1 as "one holder". | Blocks S34's invariant for these states only. | **Open:** waits on the owner rewording the requirement. |
+| G1 R1 says "exactly one" mover, but `Design and Test Approach` (design authority, test manager, owner), `User testing` (owner, technical lead), `Deployment` (technical lead, release manager) and joint `Triage` (owner first, then the thread) each name more than one. | `every_open_item_has_exactly_one_mover` would fail on any of these states, or pass only by picking one arbitrarily. | Name one mover per state in the flow table (for example, the holder, with the others' boxes on the owner's list), or restate R1 as "one holder". | Blocks S34's invariant for these states only. | **Settled:** the owner reworded R1, R11 and R12, 2026-11-13. |
 | G2 A `Hold` or `On Hold` item has "nobody, until its trigger" (M2), against R1. `Turn` has no value for a tool mover (R1 allows tools; `Deployment` waits for one). | The invariant test cannot say who the mover of a held item is; a held item past its review date has no named list to appear on. | State that the hold's reviewer, the role holding the item, is its mover at the review bound, and which `Turn` a tool's wait takes (`Hold`?). | S17 asserts O18 "reported to its role", an assumption to confirm. | **Settled:** S-G2. |
 | G3 The model writes `Turn` wherever the state's mover is derivable (M9), yet a Requirement at Scope (derivable: Claude) waiting on the owner's approval carries a thread-set `Owner` (M3, M10), and a Scope one waiting on a Decision carries `Hold`. | S15 cannot say whether the sweep overwrites the thread's `Owner` with `Claude`. If it does, R14's approvals vanish daily; if it does not, a wrong `Turn` is never corrected. | A precedence rule: a thread-set `Owner` with an approval comment, or a `Hold` with a valid reason, is kept; otherwise the derived value wins. | S15 is blocked until settled. | **Settled:** S-G3. |
-| G4 R12: "stays at Scope only while it waits on something specific, named under its dependencies". M2 and docs/1.2 §2.23: a waiting requirement moves to `On Hold`. | Whether a Scope requirement with a named dependency past 7 days is stalled or resting cannot be asserted. | Reword R12, or confirm Scope + `Turn` = `Hold` + a dependency is the sanctioned form (M3). | S19 assumes the M3 form. | **Open:** waits on the owner rewording the requirement. |
+| G4 R12: "stays at Scope only while it waits on something specific, named under its dependencies". M2 and docs/1.2 §2.23: a waiting requirement moves to `On Hold`. | Whether a Scope requirement with a named dependency past 7 days is stalled or resting cannot be asserted. | Reword R12, or confirm Scope + `Turn` = `Hold` + a dependency is the sanctioned form (M3). | S19 assumes the M3 form. | **Settled:** the owner reworded R1, R11 and R12, 2026-11-13. |
 | G5 R7 and M14 write a stateless requirement's "starting state", but docs/1.2 §2.23 keeps unset ("nobody has looked") apart from `Triage` ("somebody is looking"). | S1 cannot say whether the sweep writes `Triage`; writing it erases the inbox signal. | Say whether unset is a valid starting state for a Requirement (so nothing is written) or §2.23 changes. | S3 tests the bound on both values, which is the same either way. | **Settled:** S-G5. |
 | G6 A Decision raised without a state gets "a starting state" (M6), which is not named. | S10's stateless Decision has no expected value. | Name it (presumably `Asked`) in the flow table and 1.2. | One case. | **Settled:** S-G6. |
 | G7 Tickets: no bound or `Turn` is stated for `Waiting on sender` (the sender's move), `Resolved` or `Refused` (who closes, and when), and `Pending`'s bound is "the review date", not 7 days. | S13 cannot assert those states. | Rows in the flow table, and 1.8 updated, as design.md says it must be. | The owner's states are covered. | **Settled:** S-G7. |
@@ -644,7 +644,7 @@ Each is a question for the owner, or for the design authority. Settled on 2026-1
 | G22 No read-only mode is stated, so TT1, TT2 and TT4 write `Turn` and R7's fixes to the real repositories before the merge. Programme tooling has no environment between. | A bug found by TT1 would already have written to every open issue. | Either a `--dry-run` that writes nothing and prints what it would write, or the owner accepts that TT1 is the first real run. | Writes are reversible issue-field values. | **Settled:** S-G22. |
 | G23 *Stalled* includes "a mover that is not running" (M1), which REST cannot observe; only the bound can show it. | No test can show a stopped thread except through the bound. | Accept that a stopped thread is detected only at the bound. | That is how R8 is met in every scenario. | **Settled:** S-G23. |
 | G24 R14 asks which of the ten resting states each requirement is in. `Turn` shows `Owner` or `Hold`, and the view filters on `Owner` only, so telling the two `On Hold` kinds and the planning wait apart still needs the issue or another column. | The R14 post-deployment check may fail. | Confirm the view's columns (state, dependency link) or a derived list. | The owner judges R14's check. | **Settled:** S-G24. |
-| G25 R11 and R12 say the `board-sweep` lists and nudges; the design moves both to the daily run, and the weekly `board-sweep` keeps planning. | No test checks that the weekly sweep shows stalled requirements. | Reword R11 and R12, or have the weekly sweep read the pinned issue. | The pinned issue is visible at the weekly sweep. | **Open:** waits on the owner rewording the requirement. |
+| G25 R11 and R12 say the `board-sweep` lists and nudges; the design moves both to the daily run, and the weekly `board-sweep` keeps planning. | No test checks that the weekly sweep shows stalled requirements. | Reword R11 and R12, or have the weekly sweep read the pinned issue. | The pinned issue is visible at the weekly sweep. | **Settled:** the owner reworded R1, R11 and R12, 2026-11-13. |
 | G26 R6 (names from Kanban and ITIL) is a property of the documents, not of the code. | No test can fail. | None: a review by the document reviewers. | By review. | **Settled:** by review (S-G26 in implementation.md). |
 
 Derived by a fresh `test-designer` agent that read no implementation (docs/1.9).
