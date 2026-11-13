@@ -135,7 +135,7 @@ returns for `Post-deployment` (where a requirement needs it) and
 | `Development` | technical lead | first test deploy, or merge | 7 days without a commit. The age is that of the head commit of the package's open pull request; with none, the field's own age. | nothing |
 | `User testing` | the technical lead. Part on the owner's list: unticked browser tests. | tests ticked | 7 days | `waiting_on_owner` lists unticked browser tests |
 | `Deployment` | the technical lead, `Turn` = `Hold` on the release ([Hold reasons](#hold-reasons)). Part on the release manager's list: making the release. | the deploy | none: waits for the release | nothing |
-| `Post-deployment` | technical lead | the review, due after 7 days | 14 days: 7 days after the review fell due. None for a `Release Check` package (Tile Lite Elite's only) while `Turn` = `Hold` ([Hold reasons](#hold-reasons)); once the hold ends, its review is due at once and it stalls past 7 days after the next release milestone closed. | `waiting_on_claude`, `REVIEW_DUE_DAYS`, `RELEASE_CHECK` |
+| `Post-deployment` | technical lead | the review, due after 7 days | 14 days: 7 days after the review fell due. None for a `Release Check` package (Tile Lite Elite's only) while `Turn` = `Hold` ([Hold reasons](#hold-reasons)); once the hold ends, its review is due at once and its age counts from the close of the next release milestone, so it stalls past 7 days. | `waiting_on_claude`, `REVIEW_DUE_DAYS`, `RELEASE_CHECK` |
 | `Project Closedown` | technical lead (parent: design authority) | lessons written, closed | 7 days | nothing |
 
 The sweep reads the closed release milestone of a deploy that `deploy.sh`
