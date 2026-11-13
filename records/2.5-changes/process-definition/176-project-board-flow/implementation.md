@@ -144,7 +144,7 @@ delivery 3. Each defect is fixed in delivery 2, in `scripts/board/` and
 
 | delphside/tile-lite-elite#455 | Fix |
 | --- | --- |
-| #455-R1 | comments older than Claude's own account (2026-08-25) are never a to-do: a floor, held as a setting. Recommended, awaiting the owner's answer ([question 4](#questions-for-the-owner)) |
+| #455-R1 | comments older than Claude's own account (2026-08-25) are never a to-do: a floor, held as a setting. The owner chose this ([question 4](#questions-for-the-owner)) |
 | #455-R2 | every heading names whose move it is; the cache line says *any age* |
 | #455-R3 | `--issue N` goes through the same open-issues rule and the same comment read, pull request diff comments included, as the board-wide path: one function, two callers |
 | #455-R4 | the cap counts comments, so it bounds the lines shown; the 12 that show are the oldest, longest waiting first, as `turn.py` orders; then one line says how many more on how many issues. The owner chose this ([question 3](#questions-for-the-owner)) |
@@ -322,5 +322,5 @@ is judged on.
    (owner, 2026-11-13): comments. The 12 oldest-waiting comments show, then
    one line counts the rest.
 4. **Whether comments before Claude's account count as to-dos (#455-R1).**
-   Awaited. The recommendation is a floor at 2026-08-25, held as a setting, so
-   no earlier comment is a to-do. The alternative is no floor.
+   Answered (owner, 2026-11-13): a floor at 2026-08-25, held as a setting, so
+   no earlier comment is a to-do.
