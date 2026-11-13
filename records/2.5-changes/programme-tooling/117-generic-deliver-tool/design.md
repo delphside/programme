@@ -620,8 +620,7 @@ tool, protocol or tag form:
 *Absent* is an answer, not a failure: the registry says the image or record is
 not there, which is told apart from its being unreachable. A failure reaches
 Turpin as one of four kinds, with no registry address or repository, on screen
-or in the log (the `build` hook prints image references, which carry the
-address):
+or in the log:
 
 - *refused*: the registry refused the credential or the right;
 - *not found*: an operation needed something that is not there, such as a
@@ -647,12 +646,9 @@ adapter is an anti-corruption layer (Evans, *Domain-Driven Design*), and its
 bottom layer is a Gateway (Fowler, *Patterns of Enterprise Application
 Architecture*) for each of Oracle's two APIs. Each layer calls only the one
 below it, with one exception: the translators sit beside the middle layer, and
-only it uses them. Only the bottom layer knows a tool's syntax, and so the
-`build` hook writes OCI image layouts and the bottom layer pushes them.
-
-A test replaces a bottom-layer function with a stub, with `unittest`. Another
-registry would be a second adapter behind the same port, reusing the
-registry-API function where it can; only `OCIR` is built.
+only it uses them. Only the bottom layer knows a tool's syntax. The `build`
+hook writes OCI image layouts and the bottom layer pushes them, so the hook
+needs no registry login.
 
 ```mermaid
 %%{init: {"themeVariables": {"clusterBkg": "#ffffff", "clusterBorder": "#8c959f", "edgeLabelBackground": "#ffffff"}}}%%
@@ -694,11 +690,11 @@ The Oracle calls, and what the bottom layer runs for each:
 
 | Oracle call | API | Bottom layer runs |
 | --- | --- | --- |
-| log in | registry, Artifacts | `skopeo login --authfile`, or `docker login` for a component whose machine user's login an environment pulls with, or a check that the auth file holds a login; a check that the API key's configuration or the instance principal is there |
+| log in | registry, Artifacts | `skopeo login --authfile`, or a check that the auth file holds a login; `docker login` for the builder where an environment on its machine shares its login; a check that the API key's configuration or the instance principal is there |
 | inspect manifest | registry | `skopeo inspect` |
 | list tags | registry | `skopeo list-tags` |
 | copy image, every platform, digests preserved | registry | `skopeo copy --all --preserve-digests` |
-| push | registry | `skopeo copy` from an OCI layout: the record's; or, for a build, `skopeo copy --all --preserve-digests oci:DIR:SHA-IMAGE` from each layout the `build` hook wrote |
+| push | registry | `skopeo copy` from an OCI layout: the record's; or, for a build, `skopeo copy --all --preserve-digests oci:DIR` from each layout the `build` hook wrote, which holds one image, to the tag `SHA-IMAGE` |
 | pull | registry | `skopeo copy` to an OCI layout (the record) |
 | find image by repository and digest | Artifacts | `oci artifacts container image list`, in the compartment `TURPIN_OCI_COMPARTMENT` names ([the registry address](#the-registry-address)), giving the image's OCID |
 | delete image | Artifacts | `oci artifacts container image delete`, by the OCID |
@@ -712,6 +708,10 @@ How the port implementation uses them:
 | store a build | push each image's layout; inspect manifest for each digest | the builder's |
 | promote to releases | inspect manifest of each target; copy image; push the record | the copier's |
 | remove a candidate | first, the keep list: a digest in it is refused, with no call; then inspect manifest, that the tag still names the chosen digest; find image by repository and digest; delete image | the builder's [removal credential](#logins) |
+
+A test replaces a bottom-layer function with a stub, with `unittest`. Another
+registry would be a second adapter behind the same port, reusing the
+registry-API function where it can; only `OCIR` is built.
 
 **A candidate is removed through the Artifacts API**
 ([identities and policies](#identities-and-policies)), under the builder's
@@ -844,12 +844,13 @@ environment is on the builder's machine when its `ssh` alias is the builder's
 
 `turpin login COMPONENT` makes the login, on the component's machine and with
 the token on standard input only: `controller` and `copier` run `skopeo login
---authfile` for their file; `builder` does that for `builder.json` and also
-`docker login` for the machine user; for a builder or copier on another
-machine, `turpin login` passes itself on there by `ssh`. An environment runs
-`turpin-host login`, a `docker login` for its machine user, except one on the
-builder's machine (preview on the laptop), which refuses and names
-`turpin login builder`: it shares the builder's login.
+--authfile` for their file; `builder` does that for `builder.json`, and also
+`docker login` for the machine user where an environment on its machine pulls
+with that login ([the one shared login](#logins)); for a builder or copier on
+another machine, `turpin login` passes itself on there by `ssh`. An
+environment runs `turpin-host login`, a `docker login` for its machine user,
+except one on the builder's machine (preview on the laptop), which refuses and
+names `turpin login builder`: it shares the builder's login.
 
 The controller's kind is `[turpin].login`; the builder's,
 `[turpin.build].login`; the copier's, `[turpin.release].copy_login`; a
@@ -970,10 +971,10 @@ flowchart LR
 | `checks(sha, required)` | the `ci-passed` gate's read | each `required_checks` check's conclusion on the commit |
 | `publish(tag, notes_start_tag, retrospective, version, commit)` | step 5 of [§10](#10-the-release-and-its-record), and `--skip-rehearsal`'s issue | the GitHub Release, and the retrospective issue, each skipped where it exists; `notes_start_tag` is none for a first release, and `version` and `commit` go with `retrospective` |
 
-The gate's request is a [`GateRequest`](#domain-model); it holds no
-records. `settle` takes this release's own record. The
-model reads the earlier releases' records from their tags' messages in git, so
-it never touches the registry.
+The gate's request is a [`GateRequest`](#domain-model); it holds no records.
+`settle` takes this release's own record. The model reads the earlier
+releases' records from their tags' messages in git, so it never touches the
+registry.
 
 `turpin` turns each answer into its exit status
 ([docs/1.10](../../../../docs/1.10-development-standards.md#what-a-scripts-exit-status-means));
@@ -1059,8 +1060,8 @@ on needs `flock`. Common tools are named only; the others are described under
     checkout of the application, both set where a non-interactive `ssh`
     session reads them, since a passed-on build starts in the home folder;
     Python 3.11 or later; git; `skopeo`; the OCI CLI, for `turpin remove`;
-    the application's `build` hook, with whatever it builds with (Docker or
-    Buildx).
+    the application's `build` hook, with the tools its hook needs, such as
+    Docker or Buildx.
   - Reached by the controller by `ssh`, the owner at a shell, and a timer where
     the application has one.
   - Reaches GitHub (git fetch), OCI Registry (push and read candidates) and
@@ -1268,7 +1269,7 @@ JSON request on standard input.
 
 | Command | Component | Called by | What | Privileges |
 | --- | --- | --- | --- | --- |
-| `turpin build [REF] [--local]` | builder | owner; timer; controller by `ssh` | builds REF (default `HEAD`) once, pushes to candidates; non-interactive. The `build` hook (default `docker buildx bake`) writes each image as an OCI image layout ([§8](#8-profile-and-hooks)), and the [registry adapter](#the-registry-adapter) pushes it; labels `org.opencontainers.image.revision` (SHA) and `.version` (from the version file); prints digests (an index digest for a multi-arch build). `--local` (preview only): the hook loads the images into local Docker, no push; identified by image id and revision label, not `RepoDigests` | builder: its `skopeo` login (read and push candidates), the machine's git login (fetch) |
+| `turpin build [REF] [--local]` | builder | owner; timer; controller by `ssh` | builds REF (default `HEAD`) once, pushes to candidates; non-interactive. The `build` hook writes each image as an OCI image layout ([§8](#8-profile-and-hooks); the default runs `docker buildx bake` with OCI output per target), and the [registry adapter](#the-registry-adapter) pushes it; labels `org.opencontainers.image.revision` (SHA) and `.version` (from the version file); prints digests (an index digest for a multi-arch build). `--local` (preview only): the hook, given `TURPIN_LOCAL=1`, loads the images into local Docker (the default with `--load`), no push; identified by image id and revision label, not `RepoDigests` | builder: its `skopeo` login (read and push candidates), the machine's git login (fetch) |
 | `turpin deploy ENV REF [--wait[=MIN]] [--check] [--set-aside GATE REASON] [--unrecorded REASON] [--off-level REASON]` | controller | owner | preview, test, rehearsal: REF is a SHA (full or short; ambiguous refuses) or version, resolved to candidates' digests. Production: a version with a record | controller: its `skopeo` login (read), the owner's `ssh` key. Deployer: the machine user's `docker` login (pull candidates, or releases for production); the deploy user and *root-ops* |
 | `turpin release [--expect VERSION] [--commit REF] [--emergency REASON] [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]` | controller; `turpin promote` on the copier | owner | releases the commit rehearsal runs; `--commit REF` names another commit instead, as `--skip-rehearsal` needs. Shows version (from the version file at that commit), commit, digests, last passing rehearsal deploy; the owner types the version to confirm (`--expect` if non-interactive). Gates [§9](#9-gates-and-checks), steps [§10](#10-the-release-and-its-record) | controller: its `skopeo` login (read), the owner's `gh` login (through the board model), the owner's git login (push `main`, by admin bypass, and the tag), the owner's `ssh` key to the copier's machine. Copier: its `skopeo` login (write releases) |
 | `turpin settle VERSION` | controller | owner | the board to what the record says shipped ([§12](#12-settling)); safe to rerun | controller: the owner's `gh` login, through the board model |
@@ -1654,22 +1655,30 @@ missing hook is a no-op. Only `build` has a default.
 | other | refused, or step failed |
 
 **The `build` hook writes OCI image layouts.** It builds each image of the set
-and writes it as an OCI image layout, a directory, naming on standard output
-one line per image: its name and its layout's directory. Buildx writes one
-with `--output type=oci,dest=DIR,tar=false`, every platform in one index; for a
-single platform, `docker save` (Docker 25 or later), unpacked, is one too. The
-builder pushes each layout ([the registry adapter](#the-registry-adapter)), so
-the hook needs no registry login. Under `--local` it loads the images into
-local Docker instead.
+and writes it as an OCI image layout, a directory holding that one image,
+naming on standard output one line per image: its name and its layout's
+directory. Buildx writes one with `--output type=oci,dest=DIR,tar=false`,
+every platform in one index; both applications' hooks use it. The builder
+pushes each layout ([the registry adapter](#the-registry-adapter)). With
+`TURPIN_LOCAL` set, the hook loads the images into local Docker instead and
+prints their names only.
+
+The default hook runs this per target and prints the lines, and with
+`TURPIN_LOCAL` set runs `docker buildx bake --load`:
+
+```sh
+docker buildx bake --set "TARGET.output=type=oci,dest=DIR,tar=false" TARGET
+```
 
 Each hook gets `TURPIN_APP`, `TURPIN_ENV`, `TURPIN_ROLE` (`controller` for
 the release step, `ephemeral` for create and destroy), `TURPIN_SHA`,
-`TURPIN_VERSION`, `TURPIN_STATE` (state folder) and `TURPIN_IMAGE_<NAME>`
-(each image by digest). A hook that cannot judge answers refused.
+`TURPIN_VERSION`, `TURPIN_STATE` (state folder), `TURPIN_IMAGE_<NAME>`
+(each image by digest) and, for `build` under `--local` only,
+`TURPIN_LOCAL=1`. A hook that cannot judge answers refused.
 
 | Hook | Kind | Component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- | --- | --- |
-| `build` | step | builder | `docker compose build`, build id, then `docker save` to an OCI layout | `docker buildx`, arm64 and amd64, to an OCI layout |
+| `build` | step | builder | `docker buildx bake` from the compose file's `build:` blocks, to OCI layouts; build id | `docker buildx`, arm64 and amd64, to OCI layouts |
 | `release-check` | gate | controller | no `functional` change in a patch | none |
 | `pre-deploy` | gate | deployer | database not ahead of the build's schema | window :40 to :10 (75 outside) |
 | `save-state` | step | deployer | stop server, snapshot database, keep five | copy DuckLake catalog aside |
