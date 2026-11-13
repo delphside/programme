@@ -345,12 +345,13 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S41 | Missed deploy: a closed release milestone carrying a work package at `Deployment` and one already at `Post-deployment`; an open milestone carrying one. | D9.6 | the first moved to `Post-deployment`; the other two O5 | CI |
 | S42 | A pull request whose body's attribution line links a project thread; one with no such line. | D1.6, D6 | the first's claim is that thread; the second has no claim, and is listed by its `PR State` mover | CI |
 | S43 | An item on two of the owner's sources at once: a `Decision` at `Asked` that also carries `Turn` = `Owner`. | D10.2 | listed once | CI |
-| S44 | A world with an unanswered owner-account comment dated 2026-08-24 and one dated 2026-08-26, on an open issue. | — | only the 2026-08-26 comment is a to-do | CI |
+| S44 | A world with an unanswered owner-account comment dated 2026-08-24 and one dated 2026-08-26, on an open issue. | — | with the floor (recommended): only the 2026-08-26 comment is a to-do. If the owner chooses no floor: both are, and the floor setting and its test go | CI, conditional on the owner's answer |
 | S45 | Every heading of the hook's output. | — | each names whose move it is; the cache line says *any age* | CI |
 | S46 | `--open --issue N` for a closed issue, and for an open issue with a pull request diff comment; then the board-wide read over the same world. | — | the closed issue gives nothing; the diff comment is listed on both paths, with the title | CI |
-| S47 | Thirty unanswered comments: 24 on one issue, 6 on five others. | — | twelve lines, then one line: 18 more on 6 issues | CI |
-| S48 | Each way of posting a comment (`gh issue comment` with flags before and after the number, `-R`, an issue URL; `gh api -X POST …/comments`; the GitHub MCP comment tools), each read (`gh issue view`, `gh api` GET), and a comment body containing the text `gh issue comment`. | — | the check fires on each post and on nothing else | CI |
-| S49 | A post to an issue with unanswered owner comments, then the same post again. With none unanswered, a post. | — | the first is denied, its reason listing the comments; the retry is allowed; the last is allowed at once | CI |
+| S47 | Thirty unanswered comments: 24 on one issue, 6 on five others, of known ages. | — | cap by comments (recommended): the twelve oldest as twelve lines, then one line: 18 more on 6 issues. If the owner chooses issues: a world of 14 issues instead, and every comment on the twelve oldest-waiting issues shows, then one line: 2 more issues | CI, conditional on the owner's answer |
+| S48 | Each way in implementation.md §6's table, covered and not covered, each read (`gh issue view`, `gh api` GET), and a comment body containing the text `gh issue comment`. | — | the check fires on each covered way and on nothing else | CI |
+| S49 | A post to an issue with unanswered owner comments; the same post 5 minutes later; again 11 minutes after a fresh denial; a retry after a new owner comment arrived; a retry after Claude's own comment; with none unanswered, a post. | — | denied with the comments oldest first; allowed; denied (past 10 minutes); denied with the new list; allowed; allowed at once | CI |
+| S53 | The comment read fails when Claude posts. | — | the post is allowed, and the check says it could not read | CI |
 | S50 | The seven-day read fails while the to-do read succeeds; then the reverse. | — | the failing section prints its failure; the other shows in full; the hook exits 0 | CI |
 | S51 | `--issue 5` and `--all` without `--open`; then with it. | — | refused, naming the missing flag; then accepted | CI |
 | S52 | A to-do line for a comment edited after it was made. | — | the time shown is when it was made | CI |
@@ -402,7 +403,7 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | R12 | S17, S18, S19, S32, S37, TT8 |
 | R13 | S15, S17, S18, S19 |
 | R14 | S15, S33, S43, UA1 |
-| R15 | S44 to S52, TT10 |
+| R15 | S44 to S53, TT10 |
 | M1 | S3, S5, S7, S20, S22 |
 | M2 | S3, S5, S6, S18, S19 |
 | M3 | S15, S18, S19 |
@@ -496,7 +497,7 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | S42 | M7, S-G16 |
 | S43 | R14, S-G19 |
 | UA1 | R14, M9 |
-| S44 to S52 | R15 |
+| S44 to S53 | R15 |
 | TT10 | R15 |
 
 Every scenario serves a rule. R6 has no scenario (G26).
@@ -628,7 +629,9 @@ One per requirement. Each is answered after a week of daily runs.
 - `one_issue_follows_the_same_rules_and_reads_as_the_board`
 - `cap_bounds_lines_and_counts_the_rest`
 - `comment_check_fires_on_every_post_and_no_read`
-- `comment_check_denies_once_then_allows`
+- `comment_check_denies_once_then_allows_a_retry_within_ten_minutes`
+- `new_owner_comment_denies_the_retry_again`
+- `unreadable_comments_let_the_post_through_and_say_so`
 - `one_failed_read_hides_no_other_section`
 - `issue_or_all_without_open_is_refused`
 - `to_do_line_shows_when_the_comment_was_made`
