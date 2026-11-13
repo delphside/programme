@@ -271,6 +271,9 @@ technical.
    part, since threads end and are recreated: a thread taking over a role
    rewrites the link at handover, and a one-off thread claims in the name of
    the role it works for. A claim is stale once the item passes its bound with
-   no move, and the sweep then offers it to the role's current thread. GitHub
+   no move, and the sweep then offers it to the role's current thread. Not
+   every workstream has a permanent thread (owner, 2026-11-13): where a role
+   has none, the claim names the role alone, and the coordinator starts a
+   thread for it when the role's list has something to do. GitHub
    refuses issue fields on pull requests, so a pull request's claim is the
    thread that owns its branch.
