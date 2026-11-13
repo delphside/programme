@@ -6,7 +6,7 @@ Project: delphside/programme#117 · type of change: `tooling` · route: `Docs an
 
 This specification derives the tests for `turpin` from its stated rules, without reading the implementation. Its sources are:
 
-- the design, `records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md` (2026-10-28 revision);
+- the design, `records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md` (2026-11-13 revision);
 - #117's body;
 - delphside/tile-lite-elite#545, #555 and #556;
 - docs/1.2 *Making a release, then deploying it* and §2.5;
@@ -18,7 +18,7 @@ This specification derives the tests for `turpin` from its stated rules, without
 
 Each test has one of two kinds:
 
-- **[CI]** is a bats test in `scripts/tests/turpin-*.bats`. It uses a dummy application, stub hooks, `registry:2`, and stubbed `ssh` and `gh`.
+- **[CI]** is a `unittest` test in `scripts/tests/test_turpin_*.py` for the client, `turpinlib`, or a Bats test in `scripts/tests/turpin-*.bats` for `turpin-host` and the payload. It uses a dummy application, stub hooks, `registry:2`, and stubbed `ssh`, `gh` and `oci`; a `unittest` test replaces the registry adapter's bottom-layer functions with stubs.
 - **[REH]** is a technical test on Tile Lite Elite's rehearsal.
 
 The gates for the `production` role are tested in CI only. On real hosts they are shown only by 0.10.2's first production deploy and by the owner's `--check` runs, which are post-deployment checks and not tests (part 8).
@@ -30,7 +30,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R1 | The tool names no application and no machine. Anything that differs comes from `app-profile.toml` or a hook. | G1; §2 |
 | R2 | The registry address is never in the profile. Each component reads `TURPIN_REGISTRY` from its own local configuration. | §3 |
 | R3 | `build [REF]` is non-interactive and refuses a REF that is not a commit on the remote. It builds from a clean worktree with the `build` hook, or `docker buildx bake` by default. It labels each image `org.opencontainers.image.revision` = SHA and `.version` = the version file. It pushes each image as `SHA-IMAGE` and prints the digests, an index digest for a multi-arch build. | §6 |
-| R4 | An image whose `SHA-IMAGE` is already present is not rebuilt. A failed registry query refuses. Releases is immutable. | §6; §9; §3 |
+| R4 | An image whose `SHA-IMAGE` is already present is not rebuilt. A failed registry query refuses. A version tag or `VERSION-record` that releases already holds with other contents is never written; a copy of the same digest is a no-op. | §6; §9; §3 |
 | R5 | The payload goes into `payload_image` at `/turpin/`, from the pinned submodule and the app repository. It holds nothing secret. Joined files come from the payload and never from a working tree. An environment may name its own `join`. | §3; §8 |
 | R6 | `deploy ENV REF` checks REF against the environment's role. For preview, test and rehearsal, REF is a full or short SHA or a version, resolved in candidates. A short SHA that matches more than one candidate refuses. For production it is a version with a record, pulled from releases. The deploy runs over ssh, or locally where `host = "controller"`, and then `settle` for production. Gates key on the role, never the name. | §2; §6 |
 | R7 | Every image is pulled by digest. Its revision label must equal the SHA, and the running containers' `RepoDigests` must match. | §9 |
@@ -58,22 +58,22 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R28 | Rollback switches to `previous` and runs `restore-state`, and restores the previous deploy's host-file set, removing the current deploy's extra files. With no previous deploy it refuses and names the fallback. | §11 |
 | R29 | A hook listed in `required_hooks` that is missing or not executable refuses. Any other missing hook is a no-op. A hook's exit means 0 passed, 75 not yet, and anything else refused or failed. Hooks receive `TURPIN_APP`, `_ENV`, `_ROLE`, `_SHA`, `_VERSION`, `_STATE` and `_IMAGE_<NAME>`. A hook of kind check (`post-deploy`) that exits non-zero is reported, changes nothing else, and leaves the exit code as it was. | §8 |
 | R30 | Every override takes a reason. The reason goes into the record where there is one, and always into the run log. | §6 |
-| R31 | Every command writes a run log on its own machine, naming each gate it ran. A command that ends with a gate unrun refuses. Exits are 0 done; 1 refused, failed with nothing changed, or rolled back; 3 live but a later step failed. | §6 |
+| R31 | Every command writes a run log on its own machine, naming each gate it ran. A command that ends with a gate unrun refuses. Exits are 0 done; 1 refused, failed with nothing changed, or rolled back; 3 live but a later step failed; 70 a profile error or a crash. | §6 |
 | R32 | `--check` runs every gate and changes nothing. | §6 |
-| R33 | Each component has its own registry access, and no component's credential can do another role's writes: the builder alone writes and deletes candidates, the copier alone writes releases, the controller and the hosts write nothing. | §5; §3; §13 |
+| R33 | Each component has its own registry access, and no component's credential can do another role's writes: the builder alone writes and removes candidates, the copier alone writes releases, the controller and the hosts write nothing. | §5; §3; §13 |
 | R34 | Nothing secret is written to a profile, record, tag or log. | §13 |
 | R35 | Every pull completes within the environment's `pull_timeout`, or the deploy refuses before any change. | §11; §13 |
-| R36 | `prune` removes candidates whose `created` label (the build's start) is before the newest release was made, not released, and not in any environment's current or previous deploy. It never removes releases. The controller chooses; R46 says who deletes. | §6 |
+| R36 | `prune` removes candidates whose `created` label (the build's start) is before the newest release was made, not released, and not in any environment's current or previous deploy. It never removes releases. The controller chooses; R46 says who removes. | §6 |
 | R37 | `env create\|destroy NAME` works from the profile's template: a user, a state folder, a `.env` with secrets at a hidden prompt, a Compose project, and the hooks. | §6 |
-| R38 | `host-install` installs or updates `turpin-host` and its libraries and the single `sudo` rule, installs `jq` where it is missing, and checks that `flock` and the login adapter's tools (`oci`) are present, refusing when one is not. | §6; §11 |
-| R39 | The login adapters are `oci-instance-principal`, `oci-api-key` and `docker-config`. Hosts log in by instance principal. | §3; owner 2026-10-28 |
+| R38 | `host-install ENV` installs or updates `turpin-host` and its libraries and the single `sudo` rule on an environment's host, installs `jq` where it is missing, and checks that `flock` and the credential kind's tools (`oci`) are present, refusing when one is not. | §6; §11 |
+| R39 | The credential kinds are `oci-instance-principal`, `oci-api-key` and `docker-config`. Hosts log in by instance principal. | §3; owner 2026-10-28 |
 | R42 | The carried range starts at the release production runs, so a release made while an earlier one is undeployed carries both; an item named only by a commit a later commit in the range reverts is not carried, and a revert of a commit outside the range has no effect. | §9; §10 |
 | R43 | Settling a record settles the items of the earlier releases it carries (comment `..., deployed with vV`), closes their milestones, and takes a dropped item out of its milestone with a comment, leaving its state alone; a rerun changes nothing. | §12 |
 | R40 | `status ENV` shows the digests, the matching record, the deploy state and host-file equality. `list ENV` shows the records beside what ENV runs. | §6 |
-| R44 | Each component has a registry login of its own. A component that only calls `skopeo` (the controller's reads, the copier, the builder's delete) uses its own auth file, `~/.config/turpin/auth/APP/COMPONENT.json` (directory 0700, file 0600), chosen by `REGISTRY_AUTH_FILE` alone; a component that calls `docker` (the builder's push, a deployer's pull) uses the machine user's own `docker` login. `DOCKER_CONFIG` is never set, so contexts and builders stay. Components sharing a machine never replace one another's login. The one exception is an environment on the builder's machine (preview on the laptop), which shares the builder's `docker` login: `turpin login` refuses it and names `turpin login builder`, as does a refused pull. A `docker-config` auth file that is missing is refused, naming `turpin login COMPONENT`; a registry refusal names it too. | §3 |
+| R44 | Each component has a registry login of its own. A component that only calls `skopeo` (the controller's reads, the copier, the builder's reads) uses its own auth file, `~/.config/turpin/auth/APP/COMPONENT.json` (directory 0700, file 0600), chosen by `REGISTRY_AUTH_FILE` alone; a component that calls `docker` (the builder's push, a deployer's pull) uses the machine user's own `docker` login. `DOCKER_CONFIG` is never set, so contexts and builders stay. Components sharing a machine never replace one another's login. The one exception is an environment on the builder's machine (preview on the laptop), which shares the builder's `docker` login: `turpin login` refuses it and names `turpin login builder`, as does a refused pull. A `docker-config` auth file that is missing is refused, naming `turpin login COMPONENT`; a registry refusal names it too. | §3 |
 | R45 | The controller reads candidates and releases (digests, tags, records) with its own login, `[turpin].login`, and with no other. | §5; §3 |
-| R46 | `prune`: the controller chooses what to delete, and sends the list, with each tag's digest, to `turpin-host delete` on `[turpin.build].on`, which deletes with the builder's login, only while a tag still has the digest sent. The controller never deletes. `--dry-run` sends nothing. | §6; §3 |
-| R47 | `turpin login COMPONENT` makes the `docker-config` login: `skopeo login --authfile` for the controller and copier, both that and `docker login` for the builder, `docker login` for an environment's deployer, on the component's machine (over `ssh` where it is another). The token is read at a hidden prompt and passed on standard input only: never printed, logged or an argument. | §6; §3; R34 |
+| R46 | `prune`: the controller chooses what to remove, and sends `turpin remove` on `[turpin.build].on` a request listing each tag with its digest (`removes`) and the digests releases holds (`keep`). The builder removes each through the Artifacts API with its removal credential, only while the tag still has the digest sent, and refuses any digest in `keep`. The controller never removes. `--dry-run` sends nothing. | §6; §3 |
+| R47 | `turpin login COMPONENT` makes the `docker-config` login on the component's machine: `skopeo login --authfile` for the controller and copier, both that and `docker login` for the builder, each by `turpin login` (passed on by `ssh` where the machine is another); `docker login` for an environment's deployer, by `turpin-host login`. The token is read at a hidden prompt and passed on standard input only: never printed, logged or an argument. | §6; §3; R34 |
 | R41 | Tile Lite Elite's move: the first `turpin` deploy to rehearsal takes `--off-level`. The fallback until 0.10.2 has run in production is the written procedure to 0.10.0: stop the `turpin` project, restore the snapshot, then `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason. 0.10.2 is the first release with a record. The board reads `v` as released and `prod-` as history. | §14; (H) |
 
 ### Checked for contradiction
@@ -251,8 +251,8 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S65 | A feature built, rehearsed, released and deployed to production, with the stub registry enforcing which login each call carries. | R44, R33 | the builder's login pushes, the copier's writes releases and the record, the hosts' pull, no call is made without a login, and the controller's reads carry the controller's | CI |
 | S66 | The copier, builder and controller each log in with `turpin login`, in turn, with different users; then a release. A builder with no login made. | R44 | three auth files, each keeping its own user, and the builder's `docker` login made once; no `DOCKER_CONFIG` set; the release works; the build refuses, naming `turpin login builder`; a copier refused by the registry is told to `turpin login copier`; a refused pull on preview names `turpin login builder` | CI |
 | S67 | A release with the controller's login absent; then made for the wrong role; then right. A local preview build and deploy with no controller login. | R45 | O1 naming `turpin login controller`; O1 (releases refused to it); O10; the preview deploy needs none | CI |
-| S68 | `prune` with the builder on another machine; on the controller's own; a delete made with the controller's login. | R46, R33 | the deletion runs on the builder's machine with the builder's login, the controller's calls are reads, and the registry refuses the controller's delete | CI |
-| S69 | `prune --dry-run`; a delete request whose tag has moved to another digest; one naming a tag already gone. | R46 | nothing sent and nothing changed (O1's snapshot); the moved tag is left and the command fails; the gone tag is a no-op | CI |
+| S68 | `prune` with the builder on another machine; on the controller's own; a removal attempted with the controller's credential. | R46, R33 | the removal runs on the builder's machine through the Artifacts API with the builder's removal credential, the controller's calls are reads, and the controller's removal is refused | CI |
+| S69 | `prune --dry-run`; a remove request whose tag has moved to another digest; one naming a tag already gone; one naming a digest in its `keep` list. | R46 | nothing sent and nothing changed (O1's snapshot); the moved tag is left and the command fails; the gone tag is a no-op; the kept digest is refused, left in candidates, and the command fails | CI |
 | S70 | `turpin login` with a canary token, for the builder, for a deployer on another machine over `ssh` (the builder's file landing on its own machine), and for preview, which is refused as sharing the builder's login; then with an empty token. | R47, R34 | the canary is in no output, log, argument or file (the `ssh` log too); the auth directory is 0700 and the file 0600; the empty token is refused and writes nothing | CI |
 
 ## 6. Refusals and successes
@@ -425,7 +425,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 - `registry:2` as a CI service. For S40 it runs with an htpasswd user per component and a proxy that refuses writes outside each component's repositories;
 - a "host" container reached through a stub `ssh` that runs `turpin-host` inside it, with Docker-in-Docker for compose, `RepoDigests` and pulls;
 - stub `systemctl` and `sudo` inside the host container;
-- a stub `gh` that answers checks, milestones and issues (one fixture, in REST's shape) from files and logs every mutation. It refuses GraphQL, as a cloud session's token is refused, except the three calls that set an issue field, so the board model's REST route is the one the bats tests drive; its GraphQL route is read in `scripts/board/tests/test_release_sources.py`.
+- a stub `gh` that answers checks, milestones and issues (one fixture, in REST's shape) from files and logs every mutation. It refuses GraphQL, as a cloud session's token is refused, except the three calls that set an issue field, so the board model's REST route is the one these tests drive; its GraphQL route is read in `scripts/board/tests/test_release_sources.py`.
 
 Interruption is a hook that kills its parent. `pull_timeout` is tested through a throttling proxy, and time is not otherwise manipulated. Confirmation prompts and hidden prompts run under a pty. Each gate's test is first shown to fail by disabling the reason, as docs/1.9 requires. Each check's test includes its quiet case.
 
@@ -454,6 +454,8 @@ The refusal is shown first and the successful deploy follows, as the other gates
 Everything else runs in CI.
 
 ## 9. Test names
+
+A test of what `turpin` decides is a `unittest` test; one of what a host does (`turpin-host` and the payload's deploy steps) is a Bats test.
 
 ### Build
 
@@ -532,7 +534,7 @@ Everything else runs in CI.
 - `settle_rerun_changes_nothing`
 - `rollback_without_a_previous_deploy_names_the_fallback`
 
-### Range and carried releases (turpin-range.bats)
+### Range and carried releases
 
 - `a release made while an earlier one is undeployed carries both`
 - `a Production Release work package of an earlier release in the range passes the gate; elsewhere it refuses`
@@ -602,10 +604,10 @@ on the real stack does.
 
 | gap | what would close it | why it is acceptable |
 | --- | --- | --- |
-| X19 The CI world is stubs, not `registry:2` and Docker-in-Docker: `skopeo`, `docker`, `ssh`, `gh`, `curl`, `sudo`, `systemctl`, `useradd` and `userdel` are PATH stubs over folders, and the "machines" are folders. | A rehearsal run of the real tool against a real registry and host. | The rehearsal run (part 8) covers what a stub cannot show. |
+| X19 The CI world is stubs, not `registry:2` and Docker-in-Docker: `skopeo`, `oci`, `docker`, `ssh`, `gh`, `curl`, `sudo`, `systemctl`, `useradd` and `userdel` are PATH stubs over folders, and the "machines" are folders. | A rehearsal run of the real tool against a real registry and host. | The rehearsal run (part 8) covers what a stub cannot show. |
 | X20 S5 (multi-arch: a real `buildx` build and the index digest kept by the copy) is stubbed only through `STUB_ARCH`, which salts the digest. | The same rehearsal run: a multi-arch build, copy and pull on the real stack. | The copy is `skopeo copy --all --preserve-digests`, whose behaviour the stub cannot vouch for. |
 | X21 S36 (a slow pull) is a delayed-pull stub, not a throttling proxy. | The rehearsal run's measured pull on a real host (`pull_timeout`). | The timeout path is exercised; the number is measured on the host. |
 | X22 S40 (each component's registry credential writes only its own repositories) uses the stub's `STUB_WRITE_ONLY`, not a registry's access control; the stub also records which machine each registry write ran on (`where.log`), so a copy made on the wrong machine fails the test. | The rehearsal run, with the real credentials of the builder, the copier and the hosts. | The tool's part (which machine, which login) is asserted; the registry's enforcement is not the tool's. |
-| X23 S65 to S70 (each component's login is its own, the controller cannot delete) rest on the stub registry reading a role from the auth file a `skopeo` call names and from the stub machine's `docker` login, not on a registry's policy or the real tools' handling of `REGISTRY_AUTH_FILE`, `~/.docker` contexts, `buildx` builders and credential stores. | The rehearsal run, with the laptop's real `docker` and `skopeo` and the real users and groups: `turpin login` for each component, then a build (with a `docker-container` builder), a release and a `prune`; the laptop's `docker context ls` unchanged. | The tool's part (which file, which machine, `DOCKER_CONFIG` untouched) is asserted; the registry's enforcement is not the tool's. |
+| X23 S65 to S70 (each component's login is its own, the controller cannot remove) rest on the stub registry reading a role from the auth file a `skopeo` call names and from the stub machine's `docker` login, not on a registry's policy or the real tools' handling of `REGISTRY_AUTH_FILE`, `~/.docker` contexts, `buildx` builders and credential stores. | The rehearsal run, with the laptop's real `docker` and `skopeo` and the real users and groups: `turpin login` for each component, then a build (with a `docker-container` builder), a release and a `prune`; the laptop's `docker context ls` unchanged. | The tool's part (which file, which machine, `DOCKER_CONFIG` untouched) is asserted; the registry's enforcement is not the tool's. |
 
 Derived by a fresh `test-designer` agent that read no implementation (docs/1.9).
