@@ -57,7 +57,8 @@ sequenceDiagram
   publishes the list of stalled items.
 - **The nudging half is a daily cloud trigger into the coordinator**, because
   only a Claude session can message a thread. It reads the published list and
-  nudges each stalled item's role thread, or starts one. When nothing is
+  nudges each stalled item's role thread, or starts one where the role has
+  no permanent thread, as most workstreams do not. When nothing is
   stalled it ends without a message. The Monday trigger stays as it is.
 - **Times** keep both clear of the Claude plan's daily reset (about 21:10 to
   22:10 UTC).
