@@ -88,6 +88,8 @@ alone fails R8, and option 2 alone is slow for moves that have an event.
 ## Questions for the owner
 
 1. **Which option.** Recommended: 4.
-2. **How often the reconciliation sweep runs.** Daily is the longest interval
-   that still catches triage's one-day bound. The weekly `board-sweep` keeps
-   its planning (queues and candidates), which has no bound.
+2. **How often the reconciliation sweep runs.** Answered (owner, 2026-11-13):
+   daily, the longest interval that still catches triage's one-day bound. It
+   also writes each item's `Turn` ([design.md](design.md#open-questions)).
+   The weekly `board-sweep` keeps its planning (queues and candidates), which
+   has no bound.
