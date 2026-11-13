@@ -85,9 +85,9 @@ R13 names ten resting states. Seven map onto the machine above: the three
 closed reasons and *folded* are closed; the two kinds of `On Hold` are one
 value, told apart by whether the dependency section links an issue; *waiting
 for project planning* is `Ready for Project` and the candidates. The other
-three are a label rather than a state: *waiting on a `Decision`* is a
-dependency link to it, and *waiting on the owner's approval of its scope* and
-*of its project scoping* carry `needs owner approval`
+three are shown by the `Turn` field rather than a state: *waiting on a
+`Decision`* is `Hold` with a dependency link to it, and *waiting on the
+owner's approval of its scope* and *of its project scoping* are `Owner`
 ([question 2](#open-questions)).
 
 ## Project
@@ -226,8 +226,8 @@ flowchart TB
 | R10 | triage at raising is a habit, not checked |
 | R11 | no age is reported for requirements |
 | R12 | the sweep does not nudge threads by workstream |
-| R13 | three of the ten resting states have no representation; the label answers two |
-| R14 | `board-actions.py` shows none of the three; it is to list `needs owner approval` with its age |
+| R13 | three of the ten resting states have no representation; `Turn` answers them |
+| R14 | `board-actions.py` shows none of the three; a `Turn` view will, with each item's age |
 
 ## Open questions
 
@@ -239,19 +239,28 @@ technical.
    `options.md` and `implementation.md`. What stays true once shipped goes to
    1.2 (the machines) and 1.6 (the fields).
 2. **Functional: how the three missing resting states show (R14).** Answered
-   (owner, 2026-11-13): a label, `needs owner approval`, on the issue itself,
-   with a board view that filters on it. It brings forward the real issue
-   rather than a surrogate `Decision`, works on every type and repository,
-   and adds any number of *waiting for approval* states without new columns.
-   A comment on the issue says what is to be approved. The owner answers in a
-   comment, and the issue's thread removes the label and moves it on.
-   A specific question for the owner is a `Decision` issue, except during
-   the first discussion, while he is engaged, when comments are enough
-   (owner, 2026-11-13). This makes a third
-   programme label, beside `folded` and `Release Check`, so 1.6's *everything
-   else is a field* gains a reason, and R12's *a `Decision` issue for a wait on
-   the owner* narrows to waits that are
-   questions asked after that first discussion.
+   (owner, 2026-11-13), first as a `needs owner approval` label, then
+   replaced the same day by a **`Turn` issue field**, `Owner · Claude · Hold`,
+   on every issue. It makes R1 visible: every open item says whose move it is,
+   and an item with no `Turn` is lost by definition, so the sweep finds it.
+   The owner's view filters on `Owner` and groups by issue type, bringing
+   forward the real issue rather than a surrogate.
+   - **The model writes it**, wherever it can derive the mover (a Decision's
+     turn, a project's phase); a thread sets it only where the model cannot,
+     such as an approval or a hold. So the field publishes the model's answer
+     rather than keeping a second copy that drifts.
+   - **`Owner`** with a comment saying what is to be approved covers the
+     approvals. The owner answers in a comment, and the thread moves it on.
+   - **`Hold`** needs a reason the model can check: an issue linked under
+     *Dependencies and related work*, or a named event with a review date. A
+     hold is reviewed at its bound. `Requirement State`'s `On Hold` may then
+     retire, since `Hold` says the same for every type.
+   - **Pull requests** cannot carry issue fields (1.6), so theirs is still
+     derived from `PR State` and shown in `board-actions.py`, not the view.
+   - A specific question for the owner is a `Decision` issue, except during
+     the first discussion, while he is engaged, when comments are enough
+     (owner, 2026-11-13). R12's *a `Decision` issue for a wait on the owner*
+     narrows to those questions.
 3. **Functional: the bounds.** Answered (owner, 2026-11-13): 7 days, one
    sweep, for every state where the owner or a thread owes a move, with the
    exceptions in the tables above: a day for triage, and none for the queues
