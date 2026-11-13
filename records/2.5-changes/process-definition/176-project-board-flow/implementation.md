@@ -119,8 +119,8 @@ artefact's ([1.2 §2.15](../../../../docs/1.2-change-lifecycle.md#215-classifyin
 | # | What it delivers | Route | Milestone | Work package or steps |
 | --- | --- | --- | --- | --- |
 | 1 | the `Turn` and `Claimed by` issue fields, with `Turn`'s options and colours, and the owner's board view | Other | a date, the day it lands | a work package: the owner's steps, with a runbook |
-| 2 | the flow table in `model.py`, `board-flow.py`, `board-actions.py --role`, their tests, and the documents: 1.2's machines, 1.6's fields, 1.4's daily activity, 1.7's movers | Docs and Programme Tooling | none | a work package carrying its tests; then each application's pin move |
-| 3 | the coordinator's daily trigger, the pinned stalled-list issue, and the cloud session-start hook pulling each role's list | Other | a date, the day it lands | a work package |
+| 2 | the flow table in `model.py`, `board-flow.py`, `board-actions.py --role`, their tests, the pinned stalled-list issue (created by hand before the first real run), and the documents: 1.2's machines, 1.6's fields, 1.4's daily activity, 1.7's movers | Docs and Programme Tooling | none | a work package carrying its tests; then each application's pin move |
+| 3 | the coordinator's daily trigger and the cloud session-start hook pulling each role's list | Other | a date, the day it lands | a work package |
 
 Left out, for later: retiring `Requirement State`'s `On Hold` in favour of
 `Hold` (design.md question 2), and anything delphside/programme#138 takes.
