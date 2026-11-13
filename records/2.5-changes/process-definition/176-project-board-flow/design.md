@@ -256,6 +256,12 @@ technical.
    sweep, for every state where the owner or a thread owes a move, with the
    exceptions in the tables above: a day for triage, and none for the queues
    and `Deployment`.
-4. **Functional: what a claim is (R9).** Where a thread records that it is
-   working an item, given that every cloud thread acts as the same GitHub
-   user, so assignees cannot tell threads apart.
+4. **Functional: what a claim is (R9).** Answered (owner, 2026-11-13): a
+   `Claimed by` issue field, a text field naming the **role** that holds the
+   item and a link to the thread holding that role now. The role is the stable
+   part, since threads end and are recreated: a thread taking over a role
+   rewrites the link at handover, and a one-off thread claims in the name of
+   the role it works for. A claim is stale once the item passes its bound with
+   no move, and the sweep then offers it to the role's current thread. GitHub
+   refuses issue fields on pull requests, so a pull request's claim is the
+   thread that owns its branch.
