@@ -42,7 +42,7 @@ The model's words come from Kanban and ITIL (R6) where they have one.
 | coordinator | queue planning (`Ready for Project`, candidates, `Q3` to `Q1`) and pulling `Q1` into design at the weekly `board-sweep`; nudging stalled threads, or starting one, after the daily sweep | weekly, daily and when prompted |
 | test manager thread | test approval before design ends; regression check before a release | on call, started by the coordinator |
 | release manager thread | making a release: the milestone, the release record, the tag | when a release is due |
-| tools | PR State; `Post-deployment` on deploy; a local merge's post-merge move; the service desk's `intake.yml` sets a Ticket to `New` and, when a sender answers, to `In progress`; its `reply.yml`, on a comment, sets `Waiting on sender` | on their event |
+| tools | PR State; `Post-deployment` on deploy; a local merge's post-merge move; the service desk's `intake.yml` sets a Ticket to `New` and, when a sender answers, to `In progress`; its `reply.yml` sets `Waiting on sender` once a `reply` comment is sent ([1.8](../../../../docs/1.8-service-desk.md)) | on their event |
 
 ## Requirement
 
@@ -135,7 +135,7 @@ returns for `Post-deployment` (where a requirement needs it) and
 | `Development` | technical lead | first test deploy, or merge | 7 days without a commit. The age is that of the head commit of the package's open pull request; with none, the field's own age. | nothing |
 | `User testing` | the technical lead. Part on the owner's list: unticked browser tests. | tests ticked | 7 days | `waiting_on_owner` lists unticked browser tests |
 | `Deployment` | the technical lead, `Turn` = `Hold` on the release ([Hold reasons](#hold-reasons)). Part on the release manager's list: making the release. | the deploy | none: waits for the release | nothing |
-| `Post-deployment` | technical lead | the review, due after 7 days | 14 days: 7 days after the review fell due. None for a `Release Check` package (Tile Lite Elite's only), which owes no review: `Turn` = `Hold` ([Hold reasons](#hold-reasons)) | `waiting_on_claude`, `REVIEW_DUE_DAYS`, `RELEASE_CHECK` |
+| `Post-deployment` | technical lead | the review, due after 7 days | 14 days: 7 days after the review fell due. None for a `Release Check` package (Tile Lite Elite's only), which owes no review while `Turn` = `Hold` ([Hold reasons](#hold-reasons)). | `waiting_on_claude`, `REVIEW_DUE_DAYS`, `RELEASE_CHECK` |
 | `Project Closedown` | technical lead (parent: design authority) | lessons written, closed | 7 days | nothing |
 
 The sweep reads the closed release milestone of a deploy that `deploy.sh`
@@ -242,7 +242,7 @@ A `Hold` is valid while one of these reasons holds, and is reviewed as stated.
 | --- | --- | --- |
 | an issue linked under *Dependencies and related work*, a `Decision` included | when the linked issue closes | hold ends: listed as invalid, `Turn` rewritten |
 | a named event, with a review date | at the review date | hold ends: listed as invalid, `Turn` rewritten |
-| a release milestone: `Deployment` waits for its open one, and a work package at `Post-deployment` carrying the `Release Check` label ([1.2 §2.7.1](../../../../docs/1.2-change-lifecycle.md#271-a-check-that-has-to-wait-for-a-release)) waits for the next one in its repository | when that milestone closes, which is the deploy that ships it. While no next release milestone is open, a `Release Check` hold stays valid. | hold ends: listed as invalid, `Turn` rewritten (a `Release Check` package's review is then due) |
+| a release: `Deployment` waits for its own open release milestone, and a work package at `Post-deployment` carrying the `Release Check` label, which is itself the reason, ([1.2 §2.7.1](../../../../docs/1.2-change-lifecycle.md#271-a-check-that-has-to-wait-for-a-release)) waits for the next release milestone in its repository | when that milestone closes, which is the deploy that ships it. While no next release milestone is open, a `Release Check` hold stays valid. | hold ends: listed as invalid, `Turn` rewritten (a `Release Check` package's review then falls due, its days counted from the milestone's close) |
 | a Ticket's sender, at `Waiting on sender` | after 7 days | hold stays: stalls under the owner |
 
 ## Claims

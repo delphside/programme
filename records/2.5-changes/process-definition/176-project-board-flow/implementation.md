@@ -12,8 +12,8 @@ model in `scripts/board/`.
 | --- | --- |
 | reading the board | `sources.py` is the only module that talks to GitHub. `sources.fetch` already falls back to REST (`_rest_fetch`) beside GraphQL, so `board-check.py`, `board-status.py` and `board-actions.py` run from cloud threads (since 2026-11-09) |
 | writing fields | `sources.set_field`, which is GraphQL only. `_rest_write` writes milestones, comments, issue state and new issues; no issue field is written over REST yet |
-| scheduled jobs | GitHub Actions, all kept and none added. With `BOARD_TOKEN`: `board-add.yml` hourly, `pr-state.yml` on pull request and review events, `context.yml` daily, and Tile Lite Elite's `requirement-stage.yml` on issues opened or typed (it runs `board-stage.py`). With `github.token`: Tile Lite Elite's `programme-activities.yml` on Mondays and `advisories.yml` daily. With `DESK_ORG_TOKEN`: the service desk's `intake.yml`, half-hourly, and its own `pr-state.yml` |
-| events | `pr-state.yml` on pull request and review events; Tile Lite Elite's `requirement-stage.yml` on an issue opened or typed; the service desk's `intake.yml`, a half-hourly poll that stands in for the event, sets a Ticket to `New` and sets it to `In progress` when a sender answers, and its `reply.yml`, on `issue_comment`, which sets `Waiting on sender`; the post-merge hook on a local merge; `deploy.sh` on a deploy |
+| scheduled jobs | GitHub Actions, all kept and none added. With `BOARD_TOKEN`: `board-add.yml` hourly, `pr-state.yml` on pull request and review events, `context.yml` daily, and Tile Lite Elite's `requirement-stage.yml` on issues opened or typed (it runs `board-stage.py`). With `github.token`: Tile Lite Elite's `programme-activities.yml` on Mondays and `advisories.yml` daily. With `DESK_ORG_TOKEN`: the service desk's `intake.yml`, half-hourly, its own `pr-state.yml`, and `reply.yml` on a comment |
+| events | `pr-state.yml` on pull request and review events; Tile Lite Elite's `requirement-stage.yml` on an issue opened or typed; the service desk's `intake.yml`, a half-hourly poll that stands in for the event, sets a Ticket to `New` and sets it to `In progress` when a sender answers, and its `reply.yml`, on a sent `reply` comment, which sets `Waiting on sender` ([1.8](../../../../docs/1.8-service-desk.md)); the post-merge hook on a local merge; `deploy.sh` on a deploy |
 | Claude's schedule | the Monday trigger into the coordinator, for the weekly activities |
 | the movers' lists | `board-actions.py` (the owner's, which he runs by hand) and `--claude` (Claude's, one list), which the session-start hook runs in WSL (Windows Subsystem for Linux, the owner's local machine) |
 
@@ -136,7 +136,7 @@ issues, each with every comment, the most recent 12.
 A check before Claude comments, `comment-check.sh`, lists the same unanswered
 comments.
 
-The list and the check already run in WSL today in Tile Lite Elite. Their
+The list and the check run in WSL today in Tile Lite Elite. Their
 fixed versions reach WSL when each application's pin moves, at the end of
 delivery 2, and cloud threads once the owner pastes the setup script in
 delivery 3. Each defect is fixed in delivery 2, in `scripts/board/` and
@@ -223,7 +223,7 @@ artefact's ([1.2 §2.15](../../../../docs/1.2-change-lifecycle.md#215-classifyin
 | # | What it delivers | Route | Milestone | Work package or steps |
 | --- | --- | --- | --- | --- |
 | 1 | the `Turn` and `Claimed by` issue fields, with `Turn`'s options and colours, and the owner's board view | Other | a date, the day it lands | a work package: the owner's steps, with a runbook |
-| 2 | the sweep, the role lists, R15's fixes and the cloud hooks, with their tests and documents | Docs and Programme Tooling | none | a work package carrying its tests, and the artefacts and steps below |
+| 2 | the sweep, the role lists, R15's fixes and the cloud hooks, with their tests and documents | Docs and Programme Tooling | none | a work package carrying its tests, and the artefacts and steps listed after this table |
 | 3 | the coordinator's daily trigger, and the owner's step of pasting the updated `cloud-environment-setup.sh` into the cloud environment's settings, which puts the cloud hooks in force. It keeps the pinned stalled-list issue | Other | a date, the day it lands | a work package. Its post-deployment check includes a cloud thread showing the session-start list and the comment check running |
 
 Delivery 2's artefacts, by repository. Why a cloud thread's hooks are only the
@@ -240,14 +240,14 @@ user-level ones the setup script writes is in
     the whole to-do list; and `comment-check.sh` as a `PreToolUse` hook on
     `Bash` and the GitHub MCP comment tools;
   - `.claude/cloud-environment-setup.sh`, extended to write the user-level hooks
-    for both, and its header comment, with the reason that `gh` cannot sign in
-    from a cloud thread dropped as no longer true;
+    for both, and its header comment, which drops the reason that `gh` cannot
+    sign in from a cloud thread;
   - documents:
     [1.1](../../../../docs/1.1-programme-tooling.md)'s rows for the new tools,
     `board-inbox.py`, `inbox-hook.sh`, `comment-check.sh`,
     `.claude/settings.json` (corrected to name the MCP matcher) and
     `cloud-environment-setup.sh` (corrected to the user-level hooks it now
-    writes);
+    writes, dropping the same `gh` reason);
     [1.2](../../../../docs/1.2-change-lifecycle.md)'s machines;
     [1.4](../../../../docs/1.4-programme-activities.md)'s daily activity;
     [1.6](../../../../docs/1.6-github-project-board.md)'s fields;
@@ -260,14 +260,13 @@ user-level ones the setup script writes is in
 
 Delivery 2's steps:
 
-1. Claude creates the pinned stalled-list issue by hand before TT1; delivery 3
-   keeps it.
+1. Claude creates the pinned stalled-list issue by hand.
 2. Claude writes the code and documents, each defect's test shown red first, and
    runs the suites and `scripts/docs/check-docs.sh --programme`.
-3. Once delivery 1 has landed, Claude runs TT1 to TT6, TT9 and TT10, `--dry-run`
-   first.
-4. The change merges straight to main.
-5. Each application's pin moves, and its wiring lands with it
+3. Once delivery 1 has landed, Claude runs TT1 to TT6, TT9 and TT10; TT1, TT2
+   and TT4 run `--dry-run` first.
+4. Claude merges the change straight to main.
+5. Claude moves each application's pin, and its wiring lands with it
    ([1.2 §2.15](../../../../docs/1.2-change-lifecycle.md#215-classifying-a-change)
    makes these Docs and Programme Tooling too, straight to main): Tile Lite
    Elite's `.claude/settings.json` gains the MCP matcher, and Dark Portal gains
