@@ -85,9 +85,11 @@ stateDiagram-v2
 R13 names ten resting states. Seven map onto the machine above: the three
 closed reasons and *folded* are closed; the two kinds of `On Hold` are one
 value, told apart by whether the dependency section links an issue; *waiting
-for project planning* is `Ready for Project` and the candidates. Three do not:
-*waiting on a `Decision`*, and *waiting on the owner's approval of its scope*
-and *of its project scoping*. See [question 2](#open-questions).
+for project planning* is `Ready for Project` and the candidates. The other
+three are a label rather than a state: *waiting on a `Decision`* is a
+dependency link to it, and *waiting on the owner's approval of its scope* and
+*of its project scoping* carry `needs owner approval`
+([question 2](#open-questions)).
 
 ## Project
 
@@ -225,8 +227,8 @@ flowchart TB
 | R10 | triage at raising is a habit, not checked |
 | R11 | no age is reported for requirements |
 | R12 | the sweep does not nudge threads by workstream |
-| R13 | three of the ten resting states have no representation |
-| R14 | `board-actions.py` shows none of the three |
+| R13 | three of the ten resting states have no representation; the label answers two |
+| R14 | `board-actions.py` shows none of the three; it is to list `needs owner approval` with its age |
 
 ## Open questions
 
@@ -237,12 +239,17 @@ technical.
    model; the options and the technology choices follow in this folder as
    `options.md` and `implementation.md`. What stays true once shipped goes to
    1.2 (the machines) and 1.6 (the fields).
-2. **Functional: how the three missing resting states show (R14).** Either new
-   `Requirement State` values, or one rule: *every wait on the owner is a
-   `Decision` issue*, so all three become `On Hold` plus a dependency link to
-   a Decision, and the owner's list derives them from the link. The second
-   adds no values and reuses R12's rule; the first is visible on the board
-   without the model.
+2. **Functional: how the three missing resting states show (R14).** Answered
+   (owner, 2026-11-13): a label, `needs owner approval`, on the issue itself,
+   with a board view that filters on it. It brings forward the real issue
+   rather than a surrogate `Decision`, works on every type and repository,
+   and adds any number of *waiting for approval* states without new columns.
+   A comment on the issue says what is to be approved. The owner answers in a
+   comment, and the issue's thread removes the label and moves it on.
+   `Decision` issues stay for a question with options. This makes a third
+   programme label, beside `folded` and `Release Check`, so 1.6's *everything
+   else is a field* gains a reason, and R12's *a `Decision` issue for a wait on
+   the owner* narrows to waits that are questions.
 3. **Functional: the bounds.** Accept 7 days, one sweep, as the default for
    every state where the owner or a thread owes a move, with the exceptions
    marked above (a day for triage; none for queues and `Deployment`).
