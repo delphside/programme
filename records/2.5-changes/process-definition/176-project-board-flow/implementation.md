@@ -55,7 +55,7 @@ sequenceDiagram
     C-->>C: nothing stalled: end silently
 ```
 
-- **Recommended: the coordinator's daily cloud trigger runs it**, then nudges
+- **The coordinator's daily cloud trigger runs it** (owner, 2026-11-13), then nudges
   each stalled item's role thread, or starts one where the role has no
   permanent thread, as most workstreams do not. When nothing is stalled it
   ends without a message. The Monday trigger stays as it is.
@@ -115,7 +115,7 @@ The table delphside/programme#138 is judged on.
 
 ## Questions for the owner
 
-1. **Where the daily sweep runs.** Recommended: the coordinator's daily
-   trigger. The alternative is cron on a VM.
+1. **Where the daily sweep runs.** Answered (owner, 2026-11-13): the
+   coordinator's daily trigger.
 2. **Where the stalled list is published** for the coordinator and the owner:
    a pinned issue rewritten each day, or only in the coordinator's message.
