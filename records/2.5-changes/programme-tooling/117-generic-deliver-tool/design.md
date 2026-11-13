@@ -646,9 +646,8 @@ adapter is an anti-corruption layer (Evans, *Domain-Driven Design*), and its
 bottom layer is a Gateway (Fowler, *Patterns of Enterprise Application
 Architecture*) for each of Oracle's two APIs. Each layer calls only the one
 below it, with one exception: the translators sit beside the middle layer, and
-only it uses them. Only the bottom layer knows a tool's syntax. The `build`
-hook writes OCI image layouts and the bottom layer pushes them, so the hook
-needs no registry login.
+only it uses them. Only the bottom layer knows a tool's syntax; it pushes what
+the `build` hook writes ([§8](#8-profile-and-hooks)).
 
 ```mermaid
 %%{init: {"themeVariables": {"clusterBkg": "#ffffff", "clusterBorder": "#8c959f", "edgeLabelBackground": "#ffffff"}}}%%
@@ -827,8 +826,9 @@ every use:
 | deployer | `docker` pull | the machine user's `docker` login |
 
 `docker` keeps the machine user's login in `~/.docker`, with the user's contexts
-and `buildx` builders (Dark Portal's multi-arch build needs a `docker-container`
-builder there), so the tool never sets `DOCKER_CONFIG`, and each deployer's
+and `buildx` builders (the builder a hook's OCI output needs, as
+[the builder's dependencies](#the-components) say, is one of them), so the
+tool never sets `DOCKER_CONFIG`, and each deployer's
 pull uses that login as it always did. The tool sets
 `REGISTRY_AUTH_FILE` only, before a `skopeo` call.
 
@@ -1061,7 +1061,9 @@ on needs `flock`. Common tools are named only; the others are described under
     session reads them, since a passed-on build starts in the home folder;
     Python 3.11 or later; git; `skopeo`; the OCI CLI, for `turpin remove`;
     the application's `build` hook, with the tools its hook needs, such as
-    Docker or Buildx.
+    Docker or Buildx. A hook that writes OCI output needs Docker's containerd
+    image store enabled, or a Buildx builder with the `docker-container`
+    driver: the plain `docker` driver cannot export OCI.
   - Reached by the controller by `ssh`, the owner at a shell, and a timer where
     the application has one.
   - Reaches GitHub (git fetch), OCI Registry (push and read candidates) and
@@ -1658,16 +1660,22 @@ missing hook is a no-op. Only `build` has a default.
 and writes it as an OCI image layout, a directory holding that one image,
 naming on standard output one line per image: its name and its layout's
 directory. Buildx writes one with `--output type=oci,dest=DIR,tar=false`,
-every platform in one index; both applications' hooks use it. The builder
-pushes each layout ([the registry adapter](#the-registry-adapter)). With
+every platform in one index; both applications' hooks use it. That export
+needs the builder set up as [its dependencies](#the-components) say. The
+builder pushes each layout ([the registry adapter](#the-registry-adapter)),
+so the hook needs no registry login. With
 `TURPIN_LOCAL` set, the hook loads the images into local Docker instead and
 prints their names only.
 
-The default hook runs this per target and prints the lines, and with
-`TURPIN_LOCAL` set runs `docker buildx bake --load`:
+**The default hook** bakes one bake target per name in the profile's
+`images`, the target named as the image. It writes each to a directory it
+creates in the worktree, `.turpin/oci/IMAGE`, and prints the lines; each
+directory is then the `DIR` the builder pushes with
+`skopeo copy --all --preserve-digests oci:DIR`. With `TURPIN_LOCAL` set, it
+runs `docker buildx bake --load` instead.
 
 ```sh
-docker buildx bake --set "TARGET.output=type=oci,dest=DIR,tar=false" TARGET
+docker buildx bake --set "IMAGE.output=type=oci,dest=.turpin/oci/IMAGE,tar=false" IMAGE
 ```
 
 Each hook gets `TURPIN_APP`, `TURPIN_ENV`, `TURPIN_ROLE` (`controller` for
@@ -1678,7 +1686,7 @@ the release step, `ephemeral` for create and destroy), `TURPIN_SHA`,
 
 | Hook | Kind | Component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- | --- | --- |
-| `build` | step | builder | `docker buildx bake` from the compose file's `build:` blocks, to OCI layouts; build id | `docker buildx`, arm64 and amd64, to OCI layouts |
+| `build` | step | builder | `docker buildx bake` from the compose file's `build:` blocks, to OCI layouts | `docker buildx`, arm64 and amd64, to OCI layouts |
 | `release-check` | gate | controller | no `functional` change in a patch | none |
 | `pre-deploy` | gate | deployer | database not ahead of the build's schema | window :40 to :10 (75 outside) |
 | `save-state` | step | deployer | stop server, snapshot database, keep five | copy DuckLake catalog aside |
@@ -2032,6 +2040,16 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
   the laptop; install the OCI CLI there; set `TURPIN_OCI_COMPARTMENT` in
   `~/.config/turpin/tile-lite-elite.env`
   ([the registry address](#the-registry-address)).
+- **The laptop's Buildx builder.** Before the first `turpin build`, check that
+  the laptop can export OCI ([§5](#the-components)): `docker info` shows
+  whether the containerd image store is on (its storage driver, the containerd
+  snapshotter), and `docker buildx ls` shows each builder's driver. If neither
+  applies, make one:
+
+  ```sh
+  docker buildx create --name turpin --driver docker-container --use
+  ```
+
 - **The proof by hand.** Before `prune`, the owner removes one candidate by
   hand on his laptop, with the builder's [removal credential](#logins), under
   the policy conditioned on `target.repo.name` ([policy](#policy)): an
@@ -2064,7 +2082,9 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
   delphside/tile-lite-elite#556's: the profile keys
   ([§8](#8-profile-and-hooks)); the hooks, which wrap today's schema,
   snapshot, migrate and smoke steps and refuse where today's pass for want of
-  an answer; the compose files' `image:` lines; the payload in
+  an answer; the `build` hook writing OCI layouts, with a Buildx builder able
+  to export them ([§5](#the-components)); the compose files' `image:` lines;
+  the payload in
   the server image; `Caddyfile` mounted, not copied; `[ships].non_shipping` no
   longer listing what the payload carries; `verify.sh` using `turpin status`
   and `--check`; the `sa` alias as an `/etc/profile.d` host file naming the
