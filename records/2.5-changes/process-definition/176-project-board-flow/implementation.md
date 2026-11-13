@@ -112,6 +112,30 @@ every `Turn` = `Owner` item to the five sources of `turn.waiting_on_owner`: a
 `Decision` on his turn, a pull request awaiting his review, unticked browser
 tests at `User testing`, due recurrences and due **owner** boxes.
 
+### 6. The session-start to-do list and the comment check (R15)
+
+A thread's list at start has a second part beside its role's items: the
+owner's comments it has not answered, read by `board-inbox.py` and shown by
+`inbox-hook.sh`, and a check before Claude comments, `comment-check.sh`. R15
+folds delphside/tile-lite-elite#455's defects in these. Each is fixed in
+delivery 2, in `scripts/board/`, with a test shown red first.
+
+| #455 | Fix |
+| --- | --- |
+| R1 | comments older than Claude's own account (2026-08-25) are never a to-do: a floor, held as a setting (**owner's answer awaited**) |
+| R2 | every heading names whose move it is; the cache line says *any age* |
+| R3 | `--issue N` goes through the same open-issues rule and the same comment read, pull request diff comments included, as the board-wide path: one function, two callers |
+| R4 | the cap counts comments, so it bounds the lines shown, then one line says how many more on how many issues (**owner's answer awaited**) |
+| R5 | `comment-check.sh` matches every way Claude posts a comment (`gh issue comment` with flags anywhere, `-R`, an issue URL, `gh api -X POST …/comments`, the GitHub MCP comment tools) and nothing else: not a read, not text inside a body |
+| R6 | docs/1.1's `board-inbox.py` row describes `--open`, `--issue` and `--all` |
+| R7 | each section of the hook is read and shown on its own, so one failed read prints its failure and the others still show |
+| R8 | a hook's context reaches Claude only after the command runs, so the check **denies the first attempt** with the unanswered comments as its reason, and allows the retry; it shapes the comment because Claude reads the reason before posting |
+| R10 | the hook's text says what it shows in the order shown; each line shows when the comment was made; `--issue` and `--all` without `--open` are refused, not ignored |
+| R11 | tests for `comments_on`, the hook's to-do section, the check's exit status and which comments survive the cap |
+
+R9, a cloud session's comment read as the owner's, was fixed straight to
+`main` by delphside/programme#180.
+
 ## Non-functional design
 
 | Question | Answer |
@@ -129,7 +153,7 @@ artefact's ([1.2 §2.15](../../../../docs/1.2-change-lifecycle.md#215-classifyin
 | # | What it delivers | Route | Milestone | Work package or steps |
 | --- | --- | --- | --- | --- |
 | 1 | the `Turn` and `Claimed by` issue fields, with `Turn`'s options and colours, and the owner's board view | Other | a date, the day it lands | a work package: the owner's steps, with a runbook |
-| 2 | the flow table in `model.py`, `board-flow.py`, `board-actions.py --role`, the cloud session-start hook pulling each role's list, their tests, and the documents: 1.1's new tools, 1.2's machines, 1.4's daily activity, 1.6's fields, 1.7's movers and 1.8's Ticket bounds | Docs and Programme Tooling | none | a work package carrying its tests; then each application's pin move. Its technical tests create the pinned stalled-list issue by hand before the first real run |
+| 2 | the flow table in `model.py`, `board-flow.py`, `board-actions.py --role`, R15's fixes to `board-inbox.py`, `inbox-hook.sh` and `comment-check.sh`, the cloud session-start hook pulling each role's list, their tests, and the documents: 1.1's new tools, 1.2's machines, 1.4's daily activity, 1.6's fields, 1.7's movers and 1.8's Ticket bounds | Docs and Programme Tooling | none | a work package carrying its tests; then each application's pin move. Its technical tests create the pinned stalled-list issue by hand before the first real run |
 | 3 | the coordinator's daily trigger and the pinned stalled-list issue, which delivery 2's technical tests first create by hand | Other | a date, the day it lands | a work package |
 
 Left out, for later: retiring `Requirement State`'s `On Hold` in favour of
