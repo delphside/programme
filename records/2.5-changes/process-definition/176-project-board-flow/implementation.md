@@ -164,7 +164,7 @@ delivery 2, in `scripts/board/`, with a test shown red first.
   is a check, not a gate (docs/1.2 §2.16), and an outage must not stop Claude
   answering.
 
-#455-R6 is met by document review, not by a test.
+Defect #455-R6 is met by document review, not by a test.
 
 R9, a cloud session's comment read as the owner's, was fixed straight to
 `main` by delphside/programme#180, with its tests in
