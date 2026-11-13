@@ -49,7 +49,7 @@ sequenceDiagram
     C->>B: run
     B->>G: read every repository
     B->>G: write R7 fixes, each item's Turn, clear stale claims
-    B->>G: publish the stalled list
+    B->>G: rewrite the pinned stalled-list issue
     B-->>C: stalled items, by role
     C->>T: nudge each role's thread, or start one
     C-->>C: nothing stalled: end silently
@@ -117,5 +117,7 @@ The table delphside/programme#138 is judged on.
 
 1. **Where the daily sweep runs.** Answered (owner, 2026-11-13): the
    coordinator's daily trigger.
-2. **Where the stalled list is published** for the coordinator and the owner:
-   a pinned issue rewritten each day, or only in the coordinator's message.
+2. **Where the stalled list is published.** Answered (owner, 2026-11-13): a
+   pinned issue in the programme repository, its body rewritten by each
+   sweep, so the owner can see stalls without asking and its history shows
+   how they changed.
