@@ -26,7 +26,7 @@ The model's words come from Kanban and ITIL (R6) where they have one.
 | *trigger* | what starts the move: an event, a schedule or a person's action | ITIL value stream *trigger* |
 | *flow table* | the table of holder, `Turn`, bound, what the state owes and what it leaves on, per type and state, held as data in the model and built in [implementation.md](implementation.md#1-the-flow-table-lives-in-the-board-model) | — |
 | *bound* | how long an item may sit in a state before somebody is told | Kanban *service level expectation* |
-| *age* | how long an item has been in its current state | Kanban *work item age* |
+| *age* | how long an item has been in its current state; for a `Release Check` package whose hold has ended, how long since the release milestone closed | Kanban *work item age* |
 | *stalled* | age past bound, or a claim whose thread has not moved the item within the bound | — |
 | *resting* | a state where the item legitimately waits on something named, with no move owed by its holder | R13 |
 | *claim* | a record of who is working an item now, so nobody else starts it | job-queue *lease* |
@@ -135,7 +135,7 @@ returns for `Post-deployment` (where a requirement needs it) and
 | `Development` | technical lead | first test deploy, or merge | 7 days without a commit. The age is that of the head commit of the package's open pull request; with none, the field's own age. | nothing |
 | `User testing` | the technical lead. Part on the owner's list: unticked browser tests. | tests ticked | 7 days | `waiting_on_owner` lists unticked browser tests |
 | `Deployment` | the technical lead, `Turn` = `Hold` on the release ([Hold reasons](#hold-reasons)). Part on the release manager's list: making the release. | the deploy | none: waits for the release | nothing |
-| `Post-deployment` | technical lead | the review, due after 7 days | 14 days: 7 days after the review fell due. None for a `Release Check` package (Tile Lite Elite's only), which owes no review while `Turn` = `Hold` ([Hold reasons](#hold-reasons)). | `waiting_on_claude`, `REVIEW_DUE_DAYS`, `RELEASE_CHECK` |
+| `Post-deployment` | technical lead | the review, due after 7 days | 14 days: 7 days after the review fell due. None for a `Release Check` package (Tile Lite Elite's only) while `Turn` = `Hold` ([Hold reasons](#hold-reasons)); once the hold ends, its review is due at once and it stalls 7 days after the milestone closed. | `waiting_on_claude`, `REVIEW_DUE_DAYS`, `RELEASE_CHECK` |
 | `Project Closedown` | technical lead (parent: design authority) | lessons written, closed | 7 days | nothing |
 
 The sweep reads the closed release milestone of a deploy that `deploy.sh`
@@ -242,7 +242,7 @@ A `Hold` is valid while one of these reasons holds, and is reviewed as stated.
 | --- | --- | --- |
 | an issue linked under *Dependencies and related work*, a `Decision` included | when the linked issue closes | hold ends: listed as invalid, `Turn` rewritten |
 | a named event, with a review date | at the review date | hold ends: listed as invalid, `Turn` rewritten |
-| a release: `Deployment` waits for its own open release milestone, and a work package at `Post-deployment` carrying the `Release Check` label, which is itself the reason, ([1.2 §2.7.1](../../../../docs/1.2-change-lifecycle.md#271-a-check-that-has-to-wait-for-a-release)) waits for the next release milestone in its repository | when that milestone closes, which is the deploy that ships it. While no next release milestone is open, a `Release Check` hold stays valid. | hold ends: listed as invalid, `Turn` rewritten (a `Release Check` package's review then falls due, its days counted from the milestone's close) |
+| a release: `Deployment` waits for its own open release milestone, and a work package at `Post-deployment` carrying the `Release Check` label (the label is the reason; [1.2 §2.7.1](../../../../docs/1.2-change-lifecycle.md#271-a-check-that-has-to-wait-for-a-release)) waits for the next release milestone in its repository | when that milestone closes, which is the deploy that ships it. While no next release milestone is open, a `Release Check` hold stays valid. | hold ends: listed as invalid, `Turn` rewritten (a `Release Check` package's review is then due at once, and it stalls 7 days after the close) |
 | a Ticket's sender, at `Waiting on sender` | after 7 days | hold stays: stalls under the owner |
 
 ## Claims
@@ -348,8 +348,7 @@ technical.
      those questions.
 3. **Functional: the bounds.** Answered (owner, 2026-11-13): 7 days for every
    state where the owner or a thread owes a move, with the exceptions in the
-   tables of this file: a day for triage, and none for the queues and
-   `Deployment`.
+   tables of this file.
 4. **Functional: what a claim is (R9).** Answered (owner, 2026-11-13): a
    `Claimed by` issue field, with the rules in [Claims](#claims). Not every
    workstream has a permanent thread (owner, 2026-11-13).
