@@ -6,7 +6,7 @@ whose requirements R1 to R15 are in its body (R15's design is in
 implementation.md's
 [section 6](implementation.md#6-the-session-start-to-do-list-and-the-comment-check-r15)).
 The four steps are the requirements, this model, the [options](options.md) for
-keeping items moving, and the [technology choices](implementation.md). This
+keeping items moving and the [technology choices](implementation.md). This
 file gives one state machine per issue type, each state with its holder, what
 it owes, what it leaves on and its bound, before any choice of how it is built.
 It starts from what the board model already encodes (`scripts/board/model.py`,
@@ -42,7 +42,7 @@ The model's words come from Kanban and ITIL (R6) where they have one.
 | coordinator | queue planning (`Ready for Project`, candidates, `Q3` to `Q1`) and pulling `Q1` into design at the weekly `board-sweep`; nudging stalled threads, or starting one, after the daily sweep | weekly, daily and when prompted |
 | test manager thread | test approval before design ends; regression check before a release | on call, started by the coordinator |
 | release manager thread | making a release: the milestone, the release record, the tag | when a release is due |
-| tools | PR State; `Post-deployment` on deploy; a local merge's post-merge move; a Ticket set to `New` on intake | on their event |
+| tools | PR State; `Post-deployment` on deploy; a local merge's post-merge move; the service desk's `intake.yml` sets a Ticket to `New` and, when a sender answers, to `In progress`; its `reply.yml`, on a comment, sets `Waiting on sender` | on their event |
 
 ## Requirement
 
@@ -134,8 +134,8 @@ returns for `Post-deployment` (where a requirement needs it) and
 | `Design and Test Approach` | the design authority. Parts on their own lists: the test manager's approval, the owner's `Design` boxes. | design done and test approach approved | 7 days without a move | `DUE_SECTIONS` lists his `Design` boxes |
 | `Development` | technical lead | first test deploy, or merge | 7 days without a commit. The age is that of the head commit of the package's open pull request; with none, the field's own age. | nothing |
 | `User testing` | the technical lead. Part on the owner's list: unticked browser tests. | tests ticked | 7 days | `waiting_on_owner` lists unticked browser tests |
-| `Deployment` | the technical lead, `Turn` = `Hold` with the release as its reason. Part on the release manager's list: making the release. | the deploy | none: waits for the release | nothing |
-| `Post-deployment` | technical lead | the review, due after 7 days | 14 days: 7 days after the review fell due. A work package waiting for the next release carries the `Release Check` label (Tile Lite Elite's only), owes nobody a review and does not stall: it waits on the release, so its `Turn` = `Hold`. | `waiting_on_claude`, `REVIEW_DUE_DAYS`, `RELEASE_CHECK` |
+| `Deployment` | the technical lead, `Turn` = `Hold` on the release ([Hold reasons](#hold-reasons)). Part on the release manager's list: making the release. | the deploy | none: waits for the release | nothing |
+| `Post-deployment` | technical lead | the review, due after 7 days | 14 days: 7 days after the review fell due. None for a `Release Check` package (Tile Lite Elite's only), which owes no review: `Turn` = `Hold` ([Hold reasons](#hold-reasons)) | `waiting_on_claude`, `REVIEW_DUE_DAYS`, `RELEASE_CHECK` |
 | `Project Closedown` | technical lead (parent: design authority) | lessons written, closed | 7 days | nothing |
 
 The sweep reads the closed release milestone of a deploy that `deploy.sh`
@@ -209,7 +209,7 @@ not yet give. Delivery 2 updates 1.8 to:
 | State | Holder | Bound |
 | --- | --- | --- |
 | `New`, `In progress` | owner | 7 days |
-| `Waiting on sender` | the owner: `Turn` = `Hold`, the sender the reason | 7 days: the owner reviews the hold |
+| `Waiting on sender` | the owner: `Turn` = `Hold`, the sender the reason | 7 days: stalls under the owner |
 | `Pending` | owner, at the review date in the Ticket's last note | stalled after that date |
 | `Resolved`, `Refused` | owner, to close | 7 days |
 
@@ -223,8 +223,7 @@ rest:
   reason, is kept by the sweep. Any other `Turn` is overwritten by the derived
   value.
 - A held item's holder is the role holding it, at its review. A wait on a tool
-  (`Deployment` waiting for a release) is `Hold`, with the release as its
-  reason.
+  is a `Hold` as well: see [Hold reasons](#hold-reasons).
 - An invalid `Hold` is one whose reason is missing or has ended: none of the
   [accepted reasons](#hold-reasons) holds. It is listed for its role with the
   reason, and `Turn` is rewritten to the derived value.
@@ -239,12 +238,12 @@ renamed option.
 
 A `Hold` is valid while one of these reasons holds, and is reviewed as stated.
 
-| Reason | Reviewed |
-| --- | --- |
-| an issue linked under *Dependencies and related work*, a `Decision` included | when the linked issue closes |
-| a named event, with a review date | at the review date |
-| an open release milestone: `Deployment` waits for its release, and a `Release Check` work package at `Post-deployment` waits for the next one | when the milestone closes |
-| a Ticket's sender, at `Waiting on sender` | after 7 days |
+| Reason | Reviewed | At the review |
+| --- | --- | --- |
+| an issue linked under *Dependencies and related work*, a `Decision` included | when the linked issue closes | hold ends: listed as invalid, `Turn` rewritten |
+| a named event, with a review date | at the review date | hold ends: listed as invalid, `Turn` rewritten |
+| a release milestone: `Deployment` waits for its open one, and a work package at `Post-deployment` carrying the `Release Check` label ([1.2 §2.7.1](../../../../docs/1.2-change-lifecycle.md#271-a-check-that-has-to-wait-for-a-release)) waits for the next one in its repository | when that milestone closes, which is the deploy that ships it. While no next release milestone is open, a `Release Check` hold stays valid. | hold ends: listed as invalid, `Turn` rewritten (a `Release Check` package's review is then due) |
+| a Ticket's sender, at `Waiting on sender` | after 7 days | hold stays: stalls under the owner |
 
 ## Claims
 
