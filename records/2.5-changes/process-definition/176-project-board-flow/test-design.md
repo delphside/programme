@@ -335,7 +335,7 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S33 | The owner's list over a world holding a `Turn` = `Owner` requirement, a `Decision` at `Asked`, a pull request awaiting review, and a work package in `User testing` with an unticked **owner** box. | D10.2 | O13 | CI |
 | S34 | Cross-check: one world through all five callers, holding an item in each state with more than one actor: joint `Triage`, `Design and Test Approach`, `User testing` and `Deployment`. | D10.1–5 | O14: each has one holder, as M2 and M4 name. For `User testing`, the technical lead's list holds the item as holder and the owner's list holds its browser tests as his part; for `Deployment`, the release manager's list holds making the release | CI |
 | S35 | Flow-table completeness: every option of `Requirement State`, `Project State`, `Decision State`, `PR State` and `Ticket State` has a mover and a bound (or "none"). Remove one row and see the test fail. An item carrying a value not in the table. | D3.3 | the table check passes, then fails on the removed row; the item reported, not defaulted (S-G17) | CI |
-| S36 | The table's bounds: 1 day for unset and `Triage`; 7 days for each owed state; none for `Q3` to `Q1`, `Ready for Project`, `Candidate 2` and `3`, and `Deployment`. | — | the values as stated | CI |
+| S36 | The table's bounds: 1 day for unset and `Triage`; 14 days for `Post-deployment`; 7 days for each other owed state, `Candidate Project 1` included; none for `Q3` to `Q1`, `Ready for Project`, `Candidate 2` and `3`, and `Deployment`. | — | the values as stated | CI |
 | S37 | Stalled output by role, including a role with no permanent thread. | D12.2–3 | grouped by role; the threadless role named alone | CI |
 | S38 | Exit statuses: a world with nothing stalled; one with a stalled item; one whose read fails. | D8.1–2, D12.1–2 | exit 0 (O17); exit 1 (O20); exit 2 (O10). A failed run never exits 1 | CI |
 | S39 | `--dry-run` over a world needing type, state, `Turn` and claim writes; then the same world without it. | D11.1 | O21, the pinned issue untouched; then O1, O2, O4, O9 | CI |
@@ -614,7 +614,7 @@ One per requirement. Each is answered after a week of daily runs.
 - `every_open_item_has_exactly_one_holder_across_all_lists`
 - `stalled_set_matches_past_bound_items_on_the_role_lists`
 - `flow_table_covers_every_option_of_every_state_field`
-- `flow_table_bounds_are_a_day_for_triage_seven_elsewhere_none_for_queues`
+- `flow_table_bounds_are_a_day_for_triage_fourteen_for_post_deployment_seven_elsewhere_none_for_queues`
 - `each_multi_actor_state_has_one_holder_and_the_others_parts_on_their_lists`
 - `post_deployment_stalls_fourteen_days_after_it_began`
 - `exit_status_is_0_clean_1_stalled_2_failed`
