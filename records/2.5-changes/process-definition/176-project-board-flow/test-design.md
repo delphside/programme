@@ -6,7 +6,8 @@ Project: delphside/programme#176 · type of change: `documentation` (the parent)
 
 This specification derives the tests for the board flow from its stated rules, without reading the implementation. Its sources are:
 
-- #176's body, R1 to R14;
+- #176's body, R1 to R15 (R15 folds delphside/tile-lite-elite#455's defects, written #455-R1 and so on);
+- implementation.md *6. The session-start to-do list and the comment check (R15)*;
 - [design.md](design.md), [options.md](options.md) and [implementation.md](implementation.md) in this folder;
 - docs/1.2 §2.15 (*Option colour says whose turn it is*, *Who moves a project's state*) and §2.23;
 - docs/1.8 *A Ticket's state*;
@@ -42,6 +43,7 @@ Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily
 | R12 | Each workstream's thread stays on top of its open issues; the daily sweep nudges it, or has the coordinator start one, when its issues pass R11's bound. A requirement waiting on something specific has `Turn` = `Hold` with that thing named under its dependencies. A specific question for the owner is a `Decision` issue, except during the first discussion. |
 | R13 | A workstream's thread progresses a requirement until it rests in one of the ten listed resting states. |
 | R14 | The owner can see which resting state each requirement is in, and which wait on him, without reading the issues. |
+| R15 | The session-start to-do list and the check before commenting show what is true: no comment from before Claude's account (2026-08-25) is a to-do; every heading names whose move it is; `--issue N` follows the board-wide path's rules and reads; the cap bounds lines shown; the check reacts to every way Claude posts a comment and only those, denying the first attempt with the unanswered comments as reason; one failed read hides no other section; the hook's text is true; `--issue` and `--all` without `--open` are refused. |
 
 ### From design.md (M)
 
@@ -343,6 +345,16 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S41 | Missed deploy: a closed release milestone carrying a work package at `Deployment` and one already at `Post-deployment`; an open milestone carrying one. | D9.6 | the first moved to `Post-deployment`; the other two O5 | CI |
 | S42 | A pull request whose body's attribution line links a project thread; one with no such line. | D1.6, D6 | the first's claim is that thread; the second has no claim, and is listed by its `PR State` mover | CI |
 | S43 | An item on two of the owner's sources at once: a `Decision` at `Asked` that also carries `Turn` = `Owner`. | D10.2 | listed once | CI |
+| S44 | A world with an unanswered owner-account comment dated 2026-08-24 and one dated 2026-08-26, on an open issue. | — | only the 2026-08-26 comment is a to-do | CI |
+| S45 | Every heading of the hook's output. | — | each names whose move it is; the cache line says *any age* | CI |
+| S46 | `--open --issue N` for a closed issue, and for an open issue with a pull request diff comment; then the board-wide read over the same world. | — | the closed issue gives nothing; the diff comment is listed on both paths, with the title | CI |
+| S47 | Thirty unanswered comments: 24 on one issue, 6 on five others. | — | twelve lines, then one line: 18 more on 6 issues | CI |
+| S48 | Each way of posting a comment (`gh issue comment` with flags before and after the number, `-R`, an issue URL; `gh api -X POST …/comments`; the GitHub MCP comment tools), each read (`gh issue view`, `gh api` GET), and a comment body containing the text `gh issue comment`. | — | the check fires on each post and on nothing else | CI |
+| S49 | A post to an issue with unanswered owner comments, then the same post again. With none unanswered, a post. | — | the first is denied, its reason listing the comments; the retry is allowed; the last is allowed at once | CI |
+| S50 | The seven-day read fails while the to-do read succeeds; then the reverse. | — | the failing section prints its failure; the other shows in full; the hook exits 0 | CI |
+| S51 | `--issue 5` and `--all` without `--open`; then with it. | — | refused, naming the missing flag; then accepted | CI |
+| S52 | A to-do line for a comment edited after it was made. | — | the time shown is when it was made | CI |
+| TT10 | The check run live, read-only, on an issue with an unanswered owner comment. | — | denied once with that comment, then allowed | TT |
 | TT1 | From a cloud session, once delivery 1's fields exist and the pinned issue has been created by hand (S-G18): a `--dry-run`, its planned writes read, then a full run against the five repositories. | D2, D8.5 | completes; calls and duration recorded against about 400 calls and the rate limit; pinned issue rewritten (O9) | TT |
 | TT2 | From WSL, immediately after TT1, `--dry-run` first. | D11.2 | the dry run plans no writes except the pinned body; then O5 except the pinned body; the same stalled set | TT |
 | TT3 | `--role` for one design authority, and the owner's list, from a cloud session and from WSL. | D10.2–3 | identical lists in both places | TT |
@@ -390,6 +402,7 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | R12 | S17, S18, S19, S32, S37, TT8 |
 | R13 | S15, S17, S18, S19 |
 | R14 | S15, S33, S43, UA1 |
+| R15 | S44 to S52, TT10 |
 | M1 | S3, S5, S7, S20, S22 |
 | M2 | S3, S5, S6, S18, S19 |
 | M3 | S15, S18, S19 |
@@ -483,6 +496,8 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | S42 | M7, S-G16 |
 | S43 | R14, S-G19 |
 | UA1 | R14, M9 |
+| S44 to S52 | R15 |
+| TT10 | R15 |
 
 Every scenario serves a rule. R6 has no scenario (G26).
 
@@ -534,6 +549,7 @@ One per requirement. Each is answered after a week of daily runs.
 | R12 | **Claude:** each stalled requirement's thread was nudged, or a thread was started. |
 | R13 | **Claude:** each open requirement is either owed a move within its bound or rests in one of the R13 states. |
 | R14 | **owner:** the view shows him what waits on him without opening an issue. |
+| R15 | **Claude:** a week of session starts showed no false to-do and no hidden section, and every comment posted to an issue with unanswered owner comments was denied once first. |
 
 ## 9. Test names
 
@@ -604,6 +620,18 @@ One per requirement. Each is answered after a week of daily runs.
 - `whole_run_succeeds_with_graphql_refused`
 - `missed_day_ends_in_the_same_state_as_a_single_run`
 - `immediate_rerun_writes_only_the_pinned_issue`
+
+### The session-start list and the comment check (R15)
+
+- `comments_before_claudes_account_are_not_to_dos`
+- `every_heading_names_whose_move_it_is`
+- `one_issue_follows_the_same_rules_and_reads_as_the_board`
+- `cap_bounds_lines_and_counts_the_rest`
+- `comment_check_fires_on_every_post_and_no_read`
+- `comment_check_denies_once_then_allows`
+- `one_failed_read_hides_no_other_section`
+- `issue_or_all_without_open_is_refused`
+- `to_do_line_shows_when_the_comment_was_made`
 
 ### Lists and the single source
 
