@@ -125,13 +125,41 @@ delivery 2, in `scripts/board/`, with a test shown red first.
 | R1 | comments older than Claude's own account (2026-08-25) are never a to-do: a floor, held as a setting (**owner's answer awaited**) |
 | R2 | every heading names whose move it is; the cache line says *any age* |
 | R3 | `--issue N` goes through the same open-issues rule and the same comment read, pull request diff comments included, as the board-wide path: one function, two callers |
-| R4 | the cap counts comments, so it bounds the lines shown, then one line says how many more on how many issues (**owner's answer awaited**) |
-| R5 | `comment-check.sh` matches every way Claude posts a comment (`gh issue comment` with flags anywhere, `-R`, an issue URL, `gh api -X POST …/comments`, the GitHub MCP comment tools) and nothing else: not a read, not text inside a body |
+| R4 | the cap counts comments, so it bounds the lines shown; the twelve that show are the oldest, longest waiting first, as `turn.py` orders; then one line says how many more on how many issues (**owner's answer awaited**: if he chooses twelve issues, every comment on the twelve oldest-waiting issues shows) |
+| R5 | `comment-check.sh` matches every way Claude posts a comment, listed below, and nothing else: not a read, not an edit of Claude's own comment, not text inside a body |
 | R6 | docs/1.1's `board-inbox.py` row describes `--open`, `--issue` and `--all` |
 | R7 | each section of the hook is read and shown on its own, so one failed read prints its failure and the others still show |
-| R8 | a hook's context reaches Claude only after the command runs, so the check **denies the first attempt** with the unanswered comments as its reason, and allows the retry; it shapes the comment because Claude reads the reason before posting |
+| R8 | a hook's context reaches Claude only after the command runs, so the check **denies once**, as defined below; it shapes the comment because Claude reads the denial's reason before posting |
 | R10 | the hook's text says what it shows in the order shown; each line shows when the comment was made; `--issue` and `--all` without `--open` are refused, not ignored |
 | R11 | tests for `comments_on`, the hook's to-do section, the check's exit status and which comments survive the cap |
+
+**The ways Claude posts a comment**, which the check covers:
+
+| Way | Covered |
+| --- | --- |
+| `gh issue comment` and `gh pr comment`, flags before or after the number, `-R`, a URL in place of the number | yes |
+| `gh issue close` and `gh pr close` with `--comment` | yes |
+| `gh pr review` with `--body` (comment, approve or request changes) | yes |
+| `gh api -X POST` to `issues/N/comments`, `pulls/N/comments`, `pulls/N/reviews` or a comment's `replies` | yes |
+| the GitHub MCP tools `add_issue_comment`, `add_reply_to_pull_request_comment`, and `pull_request_review_write` when it submits a review with a body | yes |
+| `add_comment_to_pending_review` | no: nothing is posted until the review is submitted, which is covered |
+| editing Claude's own comment (`update_issue_comment`, `gh api -X PATCH`) | no: it answers nothing new |
+| a commit message, a pull request body, an issue body | no: not a comment |
+
+**Deny once**:
+
+- The first post to an issue with unanswered owner comments is denied. The
+  reason lists them, oldest first.
+- A retry is the same kind of post to the same issue within 10 minutes of
+  the denial, in the same session. It is allowed. A marker in the session's
+  temporary directory, keyed by repository, issue and the unanswered
+  comments' ids, records the denial.
+- If an owner comment arrives between the denial and the retry, the set of
+  ids changes, so the retry is denied again, with the new list.
+- Claude's own comments in between change nothing.
+- If the check cannot read the comments, it allows the post and says so: it
+  is a check, not a gate (docs/1.2 §2.16), and an outage must not stop Claude
+  answering.
 
 R9, a cloud session's comment read as the owner's, was fixed straight to
 `main` by delphside/programme#180.
