@@ -185,7 +185,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S1 | Build an unpushed commit; push it; build; build again. | C5, C6 none→all | O1, then O2, then O3 | CI |
 | S2 | Build with the operator's tree dirty. | C5 | O2; the image content is the commit's | CI |
 | S3 | Build with only one of two images present; build with the registry query failing. | C6 some, fails | O3 for the present one, O2 for the other; then O1 | CI |
-| S4 | Build with no `build` hook, then with one; each again under `--local`. | C9 | `docker buildx bake` with OCI output per target, its layouts pushed, then the hook is called and its layouts pushed; under `--local`, `bake --load` and the hook given `TURPIN_LOCAL=1`, nothing pushed | CI |
+| S4 | Build with no `build` hook, then with one; each again under `--local`. | C9 | `docker buildx bake --builder turpin` with OCI output per target, its layouts pushed, then the hook is called and its layouts pushed; under `--local`, `bake --builder turpin --load` and the hook given `TURPIN_LOCAL=1`, nothing pushed | CI |
 | S5 | Multi-arch build, then a deploy of it. | C26 | O2 with an index digest; O4 matches it | CI (buildx + qemu) |
 | S6 | Deploy to rehearsal a SHA with no build; build; deploy over ssh. | C6, C3 ssh | O1, then O4, O5, O6, O8 | CI |
 | S7 | Deploy to preview on the controller, with the preview's own `join`. | C2 preview, C3 local | O4; the joined files are `docker-compose.preview.yml` and `Caddyfile.preview` from the payload; no ssh call | CI |
