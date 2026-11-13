@@ -7,7 +7,7 @@ starts from what the board model already encodes (`scripts/board/model.py`,
 `turn.py`, `obligations.py`) and marks what is missing against R1 to R14. The
 requirements are in the issue body, not repeated here.
 
-A draft. The questions in [Open questions](#open-questions) come to him as
+The questions in [Open questions](#open-questions) come to the owner as
 cards, in the order the programme answers decisions.
 
 ## The vocabulary
