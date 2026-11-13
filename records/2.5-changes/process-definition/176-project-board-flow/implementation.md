@@ -128,8 +128,8 @@ Left out, for later: retiring `Requirement State`'s `On Hold` in favour of
 ## Details settled from the test design
 
 The test design ([test-design.md](test-design.md), part 10) found these
-details unstated. Settled by the design authority on 2026-11-13; G1, G4 and
-G25 change requirement wording, so they go to the owner.
+details unstated. Settled by the design authority on 2026-11-13, except G1, G4 and G25,
+which the owner settled the same day by rewording R1, R11 and R12.
 
 | Gap | Settled |
 | --- | --- |
