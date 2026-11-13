@@ -43,7 +43,7 @@ flowchart LR
 | owner | joint triage, approvals, answers, user tests, reviews of application changes | when told, in the chat |
 | workstream thread (design authority) | requirements; a project at `Scope` and `Design and Test Approach`; a parent's later phases | while its thread runs |
 | technical lead thread | a work package from `Development` to closing | while its thread runs |
-| coordinator | queue planning (`Ready for Project`, candidates, `Q3` to `Q1`), pulling `Q1` into design, nudging stalled threads | the weekly `board-sweep`, and when prompted |
+| coordinator | queue planning (`Ready for Project`, candidates, `Q3` to `Q1`) and pulling `Q1` into design at the weekly `board-sweep`; nudging stalled threads, or starting one, after the daily sweep | weekly, daily, and when prompted |
 | test manager thread | test approval before design ends; regression check before a release | on call, started by the coordinator |
 | tools | PR State; `Post-deployment` on deploy; a local merge's post-merge move | on their event |
 
@@ -71,14 +71,14 @@ stateDiagram-v2
     state "Candidate Project 1-3" as Candidate
 ```
 
-| State | Mover | Owes | Leaves on | Bound | Encoded today |
+| State | Holder (R1) | Owes | Leaves on | Bound | Encoded today |
 | --- | --- | --- | --- | --- | --- |
-| unset / `Triage` | workstream thread; owner first where triage is joint | the minimum fields, then an outcome | the thread's action, at raising (R10) | 1 day: R10 says at once | unset read as `Triage`; `board-stage.py` writes it (TLE only) |
+| unset / `Triage` | holder: the workstream thread; where triage is joint, the owner (`Turn` = `Owner`) until his comment, then the thread again | the minimum fields, then an outcome | the thread's action, at raising (R10) | 1 day: R10 says at once | unset read as `Triage`; `board-stage.py` writes it (TLE only) |
 | `Scope, Options and Dependencies` | workstream thread | options, dependencies, a recommendation | the thread's action | 7 days (R11) | nothing reports age |
 | waiting on a `Decision` | owner, through the Decision's own machine | — (resting) | the Decision reaching `Actioned` | the Decision's own bounds | not a value; the Decision is listed, not the requirement |
-| `On Hold` | nobody, until its trigger | — (resting) | the named event, or the issue it waits on closing | a review at each sweep that its reason still holds | the value only; reason is prose |
+| `On Hold` | holder: the workstream thread, at the hold's review (`Turn` = `Hold`) | — (resting) | the named event, or the issue it waits on closing | a review at each sweep that its reason still holds | the value only; reason is prose |
 | `Ready for Project` | coordinator | a slot at planning | `board-sweep` planning; owner agrees | none: a queue meant to have a length | the value only |
-| `Candidate Project 1-3` | coordinator | raise the project when 1 is next | `board-sweep` planning | none for 2 and 3; slot 1 one sweep | the value only |
+| `Candidate Project 1-3` | coordinator | raise the project when 1 is next | `board-sweep` planning | slot 1: 7 days, since raising its project is a move owed, not a queue; slots 2 and 3: none, a queue | the value only |
 | closed | — | — | — | — | GitHub state reason, `folded` label |
 
 R13 names ten resting states. Seven map onto the machine above: the three
@@ -117,15 +117,15 @@ A parent runs `Scope` to `Design and Test Approach`, then rests while its work
 packages run, and returns for `Post-deployment` (where a requirement needs it)
 and `Project Closedown`.
 
-| State | Mover | Leaves on | Bound | Encoded today |
+| State | Holder (R1) | Leaves on | Bound | Encoded today |
 | --- | --- | --- | --- | --- |
 | `Scope` | design authority | its action; owner agrees the next move | 7 days | `obligations.py` checks the headings |
 | `Q3` to `Q1` | coordinator | `board-sweep` planning | none: a queue | the sweep's rule, in prose only |
-| `Design and Test Approach` | design authority; test manager approves; owner answers `Design` boxes | design done and test approach approved | 7 days without a move | `DUE_SECTIONS` lists his `Design` boxes |
+| `Design and Test Approach` | holder: the design authority. Parts on their own lists: the test manager's approval, the owner's `Design` boxes | design done and test approach approved | 7 days without a move | `DUE_SECTIONS` lists his `Design` boxes |
 | `Development` | technical lead | first test deploy, or merge | 7 days without a commit | nothing |
-| `User testing` | owner (browser tests); technical lead (rehearsal) | tests ticked | 7 days | `waiting_on_owner` lists unticked browser tests |
-| `Deployment` | technical lead; release manager | the deploy | none: waits for the release | nothing; `Release Check` label marks a wait |
-| `Post-deployment` | technical lead | the review, after 7 days | 7 days, then due | `waiting_on_claude`, `REVIEW_DUE_DAYS` |
+| `User testing` | holder: the technical lead. Part on the owner's list: unticked browser tests | tests ticked | 7 days | `waiting_on_owner` lists unticked browser tests |
+| `Deployment` | holder: the technical lead, `Turn` = `Hold` on the release. Part on the release manager's list: making the release | the deploy | none: waits for the release | nothing; `Release Check` label marks a wait |
+| `Post-deployment` | technical lead | the review, due after 7 days | 14 days: 7 days after the review fell due | `waiting_on_claude`, `REVIEW_DUE_DAYS` |
 | `Project Closedown` | technical lead (parent: design authority) | lessons written, closed | 7 days | nothing |
 | *parent waiting on its packages* | — (resting) | last package closes | its packages' bounds | not a value |
 
