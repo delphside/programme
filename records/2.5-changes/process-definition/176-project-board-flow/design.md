@@ -233,10 +233,10 @@ flowchart TB
 In the programme's order: document structure, then functional, then
 technical.
 
-1. **Document structure.** This file holds the model; the options and the
-   technology choices follow in this folder as `options.md` and
-   `implementation.md`. What stays true once shipped goes to 1.2 (the
-   machines) and 1.6 (the fields).
+1. **Document structure.** Answered (owner, 2026-11-13): this file holds the
+   model; the options and the technology choices follow in this folder as
+   `options.md` and `implementation.md`. What stays true once shipped goes to
+   1.2 (the machines) and 1.6 (the fields).
 2. **Functional: how the three missing resting states show (R14).** Either new
    `Requirement State` values, or one rule: *every wait on the owner is a
    `Decision` issue*, so all three become `On Hold` plus a dependency link to
