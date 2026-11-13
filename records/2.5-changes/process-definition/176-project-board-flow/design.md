@@ -7,8 +7,7 @@ starts from what the board model already encodes (`scripts/board/model.py`,
 `turn.py`, `obligations.py`) and marks what is missing against R1 to R14. The
 requirements are in the issue body, not repeated here.
 
-Nothing here is agreed yet. A value marked *proposed* is a draft for the
-owner, and the questions in [Open questions](#open-questions) come to him as
+A draft. The questions in [Open questions](#open-questions) come to him as
 cards, in the order the programme answers decisions.
 
 ## The vocabulary
@@ -74,12 +73,12 @@ stateDiagram-v2
 
 | State | Mover | Owes | Leaves on | Bound | Encoded today |
 | --- | --- | --- | --- | --- | --- |
-| unset / `Triage` | workstream thread; owner first where triage is joint | the minimum fields, then an outcome | the thread's action, at raising (R10) | **proposed** 1 day: R10 says at once | unset read as `Triage`; `board-stage.py` writes it (TLE only) |
+| unset / `Triage` | workstream thread; owner first where triage is joint | the minimum fields, then an outcome | the thread's action, at raising (R10) | 1 day: R10 says at once | unset read as `Triage`; `board-stage.py` writes it (TLE only) |
 | `Scope, Options and Dependencies` | workstream thread | options, dependencies, a recommendation | the thread's action | 7 days (R11) | nothing reports age |
 | waiting on a `Decision` | owner, through the Decision's own machine | — (resting) | the Decision reaching `Actioned` | the Decision's own bounds | not a value; the Decision is listed, not the requirement |
-| `On Hold` | nobody, until its trigger | — (resting) | the named event, or the issue it waits on closing | **proposed** a review at each sweep that its reason still holds | the value only; reason is prose |
-| `Ready for Project` | coordinator | a slot at planning | `board-sweep` planning; owner agrees | **proposed** none: a queue meant to have a length | the value only |
-| `Candidate Project 1-3` | coordinator | raise the project when 1 is next | `board-sweep` planning | **proposed** none for 2 and 3; slot 1 one sweep | the value only |
+| `On Hold` | nobody, until its trigger | — (resting) | the named event, or the issue it waits on closing | a review at each sweep that its reason still holds | the value only; reason is prose |
+| `Ready for Project` | coordinator | a slot at planning | `board-sweep` planning; owner agrees | none: a queue meant to have a length | the value only |
+| `Candidate Project 1-3` | coordinator | raise the project when 1 is next | `board-sweep` planning | none for 2 and 3; slot 1 one sweep | the value only |
 | closed | — | — | — | — | GitHub state reason, `folded` label |
 
 R13 names ten resting states. Seven map onto the machine above: the three
@@ -120,14 +119,14 @@ and `Project Closedown`.
 
 | State | Mover | Leaves on | Bound | Encoded today |
 | --- | --- | --- | --- | --- |
-| `Scope` | design authority | its action; owner agrees the next move | **proposed** 7 days | `obligations.py` checks the headings |
+| `Scope` | design authority | its action; owner agrees the next move | 7 days | `obligations.py` checks the headings |
 | `Q3` to `Q1` | coordinator | `board-sweep` planning | none: a queue | the sweep's rule, in prose only |
-| `Design and Test Approach` | design authority; test manager approves; owner answers `Design` boxes | design done and test approach approved | **proposed** 7 days without a move | `DUE_SECTIONS` lists his `Design` boxes |
-| `Development` | technical lead | first test deploy, or merge | **proposed** 7 days without a commit | nothing |
-| `User testing` | owner (browser tests); technical lead (rehearsal) | tests ticked | **proposed** 7 days | `waiting_on_owner` lists unticked browser tests |
+| `Design and Test Approach` | design authority; test manager approves; owner answers `Design` boxes | design done and test approach approved | 7 days without a move | `DUE_SECTIONS` lists his `Design` boxes |
+| `Development` | technical lead | first test deploy, or merge | 7 days without a commit | nothing |
+| `User testing` | owner (browser tests); technical lead (rehearsal) | tests ticked | 7 days | `waiting_on_owner` lists unticked browser tests |
 | `Deployment` | technical lead; release manager | the deploy | none: waits for the release | nothing; `Release Check` label marks a wait |
 | `Post-deployment` | technical lead | the review, after 7 days | 7 days, then due | `waiting_on_claude`, `REVIEW_DUE_DAYS` |
-| `Project Closedown` | technical lead (parent: design authority) | lessons written, closed | **proposed** 7 days | nothing |
+| `Project Closedown` | technical lead (parent: design authority) | lessons written, closed | 7 days | nothing |
 | *parent waiting on its packages* | — (resting) | last package closes | its packages' bounds | not a value |
 
 ## Decision
@@ -147,8 +146,8 @@ stateDiagram-v2
 
 The turn alternates and is the only machine fully encoded today
 (`DECISION_TURNS`). Missing: a bound, and a starting state for a Decision
-raised without one (R7). **Proposed** bound: 7 days on each step, the owner's
-steps shown with their age as now.
+raised without one (R7). Bound: 7 days on each step, the owner's steps shown
+with their age as now.
 
 ## Pull request
 
@@ -173,7 +172,7 @@ Derived from GitHub's own state by `board-pr-state.py`, never typed. Gaps: the
 infrastructure repository has no PR State workflow (#383 R15), and a merge on
 GitHub does not move the work package it delivers (#383 R13). A pull request
 that owes no review is merged on green by its author thread, with no state
-saying so. **Proposed** bound: 7 days in any state.
+saying so. Bound: 7 days in any state.
 
 ## Ticket
 
@@ -250,9 +249,10 @@ technical.
    programme label, beside `folded` and `Release Check`, so 1.6's *everything
    else is a field* gains a reason, and R12's *a `Decision` issue for a wait on
    the owner* narrows to waits that are questions.
-3. **Functional: the bounds.** Accept 7 days, one sweep, as the default for
-   every state where the owner or a thread owes a move, with the exceptions
-   marked above (a day for triage; none for queues and `Deployment`).
+3. **Functional: the bounds.** Answered (owner, 2026-11-13): 7 days, one
+   sweep, for every state where the owner or a thread owes a move, with the
+   exceptions in the tables above: a day for triage, and none for the queues
+   and `Deployment`.
 4. **Functional: what a claim is (R9).** Where a thread records that it is
    working an item, given that every cloud thread acts as the same GitHub
    user, so assignees cannot tell threads apart.
