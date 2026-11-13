@@ -58,7 +58,7 @@ Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily
 | M8 | Ticket: `New` and `In progress` are the owner's. `Waiting on sender` is the owner's to review after 7 days, with `Turn` = `Hold` on the sender. `Pending` waits for the review date in its last note. Each state has a bound. |
 | M9 | `Turn` (`Owner` · `Claude` · `Hold`) is on every open issue. The model writes it wherever it can derive the mover. A thread sets it only where the model cannot (an approval, a hold). An item with no `Turn` is lost, and the sweep finds it. The owner's view filters on `Owner` and groups by issue type. |
 | M10 | `Turn` = `Owner` carries a comment saying what is to be approved. |
-| M11 | A `Hold` has a reason the model can check, one of four, each reviewed as stated: an issue linked under *Dependencies and related work* (when it closes: the hold ends, listed as invalid, `Turn` rewritten); a named event with a review date (at the date: the same); a release milestone, which `Deployment` waits on while its own is open and a `Release Check` package at `Post-deployment` waits on for the next one in its repository (when that milestone closes, the deploy that ships it: the hold ends; while no next release milestone is open the hold stays valid); a Ticket's sender at `Waiting on sender` (after 7 days: the hold stays and stalls under the owner). |
+| M11 | A `Hold` has a reason the model can check, one of four, each reviewed as stated: an issue linked under *Dependencies and related work* (when it closes: the hold ends, listed as invalid, `Turn` rewritten); a named event with a review date (at the date: the same); a release, which `Deployment` waits on while its own milestone is open and a `Release Check` package at `Post-deployment` waits on, the label itself the reason, until the next release milestone in its repository closes (when that milestone closes, the deploy that ships it: the hold ends; while no next release milestone is open the hold stays valid); a Ticket's sender at `Waiting on sender` (after 7 days: the hold stays and stalls under the owner). |
 | M12 | Bounds: 7 days for every state where the owner or a thread owes a move; 1 day for triage; none for the queues, `Deployment` and a `Release Check` package at `Post-deployment`. |
 | M13 | `Claimed by` names the role, then a link to the thread holding it now; the role alone where no thread exists. A claim is stale once the item is past its bound with no move, and the sweep then offers it to the role's current thread. A recovering sweep restarts only items with no live claim. |
 | M14 | On each sweep: no type becomes Requirement, no state becomes the type's starting state, and the sweep lists a non-requirement with no workstream for the owner. |
@@ -299,7 +299,7 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | equal to derived | O5 | n/a |
 | different from derived | O4 (overwritten) | n/a |
 | thread-set `Owner` with comment | O5, kept (S-G3) | O5, kept |
-| `Hold`, reason valid and open (a Ticket's sender included, until its 7 days pass) | O5, kept (S-G3) | O5, resting |
+| `Hold`, reason valid and open (a Ticket's sender included, which stays valid past 7 days and stalls, O6) | O5, kept (S-G3) | O5, resting |
 | `Hold`, reason released or missing | O18 | O18 |
 
 ## 5. Scenarios
