@@ -2,7 +2,8 @@
 
 Design step 2 of
 [delphside/programme#176](https://github.com/delphside/programme/issues/176),
-whose requirements R1 to R14 are in its body. The four steps are the
+whose requirements R1 to R15 are in its body (R15's design is in
+[implementation.md §6](implementation.md#6-the-session-start-to-do-list-and-the-comment-check-r15)). The four steps are the
 requirements, this model, the [options](options.md) for keeping items moving,
 and the [technology choices](implementation.md). This file gives one state
 machine per issue type, each state with its holder, what it owes, what it
@@ -19,10 +20,10 @@ The model's words come from Kanban and ITIL (R6) where they have one.
 
 | Word | Means | From |
 | --- | --- | --- |
-| *holder* | the one actor an item in a state has (R1): the mover of the move it owes or, where it rests, whoever reviews the wait. Anyone else with a part in the state sees it on their own list | Kanban *pull*: the one who pulls it |
+| *holder* | the one actor an item in a state has (R1): the mover of the move it owes or, where it rests, whoever reviews the wait. Anyone else with a part in the state sees it on their own list. | Kanban *pull*: the one who pulls it |
 | *mover* | who makes an item's next move: the owner, a role's thread or a tool | Kanban *pull* |
 | *trigger* | what starts the move: an event, a schedule or a person's action | ITIL value stream *trigger* |
-| *guard* | what must be true before the move is allowed | state machine guard |
+| *flow table* | the table of holder, `Turn` and bound per type and state, held as data in the model and built in [implementation.md](implementation.md#1-the-flow-table-lives-in-the-board-model) | — |
 | *bound* | how long an item may sit in a state before somebody is told | Kanban *service level expectation* |
 | *age* | how long an item has been in its current state | Kanban *work item age* |
 | *stalled* | age past bound, or a claim whose thread has not moved the item within the bound | — |
@@ -37,7 +38,7 @@ The model's words come from Kanban and ITIL (R6) where they have one.
 | owner | joint triage, approvals, answers, user tests, reviews of application changes | when told, in the chat |
 | workstream thread (design authority) | requirements; a project at `Scope` and `Design and Test Approach`; a parent's later phases | while its thread runs |
 | technical lead thread | a work package from `Development` to closing | while its thread runs |
-| coordinator | queue planning (`Ready for Project`, candidates, `Q3` to `Q1`) and pulling `Q1` into design at the weekly `board-sweep`; nudging stalled threads, or starting one, after the daily sweep | weekly, daily, and when prompted |
+| coordinator | queue planning (`Ready for Project`, candidates, `Q3` to `Q1`) and pulling `Q1` into design at the weekly `board-sweep`; nudging stalled threads, or starting one, after the daily sweep | weekly, daily and when prompted |
 | test manager thread | test approval before design ends; regression check before a release | on call, started by the coordinator |
 | release manager thread | making a release: the milestone, the release record, the tag | when a release is due |
 | tools | PR State; `Post-deployment` on deploy; a local merge's post-merge move; a Ticket set to `New` on intake | on their event |
@@ -129,16 +130,17 @@ returns for `Post-deployment` (where a requirement needs it) and
 | --- | --- | --- | --- | --- |
 | `Scope` | design authority | its action; owner agrees the next move | 7 days | `obligations.py` checks the headings |
 | `Q3` to `Q1` | coordinator | `board-sweep` planning | none: a queue | the sweep's rule, in prose only |
-| `Design and Test Approach` | the design authority. Parts on their own lists: the test manager's approval, the owner's `Design` boxes | design done and test approach approved | 7 days without a move | `DUE_SECTIONS` lists his `Design` boxes |
-| `Development` | technical lead | first test deploy, or merge | 7 days without a commit. The age is that of the head commit of the package's open pull request; with none, the field's own age | nothing |
-| `User testing` | the technical lead. Part on the owner's list: unticked browser tests | tests ticked | 7 days | `waiting_on_owner` lists unticked browser tests |
-| `Deployment` | the technical lead, `Turn` = `Hold` with the release as its reason. Part on the release manager's list: making the release | the deploy | none: waits for the release | nothing |
-| `Post-deployment` | technical lead | the review, due after 7 days | 14 days: 7 days after the review fell due. A work package waiting for the next release carries the `Release Check` label (Tile Lite Elite's only) and owes nobody a review | `waiting_on_claude`, `REVIEW_DUE_DAYS`, `RELEASE_CHECK` |
+| `Design and Test Approach` | the design authority. Parts on their own lists: the test manager's approval, the owner's `Design` boxes. | design done and test approach approved | 7 days without a move | `DUE_SECTIONS` lists his `Design` boxes |
+| `Development` | technical lead | first test deploy, or merge | 7 days without a commit. The age is that of the head commit of the package's open pull request; with none, the field's own age. | nothing |
+| `User testing` | the technical lead. Part on the owner's list: unticked browser tests. | tests ticked | 7 days | `waiting_on_owner` lists unticked browser tests |
+| `Deployment` | the technical lead, `Turn` = `Hold` with the release as its reason. Part on the release manager's list: making the release. | the deploy | none: waits for the release | nothing |
+| `Post-deployment` | technical lead | the review, due after 7 days | 14 days: 7 days after the review fell due. A work package waiting for the next release carries the `Release Check` label (Tile Lite Elite's only), owes nobody a review and does not stall: it waits on the release, so its `Turn` = `Hold`. | `waiting_on_claude`, `REVIEW_DUE_DAYS`, `RELEASE_CHECK` |
 | `Project Closedown` | technical lead (parent: design authority) | lessons written, closed | 7 days | nothing |
 
-A deploy missed by `deploy.sh` is read from the closed release milestone: each
-open work package it carries is moved. A merge on GitHub that did not move its
-work package is read from the merged pull request's `Refs #N`.
+The sweep reads the closed release milestone of a deploy that `deploy.sh`
+missed, and moves each open work package the milestone carries. It reads a merge
+on GitHub that did not move its work package from the merged pull request's
+`Refs #N`.
 
 ## Decision
 
@@ -201,12 +203,12 @@ work package it delivers (delphside/tile-lite-elite#383 R13).
 `Ticket State`'s machine is ITIL's, owned by
 [1.8](../../../../docs/1.8-service-desk.md#a-tickets-state) and not redrawn
 here. For this model it needs a holder and a bound per state, which 1.8 does
-not yet give and is updated to:
+not yet give. Delivery 2 updates 1.8 to:
 
 | State | Holder | Bound |
 | --- | --- | --- |
 | `New`, `In progress` | owner | 7 days |
-| `Waiting on sender` | `Turn` = `Hold`, the sender the reason | none: resting |
+| `Waiting on sender` | the owner: `Turn` = `Hold`, the sender the reason | 7 days: the owner reviews the hold |
 | `Pending` | owner, at the review date in the Ticket's last note | stalled after that date |
 | `Resolved`, `Refused` | owner, to close | 7 days |
 
@@ -227,7 +229,8 @@ rest:
   rewritten to the derived value.
 
 An item with a state the model cannot derive a holder for and no `Turn` set is
-lost: the sweep reports it to its role or the owner. A value not in the flow
+lost: the sweep reports it to the holder role of its type where the type and
+workstream are known, and to the owner otherwise. A value not in the flow
 table (a renamed option) is reported and never rewritten, as 1.6 says of a
 renamed option.
 
@@ -245,15 +248,14 @@ holds the item and a link to the thread holding that role now.
   a stale claim and lists the item as offered to the role's current thread; the
   thread that takes the item rewrites the claim.
 - A malformed claim is reported and treated as no claim.
-- A recovering sweep restarts only items with no live claim.
+- A recovering sweep restarts only items with no live claim (R8, R9).
 - A thread stopped without notice is detected only through the bound.
-- A pull request carries no issue field, so its claim is the thread its body's
-  attribution line links.
+- A pull request's claim is in [pull request](#pull-request).
 
 ## What runs the flow
 
-Three mechanisms keep items moving. Which mix to use is design step 3; this
-lists what each would need from the model.
+Three mechanisms keep items moving. Option 4 in [options.md](options.md) uses
+all three; each needs from the model:
 
 ```mermaid
 flowchart TB
@@ -263,18 +265,18 @@ flowchart TB
     queue[Work lists<br/>one per mover]
     ev -->|move state| model
     sweep -->|reads| model
-    sweep -->|nudges stalled movers| queue
+    sweep -->|stalled items| coord[Coordinator]
+    coord -->|nudges threads| threads[Each thread's list]
     model -->|derives| queue
     queue --> owner([Owner's list])
-    queue --> threads[Each thread's list]
+    queue --> threads
 ```
 
-- **R3**: every column in the tables of this file (holder, owes, leaves on,
-  bound) becomes data in the model, not prose in a document. Today only the
-  Decision row is.
+- **R3**: every holder and bound in the tables of this file, and the *owes* and
+  *leaves on* of the Requirement table, become data in the model, not prose in
+  a document. Today only the Decision row is.
 - **R8 and R9**: a stalled item is found by its age or its stale claim, and a
-  claim names the thread working it, so a recovering sweep restarts only items
-  with no live claim.
+  claim names the thread working it ([Claims](#claims)).
 - **R7**: on each sweep, the sweep writes an item with no type as a
   Requirement, gives an item with no state its type's starting state, and lists
   a non-requirement with no workstream for the owner.
@@ -290,10 +292,10 @@ flowchart TB
 | --- | --- |
 | R1 | a mover is encoded only for Decisions, pull requests' `PR State` and a few project phases; requirements, Tickets and most phases have none in the model |
 | R2 | no bound is encoded except `REVIEW_DUE_DAYS`; ages are read only for the owner's and Claude's lists and `board-check.py`'s overtaken check, through `step_ages` |
-| R3 | movers, triggers and bounds live in 1.2, 1.8 and habit |
+| R3 | movers, triggers and bounds live in [1.2](../../../../docs/1.2-change-lifecycle.md), 1.8 and habit |
 | R4 | `sources.fetch` already falls back to REST; what remains is the board-only fields (`PR State`, views) and `set_field`, which is GraphQL-only |
 | R5 | Tickets and pull requests are modelled; their bounds and movers are not |
-| R7 | only a requirement's starting state is written, in one repository, and the write is refused |
+| R7 | only a requirement's starting state is written, in one repository |
 | R8 | nothing finds a stalled item; recovery depends on the owner noticing |
 | R9 | no claim exists; threads find each other's work by reading the chat |
 | R10 | triage at raising is a habit, not checked |
@@ -325,8 +327,8 @@ technical.
    - **`Hold`** needs a reason the model can check: an issue linked under
      *Dependencies and related work*, or a named event with a review date. A
      hold is reviewed at its review date.
-   - **Pull requests** carry no issue field, so theirs is derived from
-     `PR State` ([pull request](#pull-request)).
+   - **Pull requests** take no `Turn`; [pull request](#pull-request) says why
+     and where theirs is derived.
    - Retiring `Requirement State`'s `On Hold` is left for later
      ([implementation.md *Deliveries*](implementation.md#deliveries)).
    - A specific question for the owner is a `Decision` issue, except during the
