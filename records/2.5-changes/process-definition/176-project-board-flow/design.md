@@ -245,10 +245,13 @@ technical.
    and adds any number of *waiting for approval* states without new columns.
    A comment on the issue says what is to be approved. The owner answers in a
    comment, and the issue's thread removes the label and moves it on.
-   `Decision` issues stay for a question with options. This makes a third
+   A specific question for the owner is a `Decision` issue, except during
+   the first discussion, while he is engaged, when comments are enough
+   (owner, 2026-11-13). This makes a third
    programme label, beside `folded` and `Release Check`, so 1.6's *everything
    else is a field* gains a reason, and R12's *a `Decision` issue for a wait on
-   the owner* narrows to waits that are questions.
+   the owner* narrows to waits that are
+   questions asked after that first discussion.
 3. **Functional: the bounds.** Answered (owner, 2026-11-13): 7 days, one
    sweep, for every state where the owner or a thread owes a move, with the
    exceptions in the tables above: a day for triage, and none for the queues
