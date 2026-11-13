@@ -87,6 +87,33 @@ Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily
 | I10 | Each REST call is cut at 120 s. |
 | I11 | Nothing secret is added: the sweep runs with the session's own repository-scoped REST access. |
 
+### From implementation.md, *Details settled from the test design* (S)
+
+Each is the settlement of the gap with the same number in part 10.
+
+| ID | Rule |
+| --- | --- |
+| S-G2 | A held item's mover is the role holding it, at its review. A wait on a tool (`Deployment` waiting for a release) is `Hold`, with the release as its reason. |
+| S-G3 | A thread-set `Owner` with an approval comment, or a `Hold` with a valid reason, is kept by the sweep; any other `Turn` is overwritten by the derived value. |
+| S-G5 | A typed requirement with no state is written `Triage`. |
+| S-G6 | A Decision with no state starts at `Asked`. |
+| S-G7 | Tickets: `Waiting on sender` is `Hold`, its reason the sender; `Resolved` and `Refused` are the owner's, to close, bound 7 days. |
+| S-G8 | `Candidate Project 1`'s bound is 7 days. |
+| S-G9 | A stale claim is kept and listed as offered; the thread that takes the item rewrites it. |
+| S-G10 | A parent stays at `Design and Test Approach` while any work package is open, its bound suspended until the last closes. |
+| S-G11 | `Development`'s age is the head commit of the package's open pull request; with none, the field's own age. |
+| S-G12 | `Post-deployment` is stalled 7 days after its review fell due: 14 days in all. |
+| S-G13 | A missed deploy is read from the closed release milestone: each open work package it carries is moved. |
+| S-G14 | An invalid `Hold` is listed for its role with the reason, and `Turn` is rewritten to the derived value. |
+| S-G15 | A malformed claim is reported and treated as no claim. |
+| S-G16 | A pull request's claim is the project thread its body's attribution line links. |
+| S-G17 | A value not in the flow table is reported, never rewritten. |
+| S-G18 | With no pinned issue, `board-flow.py` refuses and names it. Delivery 2 creates the issue by hand before its first real run. |
+| S-G19 | An item appears once on the owner's list. |
+| S-G20 | The REST timeout is a setting. |
+| S-G21 | `board-flow.py` exits 0 when nothing is stalled, 1 when something is, and 2 when it could not finish. |
+| S-G22 | `board-flow.py --dry-run` writes nothing and prints what it would write. |
+
 Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release package to `Deployment` and a tooling-route one to `Post-deployment`. It is cited with I5.
 
 ### Checked for contradiction
@@ -95,11 +122,9 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 - **R11 and R12 against P2 and I3:** R11 and R12 say `board-sweep`; the design moves listing and nudging to the daily `board-flow.py` run. Read as: the daily run lists and nudges, and the weekly `board-sweep` keeps planning. See G25.
 - **R7 (pull requests included) against I5 and the known-gaps table:** `PR State` cannot be written over REST, and infrastructure has no workflow. Accepted as a known gap (#383 R15). For infrastructure the tests assert a derived mover, not a written state.
 - **Still open, each in part 10:**
-  - R1 against M2, M4 and M8 (more than one mover in a state, `Hold` naming nobody, a tool mover): G1, G2;
-  - M9 against M3 and M10 (a derivable state carrying a thread-set `Owner` or `Hold`): G3;
-  - R12 against M2 and docs/1.2 §2.23 (Scope against `On Hold`): G4;
-  - M14 against docs/1.2 §2.23 (unset against `Triage`): G5;
-  - M13 against I2 (offer against clear): G9.
+  - R1 against M2, M4 and M8 (more than one mover in a state): G1, waiting on the owner's rewording;
+  - R12 against M2 and docs/1.2 §2.23 (Scope against `On Hold`): G4, likewise;
+  - settled by the design authority: `Hold` naming nobody and a tool mover (S-G2), a derivable state carrying a thread-set `Owner` or `Hold` (S-G3), unset against `Triage` (S-G5), offer against clear (S-G9).
 
 ## 2. Conditions, grouped into dimensions
 
@@ -209,24 +234,27 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | ID | Outcome |
 | --- | --- |
 | O1 | The write log shows the issue type set to `Requirement` on each untyped issue, and no type write to any pull request. |
-| O2 | The write log shows the type's starting state written to each stateless issue: Requirement as G5 settles, Project `Scope`, Ticket `New`, Decision as G6 settles. |
+| O2 | The write log shows the type's starting state written to each stateless issue: Requirement `Triage` (S-G5), Project `Scope`, Ticket `New`, Decision `Asked` (S-G6). |
 | O3 | The run's output and the pinned issue's body list each non-requirement with no workstream as raised with the owner. A requirement with no workstream is not listed as missing one. |
 | O4 | The write log shows `Turn` set to the value the flow table derives, once per item that changed. |
 | O5 | The write log shows no write for the item, or for the whole run where stated. |
 | O6 | The item is in the stalled output and the pinned issue's body, under the role the flow table names, with its age and its bound. |
 | O7 | The item is in neither the stalled output nor the pinned issue's body. |
-| O8 | Stale claim: the stalled output offers the item to its role's current thread, and the claim is handled as G9 settles. |
+| O8 | Stale claim: the stalled output offers the item to its role's current thread, and the claim is kept, unchanged (S-G9). |
 | O9 | The pinned issue's body is rewritten by this run and states the time of the last complete run. |
-| O10 | The exit is non-zero; stderr names the item and the call that failed; writes made before the failure stand; and the pinned issue's last-complete-run time is the previous run's. |
+| O10 | The exit is 2 (S-G21); stderr names the item and the call that failed; writes made before the failure stand; and the pinned issue's last-complete-run time is the previous run's. |
 | O11 | The item is reported *not visible*. No `Turn` or state is written to it, and it is not judged stalled on a default value. |
 | O12 | `--role R` prints exactly the items whose mover is R, oldest first, each with age and bound. With none, it says so plainly. |
 | O13 | The owner's list holds every `Turn` = `Owner` item, plus its three existing sources unchanged. |
 | O14 | Across callers, for one world: every open item has exactly one mover; the stalled set equals the past-bound items on the role lists; `board-check.py` agrees. |
 | O15 | The run completes with GraphQL refused, and its result matches the same world's expected answer. |
 | O16 | The work package's `Project State` is written `Deployment` (Production Release) or `Post-deployment` (tooling route), and nothing else moves. |
-| O17 | Quiet: the stalled output is empty, the pinned issue says nothing is stalled and gives the run's time, and the exit is the clean status (G21). |
+| O17 | Quiet: the stalled output is empty, the pinned issue says nothing is stalled and gives the run's time, and the exit is 0 (S-G21). |
 | O18 | The item is reported to its role as an invalid or released hold, with the reason. |
 | O19 | `--role` with an unknown role is refused with an error naming it. |
+| O20 | Exit 1: stalled items found, every write made, the pinned issue rewritten. |
+| O21 | The write log is empty; standard output lists each write the run would make, item and value. |
+| O22 | The run refuses before any write, exits 2, and names the missing pinned issue. |
 
 ## 4. Matrix
 
@@ -237,18 +265,19 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | Requirement, unset or `Triage` (1 day) | – | ✓ | n/a |
 | Requirement, Scope (7 days) | – | ✓ | n/a |
 | Requirement, `Ready for Project`, `Candidate 2` and `3` | n/a | n/a | – |
-| Requirement, `Candidate 1` | ? G8 | ? G8 | n/a |
-| Requirement, `On Hold` | – while its reason holds | ? M2 vs M11 (G2) | n/a |
+| Requirement, `Candidate 1` (7 days, S-G8) | – | ✓ | n/a |
+| Requirement, `On Hold` | – while its reason holds | ✓ for its role at review (S-G2) | n/a |
 | Project, Scope, `Design and Test Approach`, `User testing`, `Project Closedown` | – | ✓ | n/a |
 | Project, `Q3` to `Q1`, `Deployment` | n/a | n/a | – |
-| Project, `Development` | – (commit age) | ✓ (commit age, G11) | n/a |
-| Project, `Post-deployment` | – | ? G12 | n/a |
-| Parent waiting on packages | – | – while packages are open (G10) | n/a |
+| Project, `Development` | – (commit age) | ✓ (pull request head commit, S-G11) | n/a |
+| Project, `Post-deployment` (14 days, S-G12) | – | ✓ | n/a |
+| Parent waiting on packages | – | – while packages are open (S-G10) | n/a |
 | Decision, any state | – | ✓ | n/a |
 | Pull request, any state | – | ✓ | n/a |
 | Ticket, `New` or `In progress` | – | ✓ | n/a |
 | Ticket, `Pending` | – before the review date | ✓ after it | n/a |
-| Ticket, `Waiting on sender`, `Resolved`, `Refused` | ? G7 | ? G7 | ? G7 |
+| Ticket, `Waiting on sender` (`Hold`, S-G7) | n/a | n/a | – |
+| Ticket, `Resolved`, `Refused` (7 days, S-G7) | – | ✓ | n/a |
 
 "At" is not stalled, because *stalled* is "past" the bound (M1).
 
@@ -259,8 +288,8 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | unset | O4 (the derived value) | lost item: reported (S16) |
 | equal to derived | O5 | n/a |
 | different from derived | O4 (overwritten) | n/a |
-| thread-set `Owner` with comment | ? G3 | O5, kept |
-| `Hold`, reason valid and open | ? G3 | O5, resting |
+| thread-set `Owner` with comment | O5, kept (S-G3) | O5, kept |
+| `Hold`, reason valid and open | O5, kept (S-G3) | O5, resting |
 | `Hold`, reason released or missing | O18 | O18 |
 
 ## 5. Scenarios
@@ -272,28 +301,28 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S3 | An unset Requirement and a `Triage` one, each at 23 h 59 min, 24 h and 24 h 01 min. | D1.1, D3.1–2, D4.2–4 | O7, O7, O6 under the workstream's design authority | CI |
 | S4 | A Project with no workstream; then its workstream is set. A Requirement with no workstream. | D7.1–3 | O3 for the Project, then O7; the Requirement not listed as missing a workstream | CI |
 | S5 | Requirement bound walk: Scope at 6 d 23 h 59 min, 7 d and 7 d 00 h 01 min; `Ready for Project` and `Candidate 2` and `3` at 90 days. | D4.2–6 | O7, O7, O6; O7 for the queues | CI |
-| S6 | `Candidate Project 1` at 2 days and at 8 days. | D4 | as G8 settles | CI, blocked by G8 |
+| S6 | `Candidate Project 1` at 2 days and at 8 days. | D4 | O7, then O6 under the coordinator | CI |
 | S7 | Project bound walk: each of Scope, `Design and Test Approach`, `User testing` and `Project Closedown` 1 minute under and 1 minute past 7 days; `Q1` and `Deployment` at 90 days. | D1.2, D4.2, D4.4, D4.6 | O7 then O6 per phase; O7 for `Q1` and `Deployment` | CI |
-| S8 | `Development` with the field moved 30 days ago: last branch commit 1 day ago, then 8 days ago. | D1.4, D4 | O7, then O6 under the technical lead | CI, depends on G11 |
-| S9 | A parent at its resting phase for 30 days with an open package; then the last package closes, and 8 days pass. | D1.3 | O7; then O6 under the design authority | CI, depends on G10 |
-| S10 | A Decision in each of its five states, with `Turn` unset; each at 6 days and at 8 days. A Decision with no state. | D1.5, D5.1, D4 | O4 alternating `Owner`/`Claude` as M6; O7 then O6 under owner or Claude; the stateless one as G6 settles | CI |
+| S8 | `Development` with the field moved 30 days ago: last branch commit 1 day ago, then 8 days ago. | D1.4, D4 | O7, then O6 under the technical lead; with no pull request, the field's age | CI |
+| S9 | A parent at its resting phase for 30 days with an open package; then the last package closes, and 8 days pass. | D1.3 | O7; then O6 under the design authority | CI |
+| S10 | A Decision in each of its five states, with `Turn` unset; each at 6 days and at 8 days. A Decision with no state. | D1.5, D5.1, D4 | O4 alternating `Owner`/`Claude` as M6; O7 then O6 under owner or Claude; the stateless one O2 (`Asked`) | CI |
 | S11 | Pull requests in `Drafting`, `Awaiting review` and `Changes requested`, at 6 and 8 days. | D1.6, D4 | `Awaiting review` on the owner's list, the rest under the author's role; O6 at 8 days; no issue-field write to any pull request | CI |
 | S12 | An infrastructure pull request with no `PR State`: a review requested of the owner; then a draft. | D1.7, D8.5 | mover owner, then author role, derived from REST | CI |
-| S13 | Tickets: `New` and `In progress` at 6 and 8 days; `Pending` with its review date tomorrow, then yesterday; `Waiting on sender` at 30 days. | D1.8, D4 | O7, O6 under the owner; O7, O6; `Waiting on sender` as G7 settles | CI |
+| S13 | Tickets: `New` and `In progress` at 6 and 8 days; `Pending` with its review date tomorrow, then yesterday; `Waiting on sender` at 30 days. | D1.8, D4 | O7, O6 under the owner; O7, O6; `Waiting on sender` O7 with `Turn` = `Hold`; `Resolved` and `Refused` at 6 and 8 days, O7 then O6 under the owner | CI |
 | S14 | Items in derivable states (a Project at `Development`, a Decision at `Asked`) with `Turn` unset, then wrong, then right. | D5.1–3 | O4, O4, O5 | CI |
-| S15 | A Requirement at Scope carrying a thread-set `Turn` = `Owner` with an approval comment, past and within the bound. | D5.4 | as G3 settles; `Turn` not overwritten if the thread's value wins | CI, depends on G3 |
+| S15 | A Requirement at Scope carrying a thread-set `Turn` = `Owner` with an approval comment, past and within the bound. | D5.4 | O5 (kept, S-G3) within the bound; O6 past it under the owner | CI |
 | S16 | An open item in a state whose mover the table cannot derive, with no `Turn`; then `Turn` set (quiet case). | D5.1 | reported as lost to its role or the owner; then O7 | CI |
 | S17 | `Hold` reasons, each 30 days old: an open linked dependency; its dependency then closes; no reason; a named event with its review date tomorrow, then yesterday. | D5.5–9 | O7; O18; O18; O7; O18 | CI |
 | S18 | A Requirement at `On Hold` with a linked issue; then with no dependency named. | D1.1, D5 | `Turn` = `Hold` (O4); then O18 | CI |
 | S19 | A Requirement at Scope with `Turn` = `Hold` linked to a `Decision` at `Asked`; the Decision is `Actioned` and closed. | D1.1, D1.5, D5.5–6 | The Requirement O7 and the Decision on the owner's list; then the Requirement on its role's list (O18) | CI |
-| S20 | Claims: within bound; stale; role only; malformed. | D6.2–5 | O7 with the claim shown; O8; O6 under the role, naming no thread; as G15 settles | CI |
+| S20 | Claims: within bound; stale; role only; malformed. | D6.2–5 | O7 with the claim shown; O8; O6 under the role, naming no thread; the malformed one reported and treated as none (S-G15) | CI |
 | S21 | Black start: every type in every repository, nothing moved for 30 days, plus three items within bound holding live claims. One run. | D4.5, D6.3, D12.2 | O6 for every past-bound item, by role; O7 for the three | CI |
 | S22 | Quiet case: everything within its bound. Then age one item 1 minute past its bound (the check shown to fail first). | D12.1 | O17; then O6 | CI |
 | S23 | The pinned issue's body after two runs with different stalled sets. | D11 | O9 each time; the body holds the second set only | CI |
 | S24 | Missed merges: a merged pull request `Refs #N` to a Production Release package at `Development`; one to a tooling-route package; `Refs` to a parent only; an unmerged pull request; a package already moved. | D9.1–5 | O16; O16; O5; O5; O5 | CI |
 | S25 | A read fails at the third repository; then a rerun with the source healthy. | D8.2, D11.3 | O10; then the run completes, corrects the rest, and O9 shows the new complete-run time | CI |
 | S26 | A `Turn` write is refused (403) in one repository; then permitted. | D8.3 | O10, and the item not reported as fixed; then O4 | CI |
-| S27 | A REST call hangs past the limit. | D8.4 | the call cut, then O10 | CI, depends on G20 |
+| S27 | A REST call hangs past the limit. | D8.4 | with the timeout setting shortened (S-G20): the call cut, then O10 | CI |
 | S28 | One item's `issue_field_values` cannot be read; the rest can. | D3.4, D4.7 | O11 for it, normal results for the rest | CI |
 | S29 | GraphQL refused for every call: `board-flow.py`, the owner's list and `--role`. | D8.5 | O15 for each | CI |
 | S30 | Missed day: world W run on day 1 and day 3, against W run on day 3 alone. | D11.4 | identical end state and stalled set | CI |
@@ -301,18 +330,25 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S32 | `--role` for a workstream's design authority, for a role with nothing, for an unknown role, then a valid role again. | D10.3 | O12; O12 (says so); O19; O12 | CI |
 | S33 | The owner's list over a world holding a `Turn` = `Owner` requirement, a `Decision` at `Asked`, a pull request awaiting review, and a work package in `User testing` with an unticked **owner** box. | D10.2 | O13 | CI |
 | S34 | Cross-check: one world through all five callers. | D10.1–5 | O14 | CI |
-| S35 | Flow-table completeness: every option of `Requirement State`, `Project State`, `Decision State`, `PR State` and `Ticket State` has a mover and a bound (or "none"). Remove one row and see the test fail. An item carrying a value not in the table. | D3.3 | the table check passes, then fails on the removed row; the item reported, not defaulted (G17) | CI |
+| S35 | Flow-table completeness: every option of `Requirement State`, `Project State`, `Decision State`, `PR State` and `Ticket State` has a mover and a bound (or "none"). Remove one row and see the test fail. An item carrying a value not in the table. | D3.3 | the table check passes, then fails on the removed row; the item reported, not defaulted (S-G17) | CI |
 | S36 | The table's bounds: 1 day for unset and `Triage`; 7 days for each owed state; none for `Q3` to `Q1`, `Ready for Project`, `Candidate 2` and `3`, and `Deployment`. | — | the values as stated | CI |
 | S37 | Stalled output by role, including a role with no permanent thread. | D12.2–3 | grouped by role; the threadless role named alone | CI |
-| TT1 | From a cloud session, a full run against the five repositories, once delivery 1's fields exist. | D2, D8.5 | completes; calls and duration recorded against about 400 calls and the rate limit; pinned issue rewritten (O9) | TT |
+| S38 | Exit statuses: a world with nothing stalled; one with a stalled item; one whose read fails. | D8.1–2, D12.1–2 | exit 0 (O17); exit 1 (O20); exit 2 (O10). A failed run never exits 1 | CI |
+| S39 | `--dry-run` over a world needing type, state, `Turn` and claim writes; then the same world without it. | D11.1 | O21, the pinned issue untouched; then O1, O2, O4, O9 | CI |
+| S40 | No pinned issue in the programme repository; then it is created and the run repeated. | D11.1 | O22; then O9 | CI |
+| S41 | Missed deploy: a closed release milestone carrying a work package at `Deployment` and one already at `Post-deployment`; an open milestone carrying one. | D9.6 | the first moved to `Post-deployment`; the other two O5 | CI |
+| S42 | A pull request whose body's attribution line links a project thread; one with no such line. | D1.6, D6 | the first's claim is that thread; the second has no claim, and is listed by its `PR State` mover | CI |
+| S43 | An item on two of the owner's sources at once: a `Decision` at `Asked` that also carries `Turn` = `Owner`. | D10.2 | listed once | CI |
+| TT1 | From a cloud session, once delivery 1's fields exist and the pinned issue has been created by hand (S-G18): a `--dry-run`, its planned writes read, then a full run against the five repositories. | D2, D8.5 | completes; calls and duration recorded against about 400 calls and the rate limit; pinned issue rewritten (O9) | TT |
 | TT2 | From WSL, immediately after TT1. | D11.2 | O5 except the pinned body; the same stalled set | TT |
 | TT3 | `--role` for one design authority, and the owner's list, from a cloud session and from WSL. | D10.2–3 | identical lists in both places | TT |
-| TT4 | A throwaway issue raised in programme with no type and no state; one run; then closed as not planned. | D1.9 | typed `Requirement`, starting state and `Turn` written | TT |
+| TT4 | A throwaway issue raised in programme with no type and no state; a `--dry-run`, then one run; then closed as not planned. | D1.9 | typed `Requirement`, starting state and `Turn` written | TT |
 | TT5 | `Turn` and `Claimed by` written and read over REST on one issue in each of the five repositories. | D2 | written and read back in each | TT |
 | TT6 | The write log of TT1 inspected for pull requests. | D1.6–7 | no issue-field write to a pull request | TT |
 | TT7 | (Delivery 3) The coordinator's daily trigger, on a day with nothing stalled. | D12.1 | runs `board-flow.py`, ends without a message, outside 21:10 to 22:10 UTC | TT |
 | TT8 | (Delivery 3) A day with a stalled item for a role with a thread and for one without. | D12.2–3 | the thread nudged; a thread started for the other | TT |
 | TT9 | (Delivery 3) A cloud session's start. | D10.3 | its role's list shown | TT |
+| UA1 | (Delivery 1) The owner opens the view with a test issue set to `Turn` = `Owner`. | D10.2 | the issue shows, grouped under its type | owner |
 
 ## 6. Refusals and successes
 
@@ -334,20 +370,20 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 
 | Rule | Scenarios |
 | --- | --- |
-| R1 | S10, S11, S14, S16, S34, S35 (G1, G2) |
+| R1 | S10, S11, S14, S16, S34, S35 (G1) |
 | R2 | S3, S5, S7, S10, S11, S13, S35, S36 |
 | R3 | S32, S34, S35 |
 | R4 | S12, S28, S29, TT1, TT2, TT3, TT5 |
 | R5 | S1, S10, S11, S12, S13, S21, S35, TT1, TT5 |
 | R6 | none: by review of the documents (G26) |
-| R7 | S1, S2, S4, S26, TT4 (G5, G6, G17) |
+| R7 | S1, S2, S4, S26, S40, TT4 |
 | R8 | S21, S22, S25, S30 |
 | R9 | S20, S21 |
 | R10 | S3 (the 1-day backstop; the thread's own act is a post-deployment check) |
 | R11 | S3, S5, S23 |
 | R12 | S17, S18, S19, S32, S37, TT8 (G4) |
 | R13 | S15, S17, S18, S19 |
-| R14 | S15, S33 (G24) |
+| R14 | S15, S33, S43, UA1 |
 | M1 | S3, S5, S7, S20, S22 |
 | M2 | S3, S5, S6, S18, S19 |
 | M3 | S15, S18, S19 |
@@ -370,7 +406,7 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | I2 | S1, S21, S23, TT1 |
 | I3 | S37, TT7, TT8 |
 | I4 | S25, S30 |
-| I5 | S12, S24 (G13) |
+| I5 | S12, S24, S41 |
 | I6 | S11, TT5, TT6 |
 | I7 | S32, S33, TT3, TT9 |
 | I8 | S1, S14, S31, TT2 |
@@ -426,6 +462,13 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | TT7 | I3 |
 | TT8 | R12, I3 |
 | TT9 | I7 |
+| S38 | I9, S-G21 |
+| S39 | S-G22 |
+| S40 | S-G18 |
+| S41 | I5, S-G13 |
+| S42 | M7, S-G16 |
+| S43 | R14, S-G19 |
+| UA1 | R14, M9 |
 
 Every scenario serves a rule. R6 has no scenario (G26).
 
@@ -445,7 +488,7 @@ Every scenario serves a rule. R6 has no scenario (G26).
 
 The pinned issue is an issue in the stub's programme repository.
 
-**How time is manipulated.** The run is given a fixed *now*, and every timeline event and commit in the world is dated relative to it, so boundaries are exact to the minute. If the scripts take no injectable clock, that is a finding for the build. The 120 s cut is tested with a hanging stub call and a shortened limit (G20).
+**How time is manipulated.** The run is given a fixed *now*, and every timeline event and commit in the world is dated relative to it, so boundaries are exact to the minute. If the scripts take no injectable clock, that is a finding for the build. The 120 s cut is tested with a hanging stub call and the timeout setting shortened (S-G20).
 
 **What state each test starts from.** Each test builds its own world in a temporary directory and leaves nothing behind. Each check's test includes its quiet case, and each new check (stalled, lost, missing workstream, invalid hold, table completeness) is shown to fail first by breaking what it watches (S2, S16, S22, S35). Every write that can fail open (the `Turn` write, R7's writes, the merge move and the pinned-issue rewrite) has a CI test of its failure (S25, S26, S27).
 
@@ -453,7 +496,9 @@ The pinned issue is an issue in the stub's programme repository.
 
 - **owner:** delivery 1. Create `Turn` (`Owner` green, `Claude` blue, `Hold` yellow) and `Claimed by` (text) as organisation issue fields, and the board view filtering `Turn` = `Owner` grouped by issue type. Then confirm the view shows a test item set to `Owner`. These are organisation settings, out of a cloud session's reach. TT1 to TT6 wait on this.
 - **Claude:** every [CI] test, TT1 to TT9, and reading the fields over REST (TT5) as the check that delivery 1 landed.
-- **owner:** decide G22 before TT1, TT2 and TT4 write to the real repositories.
+- **Claude:** before TT1, create the pinned stalled-list issue in the programme repository by hand (delivery 2, S-G18). TT1, TT2 and TT4 run `--dry-run` first, and write for real only once its planned writes have been read (S-G22).
+
+**User acceptance.** The programme has no Preview, so user acceptance is met in production, by the owner: UA1 at delivery 1 (written as an **owner** box under *Functional user tests* in the work package), then the R8 and R14 post-deployment checks below, which are his.
 
 ### Post-deployment checks (checks, not tests)
 
@@ -573,33 +618,33 @@ One per requirement. Each is answered after a week of daily runs.
 
 Each is a question for the owner, or for the design authority. Settled on 2026-11-13 in [implementation.md](implementation.md#details-settled-from-the-test-design), except G1, G4 and G25, which change requirement wording.
 
-| Gap | What would make the missing test fail | What it would take to close it | Why it is acceptable for now |
-| --- | --- | --- | --- |
-| G1 R1 says "exactly one" mover, but `Design and Test Approach` (design authority, test manager, owner), `User testing` (owner, technical lead), `Deployment` (technical lead, release manager) and joint `Triage` (owner first, then the thread) each name more than one. | `every_open_item_has_exactly_one_mover` would fail on any of these states, or pass only by picking one arbitrarily. | Name one mover per state in the flow table (for example, the holder, with the others' boxes on the owner's list), or restate R1 as "one holder". | Blocks S34's invariant for these states only. |
-| G2 A `Hold` or `On Hold` item has "nobody, until its trigger" (M2), against R1. `Turn` has no value for a tool mover (R1 allows tools; `Deployment` waits for one). | The invariant test cannot say who the mover of a held item is; a held item past its review date has no named list to appear on. | State that the hold's reviewer, the role holding the item, is its mover at the review bound, and which `Turn` a tool's wait takes (`Hold`?). | S17 asserts O18 "reported to its role", an assumption to confirm. |
-| G3 The model writes `Turn` wherever the state's mover is derivable (M9), yet a Requirement at Scope (derivable: Claude) waiting on the owner's approval carries a thread-set `Owner` (M3, M10), and a Scope one waiting on a Decision carries `Hold`. | S15 cannot say whether the sweep overwrites the thread's `Owner` with `Claude`. If it does, R14's approvals vanish daily; if it does not, a wrong `Turn` is never corrected. | A precedence rule: a thread-set `Owner` with an approval comment, or a `Hold` with a valid reason, is kept; otherwise the derived value wins. | S15 is blocked until settled. |
-| G4 R12: "stays at Scope only while it waits on something specific, named under its dependencies". M2 and docs/1.2 §2.23: a waiting requirement moves to `On Hold`. | Whether a Scope requirement with a named dependency past 7 days is stalled or resting cannot be asserted. | Reword R12, or confirm Scope + `Turn` = `Hold` + a dependency is the sanctioned form (M3). | S19 assumes the M3 form. |
-| G5 R7 and M14 write a stateless requirement's "starting state", but docs/1.2 §2.23 keeps unset ("nobody has looked") apart from `Triage` ("somebody is looking"). | S1 cannot say whether the sweep writes `Triage`; writing it erases the inbox signal. | Say whether unset is a valid starting state for a Requirement (so nothing is written) or §2.23 changes. | S3 tests the bound on both values, which is the same either way. |
-| G6 A Decision raised without a state gets "a starting state" (M6), which is not named. | S10's stateless Decision has no expected value. | Name it (presumably `Asked`) in the flow table and 1.2. | One case. |
-| G7 Tickets: no bound or `Turn` is stated for `Waiting on sender` (the sender's move), `Resolved` or `Refused` (who closes, and when), and `Pending`'s bound is "the review date", not 7 days. | S13 cannot assert those states. | Rows in the flow table, and 1.8 updated, as design.md says it must be. | The owner's states are covered. |
-| G8 `Candidate Project 1`'s bound is "one sweep", written when the sweep was weekly; the sweep is now daily (P2). | S6 cannot say whether 2 or 8 days is stalled. | State the bound in days. | S6 is blocked. |
-| G9 A stale claim: the sweep "offers it to the role's current thread" (M13), but I2 says it "clears stale claims". | S20 cannot assert the claim field after the run. | Pick one: clear the field and list the item, or keep it and list it as offered. | S20 asserts the listing, which both readings share. |
-| G10 Which `Project State` a parent holds while its packages run, and how the model tells "resting on packages" from "stalled at design". | S9 cannot set up the parent's state, and the 7-day bound would list every running parent. | State the parent's resting state and rule: open sub-projects suspend its bound. | S9 is blocked. |
-| G11 `Development`'s bound is "7 days without a commit", but the branch to read is not named (the project's delivery branch from its pull request? Its name?). | S8 cannot build a world. | Name the source: the work package's open pull request's head commit, read over REST. | S8 depends on it. |
-| G12 `Post-deployment`'s review is "due after 7 days"; whether it is stalled at 7 days or at a later bound is unstated. | S7 cannot assert `Post-deployment`. | State the stall bound (for example, 7 days after due). | Today's `REVIEW_DUE_DAYS` reminder stands meanwhile. |
-| G13 A missed deploy is corrected by "the next sweep" (I5), but no source is given for what a deploy shipped (release record, closed milestone, tag). | No scenario can be written for D9.6. | Name the source the sweep reads. | `deploy.sh` makes the move today. |
-| G14 The result of an invalid `Hold` (no reason, released dependency, review date passed) is not stated: listed for the role, `Turn` rewritten, or both. | S17 asserts O18, which may be wrong. | State the outcome. | The listing is the minimum either reading gives. |
-| G15 A malformed `Claimed by`, or a claim naming a role other than the state's mover, has no stated result. | S20's malformed case has no expected value. | State that it is reported and treated as no claim. | One case. |
-| G16 A pull request's claim is "the thread that owns its branch" (M7), but how the model knows that is unstated. | No test can show a pull request's claim. | Name the source (for example, the branch name's prefix). | Pull requests' movers are covered through `PR State`. |
-| G17 Whether a value not in the flow table (a renamed option) is an "invalid state" under R7, and what is written. | S35's second half has no expected value. | State that it is reported, never rewritten, as 1.6 says of renamed options. | Reporting is asserted. |
-| G18 What `board-flow.py` does when the pinned issue does not exist (delivery 3 creates it after delivery 2 merges). | Untested. | State it: refuse, or create the issue. | TT1 runs after delivery 3, or the issue is made by hand first. |
-| G19 Whether an item already on one of the owner's three existing sources and also carrying `Turn` = `Owner` appears once or twice. | S33 cannot assert the count. | State it (once). | Minor. |
-| G20 The 120 s cut (I10) can only be tested quickly if the limit can be injected. | S27 would take two minutes per run, or not run. | A setting for the limit, per docs/1.10. | The figure itself is reviewed. |
-| G21 No exit status is stated for `board-flow.py` beyond "non-zero on failure". The coordinator must tell *clean*, *stalled found* and *failed* apart, and docs/1.2 §2.16 makes a stall report a check. | S22 and S25 cannot assert codes, and a run that fails could look like one that found stalls. | State them, as `board-hosts.py` does (0 clean, 1 finding, 2 unreadable). | S22 asserts the output, not the code. |
-| G22 No read-only mode is stated, so TT1, TT2 and TT4 write `Turn` and R7's fixes to the real repositories before the merge. Programme tooling has no environment between. | A bug found by TT1 would already have written to every open issue. | Either a `--dry-run` that writes nothing and prints what it would write, or the owner accepts that TT1 is the first real run. | Writes are reversible issue-field values. |
-| G23 *Stalled* includes "a mover that is not running" (M1), which REST cannot observe; only the bound can show it. | No test can show a stopped thread except through the bound. | Accept that a stopped thread is detected only at the bound. | That is how R8 is met in every scenario. |
-| G24 R14 asks which of the ten resting states each requirement is in. `Turn` shows `Owner` or `Hold`, and the view filters on `Owner` only, so telling the two `On Hold` kinds and the planning wait apart still needs the issue or another column. | The R14 post-deployment check may fail. | Confirm the view's columns (state, dependency link) or a derived list. | The owner judges R14's check. |
-| G25 R11 and R12 say the `board-sweep` lists and nudges; the design moves both to the daily run, and the weekly `board-sweep` keeps planning. | No test checks that the weekly sweep shows stalled requirements. | Reword R11 and R12, or have the weekly sweep read the pinned issue. | The pinned issue is visible at the weekly sweep. |
-| G26 R6 (names from Kanban and ITIL) is a property of the documents, not of the code. | No test can fail. | None: a review by the document reviewers. | By review. |
+| Gap | What would make the missing test fail | What it would take to close it | Why it is acceptable for now | Now |
+| --- | --- | --- | --- | --- |
+| G1 R1 says "exactly one" mover, but `Design and Test Approach` (design authority, test manager, owner), `User testing` (owner, technical lead), `Deployment` (technical lead, release manager) and joint `Triage` (owner first, then the thread) each name more than one. | `every_open_item_has_exactly_one_mover` would fail on any of these states, or pass only by picking one arbitrarily. | Name one mover per state in the flow table (for example, the holder, with the others' boxes on the owner's list), or restate R1 as "one holder". | Blocks S34's invariant for these states only. | **Open:** waits on the owner rewording the requirement. |
+| G2 A `Hold` or `On Hold` item has "nobody, until its trigger" (M2), against R1. `Turn` has no value for a tool mover (R1 allows tools; `Deployment` waits for one). | The invariant test cannot say who the mover of a held item is; a held item past its review date has no named list to appear on. | State that the hold's reviewer, the role holding the item, is its mover at the review bound, and which `Turn` a tool's wait takes (`Hold`?). | S17 asserts O18 "reported to its role", an assumption to confirm. | **Settled:** S-G2. |
+| G3 The model writes `Turn` wherever the state's mover is derivable (M9), yet a Requirement at Scope (derivable: Claude) waiting on the owner's approval carries a thread-set `Owner` (M3, M10), and a Scope one waiting on a Decision carries `Hold`. | S15 cannot say whether the sweep overwrites the thread's `Owner` with `Claude`. If it does, R14's approvals vanish daily; if it does not, a wrong `Turn` is never corrected. | A precedence rule: a thread-set `Owner` with an approval comment, or a `Hold` with a valid reason, is kept; otherwise the derived value wins. | S15 is blocked until settled. | **Settled:** S-G3. |
+| G4 R12: "stays at Scope only while it waits on something specific, named under its dependencies". M2 and docs/1.2 §2.23: a waiting requirement moves to `On Hold`. | Whether a Scope requirement with a named dependency past 7 days is stalled or resting cannot be asserted. | Reword R12, or confirm Scope + `Turn` = `Hold` + a dependency is the sanctioned form (M3). | S19 assumes the M3 form. | **Open:** waits on the owner rewording the requirement. |
+| G5 R7 and M14 write a stateless requirement's "starting state", but docs/1.2 §2.23 keeps unset ("nobody has looked") apart from `Triage` ("somebody is looking"). | S1 cannot say whether the sweep writes `Triage`; writing it erases the inbox signal. | Say whether unset is a valid starting state for a Requirement (so nothing is written) or §2.23 changes. | S3 tests the bound on both values, which is the same either way. | **Settled:** S-G5. |
+| G6 A Decision raised without a state gets "a starting state" (M6), which is not named. | S10's stateless Decision has no expected value. | Name it (presumably `Asked`) in the flow table and 1.2. | One case. | **Settled:** S-G6. |
+| G7 Tickets: no bound or `Turn` is stated for `Waiting on sender` (the sender's move), `Resolved` or `Refused` (who closes, and when), and `Pending`'s bound is "the review date", not 7 days. | S13 cannot assert those states. | Rows in the flow table, and 1.8 updated, as design.md says it must be. | The owner's states are covered. | **Settled:** S-G7. |
+| G8 `Candidate Project 1`'s bound is "one sweep", written when the sweep was weekly; the sweep is now daily (P2). | S6 cannot say whether 2 or 8 days is stalled. | State the bound in days. | S6 is blocked. | **Settled:** S-G8. |
+| G9 A stale claim: the sweep "offers it to the role's current thread" (M13), but I2 says it "clears stale claims". | S20 cannot assert the claim field after the run. | Pick one: clear the field and list the item, or keep it and list it as offered. | S20 asserts the listing, which both readings share. | **Settled:** S-G9. |
+| G10 Which `Project State` a parent holds while its packages run, and how the model tells "resting on packages" from "stalled at design". | S9 cannot set up the parent's state, and the 7-day bound would list every running parent. | State the parent's resting state and rule: open sub-projects suspend its bound. | S9 is blocked. | **Settled:** S-G10. |
+| G11 `Development`'s bound is "7 days without a commit", but the branch to read is not named (the project's delivery branch from its pull request? Its name?). | S8 cannot build a world. | Name the source: the work package's open pull request's head commit, read over REST. | S8 depends on it. | **Settled:** S-G11. |
+| G12 `Post-deployment`'s review is "due after 7 days"; whether it is stalled at 7 days or at a later bound is unstated. | S7 cannot assert `Post-deployment`. | State the stall bound (for example, 7 days after due). | Today's `REVIEW_DUE_DAYS` reminder stands meanwhile. | **Settled:** S-G12. |
+| G13 A missed deploy is corrected by "the next sweep" (I5), but no source is given for what a deploy shipped (release record, closed milestone, tag). | No scenario can be written for D9.6. | Name the source the sweep reads. | `deploy.sh` makes the move today. | **Settled:** S-G13. |
+| G14 The result of an invalid `Hold` (no reason, released dependency, review date passed) is not stated: listed for the role, `Turn` rewritten, or both. | S17 asserts O18, which may be wrong. | State the outcome. | The listing is the minimum either reading gives. | **Settled:** S-G14. |
+| G15 A malformed `Claimed by`, or a claim naming a role other than the state's mover, has no stated result. | S20's malformed case has no expected value. | State that it is reported and treated as no claim. | One case. | **Settled:** S-G15. |
+| G16 A pull request's claim is "the thread that owns its branch" (M7), but how the model knows that is unstated. | No test can show a pull request's claim. | Name the source (for example, the branch name's prefix). | Pull requests' movers are covered through `PR State`. | **Settled:** S-G16. |
+| G17 Whether a value not in the flow table (a renamed option) is an "invalid state" under R7, and what is written. | S35's second half has no expected value. | State that it is reported, never rewritten, as 1.6 says of renamed options. | Reporting is asserted. | **Settled:** S-G17. |
+| G18 What `board-flow.py` does when the pinned issue does not exist (delivery 3 creates it after delivery 2 merges). | Untested. | State it: refuse, or create the issue. | TT1 runs after delivery 3, or the issue is made by hand first. | **Settled:** S-G18. |
+| G19 Whether an item already on one of the owner's three existing sources and also carrying `Turn` = `Owner` appears once or twice. | S33 cannot assert the count. | State it (once). | Minor. | **Settled:** S-G19. |
+| G20 The 120 s cut (I10) can only be tested quickly if the limit can be injected. | S27 would take two minutes per run, or not run. | A setting for the limit, per docs/1.10. | The figure itself is reviewed. | **Settled:** S-G20. |
+| G21 No exit status is stated for `board-flow.py` beyond "non-zero on failure". The coordinator must tell *clean*, *stalled found* and *failed* apart, and docs/1.2 §2.16 makes a stall report a check. | S22 and S25 cannot assert codes, and a run that fails could look like one that found stalls. | State them, as `board-hosts.py` does (0 clean, 1 finding, 2 unreadable). | S22 asserts the output, not the code. | **Settled:** S-G21. |
+| G22 No read-only mode is stated, so TT1, TT2 and TT4 write `Turn` and R7's fixes to the real repositories before the merge. Programme tooling has no environment between. | A bug found by TT1 would already have written to every open issue. | Either a `--dry-run` that writes nothing and prints what it would write, or the owner accepts that TT1 is the first real run. | Writes are reversible issue-field values. | **Settled:** S-G22. |
+| G23 *Stalled* includes "a mover that is not running" (M1), which REST cannot observe; only the bound can show it. | No test can show a stopped thread except through the bound. | Accept that a stopped thread is detected only at the bound. | That is how R8 is met in every scenario. | **Settled:** S-G23. |
+| G24 R14 asks which of the ten resting states each requirement is in. `Turn` shows `Owner` or `Hold`, and the view filters on `Owner` only, so telling the two `On Hold` kinds and the planning wait apart still needs the issue or another column. | The R14 post-deployment check may fail. | Confirm the view's columns (state, dependency link) or a derived list. | The owner judges R14's check. | **Settled:** S-G24. |
+| G25 R11 and R12 say the `board-sweep` lists and nudges; the design moves both to the daily run, and the weekly `board-sweep` keeps planning. | No test checks that the weekly sweep shows stalled requirements. | Reword R11 and R12, or have the weekly sweep read the pinned issue. | The pinned issue is visible at the weekly sweep. | **Open:** waits on the owner rewording the requirement. |
+| G26 R6 (names from Kanban and ITIL) is a property of the documents, not of the code. | No test can fail. | None: a review by the document reviewers. | By review. | **Settled:** by review (S-G26 in implementation.md). |
 
 Derived by a fresh `test-designer` agent that read no implementation (docs/1.9).
