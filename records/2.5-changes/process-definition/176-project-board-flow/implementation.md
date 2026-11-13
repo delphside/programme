@@ -138,7 +138,7 @@ which the owner settled the same day by rewording R1, R11 and R12.
 | G5 | A typed requirement with no state is written `Triage`, as `model.py`'s `stage_to_record` already does (owner, 2026-09-29). |
 | G6 | A Decision with no state starts at `Asked`. |
 | G7 | Tickets: `Waiting on sender` is `Hold`, its reason the sender; `Resolved` and `Refused` are the owner's, to close, 7 days. 1.8 is updated to match. |
-| G8 | `Candidate Project 1`'s bound is 7 days. |
+| G8 | `Candidate Project 1`'s bound is 7 days. Slot 1 is a state where a move is owed (the coordinator raises its project), not a planning queue, so R11's 7 days applies; slots 2 and 3 are queues, with none. |
 | G9 | A stale claim is kept and listed as offered; the thread that takes the item rewrites it. |
 | G10 | A parent stays at `Design and Test Approach` while any work package is open, and its bound is suspended until the last closes. |
 | G11 | `Development`'s age is the head commit of the package's open pull request; with none, the field's own age. |

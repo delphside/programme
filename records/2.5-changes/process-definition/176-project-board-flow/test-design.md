@@ -20,7 +20,7 @@ Each test has one of two kinds:
 - **[CI]** is a Python test in `scripts/board/tests/`. It builds its own world through a stubbed REST source, which holds five repositories with issues, issue fields, timelines, sub-issues, dependency links, pull requests and commits. It refuses GraphQL as a cloud session's proxy does, and logs every write.
 - **[TT]** is a technical test, run once by Claude against the real repositories before the merge. Programme tooling has no environment between CI and `main` (docs/1.9 *What tests the tooling*).
 
-Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily trigger, the pinned issue and the session-start hook) has its own work package; its [TT]s are listed here so that one document holds them.
+Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily trigger and the session-start hook) has its own work package; the pinned issue is delivery 2's; its [TT]s are listed here so that one document holds them.
 
 ## 1. Rules
 
@@ -48,9 +48,9 @@ Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily
 | ID | Rule |
 | --- | --- |
 | M1 | *Age* is the time in the current state. *Stalled* means age past the bound, or a claim whose thread has not moved the item within the bound. *Resting* means a wait on something named, with no move owed by the holder. |
-| M2 | Requirement: unset reads as `Triage`. Unset and `Triage`: the workstream thread moves it (the owner first where triage is joint); bound 1 day. Scope: the workstream thread; 7 days. Waiting on a `Decision`: resting, under the Decision's bounds. `On Hold`: resting, reviewed at each sweep. `Ready for Project`: the coordinator; no bound. `Candidate Project 1`: one sweep. `Candidate Project 2` and `3`: no bound. |
+| M2 | Requirement: unset reads as `Triage`. Unset and `Triage`: holder the workstream thread, except where triage is joint, when the owner holds it (`Turn` = `Owner`) until his comment; bound 1 day. Scope: the workstream thread; 7 days. Waiting on a `Decision`: resting, under the Decision's bounds. `On Hold`: holder the workstream thread at the hold's review (`Turn` = `Hold`). `Ready for Project`: the coordinator; no bound. `Candidate Project 1`: the coordinator, 7 days, a move owed (raising its project). `Candidate Project 2` and `3`: no bound. |
 | M3 | R13's resting states map as follows: the closed reasons and *folded* are closed. Both kinds of hold are `On Hold`, told apart by whether the dependency section links an issue. *Waiting for planning* is `Ready for Project` or a candidate slot. *Waiting on a Decision* is `Turn` = `Hold` plus a dependency link. *Waiting on the owner's approval* of scope or of project scoping is `Turn` = `Owner`. |
-| M4 | Project, mover and bound per phase: `Scope`: design authority, 7 days; `Q3` to `Q1`: coordinator, no bound; `Design and Test Approach`: design authority, 7 days without a move; `Development`: technical lead, 7 days without a commit; `User testing`: owner or technical lead, 7 days; `Deployment`: technical lead or release manager, no bound; `Post-deployment`: technical lead, review due after 7 days; `Project Closedown`: technical lead (for a parent, the design authority), 7 days. |
+| M4 | Project, holder and bound per phase: `Scope`: design authority, 7 days; `Q3` to `Q1`: coordinator, no bound; `Design and Test Approach`: design authority, 7 days without a move, with the test manager's approval and the owner's `Design` boxes on their own lists; `Development`: technical lead, 7 days without a commit; `User testing`: technical lead, 7 days, with unticked browser tests on the owner's list; `Deployment`: technical lead, `Turn` = `Hold` on the release, no bound, with making the release on the release manager's list; `Post-deployment`: technical lead, review due after 7 days, stalled at 14; `Project Closedown`: technical lead (for a parent, the design authority), 7 days. |
 | M5 | A parent runs Scope to `Design and Test Approach`, rests while its packages run (under the packages' bounds), then returns for `Post-deployment` and `Project Closedown`. |
 | M6 | Decision: the turn alternates. `Asked` is the owner's, `Feedback Provided` Claude's, `Documented Ready for Sign-Off` the owner's, `Decided` Claude's, `Actioned` the owner's. The bound is 7 days per step. A Decision raised without a state gets a starting state. |
 | M7 | Pull request: its state is derived from GitHub and never typed; bound 7 days in any state. Its turn comes from `PR State` and is shown in `board-actions.py`, not the view. It carries no issue fields. Its claim is the thread that owns its branch. |
@@ -113,15 +113,19 @@ Each is the settlement of the gap with the same number in part 10.
 | S-G20 | The REST timeout is a setting. |
 | S-G21 | `board-flow.py` exits 0 when nothing is stalled, 1 when something is, and 2 when it could not finish. |
 | S-G22 | `board-flow.py --dry-run` writes nothing and prints what it would write. |
+| S-G23 | A stopped thread is detected only through the bound. |
+| S-G24 | The owner's view shows `Requirement State` and `Turn` as columns. |
+| S-G26 | R6 is met by document review, not by a test. |
 
 Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release package to `Deployment` and a tooling-route one to `Post-deployment`. It is cited with I5.
 
 ### Checked for contradiction
 
-- **R11 against M2 and M12:** R11 gives every `Requirement State` a 7-day bound, while M12 sets 1 day for triage and none for the queues. Reconciled by the owner's later answer (design.md Q3, 2026-11-13). The tests assert M12. R11's text in the body should say so.
+- **R11 against M2 and M12:** R11 gives every `Requirement State` a 7-day bound, while M12 sets 1 day for triage and none for the queues. Reconciled by the owner's answer (design.md Q3) and R11's rewording, both 2026-11-13. The tests assert M12.
 - **R11 and R12 against P2 and I3:** R11 and R12 say `board-sweep`; the design moves listing and nudging to the daily `board-flow.py` run. Settled by the owner rewording R11 and R12 to the daily sweep (G25).
 - **R7 (pull requests included) against I5 and the known-gaps table:** `PR State` cannot be written over REST, and infrastructure has no workflow. Accepted as a known gap (#383 R15). For infrastructure the tests assert a derived mover, not a written state.
-- **Still open, each in part 10:**
+- **R11 against S-G8:** R11 gives the planning queues no bound, and R13 counts the candidate slots as waiting for planning, yet `Candidate Project 1` has 7 days. Reconciled: slot 1 is a state where a move is owed (the coordinator raises its project), so R11's 7 days applies; slots 2 and 3 are queues.
+- **Settled since, each in part 10:**
   - R1 against M2, M4 and M8 (more than one mover in a state): G1, settled by the owner rewording R1 to *one holder* (2026-11-13);
   - R12 against M2 and docs/1.2 §2.23 (Scope against `On Hold`): G4, settled by R12's rewording to `Turn` = `Hold`;
   - settled by the design authority: `Hold` naming nobody and a tool mover (S-G2), a derivable state carrying a thread-set `Owner` or `Hold` (S-G3), unset against `Triage` (S-G5), offer against clear (S-G9).
@@ -302,7 +306,7 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S4 | A Project with no workstream; then its workstream is set. A Requirement with no workstream. | D7.1–3 | O3 for the Project, then O7; the Requirement not listed as missing a workstream | CI |
 | S5 | Requirement bound walk: Scope at 6 d 23 h 59 min, 7 d and 7 d 00 h 01 min; `Ready for Project` and `Candidate 2` and `3` at 90 days. | D4.2–6 | O7, O7, O6; O7 for the queues | CI |
 | S6 | `Candidate Project 1` at 2 days and at 8 days. | D4 | O7, then O6 under the coordinator | CI |
-| S7 | Project bound walk: each of Scope, `Design and Test Approach`, `User testing` and `Project Closedown` 1 minute under and 1 minute past 7 days; `Q1` and `Deployment` at 90 days. | D1.2, D4.2, D4.4, D4.6 | O7 then O6 per phase; O7 for `Q1` and `Deployment` | CI |
+| S7 | Project bound walk: each of Scope, `Design and Test Approach`, `User testing` and `Project Closedown` 1 minute under and 1 minute past 7 days; `Post-deployment` at 13 d 23 h 59 min, 14 d and 14 d 00 h 01 min; `Q1` and `Deployment` at 90 days. | D1.2, D4.2–4, D4.6 | O7 then O6 per phase; `Post-deployment` O7, O7, O6; O7 for `Q1` and `Deployment` | CI |
 | S8 | `Development` with the field moved 30 days ago: last branch commit 1 day ago, then 8 days ago. | D1.4, D4 | O7, then O6 under the technical lead; with no pull request, the field's age | CI |
 | S9 | A parent at its resting phase for 30 days with an open package; then the last package closes, and 8 days pass. | D1.3 | O7; then O6 under the design authority | CI |
 | S10 | A Decision in each of its five states, with `Turn` unset; each at 6 days and at 8 days. A Decision with no state. | D1.5, D5.1, D4 | O4 alternating `Owner`/`Claude` as M6; O7 then O6 under owner or Claude; the stateless one O2 (`Asked`) | CI |
@@ -329,7 +333,7 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S31 | An immediate rerun with nothing changed. | D11.2 | O5 for every item; only the pinned body is rewritten | CI |
 | S32 | `--role` for a workstream's design authority, for a role with nothing, for an unknown role, then a valid role again. | D10.3 | O12; O12 (says so); O19; O12 | CI |
 | S33 | The owner's list over a world holding a `Turn` = `Owner` requirement, a `Decision` at `Asked`, a pull request awaiting review, and a work package in `User testing` with an unticked **owner** box. | D10.2 | O13 | CI |
-| S34 | Cross-check: one world through all five callers. | D10.1–5 | O14 | CI |
+| S34 | Cross-check: one world through all five callers, holding an item in each state with more than one actor: joint `Triage`, `Design and Test Approach`, `User testing` and `Deployment`. | D10.1–5 | O14: each has one holder, as M2 and M4 name. For `User testing`, the technical lead's list holds the item as holder and the owner's list holds its browser tests as his part; for `Deployment`, the release manager's list holds making the release | CI |
 | S35 | Flow-table completeness: every option of `Requirement State`, `Project State`, `Decision State`, `PR State` and `Ticket State` has a mover and a bound (or "none"). Remove one row and see the test fail. An item carrying a value not in the table. | D3.3 | the table check passes, then fails on the removed row; the item reported, not defaulted (S-G17) | CI |
 | S36 | The table's bounds: 1 day for unset and `Triage`; 7 days for each owed state; none for `Q3` to `Q1`, `Ready for Project`, `Candidate 2` and `3`, and `Deployment`. | — | the values as stated | CI |
 | S37 | Stalled output by role, including a role with no permanent thread. | D12.2–3 | grouped by role; the threadless role named alone | CI |
@@ -340,7 +344,7 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S42 | A pull request whose body's attribution line links a project thread; one with no such line. | D1.6, D6 | the first's claim is that thread; the second has no claim, and is listed by its `PR State` mover | CI |
 | S43 | An item on two of the owner's sources at once: a `Decision` at `Asked` that also carries `Turn` = `Owner`. | D10.2 | listed once | CI |
 | TT1 | From a cloud session, once delivery 1's fields exist and the pinned issue has been created by hand (S-G18): a `--dry-run`, its planned writes read, then a full run against the five repositories. | D2, D8.5 | completes; calls and duration recorded against about 400 calls and the rate limit; pinned issue rewritten (O9) | TT |
-| TT2 | From WSL, immediately after TT1. | D11.2 | O5 except the pinned body; the same stalled set | TT |
+| TT2 | From WSL, immediately after TT1, `--dry-run` first. | D11.2 | the dry run plans no writes except the pinned body; then O5 except the pinned body; the same stalled set | TT |
 | TT3 | `--role` for one design authority, and the owner's list, from a cloud session and from WSL. | D10.2–3 | identical lists in both places | TT |
 | TT4 | A throwaway issue raised in programme with no type and no state; a `--dry-run`, then one run; then closed as not planned. | D1.9 | typed `Requirement`, starting state and `Turn` written | TT |
 | TT5 | `Turn` and `Claimed by` written and read over REST on one issue in each of the five repositories. | D2 | written and read back in each | TT |
@@ -365,6 +369,8 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | S26: a refused write exits non-zero | S26: the permitted write lands |
 | S32: unknown role refused | S32: a known role lists |
 | S35: a missing table row fails | S35: the full table passes |
+| S38: a run whose read fails exits 2 | S38: the same world healthy exits 0 or 1 |
+| S40: no pinned issue, refused | S40: once it exists, the run succeeds |
 
 ## 7. Coverage, both ways
 
@@ -390,7 +396,7 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | M4 | S7, S8 |
 | M5 | S9 |
 | M6 | S10 |
-| M7 | S11, S12, TT6 |
+| M7 | S11, S12, S42, TT6 |
 | M8 | S13 |
 | M9 | S14, S15, S16 |
 | M10 | S15 |
@@ -410,9 +416,17 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | I6 | S11, TT5, TT6 |
 | I7 | S32, S33, TT3, TT9 |
 | I8 | S1, S14, S31, TT2 |
-| I9 | S25, S26, S28 |
+| I9 | S25, S26, S28, S38 |
 | I10 | S27 |
 | I11 | S29, TT1 |
+| S-G8 | S6 |
+| S-G12 | S7 |
+| S-G13 | S41 |
+| S-G16 | S42 |
+| S-G18 | S40 |
+| S-G19 | S43 |
+| S-G21 | S38 |
+| S-G22 | S39 |
 
 | Scenario | Rules |
 | --- | --- |
@@ -422,7 +436,7 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | S4 | R7, M14 |
 | S5 | R2, R11, M1, M2, M12 |
 | S6 | M2 |
-| S7 | R2, M1, M4, M12 |
+| S7 | R2, M1, M4, M12, S-G12 |
 | S8 | M4 |
 | S9 | M5 |
 | S10 | R1, R2, R5, M6 |
@@ -449,7 +463,7 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | S31 | P2, I8 |
 | S32 | R3, R12, I7 |
 | S33 | R14, I7 |
-| S34 | R1, R3, P3, I1 |
+| S34 | R1, R3, P3, I1, M2, M4 |
 | S35 | R1, R2, R3, R5, I1 |
 | S36 | R2, M12, I1 |
 | S37 | R12, M13, I3 |
@@ -601,6 +615,14 @@ One per requirement. Each is answered after a week of daily runs.
 - `stalled_set_matches_past_bound_items_on_the_role_lists`
 - `flow_table_covers_every_option_of_every_state_field`
 - `flow_table_bounds_are_a_day_for_triage_seven_elsewhere_none_for_queues`
+- `each_multi_actor_state_has_one_holder_and_the_others_parts_on_their_lists`
+- `post_deployment_stalls_fourteen_days_after_it_began`
+- `exit_status_is_0_clean_1_stalled_2_failed`
+- `dry_run_writes_nothing_and_prints_each_planned_write`
+- `missing_pinned_issue_is_refused_and_named`
+- `closed_release_milestone_moves_its_open_work_packages`
+- `pull_request_claim_is_read_from_its_attribution_line`
+- `owner_sees_an_item_once_however_many_sources_name_it`
 
 ### [TT]
 
