@@ -826,11 +826,10 @@ every use:
 | deployer | `docker` pull | the machine user's `docker` login |
 
 `docker` keeps the machine user's login in `~/.docker`, with the user's contexts
-and `buildx` builders (the builder a hook's OCI output needs, as
-[the builder's dependencies](#the-components) say, is one of them), so the
-tool never sets `DOCKER_CONFIG`, and each deployer's
-pull uses that login as it always did. The tool sets
-`REGISTRY_AUTH_FILE` only, before a `skopeo` call.
+and `buildx` builders (the Buildx builder a hook's OCI output needs, as
+[the builder's dependencies](#the-components) say, is one of them), so the tool
+never sets `DOCKER_CONFIG`, and each deployer's pull uses that login as it
+always did. The tool sets `REGISTRY_AUTH_FILE` only, before a `skopeo` call.
 
 **The one shared login.** On Tile Lite Elite's laptop the builder and the
 `preview` deployer are the same machine user, so they share its `docker` login,
@@ -1061,9 +1060,10 @@ on needs `flock`. Common tools are named only; the others are described under
     session reads them, since a passed-on build starts in the home folder;
     Python 3.11 or later; git; `skopeo`; the OCI CLI, for `turpin remove`;
     the application's `build` hook, with the tools its hook needs, such as
-    Docker or Buildx. A hook that writes OCI output needs Docker's containerd
-    image store enabled, or a Buildx builder with the `docker-container`
-    driver: the plain `docker` driver cannot export OCI.
+    Docker or Buildx. A hook that writes OCI output needs a Buildx builder
+    named `turpin` with the `docker-container` driver, since the plain
+    `docker` driver cannot export OCI; the user's default builder is left as
+    it is.
   - Reached by the controller by `ssh`, the owner at a shell, and a timer where
     the application has one.
   - Reaches GitHub (git fetch), OCI Registry (push and read candidates) and
@@ -1660,22 +1660,23 @@ missing hook is a no-op. Only `build` has a default.
 and writes it as an OCI image layout, a directory holding that one image,
 naming on standard output one line per image: its name and its layout's
 directory. Buildx writes one with `--output type=oci,dest=DIR,tar=false`,
-every platform in one index; both applications' hooks use it. That export
-needs the builder set up as [its dependencies](#the-components) say. The
-builder pushes each layout ([the registry adapter](#the-registry-adapter)),
-so the hook needs no registry login. With
-`TURPIN_LOCAL` set, the hook loads the images into local Docker instead and
-prints their names only.
+every platform in one index; both applications' hooks use it, passing
+`--builder turpin` to `docker buildx bake`, the Buildx builder
+[the builder's dependencies](#the-components) name. The builder pushes each
+layout ([the registry adapter](#the-registry-adapter)), so the hook needs no
+registry login. With `TURPIN_LOCAL` set, the hook loads the images into local
+Docker instead and prints their names only.
 
-**The default hook** bakes one bake target per name in the profile's
-`images`, the target named as the image. It writes each to a directory it
-creates in the worktree, `.turpin/oci/IMAGE`, and prints the lines; each
-directory is then the `DIR` the builder pushes with
+**The default hook** bakes one target per name in the profile's `images`, the
+target named as the image. It writes each to a directory it creates in the
+worktree, `.turpin/oci/IMAGE`, and prints the lines; each directory is then
+the `DIR` the builder pushes with
 `skopeo copy --all --preserve-digests oci:DIR`. With `TURPIN_LOCAL` set, it
-runs `docker buildx bake --load` instead.
+runs `docker buildx bake --builder turpin --load` instead.
 
 ```sh
-docker buildx bake --set "IMAGE.output=type=oci,dest=.turpin/oci/IMAGE,tar=false" IMAGE
+docker buildx bake --builder turpin \
+  --set "IMAGE.output=type=oci,dest=.turpin/oci/IMAGE,tar=false" IMAGE
 ```
 
 Each hook gets `TURPIN_APP`, `TURPIN_ENV`, `TURPIN_ROLE` (`controller` for
@@ -1686,7 +1687,7 @@ the release step, `ephemeral` for create and destroy), `TURPIN_SHA`,
 
 | Hook | Kind | Component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- | --- | --- |
-| `build` | step | builder | `docker buildx bake` from the compose file's `build:` blocks, to OCI layouts | `docker buildx`, arm64 and amd64, to OCI layouts |
+| `build` | step | builder | `docker buildx bake --builder turpin` from the compose file's `build:` blocks, to OCI layouts | `docker buildx bake --builder turpin`, arm64 and amd64, to OCI layouts |
 | `release-check` | gate | controller | no `functional` change in a patch | none |
 | `pre-deploy` | gate | deployer | database not ahead of the build's schema | window :40 to :10 (75 outside) |
 | `save-state` | step | deployer | stop server, snapshot database, keep five | copy DuckLake catalog aside |
@@ -2041,13 +2042,13 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
   `~/.config/turpin/tile-lite-elite.env`
   ([the registry address](#the-registry-address)).
 - **The laptop's Buildx builder.** Before the first `turpin build`, check that
-  the laptop can export OCI ([§5](#the-components)): `docker info` shows
-  whether the containerd image store is on (its storage driver, the containerd
-  snapshotter), and `docker buildx ls` shows each builder's driver. If neither
-  applies, make one:
+  `docker buildx ls` lists a builder named `turpin` with the
+  `docker-container` driver ([§5](#the-components)). If it is absent, make it,
+  without `--use`, so the default builder, and `deploy.sh`'s
+  `docker compose build`, are untouched:
 
   ```sh
-  docker buildx create --name turpin --driver docker-container --use
+  docker buildx create --name turpin --driver docker-container
   ```
 
 - **The proof by hand.** Before `prune`, the owner removes one candidate by
