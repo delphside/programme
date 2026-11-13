@@ -11,11 +11,11 @@ model in `scripts/board/`.
 | Part | Today |
 | --- | --- |
 | reading the board | `sources.py` is the only module that talks to GitHub. `sources.fetch` already falls back to REST (`_rest_fetch`, `_rest_write`) beside GraphQL, so `board-check.py`, `board-status.py` and `board-actions.py` run from cloud threads (since 2026-11-09) |
-| writing fields | `sources.set_field` (GraphQL only) and `_rest_write`; issue fields take the option's name over REST |
-| scheduled jobs | GitHub Actions with `BOARD_TOKEN`, all kept and none added: `board-add.yml` hourly, `pr-state.yml` on pull request and review events, `context.yml` daily, Tile Lite Elite's `requirement-stage.yml` on issues opened or typed (it runs `board-stage.py`) and its `programme-activities.yml` on Mondays |
+| writing fields | `sources.set_field`, which is GraphQL only. `_rest_write` writes milestones, comments, issue state and new issues; no issue field is written over REST yet |
+| scheduled jobs | GitHub Actions, all kept and none added. With `BOARD_TOKEN`: `board-add.yml` hourly, `pr-state.yml` on pull request and review events, `context.yml` daily, and Tile Lite Elite's `requirement-stage.yml` on issues opened or typed (it runs `board-stage.py`). With `github.token`: Tile Lite Elite's `programme-activities.yml` on Mondays and `advisories.yml` daily. With `DESK_ORG_TOKEN`: the service desk's `intake.yml`, half-hourly |
 | events | `pr-state.yml` on pull request and review events; Tile Lite Elite's `requirement-stage.yml` on an issue opened or typed; the service desk's `intake.yml`, which sets a Ticket to `New`; the post-merge hook on a local merge; `deploy.sh` on a deploy |
 | Claude's schedule | the Monday trigger into the coordinator, for the weekly activities |
-| the movers' lists | `board-actions.py` (the owner's) and `--claude` (Claude's, one list), read by the session-start hook in WSL (Windows Subsystem for Linux, the owner's local machine) |
+| the movers' lists | `board-actions.py` (the owner's, which he runs by hand) and `--claude` (Claude's, one list), which the session-start hook runs in WSL (Windows Subsystem for Linux, the owner's local machine) |
 
 ## The choices
 
@@ -93,15 +93,14 @@ Both are organisation issue fields, which only the owner can create
 
 | Field | Kind | Values |
 | --- | --- | --- |
-| `Turn` | single select | `Owner` green, `Claude` blue, `Hold` yellow, as 1.2's colour rule |
+| `Turn` | single select | `Owner` green, `Claude` blue, `Hold` yellow, as [1.2](../../../../docs/1.2-change-lifecycle.md)'s colour rule |
 | `Claimed by` | text | the role, then a link to the thread holding it now |
 
 The owner's board view filters on `Turn` = `Owner`, groups by issue type and
 shows `Requirement State` and `Turn` as columns; he judges R14's check from it.
-Pull requests stay out of both fields, because
-[1.6's `github:issue fields`](../../../../docs/1.6-github-project-board.md)
-says REST accepts a value on one but cannot clear it again. Theirs stay in
-`PR State` and in `board-actions.py`.
+Pull requests stay out of both fields, for the reason
+[design.md](design.md#pull-request) gives. Theirs stay in `PR State` and in
+`board-actions.py`.
 
 ### 5. Each mover pulls its own list
 
@@ -114,26 +113,38 @@ tests at `User testing`, due recurrences and due **owner** boxes.
 
 ### 6. The session-start to-do list and the comment check (R15)
 
-A thread's list at start has a second part beside its role's items: the
-owner's comments it has not answered, read by `board-inbox.py` and shown by
-`inbox-hook.sh`, and a check before Claude comments, `comment-check.sh`. R15
-folds delphside/tile-lite-elite#455's defects in these. Each is fixed in
-delivery 2, in `scripts/board/`, with a test shown red first.
+R15 folds the defects of delphside/tile-lite-elite#455 into this design. A
+defect is written `#455-R1` for that issue's R1; a bare `R1` is
+delphside/programme#176's.
 
-| #455 | Fix |
+A thread's list at start has a second part beside its role's items: the
+owner's comments it has not answered, which `board-inbox.py` reads and
+`inbox-hook.sh` shows. The hook has a section each for the to-do list, the
+seven-day activity read and the practices, and shows at most 12 to-dos.
+
+A check before Claude comments, `comment-check.sh`, lists the same unanswered
+comments.
+
+The list and the check run in WSL and, once delivery 4 wires them, in cloud
+threads. Each defect is fixed in delivery 2, in `scripts/board/` and
+`.claude/hooks/`, with a test shown red first.
+
+| delphside/tile-lite-elite#455 | Fix |
 | --- | --- |
-| R1 | comments older than Claude's own account (2026-08-25) are never a to-do: a floor, held as a setting (**owner's answer awaited**) |
+| R1 | comments older than Claude's own account (2026-08-25) are never a to-do: a floor, held as a setting. Recommended, awaiting the owner's answer ([question 4](#questions-for-the-owner)) |
 | R2 | every heading names whose move it is; the cache line says *any age* |
 | R3 | `--issue N` goes through the same open-issues rule and the same comment read, pull request diff comments included, as the board-wide path: one function, two callers |
-| R4 | the cap counts comments, so it bounds the lines shown; the twelve that show are the oldest, longest waiting first, as `turn.py` orders; then one line says how many more on how many issues (**owner's answer awaited**: if he chooses twelve issues, every comment on the twelve oldest-waiting issues shows) |
-| R5 | `comment-check.sh` matches every way Claude posts a comment, listed below, and nothing else: not a read, not an edit of Claude's own comment, not text inside a body |
-| R6 | docs/1.1's `board-inbox.py` row describes `--open`, `--issue` and `--all` |
+| R4 | the cap counts comments, so it bounds the lines shown; the 12 that show are the oldest, longest waiting first, as `turn.py` orders; then one line says how many more on how many issues. Recommended, awaiting the owner's answer ([question 3](#questions-for-the-owner)): if he chooses 12 issues, every comment on the 12 oldest-waiting issues shows |
+| R5 | `comment-check.sh` matches every way Claude posts a comment, in [the table of ways](#the-ways-claude-posts-a-comment), and nothing else |
+| R6 | [1.1](../../../../docs/1.1-programme-tooling.md)'s `board-inbox.py` row describes `--open`, `--issue` and `--all` |
 | R7 | each section of the hook is read and shown on its own, so one failed read prints its failure and the others still show |
-| R8 | a hook's context reaches Claude only after the command runs, so the check **denies once**, as defined below; it shapes the comment because Claude reads the denial's reason before posting |
+| R8 | the check **denies once**, as [deny once](#deny-once) defines |
 | R10 | the hook's text says what it shows in the order shown; each line shows when the comment was made; `--issue` and `--all` without `--open` are refused, not ignored |
 | R11 | tests for `comments_on`, the hook's to-do section, the check's exit status and which comments survive the cap |
 
-**The ways Claude posts a comment**, which the check covers:
+#### The ways Claude posts a comment
+
+The check covers each way marked *yes*.
 
 | Way | Covered |
 | --- | --- |
@@ -141,33 +152,43 @@ delivery 2, in `scripts/board/`, with a test shown red first.
 | `gh issue close` and `gh pr close` with `--comment` | yes |
 | `gh pr review` with `--body` (comment, approve or request changes) | yes |
 | `gh api -X POST` to `issues/N/comments`, `pulls/N/comments`, `pulls/N/reviews` or a comment's `replies` | yes |
-| the GitHub MCP tools `add_issue_comment`, `add_reply_to_pull_request_comment`, and `pull_request_review_write` when it submits a review with a body | yes |
+| the GitHub MCP tools `add_issue_comment`, `add_reply_to_pull_request_comment` and `pull_request_review_write` when it submits a review with a body | yes, from delivery 4 |
 | `add_comment_to_pending_review` | no: nothing is posted until the review is submitted, which is covered |
 | editing Claude's own comment (`update_issue_comment`, `gh api -X PATCH`) | no: it answers nothing new |
 | a commit message, a pull request body, an issue body | no: not a comment |
+| a read (`gh issue view`, `gh api` GET), or a post command's text quoted inside a body | no: nothing is posted |
 
-**Deny once**:
+The hook is wired with the matcher `Bash` and reads only `tool_input.command`,
+so an MCP tool's call passes it today. Delivery 2 makes `comment-check.sh` read
+an MCP tool's input (repository and issue number) as well. Delivery 4 adds a
+matcher for the GitHub MCP comment tools to each application's
+`.claude/settings.json`.
+
+#### Deny once
+
+A hook's context reaches Claude only after the command runs, but a denial's
+reason is read before the post, so the denial shapes the comment.
 
 - The first post to an issue with unanswered owner comments is denied. The
   reason lists them, oldest first.
 - A retry is the same kind of post to the same issue within 10 minutes of
-  the denial, in the same session. The 10 minutes is a setting (docs/1.10):
+  the denial, in the same session. The 10 minutes is a setting
+  ([docs/1.10](../../../../docs/1.10-development-standards.md)):
   chosen on 2026-11-13 as ample for reading the reason and rewriting the
   comment within one turn, with no measurement behind it; it is revisited if
   a retry is ever denied for being late. It is allowed. A marker in the session's
   temporary directory, keyed by repository, issue and the unanswered
-  comments' ids, records the denial.
+  comments' IDs, records the denial.
 - If an owner comment arrives between the denial and the retry, the set of
-  ids changes, so the retry is denied again, with the new list.
+  IDs changes, so the retry is denied again, with the new list.
 - Claude's own comments in between change nothing.
 - If the check cannot read the comments, it allows the post and says so: it
-  is a check, not a gate (docs/1.2 §2.16), and an outage must not stop Claude
-  answering.
+  is a check, not a gate (docs/1.2 §2.16), so Claude answers through an outage.
 
 Defect #455-R6 is met by document review, not by a test.
 
-R9, a cloud session's comment read as the owner's, was fixed straight to
-`main` by delphside/programme#180, with its tests in
+Defect #455-R9 is fixed on `main` (delphside/programme#180): a cloud session's comment
+is no longer read as the owner's. Its tests are in
 `scripts/board/tests/test_inbox.py`.
 
 ## Non-functional design
@@ -187,13 +208,14 @@ artefact's ([1.2 §2.15](../../../../docs/1.2-change-lifecycle.md#215-classifyin
 | # | What it delivers | Route | Milestone | Work package or steps |
 | --- | --- | --- | --- | --- |
 | 1 | the `Turn` and `Claimed by` issue fields, with `Turn`'s options and colours, and the owner's board view | Other | a date, the day it lands | a work package: the owner's steps, with a runbook |
-| 2 | the flow table in `model.py`, `board-flow.py`, `board-actions.py --role`, R15's fixes to `board-inbox.py`, `inbox-hook.sh` and `comment-check.sh`, the cloud session-start hook pulling each role's list, their tests, and the documents: 1.1's new tools, 1.2's machines, 1.4's daily activity, 1.6's fields, 1.7's movers and 1.8's Ticket bounds | Docs and Programme Tooling | none | a work package carrying its tests; then each application's pin move. Its technical tests create the pinned stalled-list issue by hand before the first real run |
-| 3 | the coordinator's daily trigger and the pinned stalled-list issue, which delivery 2's technical tests first create by hand | Other | a date, the day it lands | a work package |
+| 2 | the flow table in `model.py`, `board-flow.py`, `board-actions.py --role`, R15's fixes to `board-inbox.py`, `inbox-hook.sh` and `comment-check.sh` (which also reads the GitHub MCP tools' inputs), the cloud session-start hook pulling each role's list, their tests and the documents: 1.1's rows for the new tools, `board-inbox.py`, `inbox-hook.sh` and `comment-check.sh`, 1.2's machines, [1.4](../../../../docs/1.4-programme-activities.md)'s daily activity, 1.6's fields, [1.7](../../../../docs/1.7-roles-and-responsibilities.md)'s movers and [1.8](../../../../docs/1.8-service-desk.md)'s Ticket bounds | Docs and Programme Tooling | none | a work package carrying its tests. Its technical tests need the pinned stalled-list issue that delivery 3's row says is made by hand. |
+| 3 | the coordinator's daily trigger and the pinned stalled-list issue, which delivery 2's technical tests create by hand before the first real run | Other | a date, the day it lands | a work package |
+| 4 | per application (Tile Lite Elite and Dark Portal): the pin move to delivery 2's programme commit, and the `.claude/settings.json` matcher that wires the comment check to the GitHub MCP comment tools | Application Tooling | a date per application, the day it lands | a work package per application: the pin move, the wiring, then TT10 run from a cloud thread, which shows the hooks run there. 1.1's `.claude/settings.json` row, which says a cloud thread runs no hooks, is corrected in the programme at the same time |
 
 Left out, for later: retiring `Requirement State`'s `On Hold` in favour of
-`Hold` (design.md question 2), and anything
+`Hold` ([design.md question 2](design.md#questions-for-the-owner)), and anything
 [delphside/programme#138](https://github.com/delphside/programme/issues/138),
-the workflow tool of our own, takes.
+the programme's own workflow tool, takes.
 
 ## Details settled from the test design
 
@@ -210,9 +232,9 @@ same day by rewording R1, R11 and R12. [design.md](design.md) holds each value.
 | [G7](test-design.md#10-gaps) | design.md [Ticket](design.md#ticket) |
 | [G9](test-design.md#10-gaps), [G15](test-design.md#10-gaps), [G16](test-design.md#10-gaps), [G23](test-design.md#10-gaps) | design.md [Claims](design.md#claims) |
 | [G10](test-design.md#10-gaps), [G11](test-design.md#10-gaps), [G12](test-design.md#10-gaps), [G13](test-design.md#10-gaps) | design.md [Project](design.md#project) |
-| [G18](test-design.md#10-gaps), [G19](test-design.md#10-gaps), [G21](test-design.md#10-gaps), [G22](test-design.md#10-gaps) | design.md [What runs the flow](design.md#what-runs-the-flow), and the pinned issue's creation in *Deliveries* above |
-| [G20](test-design.md#10-gaps) | *Non-functional design*, limits and timeouts, above |
-| [G24](test-design.md#10-gaps) | the owner's view, choice 4 above |
+| [G18](test-design.md#10-gaps), [G19](test-design.md#10-gaps), [G21](test-design.md#10-gaps), [G22](test-design.md#10-gaps) | design.md [What runs the flow](design.md#what-runs-the-flow), and the pinned issue's creation in [Deliveries](#deliveries) |
+| [G20](test-design.md#10-gaps) | [Non-functional design](#non-functional-design), limits and timeouts |
+| [G24](test-design.md#10-gaps) | the owner's view, [choice 4](#4-two-new-issue-fields) |
 | [G26](test-design.md#10-gaps) | R6 is met by document review: the vocabulary in design.md names its sources |
 
 ## Known gaps on today's tools
@@ -224,7 +246,7 @@ is judged on.
 | Gap | Workaround | Carried by |
 | --- | --- | --- |
 | Projects v2 board fields (`PR State`, views) need GraphQL | Actions writes them; cloud threads read pull request state from REST | `pr-state.yml` |
-| pull requests cannot carry `Turn` or `Claimed by` (1.6: REST cannot clear a field once set) | derived from `PR State` and the branch's thread | `board-actions.py` |
+| pull requests cannot carry `Turn` or `Claimed by` ([design.md](design.md#pull-request) gives why) | derived from `PR State` and the branch's thread | `board-actions.py` |
 | organisation paths are refused from the cloud | the owner creates fields and options by hand | owner, once |
 | the context header needs GraphQL | `context.yml` regenerates it daily in Actions, in the programme, Tile Lite Elite and Dark Portal | `context.yml` |
 
@@ -236,3 +258,10 @@ is judged on.
    pinned issue in the programme repository, its body rewritten by each sweep,
    so the owner can see stalls without asking and its history shows how they
    changed.
+3. **Whether the to-do cap counts comments or issues (#455-R4).** Awaited. The
+   recommendation is the cap by comments: the 12 oldest-waiting comments show,
+   then one line counts the rest. The alternative is the cap by issues: every
+   comment on the 12 oldest-waiting issues shows.
+4. **Whether comments before Claude's account count as to-dos (#455-R1).**
+   Awaited. The recommendation is a floor at 2026-08-25, held as a setting, so
+   no earlier comment is a to-do. The alternative is no floor.

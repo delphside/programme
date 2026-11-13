@@ -55,9 +55,9 @@ list, each role's list, the coordinator's.
 - **Constrains**: only a mover that is running pulls, so a stopped thread's
   items wait unseen (fails R8 alone). Every thread has to ask, at start and at
   each wake.
-- **Today**: `board-actions.py` (the owner's) and `--claude` (Claude's, as one
-  list, not per role), read by the session-start hook in WSL (Windows Subsystem
-  for Linux, the owner's local machine) only.
+- **Today**: `board-actions.py` (the owner's, which he runs by hand) and
+  `--claude` (Claude's, as one list, not per role), which the session-start hook
+  runs in WSL (Windows Subsystem for Linux, the owner's local machine) only.
 
 ### 4. A mix: events for speed, the sweep for correctness, lists for the work
 

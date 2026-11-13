@@ -2,17 +2,16 @@
 
 # Test design specification: Project Board flow
 
-Project: delphside/programme#176 · type of change: `documentation` (the parent); its work packages are `tooling` · route: `Docs and Programme Tooling` (delivery 2; deliveries 1 and 3 are `Other`) · release: not applicable
+Project: delphside/programme#176 · type of change: `documentation` (the parent); its work packages are `tooling` · route: `Docs and Programme Tooling` (delivery 2; deliveries 1 and 3 are `Other`, delivery 4 `Application Tooling`) · release: not applicable
 
 This specification derives the tests for the board flow from its stated rules, without reading the implementation. Its sources are:
 
-- #176's body, R1 to R15 (R15 folds delphside/tile-lite-elite#455's defects, written #455-R1 and so on);
-- implementation.md *6. The session-start to-do list and the comment check (R15)*;
+- #176's body, R1 to R15 (R15's defects are written `#455-R1` and so on, as [implementation.md §6](implementation.md#6-the-session-start-to-do-list-and-the-comment-check-r15) defines);
 - [design.md](design.md), [options.md](options.md) and [implementation.md](implementation.md) in this folder;
-- docs/1.2 §2.15 (*Option colour says whose turn it is*, *Who moves a project's state*) and §2.23;
-- docs/1.8 *A Ticket's state*;
-- docs/1.1, the `Unavailable` rule;
-- docs/1.9.
+- [1.2](../../../../docs/1.2-change-lifecycle.md) §2.15 (*Option colour says whose turn it is*, *Who moves a project's state*) and §2.23;
+- [1.8](../../../../docs/1.8-service-desk.md) *A Ticket's state*;
+- [1.1](../../../../docs/1.1-programme-tooling.md), the `Unavailable` rule;
+- [1.9](../../../../docs/1.9-testing-standards.md).
 
 **(H)** would mark a rule taken from the handover rather than a document. None is needed: every *agreed but not yet written down* item was found in the three design files, so no rule here is marked (H).
 
@@ -21,7 +20,7 @@ Each test has one of two kinds:
 - **[CI]** is a Python test in `scripts/board/tests/`. It builds its own world through a stubbed REST source, which holds five repositories with issues, issue fields, timelines, sub-issues, dependency links, pull requests and commits. It refuses GraphQL as a cloud session's proxy does, and logs every write.
 - **[TT]** is a technical test, run once by Claude against the real repositories before the merge. Programme tooling has no environment between CI and `main` (docs/1.9 *What tests the tooling*).
 
-Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily trigger and the pinned issue) has its own work package; delivery 2's technical tests create the pinned issue by hand first. The cloud session-start hook is delivery 2's. The [TT]s of all three are listed here so that one document holds them.
+Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily trigger and the pinned issue) has its own work package. Delivery 4 (each application's pin move and the comment check's wiring) has a work package per application. The cloud session-start hook is delivery 2's. The [TT]s of all four are listed here so that one document holds them.
 
 ## 1. Rules
 
@@ -43,7 +42,7 @@ Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily
 | R12 | Each workstream's thread stays on top of its open issues; the daily sweep nudges it, or has the coordinator start one, when its issues pass R11's bound. A requirement waiting on something specific has `Turn` = `Hold` with that thing named under its dependencies. A specific question for the owner is a `Decision` issue, except during the first discussion. |
 | R13 | A workstream's thread progresses a requirement until it rests in one of the ten listed resting states. |
 | R14 | The owner can see which resting state each requirement is in, and which wait on him, without reading the issues. |
-| R15 | The session-start to-do list and the check before commenting show what is true: no comment from before Claude's account (2026-08-25) is a to-do; every heading names whose move it is; `--issue N` follows the board-wide path's rules and reads; the cap bounds lines shown; the check reacts to every way Claude posts a comment and only those, denying the first attempt with the unanswered comments as reason; one failed read hides no other section; the hook's text is true; `--issue` and `--all` without `--open` are refused. |
+| R15 | The session-start to-do list and the check before commenting show what is true: no comment from before Claude's account (2026-08-25) is a to-do (recommended, conditional on the owner's answer); every heading names whose move it is; `--issue N` follows the board-wide path's rules and reads; the cap bounds lines shown (recommended, conditional on the owner's answer); the check reacts to every way Claude posts a comment and only those, denying the first attempt with the unanswered comments as reason; one failed read hides no other section; the hook's text is true; `--issue` and `--all` without `--open` are refused. |
 
 ### From design.md (M)
 
@@ -53,16 +52,16 @@ Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily
 | M2 | Requirement: unset reads as `Triage`. Unset and `Triage`: holder the workstream thread, except where triage is joint, when the owner holds it (`Turn` = `Owner`) until his comment; bound 1 day. Scope: the workstream thread; 7 days. Waiting on a `Decision`: resting, under the Decision's bounds. `On Hold`: holder the workstream thread at the hold's review (`Turn` = `Hold`). `Ready for Project`: the coordinator; no bound. `Candidate Project 1`: the coordinator, 7 days, a move owed (raising its project). `Candidate Project 2` and `3`: no bound. |
 | M3 | R13's resting states map as follows: the closed reasons and *folded* are closed. Both kinds of hold are `On Hold`, told apart by whether the dependency section links an issue. *Waiting for planning* is `Ready for Project` or a candidate slot. *Waiting on a Decision* is `Turn` = `Hold` plus a dependency link. *Waiting on the owner's approval* of scope or of project scoping is `Turn` = `Owner`. |
 | M4 | Project, holder and bound per phase: `Scope`: design authority, 7 days; `Q3` to `Q1`: coordinator, no bound; `Design and Test Approach`: design authority, 7 days without a move, with the test manager's approval and the owner's `Design` boxes on their own lists; `Development`: technical lead, 7 days without a commit; `User testing`: technical lead, 7 days, with unticked browser tests on the owner's list; `Deployment`: technical lead, `Turn` = `Hold` on the release, no bound, with making the release on the release manager's list; `Post-deployment`: technical lead, review due after 7 days, stalled at 14; `Project Closedown`: technical lead (for a parent, the design authority), 7 days. |
-| M5 | A parent runs Scope to `Design and Test Approach`, rests while its packages run (under the packages' bounds), then returns for `Post-deployment` and `Project Closedown`. |
+| M5 | A parent runs Scope to `Design and Test Approach`, rests there while any package is open, its bound suspended until the last package closes, then returns for `Post-deployment` and `Project Closedown`. |
 | M6 | Decision: the turn alternates. `Asked` is the owner's, `Feedback Provided` Claude's, `Documented Ready for Sign-Off` the owner's, `Decided` Claude's, `Actioned` the owner's. The bound is 7 days per step. A Decision raised without a state gets a starting state. |
-| M7 | Pull request: its state is derived from GitHub and never typed; bound 7 days in any state. Its turn comes from `PR State` and is shown in `board-actions.py`, not the view. It carries no issue fields. Its claim is the thread that owns its branch. |
-| M8 | Ticket: `New` and `In progress` are the owner's. `Waiting on sender` is the sender's. `Pending` waits for the review date in its last note. Each state has a bound. |
+| M7 | Pull request: its state is derived from GitHub and never typed; bound 7 days in any state. Its turn comes from `PR State` and is shown in `board-actions.py`, not the view. It carries no issue fields. Its claim is the thread its body's attribution line links. |
+| M8 | Ticket: `New` and `In progress` are the owner's. `Waiting on sender` is the owner's to review after 7 days, with `Turn` = `Hold` on the sender. `Pending` waits for the review date in its last note. Each state has a bound. |
 | M9 | `Turn` (`Owner` · `Claude` · `Hold`) is on every open issue. The model writes it wherever it can derive the mover. A thread sets it only where the model cannot (an approval, a hold). An item with no `Turn` is lost, and the sweep finds it. The owner's view filters on `Owner` and groups by issue type. |
 | M10 | `Turn` = `Owner` carries a comment saying what is to be approved. |
-| M11 | A `Hold` has a reason the model can check: an issue linked under *Dependencies and related work*, or a named event with a review date. A hold is reviewed at its bound. |
+| M11 | A `Hold` has a reason the model can check: an issue linked under *Dependencies and related work*, or a named event with a review date. A hold is reviewed at its review date. |
 | M12 | Bounds: 7 days for every state where the owner or a thread owes a move; 1 day for triage; none for the queues and `Deployment`. |
 | M13 | `Claimed by` names the role, then a link to the thread holding it now; the role alone where no thread exists. A claim is stale once the item is past its bound with no move, and the sweep then offers it to the role's current thread. A recovering sweep restarts only items with no live claim. |
-| M14 | On each sweep: no type becomes Requirement, no state becomes the type's starting state, and a non-requirement with no workstream is raised with the owner. |
+| M14 | On each sweep: no type becomes Requirement, no state becomes the type's starting state, and the sweep lists a non-requirement with no workstream for the owner. |
 | M15 | A specific question for the owner is a `Decision` issue, except during the first discussion. |
 
 ### From options.md (P)
@@ -78,7 +77,7 @@ Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily
 | ID | Rule |
 | --- | --- |
 | I1 | One flow table in `model.py` maps type and state to role, `Turn` and bound. Every caller reads it, the bounds live there and nowhere else in code, and the documents link to it. |
-| I2 | `board-flow.py` is plain Python over REST. It reads every open issue and pull request in the five repositories; writes R7's fixes and each item's `Turn`; clears stale claims; rewrites the pinned stalled-list issue in the programme repository; and returns the stalled items by role. |
+| I2 | `board-flow.py` is plain Python over REST. It reads every open issue and pull request in the five repositories; writes R7's fixes and each item's `Turn`; keeps stale claims and lists them as offered; rewrites the pinned stalled-list issue in the programme repository; and returns the stalled items by role. |
 | I3 | The coordinator's daily cloud trigger runs it and nudges each stalled item's role thread, or starts one. When nothing is stalled it ends without a message. The Monday trigger stays. The run time keeps clear of 21:10 to 22:10 UTC. No GitHub Actions job is added. |
 | I4 | Reconciliation keeps no history, so a missed day is tolerated and the next run corrects it. |
 | I5 | Events: the raising thread sets the starting state and `Turn`; the merging thread moves its work package by route; a missed merge is caught by the next sweep through `Refs #N`; `deploy.sh` moves what it ships, and a missed deploy is caught by the next sweep. `pr-state.yml` is unchanged. Infrastructure pull requests' movers are derived from REST. |
@@ -95,11 +94,11 @@ Each is the settlement of the gap with the same number in part 10, held in [desi
 
 | ID | Rule |
 | --- | --- |
-| S-G2 | A held item's mover is the role holding it, at its review. A wait on a tool (`Deployment` waiting for a release) is `Hold`, with the release as its reason. |
+| S-G2 | A held item's holder is the role holding it, at its review. A wait on a tool (`Deployment` waiting for a release) is `Hold`, with the release as its reason. |
 | S-G3 | A thread-set `Owner` with an approval comment, or a `Hold` with a valid reason, is kept by the sweep; any other `Turn` is overwritten by the derived value. |
 | S-G5 | A typed requirement with no state is written `Triage`. |
 | S-G6 | A Decision with no state starts at `Asked`. |
-| S-G7 | Tickets: `Waiting on sender` is `Hold`, its reason the sender; `Resolved` and `Refused` are the owner's, to close, bound 7 days. |
+| S-G7 | Tickets: the owner holds `Waiting on sender`, with `Turn` = `Hold` on the sender, reviewed after 7 days; `Resolved` and `Refused` are the owner's, to close, bound 7 days. |
 | S-G8 | `Candidate Project 1`'s bound is 7 days. |
 | S-G9 | A stale claim is kept and listed as offered; the thread that takes the item rewrites it. |
 | S-G10 | A parent stays at `Design and Test Approach` while any work package is open, its bound suspended until the last closes. |
@@ -282,7 +281,7 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | Pull request, any state | – | ✓ | n/a |
 | Ticket, `New` or `In progress` | – | ✓ | n/a |
 | Ticket, `Pending` | – before the review date | ✓ after it | n/a |
-| Ticket, `Waiting on sender` (`Hold`, S-G7) | n/a | n/a | – |
+| Ticket, `Waiting on sender` (`Hold` on the sender, 7 days, S-G7) | – | ✓ for the owner, at review | n/a |
 | Ticket, `Resolved`, `Refused` (7 days, S-G7) | – | ✓ | n/a |
 
 "At" is not stalled, because *stalled* is "past" the bound (M1).
@@ -314,10 +313,10 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S10 | A Decision in each of its five states, with `Turn` unset; each at 6 days and at 8 days. A Decision with no state. | D1.5, D5.1, D4 | O4 alternating `Owner`/`Claude` as M6; O7 then O6 under owner or Claude; the stateless one O2 (`Asked`) | CI |
 | S11 | Pull requests in `Drafting`, `Awaiting review` and `Changes requested`, at 6 and 8 days. | D1.6, D4 | `Awaiting review` on the owner's list, the rest under the author's role; O6 at 8 days; no issue-field write to any pull request | CI |
 | S12 | An infrastructure pull request with no `PR State`: a review requested of the owner; then a draft. | D1.7, D8.5 | mover owner, then author role, derived from REST | CI |
-| S13 | Tickets: `New` and `In progress` at 6 and 8 days; `Pending` with its review date tomorrow, then yesterday; `Waiting on sender` at 30 days. | D1.8, D4 | O7, O6 under the owner; O7, O6; `Waiting on sender` O7 with `Turn` = `Hold`; `Resolved` and `Refused` at 6 and 8 days, O7 then O6 under the owner | CI |
+| S13 | Tickets: `New` and `In progress` at 6 and 8 days; `Pending` with its review date tomorrow, then yesterday; `Waiting on sender` at 6 and 8 days. | D1.8, D4 | O7, O6 under the owner; O7, O6; `Waiting on sender` O7 with `Turn` = `Hold`, then O6 under the owner; `Resolved` and `Refused` at 6 and 8 days, O7 then O6 under the owner | CI |
 | S14 | Items in derivable states (a Project at `Development`, a Decision at `Asked`) with `Turn` unset, then wrong, then right. | D5.1–3 | O4, O4, O5 | CI |
 | S15 | A Requirement at Scope carrying a thread-set `Turn` = `Owner` with an approval comment, past and within the bound. | D5.4 | O5 (kept, S-G3) within the bound; O6 past it under the owner | CI |
-| S16 | An open item in a state whose mover the table cannot derive, with no `Turn`; then `Turn` set (quiet case). | D5.1 | reported as lost to its role or the owner; then O7 | CI |
+| S16 | An open item in a state whose mover the table cannot derive, with no `Turn`; then `Turn` set (quiet case). | D5.1 | reported as lost to the holder role of its type where the type and workstream are known, otherwise to the owner; then O7 | CI |
 | S17 | `Hold` reasons, each 30 days old: an open linked dependency; its dependency then closes; no reason; a named event with its review date tomorrow, then yesterday. | D5.5–9 | O7; O18; O18; O7; O18 | CI |
 | S18 | A Requirement at `On Hold` with a linked issue; then with no dependency named. | D1.1, D5 | `Turn` = `Hold` (O4); then O18 | CI |
 | S19 | A Requirement at Scope with `Turn` = `Hold` linked to a `Decision` at `Asked`; the Decision is `Actioned` and closed. | D1.1, D1.5, D5.5–6 | The Requirement O7 and the Decision on the owner's list; then the Requirement on its role's list (O18) | CI |
@@ -348,14 +347,13 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S44 | A world with unanswered owner-account comments at 2026-08-24 23:59, 2026-08-25 00:00 and 2026-08-25 00:01, on an open issue. | — | with the floor (recommended): the 00:00 and 00:01 comments are to-dos, the 23:59 one is not. If the owner chooses no floor: all three are, and the floor setting and its test go | CI, conditional on the owner's answer |
 | S45 | Every heading of the hook's output. | — | each names whose move it is; the cache line says *any age*; the sections come in the order the hook's text says | CI |
 | S46 | `--open --issue N` for a closed issue, and for an open issue with a pull request diff comment; then the board-wide read over the same world. | — | the closed issue gives nothing; the diff comment is listed on both paths, with the title | CI |
-| S47 | Thirty unanswered comments: 24 on one issue, 6 on five others, each with a distinct age; and worlds of exactly 12 and 13 comments. | — | cap by comments (recommended): the twelve oldest as twelve lines, then one line whose counts (comments and issues left) are derived from the world's ages; 12 comments: twelve lines and no further line; 13: twelve lines and "1 more on 1 issue". If the owner chooses issues: a world of 14 issues instead, and every comment on the twelve oldest-waiting issues shows, then one line: 2 more issues | CI, conditional on the owner's answer |
+| S47 | Thirty unanswered comments: 24 on one issue, 6 on five others, each with a distinct age; and worlds of exactly 12 and 13 comments. | — | cap by comments (recommended): the 12 oldest as 12 lines, then one line whose counts (comments and issues left) are derived from the world's ages; 12 comments: 12 lines and no further line; 13: 12 lines and "1 more on 1 issue". If the owner chooses issues: a world of 14 issues instead, and every comment on the 12 oldest-waiting issues shows, then one line: 2 more issues | CI, conditional on the owner's answer |
 | S48 | Each way in implementation.md §6's table, covered and not covered, each read (`gh issue view`, `gh api` GET), and a comment body containing the text `gh issue comment`. | — | the check fires on each covered way and on nothing else | CI |
 | S49 | A post to an issue with unanswered owner comments; retries at 9 min 59 s, 10 min and 10 min 01 s after a denial (the window shortened through its setting where needed); a retry after a new owner comment arrived; a retry after Claude's own comment; with none unanswered, a post. | — | each assertion is on the decision Claude Code acts on (the hook's exit status and decision field), and on the reason: denied, listing the comments oldest first; allowed; allowed; denied; denied with the new list; allowed; allowed at once | CI |
-| S53 | The comment read fails when Claude posts. | — | the decision is allow, and the check says it could not read | CI |
 | S50 | The seven-day read fails while the to-do read succeeds; then the reverse. | — | the failing section prints its failure; the other shows in full; the hook exits 0 | CI |
 | S51 | `--issue 5` and `--all` without `--open`; then with it. | — | refused, naming the missing flag; then accepted | CI |
 | S52 | A to-do line for a comment edited after it was made. | — | the time shown is when it was made | CI |
-| TT10 | The check run live, read-only, on an issue with an unanswered owner comment. | — | denied once with that comment, then allowed | TT |
+| S53 | The comment read fails when Claude posts. | — | the decision is allow, and the check says it could not read | CI |
 | TT1 | From a cloud session, once delivery 1's fields exist and the pinned issue has been created by hand (S-G18): a `--dry-run`, its planned writes read, then a full run against the five repositories. | D2, D8.5 | completes; calls and duration recorded against about 400 calls and the rate limit; pinned issue rewritten (O9) | TT |
 | TT2 | From WSL, immediately after TT1, `--dry-run` first. | D11.2 | the dry run plans no writes except the pinned body; then O5 except the pinned body; the same stalled set | TT |
 | TT3 | `--role` for one design authority, and the owner's list, from a cloud session and from WSL. | D10.2–3 | identical lists in both places | TT |
@@ -365,6 +363,7 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | TT7 | (Delivery 3) The coordinator's daily trigger, on a day with nothing stalled. | D12.1 | runs `board-flow.py`, ends without a message, outside 21:10 to 22:10 UTC | TT |
 | TT8 | (Delivery 3) A day with a stalled item for a role with a thread and for one without. | D12.2–3 | the thread nudged; a thread started for the other | TT |
 | TT9 | (Delivery 2) A cloud session's start. | D10.3 | its role's list shown | TT |
+| TT10 | (Delivery 2) The check run live, read-only, on an issue with an unanswered owner comment, from WSL and, once delivery 4 wires the check, from a cloud thread. | — | denied once with that comment, then allowed, in each place | TT |
 | UA1 | (Delivery 1) The owner opens the view with a test issue set to `Turn` = `Owner`. | D10.2 | the issue shows, grouped under its type | owner |
 
 ## 6. Refusals and successes
@@ -384,6 +383,9 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | S35: a missing table row fails | S35: the full table passes |
 | S38: a run whose read fails exits 2 | S38: the same world healthy exits 0 or 1 |
 | S40: no pinned issue, refused | S40: once it exists, the run succeeds |
+| S49: a post to an issue with unanswered owner comments denied | S49: the retry within the window allowed |
+| S51: `--issue` or `--all` without `--open` refused | S51: the same with `--open` accepted |
+| S53: an unreadable comment list reported by the check | S53: the post allowed |
 
 ## 7. Coverage, both ways
 
@@ -506,12 +508,12 @@ Every scenario serves a rule. R6 has no scenario (G26).
 
 **What runs, and where.**
 
-- [CI] tests are component tests of `board-flow.py`, `board-actions.py` (owner's list, `--role` and `--claude`) and `board-check.py`. Each is run in-process or as a subprocess against the stubbed REST source.
-- [TT] tests run the real scripts against the five real repositories: TT1 to TT6 from a cloud session (TT2 and TT3 also from WSL) before the merge; TT7 and TT8 in delivery 3's work package, TT9 in delivery 2's.
+- [CI] tests are component tests of `board-flow.py`, `board-actions.py` (owner's list, `--role` and `--claude`), `board-check.py`, `board-inbox.py`, `inbox-hook.sh` and `comment-check.sh`. Each is run in-process or as a subprocess against the stubbed REST source.
+- [TT] tests run the real scripts against the five real repositories: TT1 to TT6 from a cloud session (TT2 and TT3 also from WSL) before the merge; TT7 and TT8 in delivery 3's work package, TT9 and TT10 in delivery 2's (TT10 from WSL and, once delivery 4 wires the check, from a cloud thread).
 
 **What is real, and what is stubbed.** In CI the flow table, the model and the scripts are real. GitHub is the stubbed REST source, which:
 
-- serves each issue's type, `issue_field_values`, timeline (`issue_field_changed` events), sub-issues, `blocked_by` links, body (its *Dependencies and related work* section), comments, and pull requests with reviews, merge state, `Refs` in their bodies, and branch commits;
+- serves each issue's type, `issue_field_values`, timeline (`issue_field_changed` events), sub-issues, `blocked_by` links, body (its *Dependencies and related work* section), comments and pull requests with reviews, merge state, `Refs` in their bodies, and branch commits;
 - refuses every GraphQL call;
 - logs every write with its target and value;
 - can be set to fail a given read, refuse a given write with 403, or hang a given call.
@@ -525,7 +527,7 @@ The pinned issue is an issue in the stub's programme repository.
 **Whose move.**
 
 - **owner:** delivery 1. Create `Turn` (`Owner` green, `Claude` blue, `Hold` yellow) and `Claimed by` (text) as organisation issue fields, and the board view filtering `Turn` = `Owner` grouped by issue type. Then confirm the view shows a test item set to `Owner`. These are organisation settings, out of a cloud session's reach. TT1 to TT6 wait on this.
-- **Claude:** every [CI] test, TT1 to TT9, and reading the fields over REST (TT5) as the check that delivery 1 landed.
+- **Claude:** every [CI] test, TT1 to TT10 and reading the fields over REST (TT5) as the check that delivery 1 landed.
 - **Claude:** before TT1, create the pinned stalled-list issue in the programme repository by hand (delivery 2, S-G18). TT1, TT2 and TT4 run `--dry-run` first, and write for real only once its planned writes have been read (S-G22).
 
 **User acceptance.** The programme has no Preview, so user acceptance is met in production, by the owner: UA1 at delivery 1 (written as an **owner** box under *Functional user tests* in the work package), then the R8 and R14 post-deployment checks below, which are his.
@@ -538,7 +540,7 @@ One per requirement. Each is answered after a week of daily runs.
 | --- | --- |
 | R1 | **Claude:** the pinned issue and a REST read show every open issue with a `Turn`, apart from items reported *not visible*. |
 | R2 | **Claude:** each item listed as stalled during the week was past a bound the flow table states. |
-| R3 | **Claude:** the owner's list, each `--role` list and the stalled list agree for one day's board, and 1.2, 1.6 and 1.7 link to the table rather than restating it. |
+| R3 | **Claude:** the owner's list, each `--role` list and the stalled list agree for one day's board, and 1.2, [1.6](../../../../docs/1.6-github-project-board.md) and [1.7](../../../../docs/1.7-roles-and-responsibilities.md) link to the table rather than restating it. |
 | R4 | **Claude:** a cloud thread ran `--role` at start and at wake during the week. |
 | R5 | **Claude:** every type in every repository appeared on some list during the week. |
 | R6 | **Claude:** the vocabulary in 1.2 and 1.6 names its source (Kanban, ITIL). |
@@ -666,6 +668,7 @@ One per requirement. Each is answered after a week of daily runs.
 - `daily_trigger_ends_silently_when_nothing_is_stalled` (delivery 3)
 - `daily_trigger_nudges_or_starts_the_roles_thread` (delivery 3)
 - `cloud_session_start_shows_its_roles_list` (delivery 2)
+- `live_comment_check_denies_once_then_allows` (delivery 2, from WSL and a cloud thread)
 
 ## 10. Gaps
 
@@ -692,7 +695,7 @@ Each is a question for the owner, or for the design authority. Settled on 2026-1
 | G17 Whether a value not in the flow table (a renamed option) is an "invalid state" under R7, and what is written. | S35's second half has no expected value. | State that it is reported, never rewritten, as 1.6 says of renamed options. | Reporting is asserted. | **Settled:** S-G17. |
 | G18 What `board-flow.py` does when the pinned issue does not exist (delivery 2's technical tests create it by hand, and delivery 3 keeps it). | Untested. | State it: refuse, or create the issue. | TT1 runs after delivery 3, or the issue is made by hand first. | **Settled:** S-G18. |
 | G19 Whether an item already on one of the owner's five existing sources and also carrying `Turn` = `Owner` appears once or twice. | S33 cannot assert the count. | State it (once). | Minor. | **Settled:** S-G19. |
-| G20 The 120 s cut (I10) can only be tested quickly if the limit can be injected. | S27 would take two minutes per run, or not run. | A setting for the limit, per docs/1.10. | The figure itself is reviewed. | **Settled:** S-G20. |
+| G20 The 120 s cut (I10) can only be tested quickly if the limit can be injected. | S27 would take two minutes per run, or not run. | A setting for the limit, per [1.10](../../../../docs/1.10-development-standards.md). | The figure itself is reviewed. | **Settled:** S-G20. |
 | G21 No exit status is stated for `board-flow.py` beyond "non-zero on failure". The coordinator must tell *clean*, *stalled found* and *failed* apart, and docs/1.2 §2.16 makes a stall report a check. | S22 and S25 cannot assert codes, and a run that fails could look like one that found stalls. | State them, as `board-hosts.py` does (0 clean, 1 finding, 2 unreadable). | S22 asserts the output, not the code. | **Settled:** S-G21. |
 | G22 No read-only mode is stated, so TT1, TT2 and TT4 write `Turn` and R7's fixes to the real repositories before the merge. Programme tooling has no environment between. | A bug found by TT1 would already have written to every open issue. | Either a `--dry-run` that writes nothing and prints what it would write, or the owner accepts that TT1 is the first real run. | Writes are reversible issue-field values. | **Settled:** S-G22. |
 | G23 *Stalled* includes "a mover that is not running" (M1), which REST cannot observe; only the bound can show it. | No test can show a stopped thread except through the bound. | Accept that a stopped thread is detected only at the bound. | That is how R8 is met in every scenario. | **Settled:** S-G23. |
