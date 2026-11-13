@@ -151,7 +151,10 @@ delivery 2, in `scripts/board/`, with a test shown red first.
 - The first post to an issue with unanswered owner comments is denied. The
   reason lists them, oldest first.
 - A retry is the same kind of post to the same issue within 10 minutes of
-  the denial, in the same session. It is allowed. A marker in the session's
+  the denial, in the same session. The 10 minutes is a setting (docs/1.10):
+  chosen on 2026-11-13 as ample for reading the reason and rewriting the
+  comment within one turn, with no measurement behind it; it is revisited if
+  a retry is ever denied for being late. It is allowed. A marker in the session's
   temporary directory, keyed by repository, issue and the unanswered
   comments' ids, records the denial.
 - If an owner comment arrives between the denial and the retry, the set of
@@ -161,8 +164,11 @@ delivery 2, in `scripts/board/`, with a test shown red first.
   is a check, not a gate (docs/1.2 §2.16), and an outage must not stop Claude
   answering.
 
+#455-R6 is met by document review, not by a test.
+
 R9, a cloud session's comment read as the owner's, was fixed straight to
-`main` by delphside/programme#180.
+`main` by delphside/programme#180, with its tests in
+`scripts/board/tests/test_inbox.py`.
 
 ## Non-functional design
 
