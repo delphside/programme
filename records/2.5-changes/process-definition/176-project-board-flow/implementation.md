@@ -12,8 +12,8 @@ model in `scripts/board/`.
 | --- | --- |
 | reading the board | `sources.py` is the only module that talks to GitHub. `sources.fetch` already falls back to REST (`_rest_fetch`) beside GraphQL, so `board-check.py`, `board-status.py` and `board-actions.py` run from cloud threads (since 2026-11-09) |
 | writing fields | `sources.set_field`, which is GraphQL only. `_rest_write` writes milestones, comments, issue state and new issues; no issue field is written over REST yet |
-| scheduled jobs | GitHub Actions, all kept and none added. With `BOARD_TOKEN`: `board-add.yml` hourly, `pr-state.yml` on pull request and review events, `context.yml` daily, and Tile Lite Elite's `requirement-stage.yml` on issues opened or typed (it runs `board-stage.py`). With `github.token`: Tile Lite Elite's `programme-activities.yml` on Mondays and `advisories.yml` daily. With `DESK_ORG_TOKEN`: the service desk's `intake.yml`, half-hourly, and its own `pr-state.yml` and `reply.yml` |
-| events | `pr-state.yml` on pull request and review events; Tile Lite Elite's `requirement-stage.yml` on an issue opened or typed; the service desk's `intake.yml`, a half-hourly poll that stands in for the event and sets a Ticket to `New`; the post-merge hook on a local merge; `deploy.sh` on a deploy |
+| scheduled jobs | GitHub Actions, all kept and none added. With `BOARD_TOKEN`: `board-add.yml` hourly, `pr-state.yml` on pull request and review events, `context.yml` daily, and Tile Lite Elite's `requirement-stage.yml` on issues opened or typed (it runs `board-stage.py`). With `github.token`: Tile Lite Elite's `programme-activities.yml` on Mondays and `advisories.yml` daily. With `DESK_ORG_TOKEN`: the service desk's `intake.yml`, half-hourly, and its own `pr-state.yml` |
+| events | `pr-state.yml` on pull request and review events; Tile Lite Elite's `requirement-stage.yml` on an issue opened or typed; the service desk's `intake.yml`, a half-hourly poll that stands in for the event, sets a Ticket to `New` and sets it to `In progress` when a sender answers, and its `reply.yml`, on `issue_comment`, which sets `Waiting on sender`; the post-merge hook on a local merge; `deploy.sh` on a deploy |
 | Claude's schedule | the Monday trigger into the coordinator, for the weekly activities |
 | the movers' lists | `board-actions.py` (the owner's, which he runs by hand) and `--claude` (Claude's, one list), which the session-start hook runs in WSL (Windows Subsystem for Linux, the owner's local machine) |
 
@@ -24,12 +24,12 @@ model in `scripts/board/`.
 One table in `model.py`, the generalisation of `DECISION_TURNS`: for each type
 and state, the holder (a role, or the owner), the `Turn` it implies where that
 can be derived, the bound, and what the state owes and what it leaves on, as
-[design.md](design.md#the-vocabulary) defines it. Every caller reads it (R3). The
-documents link to it rather than restating it.
+[design.md](design.md#the-vocabulary) defines it. Every caller reads it (R3).
+The documents link to it rather than restating it.
 
 ```mermaid
 flowchart LR
-    table[(Flow table<br/>type, state → role, Turn, bound)] --> model[model.py]
+    table[(Flow table<br/>type, state → role, Turn, bound,<br/>owes, leaves on)] --> model[model.py]
     model --> sweep[board-flow.py<br/>the daily sweep]
     model --> lists[board-actions.py<br/>per role]
     model --> check[board-check.py]
@@ -120,22 +120,27 @@ delphside/programme#176's.
 
 A thread's list at start has a second part beside its role's items: the
 owner's comments it has not answered, which `board-inbox.py` reads and
-`inbox-hook.sh` shows. The hook has these sections: a note on the programme
-checkout and its pin; what opened or closed in the last 7 days; the unanswered
-comments; reports from the scheduled workflows; the board actions for Claude;
-`board-check.py`'s findings; and overdue programme activities, with the reason
-when they cannot be judged. The cap on the unanswered comments is in
-`board-inbox.py --open`: today 12 issues, each with every comment, the most
-recent 12. Twelve comments is question 3's recommended answer, and its fix
-changes today's most recent 12 to oldest first.
+`inbox-hook.sh` shows. The hook has these sections, in this order:
+
+1. a note on the programme checkout and its pin;
+2. what opened or closed in the last 7 days;
+3. the unanswered comments;
+4. reports from the scheduled workflows;
+5. the board actions for Claude;
+6. `board-check.py`'s findings;
+7. overdue programme activities, with the reason when they cannot be judged.
+
+The cap on the unanswered comments is in `board-inbox.py --open`: today 12
+issues, each with every comment, the most recent 12.
 
 A check before Claude comments, `comment-check.sh`, lists the same unanswered
 comments.
 
-The list and the check run in WSL once the pin moves, at the end of delivery 2,
-and in cloud threads once delivery 3's setup script is pasted. Each defect is
-fixed in delivery 2, in `scripts/board/` and `.claude/hooks/`, with a test shown
-red first.
+The list and the check already run in WSL today in Tile Lite Elite. Their
+fixed versions reach WSL when each application's pin moves, at the end of
+delivery 2, and cloud threads once the owner pastes the setup script in
+delivery 3. Each defect is fixed in delivery 2, in `scripts/board/` and
+`.claude/hooks/`, with a test shown red first.
 
 | delphside/tile-lite-elite#455 | Fix |
 | --- | --- |
@@ -160,7 +165,7 @@ The check covers each way marked *yes*.
 | `gh issue close` and `gh pr close` with `--comment` | yes |
 | `gh pr review` with `--body` (comment, approve or request changes) | yes |
 | `gh api -X POST` to `issues/N/comments`, `pulls/N/comments`, `pulls/N/reviews` or a comment's `replies` | yes |
-| the GitHub MCP tools `add_issue_comment`, `add_reply_to_pull_request_comment` and `pull_request_review_write` when it creates or submits a review with a body (`create` with an `event`, or `submit_pending`) | yes, once wired: in WSL by delivery 2's application steps, in a cloud thread by the setup script pasted in delivery 3 |
+| the GitHub MCP tools `add_issue_comment`, `add_reply_to_pull_request_comment` and `pull_request_review_write` when it creates or submits a review with a body (`create` with an `event`, or `submit_pending`) | yes, once wired: in WSL by delivery 2's pin moves and wiring, in a cloud thread by the setup script pasted in delivery 3 |
 | a reaction, through a tool's `reaction` parameter | no: it posts no comment, so it is let through |
 | `add_comment_to_pending_review` | no: nothing is posted until the review is submitted, which is covered |
 | editing Claude's own comment (`update_issue_comment`, `gh api -X PATCH`) | no: it answers nothing new |
@@ -185,7 +190,7 @@ reason is read before the post, so the denial shapes the comment.
 - The 10 minutes is a setting
   ([docs/1.10](../../../../docs/1.10-development-standards.md)): chosen on
   2026-11-13 as ample for reading the reason and rewriting the comment within
-  one turn, with no measurement behind it. It is revisited if a retry is ever
+  one turn, with no measurement behind it. Claude revisits it if a retry is ever
   denied for being late.
 - A marker in the session's temporary directory, keyed by repository, issue and
   the unanswered comments' IDs, records the denial.
@@ -218,8 +223,55 @@ artefact's ([1.2 §2.15](../../../../docs/1.2-change-lifecycle.md#215-classifyin
 | # | What it delivers | Route | Milestone | Work package or steps |
 | --- | --- | --- | --- | --- |
 | 1 | the `Turn` and `Claimed by` issue fields, with `Turn`'s options and colours, and the owner's board view | Other | a date, the day it lands | a work package: the owner's steps, with a runbook |
-| 2 | the flow table in `model.py`, `board-flow.py`, `board-actions.py --role`, R15's fixes to `board-inbox.py`, `inbox-hook.sh` and `comment-check.sh` (which also reads the GitHub MCP tools' inputs), the cloud session-start hook pulling each role's list, `.claude/cloud-environment-setup.sh` extended to write user-level hooks for the cloud session-start role list and for `comment-check.sh` as a `PreToolUse` hook on `Bash` and the GitHub MCP comment tools, their tests and the documents: 1.1's rows for the new tools, `board-inbox.py`, `inbox-hook.sh`, `comment-check.sh`, `.claude/settings.json` (corrected to name the MCP matcher) and `cloud-environment-setup.sh` (corrected to the user-level hooks it now writes), that script's header comment, 1.2's machines, [1.4](../../../../docs/1.4-programme-activities.md)'s daily activity, 1.6's fields, [1.7](../../../../docs/1.7-roles-and-responsibilities.md)'s movers and [1.8](../../../../docs/1.8-service-desk.md)'s Ticket bounds | Docs and Programme Tooling | none | a work package carrying its tests. Claude creates the pinned stalled-list issue by hand before TT1, and delivery 3 keeps it. A cloud thread starts in the workspace folder, so no repository's `.claude/settings.json` hooks run there and the only cloud hooks are the user-level ones the setup script writes. The steps end, as [1.2](../../../../docs/1.2-change-lifecycle.md) requires, with each application's pin move and its wiring, which [1.2 §2.15](../../../../docs/1.2-change-lifecycle.md#215-classifying-a-change) makes Docs and Programme Tooling too, straight to main: Tile Lite Elite's `.claude/settings.json` gains the matcher for the GitHub MCP comment tools; Dark Portal has no `.claude/settings.json`, no `programme-hook.sh` and no hooks at all, so it gains the whole wiring |
+| 2 | the sweep, the role lists, R15's fixes and the cloud hooks, with their tests and documents | Docs and Programme Tooling | none | a work package carrying its tests, and the artefacts and steps below |
 | 3 | the coordinator's daily trigger, and the owner's step of pasting the updated `cloud-environment-setup.sh` into the cloud environment's settings, which puts the cloud hooks in force. It keeps the pinned stalled-list issue | Other | a date, the day it lands | a work package. Its post-deployment check includes a cloud thread showing the session-start list and the comment check running |
+
+Delivery 2's artefacts, by repository. Why a cloud thread's hooks are only the
+user-level ones the setup script writes is in
+[1.1's `cloud-environment-setup.sh` row](../../../../docs/1.1-programme-tooling.md).
+
+- **Programme:**
+  - scripts: the flow table in `model.py`, `board-flow.py`,
+    `board-actions.py --role`, R15's fixes to `board-inbox.py` and
+    `inbox-hook.sh`, and `comment-check.sh` (which also reads the GitHub MCP
+    tools' inputs), with their tests;
+  - the hooks: the cloud session-start hook, which pulls each role's list and
+    shows `inbox-hook.sh`'s unanswered comments as well, so a cloud thread gets
+    the whole to-do list; and `comment-check.sh` as a `PreToolUse` hook on
+    `Bash` and the GitHub MCP comment tools;
+  - `.claude/cloud-environment-setup.sh`, extended to write the user-level hooks
+    for both, and its header comment, with the reason that `gh` cannot sign in
+    from a cloud thread dropped as no longer true;
+  - documents:
+    [1.1](../../../../docs/1.1-programme-tooling.md)'s rows for the new tools,
+    `board-inbox.py`, `inbox-hook.sh`, `comment-check.sh`,
+    `.claude/settings.json` (corrected to name the MCP matcher) and
+    `cloud-environment-setup.sh` (corrected to the user-level hooks it now
+    writes);
+    [1.2](../../../../docs/1.2-change-lifecycle.md)'s machines;
+    [1.4](../../../../docs/1.4-programme-activities.md)'s daily activity;
+    [1.6](../../../../docs/1.6-github-project-board.md)'s fields;
+    [1.7](../../../../docs/1.7-roles-and-responsibilities.md)'s movers; and
+    [1.8](../../../../docs/1.8-service-desk.md)'s Ticket bounds.
+- **Tile Lite Elite:** `.claude/settings.json`, gaining the matcher for the
+  GitHub MCP comment tools.
+- **Dark Portal:** a new `.claude/settings.json`, `.claude/programme-hook.sh`
+  and the hook wiring: it has no hooks at all today.
+
+Delivery 2's steps:
+
+1. Claude creates the pinned stalled-list issue by hand before TT1; delivery 3
+   keeps it.
+2. Claude writes the code and documents, each defect's test shown red first, and
+   runs the suites and `scripts/docs/check-docs.sh --programme`.
+3. Once delivery 1 has landed, Claude runs TT1 to TT6, TT9 and TT10, `--dry-run`
+   first.
+4. The change merges straight to main.
+5. Each application's pin moves, and its wiring lands with it
+   ([1.2 §2.15](../../../../docs/1.2-change-lifecycle.md#215-classifying-a-change)
+   makes these Docs and Programme Tooling too, straight to main): Tile Lite
+   Elite's `.claude/settings.json` gains the MCP matcher, and Dark Portal gains
+   its whole wiring.
 
 Left out, for later: retiring `Requirement State`'s `On Hold` in favour of
 `Hold` ([design.md question 2](design.md#questions-for-the-owner)), and anything

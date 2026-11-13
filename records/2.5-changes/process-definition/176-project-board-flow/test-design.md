@@ -2,7 +2,7 @@
 
 # Test design specification: Project Board flow
 
-Project: delphside/programme#176 · type of change: `documentation` (the parent); its work packages are `tooling` · route: `Docs and Programme Tooling` (delivery 2, whose steps include each application's pin move and wiring, also `Docs and Programme Tooling`; deliveries 1 and 3 are `Other`) · release: not applicable
+Project: delphside/programme#176 · type of change: `documentation` (the parent); its work packages are `tooling` · route: `Docs and Programme Tooling` (delivery 2, its pin moves and wiring included; deliveries 1 and 3 are `Other`) · release: not applicable
 
 This specification derives the tests for the board flow from its stated rules, without reading the implementation. Its sources are:
 
@@ -20,7 +20,7 @@ Each test has one of two kinds:
 - **[CI]** is a Python test in `scripts/board/tests/`. It builds its own world through a stubbed REST source, which holds five repositories with issues, issue fields, timelines, sub-issues, dependency links, pull requests and commits. It refuses GraphQL as a cloud session's proxy does, and logs every write.
 - **[TT]** is a technical test, run once by Claude against the real repositories before the merge. Programme tooling has no environment between CI and `main` (docs/1.9 *What tests the tooling*).
 
-Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily trigger, the owner's pasting of the updated cloud setup script, and the pinned issue it keeps) has its own work package. The cloud session-start hook, the comment check's wiring and each application's pin move are delivery 2's. The [TT]s of all three are listed here so that one document holds them.
+Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily trigger, the owner's pasting of the updated cloud setup script and the pinned issue it keeps) has its own work package. The cloud session-start hook, the comment check's wiring and each application's pin move are delivery 2's. The [TT]s of all three are listed here so that one document holds them.
 
 ## 1. Rules
 
@@ -58,8 +58,8 @@ Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily
 | M8 | Ticket: `New` and `In progress` are the owner's. `Waiting on sender` is the owner's to review after 7 days, with `Turn` = `Hold` on the sender. `Pending` waits for the review date in its last note. Each state has a bound. |
 | M9 | `Turn` (`Owner` · `Claude` · `Hold`) is on every open issue. The model writes it wherever it can derive the mover. A thread sets it only where the model cannot (an approval, a hold). An item with no `Turn` is lost, and the sweep finds it. The owner's view filters on `Owner` and groups by issue type. |
 | M10 | `Turn` = `Owner` carries a comment saying what is to be approved. |
-| M11 | A `Hold` has a reason the model can check, one of four, each reviewed as stated: an issue linked under *Dependencies and related work* (when it closes); a named event with a review date (at the date); an open release milestone, which `Deployment` and a `Release Check` package at `Post-deployment` wait on (when the milestone closes); a Ticket's sender at `Waiting on sender` (after 7 days). |
-| M12 | Bounds: 7 days for every state where the owner or a thread owes a move; 1 day for triage; none for the queues and `Deployment`. |
+| M11 | A `Hold` has a reason the model can check, one of four, each reviewed as stated: an issue linked under *Dependencies and related work* (when it closes: the hold ends, listed as invalid, `Turn` rewritten); a named event with a review date (at the date: the same); a release milestone, which `Deployment` waits on while its own is open and a `Release Check` package at `Post-deployment` waits on for the next one in its repository (when that milestone closes, the deploy that ships it: the hold ends; while no next release milestone is open the hold stays valid); a Ticket's sender at `Waiting on sender` (after 7 days: the hold stays and stalls under the owner). |
+| M12 | Bounds: 7 days for every state where the owner or a thread owes a move; 1 day for triage; none for the queues, `Deployment` and a `Release Check` package at `Post-deployment`. |
 | M13 | `Claimed by` names the role, then a link to the thread holding it now; the role alone where no thread exists. A claim is stale once the item is past its bound with no move, and the sweep then offers it to the role's current thread. A recovering sweep restarts only items with no live claim. |
 | M14 | On each sweep: no type becomes Requirement, no state becomes the type's starting state, and the sweep lists a non-requirement with no workstream for the owner. |
 | M15 | A specific question for the owner is a `Decision` issue, except during the first discussion. |
@@ -94,7 +94,7 @@ Each is the settlement of the gap with the same number in part 10, held in [desi
 
 | ID | Rule |
 | --- | --- |
-| S-G2 | A held item's holder is the role holding it, at its review. A wait on a tool (`Deployment` waiting for a release, a `Release Check` package at `Post-deployment`) is `Hold`, with the open release milestone as its reason, reviewed when the milestone closes. The other accepted reasons are M11's. |
+| S-G2 | A held item's holder is the role holding it, at its review. A wait on a tool is `Hold` with a reason from M11: `Deployment` waits for its open release milestone, and a `Release Check` package at `Post-deployment` (the `Release Check` label itself is the reason, [1.2 §2.7.1](../../../../docs/1.2-change-lifecycle.md#271-a-check-that-has-to-wait-for-a-release)) waits for the next one, reviewed when it closes. While no next release milestone is open, the hold stays valid. |
 | S-G3 | A thread-set `Owner` with an approval comment, or a `Hold` with a valid reason, is kept by the sweep; any other `Turn` is overwritten by the derived value. |
 | S-G5 | A typed requirement with no state is written `Triage`. |
 | S-G6 | A Decision with no state starts at `Asked`. |
@@ -181,8 +181,10 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 - **D5.7** `Hold` with a named event, review date to come
 - **D5.8** `Hold` with a named event, review date passed
 - **D5.9** `Hold` with no reason
-- **D5.10** `Hold` on an open release milestone
+- **D5.10** `Hold` on an open release milestone, or a `Release Check` package with the next release milestone open
 - **D5.11** `Hold` on a release milestone that has closed
+- **D5.12** a `Release Check` package with no next release milestone open
+- **D5.13** a Ticket at `Waiting on sender`, `Hold` on the sender
 
 **D6 — claim** *complete*
 
@@ -278,13 +280,13 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | Project, `Q3` to `Q1`, `Deployment` | n/a | n/a | – |
 | Project, `Development` | – (commit age) | ✓ (pull request head commit, S-G11) | n/a |
 | Project, `Post-deployment` (14 days, S-G12) | – | ✓ | n/a |
-| Work package at `Post-deployment` carrying `Release Check` (`Turn` = `Hold` on the open release milestone) | n/a | n/a | – |
+| Work package at `Post-deployment` carrying `Release Check` (`Turn` = `Hold` on the next release milestone, open or not yet raised) | n/a | n/a | – |
 | Parent waiting on packages | – | – while packages are open (S-G10) | n/a |
 | Decision, any state | – | ✓ | n/a |
 | Pull request, any state | – | ✓ | n/a |
 | Ticket, `New` or `In progress` | – | ✓ | n/a |
 | Ticket, `Pending` | – before the review date | ✓ after it | n/a |
-| Ticket, `Waiting on sender` (`Hold` on the sender, 7 days, S-G7) | – | ✓ for the owner, at review | n/a |
+| Ticket, `Waiting on sender` (`Hold` on the sender, 7 days, S-G7) | – | ✓ for the owner, at review: the hold stays (M11) | n/a |
 | Ticket, `Resolved`, `Refused` (7 days, S-G7) | – | ✓ | n/a |
 
 "At" is not stalled, because *stalled* is "past" the bound (M1).
@@ -297,7 +299,7 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | equal to derived | O5 | n/a |
 | different from derived | O4 (overwritten) | n/a |
 | thread-set `Owner` with comment | O5, kept (S-G3) | O5, kept |
-| `Hold`, reason valid and open | O5, kept (S-G3) | O5, resting |
+| `Hold`, reason valid and open (a Ticket's sender included, until its 7 days pass) | O5, kept (S-G3) | O5, resting |
 | `Hold`, reason released or missing | O18 | O18 |
 
 ## 5. Scenarios
@@ -310,17 +312,17 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S4 | A Project with no workstream; then its workstream is set. A Requirement with no workstream. | D7.1–3 | O3 for the Project, then O7; the Requirement not listed as missing a workstream | CI |
 | S5 | Requirement bound walk: Scope at 6 d 23 h 59 min, 7 d and 7 d 00 h 01 min; `Ready for Project` and `Candidate 2` and `3` at 90 days. | D4.2–6 | O7, O7, O6; O7 for the queues | CI |
 | S6 | `Candidate Project 1` at 2 days and at 8 days. | D4 | O7, then O6 under the coordinator | CI |
-| S7 | Project bound walk: each of Scope, `Design and Test Approach`, `User testing` and `Project Closedown` 1 minute under and 1 minute past 7 days; `Post-deployment` at 13 d 23 h 59 min, 14 d and 14 d 00 h 01 min; `Q1` and `Deployment` at 90 days; a work package carrying `Release Check` at `Post-deployment` for 90 days, its milestone open. | D1.2, D1.4, D4.2–4, D4.6, D5.10 | O7 then O6 per phase; `Post-deployment` O7, O7, O6; O7 for `Q1` and `Deployment`; O7 for the `Release Check` package, `Turn` = `Hold` (O4) | CI |
+| S7 | Project bound walk: each of Scope, `Design and Test Approach`, `User testing` and `Project Closedown` 1 minute under and 1 minute past 7 days; `Post-deployment` at 13 d 23 h 59 min, 14 d and 14 d 00 h 01 min; `Q1` and `Deployment` at 90 days; a work package carrying `Release Check` at `Post-deployment` for 90 days, with the next release milestone open, and again with none open. | D1.2, D1.4, D4.2–4, D4.6, D5.10, D5.12 | O7 then O6 per phase; `Post-deployment` O7, O7, O6; O7 for `Q1` and `Deployment`; O7 for the `Release Check` package in both worlds, `Turn` = `Hold` (O4) | CI |
 | S8 | `Development` with the field moved 30 days ago: the pull request's head commit 1 day ago, then 8 days ago. | D1.4, D4 | O7, then O6 under the technical lead; with no pull request, the field's age | CI |
 | S9 | A parent at its resting phase for 30 days with an open package; then the last package closes, and 8 days pass. | D1.3 | O7; then O6 under the design authority | CI |
 | S10 | A Decision in each of its five states, with `Turn` unset; each at 6 days and at 8 days. A Decision with no state. | D1.5, D5.1, D4 | O4 alternating `Owner`/`Claude` as M6; O7 then O6 under owner or Claude; the stateless one O2 (`Asked`) | CI |
 | S11 | Pull requests in `Drafting`, `Awaiting review` and `Changes requested`, at 6 and 8 days. | D1.6, D4 | `Awaiting review` on the owner's list, the rest under the author's role; O6 at 8 days; no issue-field write to any pull request | CI |
 | S12 | An infrastructure pull request with no `PR State`: a review requested of the owner; then a draft. | D1.7, D8.5 | mover owner, then author role, derived from REST | CI |
-| S13 | Tickets: `New` and `In progress` at 6 and 8 days; `Pending` with its review date tomorrow, then yesterday; `Waiting on sender` at 6 and 8 days; `Resolved` and `Refused` at 6 and 8 days. | D1.8, D4 | O7, O6 under the owner; O7, O6; `Waiting on sender` O7 with `Turn` = `Hold`, then O6 under the owner; `Resolved` and `Refused` at 6 and 8 days, O7 then O6 under the owner | CI |
+| S13 | Tickets: `New` and `In progress` at 6 and 8 days; `Pending` with its review date tomorrow, then yesterday; `Waiting on sender` at 6 and 8 days; `Resolved` and `Refused` at 6 and 8 days. | D1.8, D4, D5.13 | O7, O6 under the owner; O7, O6; `Waiting on sender` O7 with `Turn` = `Hold`, then O6 under the owner with the hold kept, not rewritten (M11); `Resolved` and `Refused` at 6 and 8 days, O7 then O6 under the owner | CI |
 | S14 | Items in derivable states (a Project at `Development`, a Decision at `Asked`) with `Turn` unset, then wrong, then right. | D5.1–3 | O4, O4, O5 | CI |
 | S15 | A Requirement at Scope carrying a thread-set `Turn` = `Owner` with an approval comment, past and within the bound. | D5.4 | O5 (kept, S-G3) within the bound; O6 past it under the owner | CI |
 | S16 | An open item in a state whose mover the table cannot derive, with no `Turn`; then `Turn` set (quiet case). | D5.1 | reported as lost to the holder role of its type where the type and workstream are known, otherwise to the owner; then O7 | CI |
-| S17 | `Hold` reasons, each 30 days old: an open linked dependency; its dependency then closes; no reason; a named event with its review date tomorrow, then yesterday; an open release milestone; the milestone then closes. | D5.5–11 | O7; O18; O18; O7; O18; O7; O18 | CI |
+| S17 | `Hold` reasons, each 30 days old: an open linked dependency; its dependency then closes; no reason; a named event with its review date tomorrow, then yesterday; an open release milestone; the milestone then closes; a `Release Check` package with no next release milestone open; a Ticket at `Waiting on sender`, at 6 days and at 8 days. | D5.5–13 | O7; O18; O18; O7; O18; O7; O18; O7 (still `Hold`); O7, then O6 under the owner with the hold kept (not O18) | CI |
 | S18 | A Requirement at `On Hold` with a linked issue; then with no dependency named. | D1.1, D5 | `Turn` = `Hold` (O4); then O18 | CI |
 | S19 | A Requirement at Scope with `Turn` = `Hold` linked to a `Decision` at `Asked`; the Decision is `Actioned` and closed. | D1.1, D1.5, D5.5–6 | The Requirement O7 and the Decision on the owner's list; then the Requirement on its role's list (O18) | CI |
 | S20 | Claims: within bound; stale; role only; malformed. | D6.2–5 | O7 with the claim shown; O8; O6 under the role, naming no thread; the malformed one reported and treated as none (S-G15) | CI |
@@ -419,7 +421,7 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | M8 | S13 |
 | M9 | S14, S15, S16 |
 | M10 | S15 |
-| M11 | S17 |
+| M11 | S7, S13, S17 |
 | M12 | S3, S5, S7, S36 |
 | M13 | S20, S21, S37 |
 | M14 | S1, S4 |
@@ -438,6 +440,7 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | I9 | S25, S26, S28, S38 |
 | I10 | S27 |
 | I11 | S29, TT1 |
+| S-G2 | S7, S17 |
 | S-G8 | S6 |
 | S-G12 | S7 |
 | S-G13 | S41 |
@@ -455,17 +458,17 @@ In a sweep, the "refusal" is the item being reported, and the "success" is it go
 | S4 | R7, M14 |
 | S5 | R2, R11, M1, M2, M12 |
 | S6 | M2 |
-| S7 | R2, M1, M4, M12, S-G12 |
+| S7 | R2, M1, M4, M11, M12, S-G2, S-G12 |
 | S8 | M4 |
 | S9 | M5 |
 | S10 | R1, R2, R5, M6 |
 | S11 | R1, R2, R5, M7, I6 |
 | S12 | R4, R5, M7, I5 |
-| S13 | R2, R5, M8 |
+| S13 | R2, R5, M8, M11 |
 | S14 | R1, M9, P2, I8 |
 | S15 | R13, R14, M3, M9, M10 |
 | S16 | R1, M9 |
-| S17 | R12, R13, M11 |
+| S17 | R12, R13, M11, S-G2 |
 | S18 | R12, R13, M2, M3 |
 | S19 | R12, R13, M2, M3, M15 |
 | S20 | R9, M1, M13 |
@@ -555,7 +558,7 @@ One per requirement. Each is answered after a week of daily runs.
 | R12 | **Claude:** each stalled requirement's thread was nudged, or a thread was started. |
 | R13 | **Claude:** each open requirement is either owed a move within its bound or rests in one of the R13 states. |
 | R14 | **owner:** the view shows him what waits on him without opening an issue. |
-| R15 | **Claude:** a week of session starts showed no false to-do and no hidden section, and every comment posted to an issue with unanswered owner comments was denied once first. A cloud thread, once delivery 3's setup script is pasted, showed the session-start list and ran the comment check. |
+| R15 | **Claude:** a week of session starts showed no false to-do and no hidden section, and every comment posted to an issue with unanswered owner comments was denied once first. A cloud thread, once the owner has pasted delivery 3's setup script, showed the session-start list and ran the comment check. |
 
 ## 9. Test names
 
@@ -598,6 +601,8 @@ One per requirement. Each is answered after a week of daily runs.
 - `hold_without_a_reason_is_reported`
 - `hold_past_its_review_date_is_reported`
 - `hold_on_an_open_release_milestone_rests_until_it_closes`
+- `release_check_package_holds_while_no_next_release_milestone_is_open`
+- `ticket_waiting_on_sender_holds_and_stalls_under_the_owner_after_seven_days`
 - `on_hold_requirement_derives_turn_hold`
 - `requirement_waiting_on_a_decision_rests_while_the_decision_is_listed_for_the_owner`
 - `pull_request_awaiting_review_is_the_owners_and_carries_no_issue_field`
