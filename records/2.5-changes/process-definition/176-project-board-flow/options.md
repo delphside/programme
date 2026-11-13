@@ -1,10 +1,10 @@
 # 176 Project Board flow: options for keeping items moving
 
 Design step 3 of delphside/programme#176. [design.md](design.md) says, for each
-type and state, who moves an item, on what trigger, and how long it may wait.
+type and state, who moves an item, on what trigger and how long it may wait.
 This file compares the ways of making that happen, each saying what it
 constrains. How the chosen option is built on today's tools is
-`implementation.md`, next.
+[implementation.md](implementation.md), next.
 
 ## What any option has to do
 
@@ -25,11 +25,15 @@ Each event moves its item: raising an issue sets its starting state, a merge
 moves its work package, a deploy moves what it shipped, a pull request change
 sets `PR State`.
 
-- **Constrains:** every move needs an event and a hook to catch it. Waiting has
+- **Constrains**: every move needs an event and a hook to catch it. Waiting has
   no event, so nothing notices a stall (fails R8, R11). A lost event leaves an
   item wrong until somebody looks.
-- **Today:** partly built: `pr-state.yml`, `board-add.yml`, the post-merge hook
-  and `deploy.sh`.
+- **Today**: partly built: `pr-state.yml` for pull request changes, Tile Lite
+  Elite's `requirement-stage.yml` (writes `Triage` when an issue is opened or
+  typed), the service desk's `intake.yml` (sets a Ticket to `New`), the
+  post-merge hook and `deploy.sh`. `requirement-stage.yml` stays as the raising
+  event's tool in Tile Lite Elite, and the sweep covers the other
+  repositories.
 
 ### 2. A reconciliation sweep
 
@@ -37,11 +41,10 @@ A scheduled job compares each item's state, age and claim with the model, as a
 controller compares desired state with actual. It writes R7's fixes, and lists
 every item past its bound with its mover.
 
-- **Constrains:** an item is only as current as the last run, so the interval
-  must be shorter than the shortest bound (triage's one day). Nudging a
-  thread needs something that can reach threads, which only the coordinator
-  can.
-- **Today:** the weekly `board-sweep`, run by hand from the Monday trigger,
+- **Constrains**: an item is only as current as the last run, so the interval
+  must be no longer than the shortest bound (triage's 1 day). Nudging a thread
+  needs something that can reach threads, which only the coordinator can.
+- **Today**: the weekly `board-sweep`, run by hand from the Monday trigger,
   does part of this.
 
 ### 3. A work list per mover, pulled
@@ -49,11 +52,12 @@ every item past its bound with its mover.
 Each mover asks the model *what is mine* when it starts or wakes: the owner's
 list, each role's list, the coordinator's.
 
-- **Constrains:** only a mover that is running pulls, so a stopped thread's items
-  wait unseen (fails R8 alone). Every thread has to ask, at start and at each
-  wake.
-- **Today:** `board-actions.py` (the owner's) and `--claude` (Claude's, as one
-  list, not per role), read by the session-start hook in WSL only.
+- **Constrains**: only a mover that is running pulls, so a stopped thread's
+  items wait unseen (fails R8 alone). Every thread has to ask, at start and at
+  each wake.
+- **Today**: `board-actions.py` (the owner's) and `--claude` (Claude's, as one
+  list, not per role), read by the session-start hook in WSL (Windows Subsystem
+  for Linux, the owner's local machine) only.
 
 ### 4. A mix: events for speed, the sweep for correctness, lists for the work
 
@@ -71,13 +75,13 @@ flowchart TB
 Events make the moves they can, as soon as they can. The lists tell each mover
 what is theirs. The sweep is the safety net: it finds whatever an event missed
 or a mover left past its bound, and hands it to the coordinator, which nudges
-the role's thread or starts one. A black start is the owner prompting the
-coordinator, whose first act is a sweep.
+the role's thread or starts one. A *black start*, every thread stopped, is the
+owner prompting the coordinator, whose first act is a sweep.
 
-- **Constrains:** three mechanisms to keep consistent, so all three must read
-  one model (R3) rather than keep their own rules. The sweep's interval sets how
-  late a stall is noticed.
-- **Today:** each part exists in some form; none reads bounds or claims.
+- **Constrains**: three mechanisms to keep consistent, so all three must read
+  one model (R3) rather than keep their own rules. The sweep's interval sets
+  how late a stall is noticed.
+- **Today**: each part exists in some form; none reads bounds or claims.
 
 ## Recommendation
 
@@ -89,7 +93,7 @@ alone fails R8, and option 2 alone is slow for moves that have an event.
 
 1. **Which option.** Answered (owner, 2026-11-13): option 4, the mix.
 2. **How often the reconciliation sweep runs.** Answered (owner, 2026-11-13):
-   daily, the longest interval that still catches triage's one-day bound. It
-   also writes each item's `Turn` ([design.md](design.md#open-questions)).
+   daily, the longest interval that still catches triage's bound of 1 day. It
+   also writes each item's `Turn` ([design.md](design.md#the-turn)).
    The weekly `board-sweep` keeps its planning (queues and candidates), which
    has no bound.
