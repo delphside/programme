@@ -125,6 +125,38 @@ artefact's ([1.2 §2.15](../../../../docs/1.2-change-lifecycle.md#215-classifyin
 Left out, for later: retiring `Requirement State`'s `On Hold` in favour of
 `Hold` (design.md question 2), and anything delphside/programme#138 takes.
 
+## Details settled from the test design
+
+The test design ([test-design.md](test-design.md), part 10) found these
+details unstated. Settled by the design authority on 2026-11-13; G1, G4 and
+G25 change requirement wording, so they go to the owner.
+
+| Gap | Settled |
+| --- | --- |
+| G2 | A held item's mover is the role holding it, at its review. A wait on a tool (`Deployment` waiting for a release) is `Hold`, with the release as its reason. |
+| G3 | A thread-set `Owner` with an approval comment, or a `Hold` with a valid reason, is kept by the sweep; any other `Turn` is overwritten by the derived value. |
+| G5 | A typed requirement with no state is written `Triage`, as `model.py`'s `stage_to_record` already does (owner, 2026-09-29). |
+| G6 | A Decision with no state starts at `Asked`. |
+| G7 | Tickets: `Waiting on sender` is `Hold`, its reason the sender; `Resolved` and `Refused` are the owner's, to close, 7 days. 1.8 is updated to match. |
+| G8 | `Candidate Project 1`'s bound is 7 days. |
+| G9 | A stale claim is kept and listed as offered; the thread that takes the item rewrites it. |
+| G10 | A parent stays at `Design and Test Approach` while any work package is open, and its bound is suspended until the last closes. |
+| G11 | `Development`'s age is the head commit of the package's open pull request; with none, the field's own age. |
+| G12 | `Post-deployment` is stalled 7 days after its review fell due: 14 days in all. |
+| G13 | A missed deploy is read from the closed release milestone: each open work package it carries is moved. |
+| G14 | An invalid `Hold` is listed for its role with the reason, and `Turn` is rewritten to the derived value. |
+| G15 | A malformed claim is reported and treated as no claim. |
+| G16 | A pull request's claim is the project thread its body's attribution line links. |
+| G17 | A value not in the flow table is reported, never rewritten, as 1.6 says of a renamed option. |
+| G18 | With no pinned issue, `board-flow.py` refuses and names it. Delivery 2 creates the issue by hand before its first real run. |
+| G19 | An item appears once on the owner's list. |
+| G20 | The REST timeout is a setting, so a test can shorten it. |
+| G21 | `board-flow.py` exits 0 when nothing is stalled, 1 when something is, and 2 when it could not finish. |
+| G22 | `board-flow.py --dry-run` writes nothing and prints what it would write. The technical tests run it dry first, then for real. |
+| G23 | A stopped thread is detected only through the bound. |
+| G24 | The owner's view shows `Requirement State` and `Turn` as columns; he judges R14's check. |
+| G26 | R6 is met by document review, not by a test. |
+
 ## Known gaps on today's tools
 
 The table delphside/programme#138 is judged on.
