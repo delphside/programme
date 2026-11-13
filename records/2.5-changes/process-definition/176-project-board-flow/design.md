@@ -3,13 +3,14 @@
 Design step 2 of
 [delphside/programme#176](https://github.com/delphside/programme/issues/176),
 whose requirements R1 to R15 are in its body (R15's design is in
-[implementation.md §6](implementation.md#6-the-session-start-to-do-list-and-the-comment-check-r15)). The four steps are the
-requirements, this model, the [options](options.md) for keeping items moving,
-and the [technology choices](implementation.md). This file gives one state
-machine per issue type, each state with its holder, what it owes, what it
-leaves on and its bound, before any choice of how it is built. It starts from
-what the board model already encodes (`scripts/board/model.py`, `turn.py`,
-`obligations.py`) and marks what is missing against R1 to R14.
+implementation.md's
+[section 6](implementation.md#6-the-session-start-to-do-list-and-the-comment-check-r15)).
+The four steps are the requirements, this model, the [options](options.md) for
+keeping items moving, and the [technology choices](implementation.md). This
+file gives one state machine per issue type, each state with its holder, what
+it owes, what it leaves on and its bound, before any choice of how it is built.
+It starts from what the board model already encodes (`scripts/board/model.py`,
+`turn.py`, `obligations.py`) and marks what is missing against R1 to R14.
 
 The [questions for the owner](#questions-for-the-owner) are answered, in the
 order the programme answers decisions.
@@ -23,7 +24,7 @@ The model's words come from Kanban and ITIL (R6) where they have one.
 | *holder* | the one actor an item in a state has (R1): the mover of the move it owes or, where it rests, whoever reviews the wait. Anyone else with a part in the state sees it on their own list. | Kanban *pull*: the one who pulls it |
 | *mover* | who makes an item's next move: the owner, a role's thread or a tool | Kanban *pull* |
 | *trigger* | what starts the move: an event, a schedule or a person's action | ITIL value stream *trigger* |
-| *flow table* | the table of holder, `Turn` and bound per type and state, held as data in the model and built in [implementation.md](implementation.md#1-the-flow-table-lives-in-the-board-model) | — |
+| *flow table* | the table of holder, `Turn`, bound, what the state owes and what it leaves on, per type and state, held as data in the model and built in [implementation.md](implementation.md#1-the-flow-table-lives-in-the-board-model) | — |
 | *bound* | how long an item may sit in a state before somebody is told | Kanban *service level expectation* |
 | *age* | how long an item has been in its current state | Kanban *work item age* |
 | *stalled* | age past bound, or a claim whose thread has not moved the item within the bound | — |
@@ -187,12 +188,12 @@ review` is the owner's; every other state is its author's. Bound: 7 days in any
 state. A pull request that owes no review is merged on green by its author
 thread, with no state saying so.
 
-Issue fields are not set on a pull request: [1.6's `github:issue
-fields`](../../../../docs/1.6-github-project-board.md) says REST accepts a value
-but cannot clear it again, so a field set on one is stuck until the UI removes
-it. A pull request's turn is therefore derived from `PR State` and shown in
-`board-actions.py`, not in the owner's view. Its claim is the project thread its
-body's attribution line links.
+Issue fields are not set on a pull request:
+[1.6's `github:issue fields`](../../../../docs/1.6-github-project-board.md) says
+REST accepts a value but cannot clear it again, so a field set on one is stuck
+until the UI removes it. A pull request's turn is therefore derived from
+`PR State` and shown in `board-actions.py`, not in the owner's view. Its claim
+is the project thread its body's attribution line links.
 
 Gaps: the infrastructure repository has no PR State workflow
 (delphside/tile-lite-elite#383 R15), and a merge on GitHub does not move the
@@ -224,15 +225,26 @@ rest:
 - A held item's holder is the role holding it, at its review. A wait on a tool
   (`Deployment` waiting for a release) is `Hold`, with the release as its
   reason.
-- An invalid `Hold` (no reason, a linked issue that has closed, a review date
-  that has passed) is listed for its role with the reason, and `Turn` is
-  rewritten to the derived value.
+- An invalid `Hold` is one whose reason is missing or has ended: none of the
+  [accepted reasons](#hold-reasons) holds. It is listed for its role with the
+  reason, and `Turn` is rewritten to the derived value.
 
 An item with a state the model cannot derive a holder for and no `Turn` set is
 lost: the sweep reports it to the holder role of its type where the type and
 workstream are known, and to the owner otherwise. A value not in the flow
 table (a renamed option) is reported and never rewritten, as 1.6 says of a
 renamed option.
+
+### Hold reasons
+
+A `Hold` is valid while one of these reasons holds, and is reviewed as stated.
+
+| Reason | Reviewed |
+| --- | --- |
+| an issue linked under *Dependencies and related work*, a `Decision` included | when the linked issue closes |
+| a named event, with a review date | at the review date |
+| an open release milestone: `Deployment` waits for its release, and a `Release Check` work package at `Post-deployment` waits for the next one | when the milestone closes |
+| a Ticket's sender, at `Waiting on sender` | after 7 days |
 
 ## Claims
 
@@ -250,7 +262,7 @@ holds the item and a link to the thread holding that role now.
 - A malformed claim is reported and treated as no claim.
 - A recovering sweep restarts only items with no live claim (R8, R9).
 - A thread stopped without notice is detected only through the bound.
-- A pull request's claim is in [pull request](#pull-request).
+- [Pull request](#pull-request) says what a pull request's claim is.
 
 ## What runs the flow
 
@@ -272,9 +284,10 @@ flowchart TB
     queue --> threads
 ```
 
-- **R3**: every holder and bound in the tables of this file, and the *owes* and
-  *leaves on* of the Requirement table, become data in the model, not prose in
-  a document. Today only the Decision row is.
+- **R3**: every holder and bound in the tables of this file, the *owes* of the
+  Requirement table and the *leaves on* of the Requirement and Project tables
+  become data in the [flow table](#the-vocabulary), not prose in a document.
+  Today only `DECISION_TURNS` is.
 - **R8 and R9**: a stalled item is found by its age or its stale claim, and a
   claim names the thread working it ([Claims](#claims)).
 - **R7**: on each sweep, the sweep writes an item with no type as a
@@ -324,9 +337,8 @@ technical.
      turn](#the-turn)).
    - **`Owner`** with a comment saying what is to be approved covers the
      approvals. The owner answers in a comment, and the thread moves it on.
-   - **`Hold`** needs a reason the model can check: an issue linked under
-     *Dependencies and related work*, or a named event with a review date. A
-     hold is reviewed at its review date.
+   - **`Hold`** needs one of the [accepted reasons](#hold-reasons), each
+     checkable by the model and each reviewed as that table says.
    - **Pull requests** take no `Turn`; [pull request](#pull-request) says why
      and where theirs is derived.
    - Retiring `Requirement State`'s `On Hold` is left for later
