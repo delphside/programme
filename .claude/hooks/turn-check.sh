@@ -104,7 +104,7 @@ ME="${ME:-__no_such_login__}"
 ME_J="$(python3 "$BOARD"/board-profile.py json-string "$ME")" || exit 0
 MARKER_J="$(python3 "$BOARD"/board-profile.py json-string "$DEPLOY_MARKER")" || exit 0
 # A cloud session posts as the owner's account; its footer marks it (#455 R9).
-FOOTER_J="$(cd "$BOARD/.." && python3 -c 'import json; from board.sources import FOOTER; print(json.dumps(FOOTER))')" || exit 0
+FOOTER_J="$(cd "$BOARD/.." && python3 -c 'import json; from board.sources import FOOTER; print(json.dumps(FOOTER))' 2>/dev/null)" || { echo "turn-check: cannot read the footer pattern from board/sources.py"; exit 0; }
 FILTER='.[] | select(.user.login != '"$ME_J"')
             | select((.body | startswith('"$MARKER_J"')) | not)
             | select((.body | test('"$FOOTER_J"')) | not)
