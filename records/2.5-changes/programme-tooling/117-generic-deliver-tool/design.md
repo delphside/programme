@@ -731,6 +731,53 @@ no layer above the middle sees Oracle's formats:
 | manifest or index | the media types; the platform manifests and attestation manifests an index lists; the digest that is the image digest |
 | Oracle error | the error envelope (`code`, `message`, HTTP status), as one of the port's four failures |
 
+##### Validation and errors
+
+**Each value is validated once, at the boundary where it enters**, so no layer
+checks again what the one before it checked:
+
+| Where | What it checks | A failure is |
+| --- | --- | --- |
+| domain types, on construction | a `Digest` is `sha256:` and 64 hexadecimal characters; a `Version` is semver; a commit is a full 40-character hexadecimal SHA; a `Repository`'s `kind` is candidates or releases | raised before any call: a profile error, exit 70, where the value came from the profile; otherwise *failed* |
+| translators, on what Oracle returns | a known manifest or index media type; an OCID's kind and region | *failed*; a reply that does not parse is *failed*, never *absent* |
+| port implementation | its rules ([the registry adapter](#the-registry-adapter)): the keep list, no overwrite of a version tag or `VERSION-record`, the tag still naming the chosen digest | the refusal the rule names |
+| bottom layer | the tool ran; its exit status; its output in the format expected (the `oci` CLI's JSON envelope); within the call's timeout ([§13](#13-non-functional-design)) | an API error |
+
+**An error is raised once and translated once**, layer by layer:
+
+1. The bottom layer raises one API error, carrying the tool, the call, the exit
+   status, the HTTP status where the tool reports it and the tool's error
+   text, with the registry address, namespace and OCIDs removed.
+2. The middle layer, through the Oracle-error translator, turns it into one of
+   the [four failures](#operations), or into *absent* where a read finds
+   nothing (a manifest unknown on inspect). It keeps the API error as the
+   cause, for the log.
+3. The port implementation adds the operation's context (which image, which
+   step) and applies the retry rule below.
+4. The commands turn a port failure into exit 1 and a message naming its kind
+   and the next step: for *refused*, `turpin login COMPONENT` or the policy,
+   noting that a new auth token can take a few minutes to work. Anything that
+   is not a port failure is a crash, exit 70
+   ([exit statuses](#6-commands)).
+
+**Only a call that is safe to repeat is retried, and only after *unreachable*
+or Oracle's throttling or server errors** (HTTP 429 and 5xx):
+
+- reads;
+- copy and push, since the same digest again is a no-op;
+- delete, since an image already gone counts as removed.
+
+*Refused* and *not found* are never retried. The number of attempts and the
+backoff are in [§13](#13-non-functional-design).
+
+**A failure part way leaves nothing half-written that a rerun trips on:**
+
+- promote writes every image first and the record last, so a failure part way
+  leaves no record, and a resumed release copies only what is missing
+  ([§10](#10-the-release-and-its-record)'s reruns);
+- remove: a failure between the check and the delete leaves the image, and the
+  next `prune` tries again.
+
 ##### Where each operation runs
 
 **Promote and remove run on another component's machine**, under its
@@ -1136,6 +1183,7 @@ reading the profile with `tomllib` (hence Python 3.11 or later) and JSON with
 | `gitrepo.py` | fetching, tags, the bump of `main`; `record_of_tag`, which calls the board model's `repo.tag_record`, the one parser of a record ([§10](#10-the-release-and-its-record)) |
 | `hosts.py` | `turpin-host`, on this machine or by `ssh`: the requests, and `Deployed` from `status` |
 | `remote.py` | a `turpin` command on another component's machine, by `ssh`: `build`, `promote`, `remove` and `login` passed on |
+| `settings.py` | the client's product settings: the registry retry limit, its backoff and a registry call's timeout ([§13](#13-non-functional-design)) |
 | `payload.py` | assembling the payload and its `profile.json` |
 | `board.py` | the board model's `release` module, imported from `scripts/board/`; before calling it, sets what `board-release.py`'s `_environment()` sets: `BOARD_REPOSITORY` from `TURPIN_GH_REPO` or the origin URL, and `PROGRAMME_CONFIG` where it is unset |
 | `registry/` | the registry port and the `OCIR` adapter ([the registry adapter](#the-registry-adapter)) |
@@ -2013,10 +2061,17 @@ with the items left, and the deploy exits 3.
   non-production VM. The builder's removals need the OCI CLI on its machine.
 - **Failure.** Gates refuse before a host changes ([§9](#9-gates-and-checks)); a
   failed deploy restores ([§11](#11-on-the-host)); a release resumes
-  ([§10](#10-the-release-and-its-record)).
+  ([§10](#10-the-release-and-its-record)); a registry call is validated,
+  translated and retried as [validation and errors](#validation-and-errors)
+  says.
 - **Limits and timeouts.** `pull_timeout` per environment, from a measured pull
   on its host (delphside/tile-lite-elite#554's check); a hook's limit is the
-  application's, such as Tile Lite Elite's 60-second smoke test.
+  application's, such as Tile Lite Elite's 60-second smoke test. A registry
+  call that may be retried ([validation and errors](#validation-and-errors))
+  gets three attempts, backing off from 2 seconds: a starting value with no
+  measurement behind it, revisited from the run log. It and a registry call's
+  timeout, which is set from the first measured calls, are product settings
+  in `settings.py` ([§5](#scripts-and-their-dependencies)).
 - **Secrets and access.** The tool holds no credential of its own: each
   component's registry login is in its own auth file or the machine user's
   `docker` login, written by those tools, or an API key in `~/.oci/`
