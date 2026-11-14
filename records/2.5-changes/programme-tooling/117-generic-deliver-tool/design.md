@@ -760,7 +760,8 @@ A short SHA is resolved to a full one by *list versions* before it reaches a
 `Build`, and one that resolves to no build or to several is a business error
 then.
 
-**An error is raised once and translated once**, layer by layer:
+**An error is raised where it is found and translated once.** The top raises
+its own business errors; an error from a registry call goes layer by layer:
 
 1. The bottom layer raises one API error, carrying the tool, the call, the exit
    status, the HTTP status where it can tell it, the attempts it made and the
