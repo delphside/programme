@@ -1923,7 +1923,9 @@ builder uses it with its `build:` blocks.
 9. switch `current`, run `compose up`, then `smoke`;
 10. mark the state `finished` and prune images under the registry address, and
     `deploys/<n>` folders, other than current and previous (local images are
-    untouched).
+    untouched). A pruned folder keeps its `meta.json`, a few hundred bytes, so
+    the host keeps the history of what it ran: which commit, version and
+    record, and when.
 
 A failure after `save-state` runs `restore-state`, switches to `previous`,
 reinstalls its host files and exits 1. A host's first `turpin` deploy has no
