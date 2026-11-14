@@ -625,13 +625,13 @@ repository on screen or in the log:
 
 | Type | What it is | Exit | The message says |
 | --- | --- | --- | --- |
-| business | the input is wrong: a request the port implementation refuses on validation (a bad value, a short SHA resolving to no build or to several, the keep list, no overwrite), or a correct answer that something the operation needed is not there | 1 | the value or the thing, for the user to fix the input |
-| technical | authorisation refused, a network failure, a timeout or a missing tool. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (authorisation, a missing tool) is never retried | 1 | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy or installing the tool |
-| bug | a case returns an invalid response: a reply that arrives whole but is invalid, output not in a tool's format at all, or anything else unexpected | 70 | that it is a defect, to raise as an issue; the cause is in the log |
+| *business* | the input is wrong: a request the port implementation refuses on validation (a bad value, a short SHA resolving to no build or to several, the keep list, no overwrite), or a correct answer that something the operation needed is not there | 1 | the value or the thing, for the user to fix the input |
+| *technical* | authorisation refused, a network failure, a timeout or a missing tool. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (authorisation, a missing tool) is never retried | 1 | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy or installing the tool |
+| *bug* | a response the code cannot use: an Oracle reply that is invalid, a tool's output not in its format, or anything else unexpected | 70 | that it is a defect, to raise as an issue; the cause is in the log |
 
 Whatever is neither business nor technical is a bug. A bad value is exit 1,
 refused, since it is there and wrong; docs/1.10's exit 2 is for a check that
-could not judge for want of one.
+could not judge for want of an argument.
 
 Every deploy pulls by digest with `docker pull`, in the payload's steps
 ([§11](#11-on-the-host)), outside the port.
@@ -742,12 +742,13 @@ no layer above the middle sees Oracle's formats:
 | Layer | Finds | Reports |
 | --- | --- | --- |
 | top: port implementation | business errors on validation: each value's form, before any call; the request's rules ([the registry adapter](#the-registry-adapter)), the keep list and no overwrite of a version tag or `VERSION-record`, before any write, since no overwrite needs an inspect of releases. It wraps whatever comes from below with the operation's context (which image, which step), keeping its type | business errors; a remove left where the tag has moved, which is no error; what comes from below, wrapped |
-| middle: Oracle calls | through the translators, Oracle's answers: a manifest unknown; a delete answered `NotAuthorizedOrNotFound` (below); a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region). Its calls are well formed, since the top has validated them | *absent* for a manifest unknown on a read; a business error where the operation needed the thing; a bug for an invalid reply |
+| middle: Oracle calls | through the translators, Oracle's answers: a manifest unknown; a delete answered `NotAuthorizedOrNotFound` (below); a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region). Its calls are well formed, since the top has validated them | *absent* for a manifest unknown on a read; a business error where the operation needed the thing; a technical error for a delete answered `NotAuthorizedOrNotFound`; a bug for an invalid reply |
 | bottom: the APIs | technical errors: authorisation, the network, a timeout, a missing tool; and output not in the tool's format at all (not JSON, no envelope). It retries a blip (below) | technical errors; a bug for output not in its format |
 
-So business errors come from the top (validation) and the middle (not found),
-technical errors from the bottom, and bugs from the middle (an invalid reply)
-or the bottom (output not in its format).
+So business errors come from the top (validation) and the middle (not found);
+technical errors from the bottom, and from the middle for a delete answered
+`NotAuthorizedOrNotFound`; and bugs from the middle (an invalid reply) or the
+bottom (output not in its format).
 
 **A domain type checks its own form where the value is made**: a `Digest` is
 `sha256:` and 64 hexadecimal characters, a `Version` is semver, a `Build`'s
@@ -1322,7 +1323,7 @@ In the programme repository:
 | `scripts/deliver/payload/` | deploy and rollback steps for the payload image |
 | `scripts/tests/test_turpin_*.py`, `scripts/tests/turpin-*.bats` | tests: the client's; `turpin-host`'s and the payload's |
 | `scripts/board/` | the board model, reused, which is the GitHub adapter: `release.py` the module the client imports, `board-release.py` a thin command-line entry point over it, `sources.py` its GitHub calls; the board reads tags with `tag_prefix` as releases and `history_prefixes` as history |
-| docs/1.1, 1.2 | 1.1: the tool's row. 1.2: *Making a release, then deploying it*, and §1.0, which states that a release is "a commit on `main`" (delphside/tile-lite-elite#545 R5) |
+| docs/1.1, 1.2, 1.10 | 1.1: the tool's row. 1.2: *Making a release, then deploying it*, and §1.0, which states that a release is "a commit on `main`" (delphside/tile-lite-elite#545 R5). 1.10: the exit 70 row, which names only the board tooling, widened to the programme's Python tools, Turpin included |
 
 ## 6. Commands
 
@@ -1332,7 +1333,7 @@ its list did not.
 | Exit | Meaning |
 | --- | --- |
 | 0 | done |
-| 1 | refused, on a business or a technical error ([§3](#operations)), previous deploy restored if any |
+| 1 | a gate's refusal, or a business or technical error ([§3](#operations)); previous deploy restored if any |
 | 3 | live, but a later step (settle, GitHub Release, milestone) failed, named |
 | 70 | a profile error, or a bug: a defect, to raise as an issue; never read as refused |
 
@@ -1700,7 +1701,7 @@ ssh   = "tile-lite-elite"
 login = "oci-instance-principal"
 host_files = true                          # default: true for roles rehearsal and production
 # lock = "/var/lib/turpin/APP/vm.lock"    # dp: one lock for E3 to E6 and its heavy runs
-pull_timeout = 300                         # from delphside/tile-lite-elite#554's measured pull
+pull_timeout = 300                         # unmeasured; delphside/tile-lite-elite#555's first deploy measures it
 ```
 
 Also:
@@ -2093,16 +2094,17 @@ with the items left, and the deploy exits 3.
   ([§10](#10-the-release-and-its-record)); a registry call is validated,
   translated and retried as [validation and errors](#validation-and-errors)
   says.
-- **Limits and timeouts.** `pull_timeout` per environment, from a measured pull
-  on its host (delphside/tile-lite-elite#554's check); a hook's limit is the
-  application's, such as Tile Lite Elite's 60-second smoke test. A registry
-  call that may be retried ([validation and errors](#validation-and-errors))
-  gets three attempts, waiting 2 seconds, then 4; a registry call times out
-  after 300 seconds, Tile Lite Elite's measured pull time used for a registry
-  call. All three are unmeasured starting values,
-  product settings in `settings.py` ([§5](#scripts-and-their-dependencies)),
-  set from the first runs' call times ([§14](#14-moving-tile-lite-elite-to-it))
-  and then revisited from the run log.
+- **Limits and timeouts.** `pull_timeout` per environment, set from a pull
+  measured on its host (Tile Lite Elite's by delphside/tile-lite-elite#555's
+  first deploy); a hook's limit is the application's, such as Tile Lite
+  Elite's 60-second smoke test. A registry call that may be retried
+  ([validation and errors](#validation-and-errors)) gets three attempts,
+  waiting 2 seconds, then 4; a registry call times out after 300 seconds,
+  Tile Lite Elite's unmeasured `pull_timeout`, used for a registry call too.
+  All three are unmeasured starting values, product settings in `settings.py`
+  ([§5](#scripts-and-their-dependencies)), set from the first runs' call times
+  ([§14](#14-moving-tile-lite-elite-to-it)) and then revisited from the run
+  log.
 - **Secrets and access.** The tool holds no credential of its own: each
   component's registry login is in its own auth file or the machine user's
   `docker` login, written by those tools, or an API key in `~/.oci/`
