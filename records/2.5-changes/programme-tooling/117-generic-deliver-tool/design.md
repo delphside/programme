@@ -143,6 +143,12 @@ the Artifacts API makes no registry login and has no kind: the builder's
 | `Profile` | the application's profile at a commit or in the working tree | the keys of [§8](#8-profile-and-hooks), with `environments` as `Environment`s |
 | `GateRequest` | what the release gate needs that the board does not hold; the [board model](#the-board-model)'s own type | `version`, `sha`, `range`, `main_range`, `carry_from`, `prefixes`, `emergency`, `milestone_set_aside` |
 | `GateResult` | the release gate's answer; the board model's own type | `gates` (each a verdict: `name`, `passed`, `message`, `reported`), `notes`, `carries`, `left_out` |
+| `Result` | how an operation or a command ended, as [docs/1.10](../../../../docs/1.10-development-standards.md#what-a-scripts-exit-status-means)'s result object ([§6](#errors-results-and-the-pivot)) | `outcome` (ok, warning, error or fatal); for an error or a fatal one, `type` (business, technical or unexpected) and, for a technical one, `blip`; `reason`, `domain`, `message`, `metadata`, `violations` (each a refused value's `field`, `value`, `limit` and `reason`), `cause` (the `Result` from below, or none) |
+
+**An error is raised as a `ProgrammeError`**: a `BusinessError`, a
+`TechnicalError` or an `UnexpectedError`, in `model.py`, each carrying its
+`Result`. One raised in answer to another is raised `from` it, and its
+result's `cause` is the other's result.
 
 ### The process
 
@@ -354,7 +360,8 @@ sequenceDiagram
    against releases and sends the record to production's deployer, which pulls
    the images from releases by digest and runs the same steps.
 7. **Settle.** The controller settles the board from the record
-   ([§12](#12-settling)); a failure leaves the deploy standing, exit 3.
+   ([§12](#12-settling)); a failure leaves the deploy standing, since it is
+   past the deploy's [pivot](#errors-results-and-the-pivot), exit 3.
    `post-deploy` follows ([§9](#9-gates-and-checks)).
 
 ## 3. OCI Registry integration
@@ -620,18 +627,20 @@ tool, protocol or tag form:
 
 *Absent* is an answer, not an error: the registry says the image or record is
 not there, which is told apart from its being unreachable. An error reaches
-Turpin as one of three types, as a user meets it, with no registry address or
-repository on screen or in the log:
+Turpin as one of the three types of
+[docs/1.10](../../../../docs/1.10-development-standards.md#what-a-scripts-exit-status-means),
+as a user meets it, with no registry address or repository on screen or in the
+log:
 
-| Type | What it is | Exit | The message says |
+| Type | What it is in the registry | Exit, where it stops the run | The message says |
 | --- | --- | --- | --- |
-| *business* | the input is wrong: a request the port implementation refuses on validation (a bad value, a short SHA resolving to no build or to several, the keep list, no overwrite), or a correct answer that something the operation needed is not there | 1 | the value or the thing, for the user to fix the input |
-| *technical* | authorisation refused, a network failure, a timeout or a missing tool. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (authorisation, a missing tool) is never retried | 1 | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy or installing the tool |
-| *bug* | a response the code cannot use: an Oracle reply that is invalid, a tool's output not in its format, or anything else unexpected | 70 | that it is a defect, to raise as an issue; the cause is in the log |
+| *business* | the input is wrong: a request the port implementation refuses on validation (a bad value, a short SHA resolving to no build or to several, the keep list, no overwrite), or a correct answer that something the operation needed is not there | 1 | which input to fix; the value is in `violations`, the thing in `metadata` |
+| *technical* | authorisation refused, a network failure, a timeout or a missing tool. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (authorisation, a missing tool) is never retried | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy or installing the tool |
+| *unexpected* | any error the code did not expect: an Oracle reply that is invalid, a tool's output not in its format, or anything else not foreseen; usually a defect, Turpin's or a vendor's | 70 | that it was not expected, to raise as an issue; the cause is in the log |
 
-Whatever is neither business nor technical is a bug. A bad value is exit 1,
-refused, since it is there and wrong; docs/1.10's exit 2 is for a check that
-could not judge for want of an argument.
+Whatever is neither business nor technical is unexpected. Before a command's
+[pivot](#errors-results-and-the-pivot) every error stops the run; after it,
+the run carries on and exits 3.
 
 Every deploy pulls by digest with `docker pull`, in the payload's steps
 ([§11](#11-on-the-host)), outside the port.
@@ -742,38 +751,44 @@ no layer above the middle sees Oracle's formats:
 | Layer | Finds | Reports |
 | --- | --- | --- |
 | top: port implementation | business errors on validation: each value's form, before any call; the request's rules ([the registry adapter](#the-registry-adapter)), the keep list and no overwrite of a version tag or `VERSION-record`, before any write, since no overwrite needs an inspect of releases. It wraps whatever comes from below with the operation's context (which image, which step), keeping its type | business errors; a remove left where the tag has moved, which is no error; what comes from below, wrapped |
-| middle: Oracle calls | through the translators, Oracle's answers: a manifest unknown; a delete answered `NotAuthorizedOrNotFound` (below); a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region). Its calls are well formed, since the top has validated them | *absent* for a manifest unknown on a read; a business error where the operation needed the thing; a technical error for a delete answered `NotAuthorizedOrNotFound`; a bug for an invalid reply |
-| bottom: the APIs | technical errors: authorisation, the network, a timeout, a missing tool; and output not in the tool's format at all (not JSON, no envelope). It retries a blip (below) | technical errors; a bug for output not in its format |
+| middle: Oracle calls | through the translators, Oracle's answers: a manifest unknown; a delete answered `NotAuthorizedOrNotFound` (below); a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region). Its calls are well formed, since the top has validated them | *absent* for a manifest unknown on a read; a business error where the operation needed the thing; a technical error for a delete answered `NotAuthorizedOrNotFound`; an unexpected error for an invalid reply |
+| bottom: the APIs | technical errors: authorisation, the network, a timeout, a missing tool; and output not in the tool's format at all (not JSON, no envelope). It retries a blip (below) | technical errors; an unexpected error for output not in its format |
 
 So business errors come from the top (validation) and the middle (not found);
 technical errors from the bottom, and from the middle for a delete answered
-`NotAuthorizedOrNotFound`; and bugs from the middle (an invalid reply) or the
-bottom (output not in its format).
+`NotAuthorizedOrNotFound`; and unexpected errors from the middle (an invalid
+reply) or the bottom (output not in its format).
 
 **A domain type checks its own form where the value is made**: a `Digest` is
 `sha256:` and 64 hexadecimal characters, a `Version` is semver, a `Build`'s
 `commit` is a full 40-character hexadecimal SHA, and a `Repository`'s `kind`
 is candidates or releases. The top's validation is of the request as a whole.
-A value that fails its form is refused before any call: from the command line,
-a business error naming the value; from the profile, a profile error, exit 70.
-A short SHA is resolved to a full one by *list versions* before it reaches a
-`Build`, and one that resolves to no build or to several is a business error
-then.
+A value that fails its form is refused before any call, as a business error
+naming the argument or, from the profile, the key, with each bad value in its
+result's `violations`. A short SHA is resolved to a full one by *list versions*
+before it reaches a `Build`, and one that resolves to no build or to several is
+a business error then.
 
 **An error is raised where it is found and translated once.** The top raises
 its own business errors; an error from a registry call goes layer by layer:
 
-1. The bottom layer raises one API error, carrying the tool, the call, the exit
-   status, the HTTP status where it can tell it, the attempts it made and the
-   tool's error text, with the registry address, namespace and OCIDs removed.
+1. The bottom layer raises one API error, whose result has domain `oracle`:
+   its `reason` is Oracle's error code in upper snake case where there is one,
+   else the tool's failure, such as `TIMEOUT`, and its `metadata` the tool, the
+   call, the exit status, the HTTP status where it can tell it, the attempts it
+   made and the tool's error text, with the registry address, namespace and
+   OCIDs removed.
 2. The middle layer, through the Oracle-error translator, turns Oracle's answer
-   into *absent*, a business error or a bug, and passes a technical error on.
-   It keeps the API error as the cause, for the log.
-3. The port implementation wraps it in the operation's context.
+   into *absent*, a business error or an unexpected error, and passes a
+   technical error on, each of domain `turpin` and raised `from` the API error,
+   whose result is its `cause`, for the log.
+3. The port implementation adds the operation's context (which image, which
+   step) to the result's `metadata`, keeping its type and `reason`.
 4. The commands give each type its exit status and message
-   ([operations](#operations), [exit statuses](#6-commands)). For a
-   fundamental technical error from a login, the message also says that a new
-   auth token can take a few minutes to start working (observed 2026-11-12).
+   ([operations](#operations),
+   [exit statuses](#errors-results-and-the-pivot)). For a fundamental
+   technical error from a login, the message also says that a new auth token
+   can take a few minutes to start working (observed 2026-11-12).
 
 **The bottom layer retries a blip**, after a network error or a timeout, HTTP
 429 or 5xx, in a call that is safe to repeat, since only it sees the status:
@@ -1062,9 +1077,10 @@ refused or as empty:
 | Condition | Exit |
 | --- | --- |
 | a `GateResult` that refuses | 1 |
-| a read of the board or git that cannot be made | 1 |
-| work left undone in `settle`, `open_next` or `publish`, named | 3 |
-| a profile error or a crash | 70 |
+| a read of the board or git that cannot be made | 75 for a blip, 2 for a fundamental one |
+| a profile error | 1, a business error naming the key |
+| work left undone in `settle`, `open_next` or `publish`, named | 3, after the [pivot](#errors-results-and-the-pivot) |
+| a crash, or anything else unexpected | 70 |
 
 **The revert rule** ([the milestone gate](#the-milestone-gate)) is in
 `repo.py`, so `board-check.py`'s pre-flight counts reverts as the gate does.
@@ -1205,8 +1221,8 @@ reading the profile with `tomllib` (hence Python 3.11 or later) and JSON with
 
 | Module, in `scripts/deliver/turpinlib/` | Holds |
 | --- | --- |
-| `cli.py` | the front end: arguments, the [flags that set a gate aside](#flags-that-set-a-gate-aside), exit statuses |
-| `model.py` | the [domain model](#domain-model) |
+| `cli.py` | the front end: arguments, the [flags that set a gate aside](#flags-that-set-a-gate-aside), a `Result`'s exit status and log line |
+| `model.py` | the [domain model](#domain-model), `Result` and the `ProgrammeError` classes included |
 | `profile.py` | `app-profile.toml` at a commit or in the working tree, as a `Profile` |
 | `runlog.py` | the run log, and the gates each command expects to run |
 | `gates.py` | the [§9](#9-gates-and-checks) gates that are not the board model's |
@@ -1324,19 +1340,53 @@ In the programme repository:
 | `scripts/deliver/payload/` | deploy and rollback steps for the payload image |
 | `scripts/tests/test_turpin_*.py`, `scripts/tests/turpin-*.bats` | tests: the client's; `turpin-host`'s and the payload's |
 | `scripts/board/` | the board model, reused, which is the GitHub adapter: `release.py` the module the client imports, `board-release.py` a thin command-line entry point over it, `sources.py` its GitHub calls; the board reads tags with `tag_prefix` as releases and `history_prefixes` as history |
-| docs/1.1, 1.2, 1.10 | 1.1: the tool's row. 1.2: *Making a release, then deploying it*, and §1.0, which states that a release is "a commit on `main`" (delphside/tile-lite-elite#545 R5). 1.10: the exit 70 row, which names only the board tooling, widened to the programme's Python tools, Turpin included |
+| docs/1.1, 1.2, 1.10 | 1.1: the tool's row. 1.2: *Making a release, then deploying it*, and §1.0, which states that a release is "a commit on `main`" (delphside/tile-lite-elite#545 R5). 1.10: none; docs/1.10 owns the error scheme, which Turpin follows ([§6](#errors-results-and-the-pivot)) |
 
 ## 6. Commands
 
 Every command writes a run log naming each gate it ran, and refuses if one in
 its list did not.
 
-| Exit | Meaning |
+### Errors, results and the pivot
+
+**Turpin follows the error scheme of
+[docs/1.10](../../../../docs/1.10-development-standards.md#what-a-scripts-exit-status-means)**:
+the three types, the severities, the exit statuses and the result object. What
+is Turpin's own is below.
+
+| Exit | Meaning in Turpin |
 | --- | --- |
-| 0 | done |
-| 1 | a gate's refusal, or a business or technical error ([§3](#operations)); previous deploy restored if any |
-| 3 | live, but a later step (settle, GitHub Release, milestone) failed, named |
-| 70 | a profile error, or a bug: a defect, to raise as an issue; never read as refused |
+| 0 | done; a warning, such as a check's failure, is in the log |
+| 1 | stopped: a gate refused, or a business error ([§3](#operations)) |
+| 2 | stopped: a fundamental technical error, naming its next step |
+| 75 | stopped: a blip whose retries ran out, or `--wait` at its limit; try again later |
+| 70 | stopped: an unexpected error, to raise as an issue; never read as refused |
+| 3 | done with errors: a step after the command's pivot failed, named with the command that reruns it |
+
+**Each command that changes something names its pivot**, the step after which
+it is not undone (the saga pattern's pivot transaction). Before the pivot, an
+error is fatal: the run stops, undoes what it changed and exits by the error's
+type. After it, an error is logged at severity *error*, the run carries on
+with the steps that do not need the one that failed, and it exits 3, the
+message naming the command that reruns what failed.
+
+| Command | Pivot | Before it | After it |
+| --- | --- | --- | --- |
+| `deploy` | marking the state `finished` ([§11](#11-on-the-host), step 10), once `smoke` has passed. The switch of `current` and `compose up` come before it, so a `smoke` failure still restores | a failure from `save-state` on restores the previous deploy; one earlier has changed nothing that runs | the host's prune of images and folders, which the next deploy repeats; on production, `settle` ([§12](#12-settling)), rerun by `turpin settle VERSION`; `post-deploy`, a check, whose failure is a warning |
+| `release` | the push of the tag `vVERSION` ([§10](#10-the-release-and-its-record), step 4), where the version is spent | the images and `VERSION-record` already copied stay in releases, which nothing deletes from, for the rerun to reuse | the GitHub Release, the bump of `main` and the next milestone, rerun by `turpin release`, which resumes |
+| `settle` | none: each action skips what is done, so a rerun retries only what failed | a failure before any action, such as the record unread, stops, exit by type | each failed action an error, the others carried on, rerun by `turpin settle VERSION` |
+| `prune` | none: each delete is independent of the others | a failure while choosing (a host's state or the registry unread) stops, exit by type, nothing removed | each failed delete an error, the others carried on, rerun by `turpin prune` |
+
+Every other command stops at its first error, exit by its type.
+
+**Every result is docs/1.10's result object**, a [`Result`](#domain-model):
+each error and warning in the run log, and the output of
+`turpin-host status --json`, whose `metadata` holds the status. Turpin's
+results have domain `turpin`; a registry error's `cause` has domain `oracle`
+([validation and errors](#validation-and-errors)). Each `reason` is a member of
+one enumeration in `model.py`, so it is unique in its domain. A `message` holds
+no tool's text and no registry address, namespace or OCID: the tool's text,
+with those removed, is in the cause's `metadata`.
 
 ### The commands
 
@@ -1357,13 +1407,13 @@ JSON request on standard input.
 | `turpin settle VERSION` | controller | owner | the board to what the record says shipped ([§12](#12-settling)); safe to rerun | controller: the owner's `gh` login, through the board model |
 | `turpin rollback ENV` | controller | owner | `turpin-host rollback`: ENV's previous deploy ([§11](#11-on-the-host)) | controller: the owner's `ssh` key. Deployer: as for `deploy` |
 | `turpin status ENV`, `list ENV` | controller | owner | digests ENV runs (`RepoDigests`), their record, deploy state, host files against the payload's (a check); `list`: the records beside what ENV runs | controller: its `skopeo` login (read), the owner's `ssh` key |
-| `turpin prune [--dry-run]` | controller; `turpin remove` on the builder | owner | the controller picks the unneeded candidates, reading every environment's state and the registry with its own login, and sends the list to the builder (`[turpin.build].on`), with the digests releases holds as its keep list; the builder's removal credential removes them; never releases. `--dry-run` lists and sends nothing. Exit 1 if the builder fails to remove any chosen candidate (the rest are removed) | controller: its `skopeo` login (read), `ssh` to every host and the builder. Builder: its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates, through the Artifacts API) |
+| `turpin prune [--dry-run]` | controller; `turpin remove` on the builder | owner | the controller picks the unneeded candidates, reading every environment's state and the registry with its own login, and sends the list to the builder (`[turpin.build].on`), with the digests releases holds as its keep list; the builder's removal credential removes them; never releases. `--dry-run` lists and sends nothing. A candidate the builder fails to remove is an error, and the rest are removed, exit 3 ([the pivot](#errors-results-and-the-pivot)) | controller: its `skopeo` login (read), `ssh` to every host and the builder. Builder: its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates, through the Artifacts API) |
 | `turpin login COMPONENT` | controller; on the component's machine, `turpin login` (builder, copier) or `turpin-host login` (an environment) | owner | the owner's one `docker-config` login for `controller`, `builder`, `copier` or an environment (its deployer): asks for the registry user, reads the token at a hidden prompt, and sends both on standard input to the component's machine ([§3](#3-oci-registry-integration) says which login each makes). Prints nothing of the token | the owner's `ssh` key to the component's machine; writes only that component's login |
 | `turpin env create\|destroy NAME` | deployer, on the environment's host | owner, on the environment's host | an ephemeral environment from the profile template: user, state folder, `.env` (secrets at a hidden prompt), Compose project; the `env-*` hooks | deployer: the deploy user and *root-ops* |
 | `turpin host-install ENV` | controller | owner | installs or updates `turpin-host` and libraries on ENV's host; installs `jq` if missing; refuses if `flock` or the tools its credential kind needs (`oci`) are absent. Refuses environments that would remove each other's host files ([§9](#9-gates-and-checks)) | the owner's `ssh` key, as a user with `sudo` on the target machine, to install into `/usr/local` |
 | `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
 | `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | switch to `previous`. The request: `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait` | as for `deploy` |
-| `turpin-host status APP ENV --json` | deployer | `status`, `list`, `prune`, release, the rehearsal-level gate, production's version read | what runs, its record, state | the deploy user (reads its state) |
+| `turpin-host status APP ENV --json` | deployer | `status`, `list`, `prune`, release, the rehearsal-level gate, production's version read | what runs, its record, state, as a [result object](#errors-results-and-the-pivot) | the deploy user (reads its state) |
 | `turpin promote APP < request` | release copier | `turpin release` and `turpin deploy --unrecorded`, on `[turpin.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request: `login`, `candidates`, `releases`, `copies` (`digest`, `dest` name), `record` (`tag`, `body`) or null | its `skopeo` login (read candidates, write releases) |
 | `turpin remove APP < request` | builder | `turpin prune`, on `[turpin.build].on` with the build login | remove each candidate the controller chose, through the Artifacts API ([the registry adapter](#the-registry-adapter)), only while the tag still has that digest, and never a digest in `keep`; an absent tag is done. The request: `login`, `candidates`, `removes` (`tag`, `digest`) and `keep` (the digests releases holds) | its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates) |
 | `turpin-host login APP deployer ENV` | deployer | `turpin login ENV`, on the environment's host | `docker login --password-stdin` for the machine user, user and token on standard input | writes only that deployer's login |
@@ -1465,8 +1515,8 @@ is one and always in the run log:
 `--check` runs every gate and stops before anything changes (Tile Lite Elite's
 `verify.sh` uses it). `deploy --wait[=MIN]` waits for the lock and for a hook
 answering *not yet*, checking each minute, 60 minutes by default (Dark Portal's
-longest wait outside its window is 50); at the limit it refuses, exit 1,
-naming what it waited for.
+longest wait outside its window is 50); at the limit it stops as a blip,
+exit 75, naming what it waited for, with nothing changed.
 
 ## 7. Deployment model
 
@@ -1733,8 +1783,8 @@ missing hook is a no-op. Only `build` has a default.
 | Exit | Meaning |
 | --- | --- |
 | 0 | passed |
-| 75 | not yet (`--wait` retries; else refuse) |
-| other | refused, or step failed |
+| 75 | not yet: `--wait` retries; else the run stops as a blip, exit 75 |
+| other | refused, or the step failed: a business error naming the hook, exit 1 |
 
 **The `build` hook writes OCI image layouts.** It builds each image of the set
 and writes it as an OCI image layout, a directory holding that one image,
@@ -1784,8 +1834,9 @@ cannot do.
 ## 9. Gates and checks
 
 A gate refuses and work stops; a check reports and a person decides. A check's
-failure leaves the exit code alone, except settle's after a production deploy,
-which exits 3 ([§12](#12-settling)).
+failure is a warning and leaves the exit status alone, except settle's after a
+production deploy, an error after the deploy's
+[pivot](#errors-results-and-the-pivot), exit 3 ([§12](#12-settling)).
 
 | Where | For | Criterion | Kind | Set aside by |
 | --- | --- | --- | --- | --- |
@@ -1848,7 +1899,8 @@ The release step ([stages](#stages), stage 5) puts what cannot be undone last:
    no-op, another digest refuses;
 3. push the record as a scratch image `VERSION-record`;
 4. push the annotated tag `vVERSION`, whose message is the record. **The version
-   is spent here**: a rerun checks the tag's record and resumes at 5;
+   is spent here**, the release's [pivot](#errors-results-and-the-pivot): a
+   rerun checks the tag's record and resumes at 5;
 5. the GitHub Release, notes from the previous release tag of any prefix
    ([§4](#4-github-integration));
 6. bump `main` to the next patch after the released version, skipped if `main`
@@ -1863,8 +1915,8 @@ after a failure:
 
 | Failure point | Outcome |
 | --- | --- |
-| before step 4 | nothing is spent; a rerun reuses the images and any `VERSION-record` whose commit and digests match, else refuses |
-| after step 4 | exit 3; a rerun resumes |
+| before step 4 | the run stops, exit by type, and nothing is spent; a rerun reuses the images and any `VERSION-record` whose commit and digests match, else refuses |
+| after step 4 | an error; the later steps still run, exit 3, the message naming `turpin release`, which resumes |
 | a tag with a different record | refuses |
 | all steps done | exits 0 |
 
@@ -2007,11 +2059,14 @@ builder uses it with its `build:` blocks.
     whole record and is under a kilobyte, so the host keeps the history of
     what it ran: which commit, version and record, and when.
 
-A failure after `save-state` runs `restore-state`, switches to `previous`,
-reinstalls its host files and exits 1. A host's first `turpin` deploy has no
-`previous`: failure runs `restore-state`, stops the new containers, removes
-`current`, marks the state `failed, no previous deploy` and exits 1 naming the
-fallback (`[turpin].fallback`).
+**Step 10's marking `finished` is the deploy's
+[pivot](#errors-results-and-the-pivot).** A failure before it, `smoke`'s
+included, stops the deploy and exits by its type. One after `save-state` first
+runs `restore-state`, switches to `previous` and reinstalls its host files. A
+host's first `turpin` deploy has no `previous`: failure runs `restore-state`,
+stops the new containers, removes `current`, marks the state
+`failed, no previous deploy` and names the fallback (`[turpin].fallback`). A
+failed prune after the pivot is an error, exit 3, and the deploy stands.
 
 **Rollback** is the same switch to `previous` on demand, with `restore-state`
 and host files restored alike. It removes `previous`, so a second refuses, as
@@ -2078,8 +2133,10 @@ holds 0.10.2 (`issues` [1, 3], `dropped` [2]). Deploying it settles #4; settles
 items 1 and 3 with `Released in v0.10.2, deployed with v0.10.3`; comments on #2
 that it did not ship and removes it from 0.10.2; and closes both milestones.
 
-Each action skips what is done, so a rerun is harmless. A failure is reported
-with the items left, and the deploy exits 3.
+Each action skips what is done, so a rerun is harmless, and settle has no
+[pivot](#errors-results-and-the-pivot). A failed action is an error: the others
+still run, the items left are named, and `settle`, or the deploy that ran it,
+exits 3, the message naming `turpin settle VERSION`.
 
 ## 13. Non-functional design
 
@@ -2091,7 +2148,9 @@ with the items left, and the deploy exits 3.
   ([operations](#operations)): Tile Lite Elite's laptop, Dark Portal's
   non-production VM. The builder's removals need the OCI CLI on its machine.
 - **Failure.** Gates refuse before a host changes ([§9](#9-gates-and-checks)); a
-  failed deploy restores ([§11](#11-on-the-host)); a release resumes
+  failed deploy restores ([§11](#11-on-the-host)); after a command's
+  [pivot](#errors-results-and-the-pivot) a failed step leaves the rest standing,
+  exit 3; a release resumes
   ([§10](#10-the-release-and-its-record)); a registry call is validated,
   translated and retried as [validation and errors](#validation-and-errors)
   says.

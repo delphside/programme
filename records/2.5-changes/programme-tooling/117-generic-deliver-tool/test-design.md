@@ -6,7 +6,7 @@ Project: delphside/programme#117 · type of change: `tooling` · route: `Docs an
 
 This specification derives the tests for `turpin` from its stated rules, without reading the implementation. Its sources are:
 
-- the design, `records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md` (2026-11-13 revision);
+- the design, `records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md` (2026-11-14 revision);
 - #117's body;
 - delphside/tile-lite-elite#545, #555 and #556;
 - docs/1.2 *Making a release, then deploying it* and §2.5;
@@ -34,11 +34,11 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R5 | The payload goes into `payload_image` at `/turpin/`, from the pinned submodule and the app repository. It holds nothing secret. Joined files come from the payload and never from a working tree. An environment may name its own `join`. | §3; §8 |
 | R6 | `deploy ENV REF` checks REF against the environment's role. For preview, test and rehearsal, REF is a full or short SHA or a version, resolved in candidates. A short SHA that matches more than one candidate refuses. For production it is a version with a record, pulled from releases. The deploy runs over ssh, or locally where `host = "controller"`, and then `settle` for production. Gates key on the role, never the name. | §2; §6 |
 | R7 | Every image is pulled by digest. Its revision label must equal the SHA, and the running containers' `RepoDigests` must match. | §9 |
-| R8 | The environment's lock (`flock`) must be free and is held to the end. `--wait[=MINUTES]` waits for the lock and for a hook's exit 75, checking each minute, for at most 60 minutes by default. At the limit it refuses, exit 1, naming what it waited for, with nothing changed. | §6; §9; §11 |
+| R8 | The environment's lock (`flock`) must be free and is held to the end. `--wait[=MINUTES]` waits for the lock and for a hook's exit 75, checking each minute, for at most 60 minutes by default. At the limit it stops as a blip, exit 75, naming what it waited for, with nothing changed. | §6; §9; §11 |
 | R9 | A deploy refuses unless the state file shows the last deploy finished. Exception: a state of `failed, no previous deploy` (a first deploy that failed and was restored) does not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `turpin rollback`; a redeploy refuses until then. | §9; §11 |
 | R10 | `pre-deploy` is a gate. It can be set aside with `--set-aside`, where the profile marks it overridable. | §8; §9 |
 | R11 | A deploy runs these steps in order: lock, then state, then pull by digest, then payload, then `pre-deploy`, then the new deploy folder, then `save-state`, then `migrate`, then host files, then the `current` switch, then `compose up`, then `smoke`, then finished, then pruning host images. Compose runs with a fixed project name, `--project-directory` the deploy's own folder `deploys/N`, the host `.env` and then `deploys/N/turpin.env`, and `--no-build`. | §11 |
-| R12 | A failure after `save-state` runs `restore-state`, switches back to `previous` and reinstalls its host files, then exits 1. On a host's first `turpin` deploy there is no `previous`: the failure runs `restore-state`, stops the new containers, removes `current`, marks the state `failed, no previous deploy`, and exits 1 naming the application's fallback. | §9; §11 |
+| R12 | A failure after `save-state` runs `restore-state`, switches back to `previous` and reinstalls its host files, then exits by the error's type: 1 for a hook's refusal or failure. On a host's first `turpin` deploy there is no `previous`: the failure runs `restore-state`, stops the new containers, removes `current`, marks the state `failed, no previous deploy`, and exits by the error's type, naming the application's fallback. | §9; §11 |
 | R13 | Host files are installed with their modes, followed by `systemctl daemon-reload`. Units marked `enable` are enabled and restarted. A host file the previous deploy installed and this one does not carry is removed. `turpin status` compares the host's copies with the payload, as a check. | §9; §11 |
 | R14 | A host keeps only its current and previous image sets. | §11; §13 |
 | R15 † | A rehearsal cycle is the deploys to a rehearsal-role environment since the last release was made. Its first deploy must be production's current record, read from the production host's state over ssh and pulled from candidates by the same digests. Production running a build with no record refuses. `--off-level REASON` sets this aside. | §9 |
@@ -49,16 +49,16 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R20 | Parents aside, every open issue in milestone VERSION must be evidenced by a `Refs #N` since the release production runs. A parent's `Refs` is reported beside its work package and never counted for it (delphside/tile-lite-elite#375). A commit a later commit in the range reverts, and that revert, name nothing. Every work package those commits name whose `Route` is Production Release must be in the milestone; work packages of other routes are left out. With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 7. Otherwise the release refuses. `--set-aside milestone REASON` sets the gate aside where the profile's `[release].overridable` lists `milestone`. | §9; docs/1.2 |
 | R20a | Every work package in milestone VERSION has a *Functional user tests* or a *Technical tests* heading, and every box under the headings it has is ticked (`release.outstanding`); a package with neither heading refuses. With `--emergency` it is a check: reported, not refused. | §9 |
 | R21 | `release-check` is a gate. It can be set aside with `--set-aside` where overridable. | §9 |
-| R22 | The release runs in this order: gates and confirmation, then copy, then `VERSION-record`, then the annotated tag `vVERSION`, then the GitHub Release, then the bump, then the milestone. A copy already present with the same digest is a no-op. The version is spent at the tag. A rerun after the tag checks that the tag's record matches and resumes at the GitHub Release. A failure after the tag exits 3. | §10 |
+| R22 | The release runs in this order: gates and confirmation, then copy, then `VERSION-record`, then the annotated tag `vVERSION`, then the GitHub Release, then the bump, then the milestone. A copy already present with the same digest is a no-op. The version is spent at the tag. A rerun after the tag checks that the tag's record matches and resumes at the GitHub Release. The tag is the release's pivot: a failure before it stops the run, exit by its type, with nothing spent; a failure after it is an error, the later steps still run, and the exit is 3, the message naming `turpin release`. | §10; §6 |
 | R23 | The record has the §10 fields, `record: 1`, and the tag's message is the record. A reader refuses an unknown record version. A tag without JSON is history only. | §10 |
 | R24 | The bump goes to the next patch above both the released version and `main`'s own. An emergency that holds `main`'s number moves `main` on, and step 7 moves the open issues the gate left out into the next milestone. | §10 |
 | R25 | The GitHub Release notes run from the previous release tag of any prefix. The next milestone is opened. | §10 |
 | R26 | A production deploy needs a record for VERSION, with its digests pulled from releases. `--unrecorded REASON` instead copies `SHA-IMAGE` to releases with no record. No version is spent, and settle moves nothing. | §6; §9 |
-| R27 | `settle` acts only on what the record carries. A carried work package goes to Post-deployment with a comment. Only Production Release work packages are carried, because the milestone gate counts no other route. A carried non-project issue is closed as completed with a comment. The milestone is closed. Each action checks first, so settle is safe to rerun. If settle fails, it lists the items left, the deploy stands, and the exit is 3. | §12; §9 |
+| R27 | `settle` acts only on what the record carries. A carried work package goes to Post-deployment with a comment. Only Production Release work packages are carried, because the milestone gate counts no other route. A carried non-project issue is closed as completed with a comment. The milestone is closed. Each action checks first, so settle is safe to rerun, and it has no pivot. An action that fails is an error: the other actions still run, the items left are listed, the deploy stands, and the exit is 3, the message naming `turpin settle VERSION`. | §12; §9; §6 |
 | R28 | Rollback switches to `previous` and runs `restore-state`, and restores the previous deploy's host-file set, removing the current deploy's extra files. With no previous deploy it refuses and names the fallback. | §11 |
-| R29 | A hook listed in `required_hooks` that is missing or not executable refuses. Any other missing hook is a no-op. A hook's exit means 0 passed, 75 not yet, and anything else refused or failed. Hooks receive `TURPIN_APP`, `_ENV`, `_ROLE`, `_SHA`, `_VERSION`, `_STATE` and `_IMAGE_<NAME>`. A hook of kind check (`post-deploy`) that exits non-zero is reported, changes nothing else, and leaves the exit code as it was. | §8 |
+| R29 | A hook listed in `required_hooks` that is missing or not executable refuses. Any other missing hook is a no-op. A hook's exit means 0 passed; 75 not yet, which without `--wait` stops the run, exit 75; and anything else refused or failed, a business error naming the hook, exit 1. Hooks receive `TURPIN_APP`, `_ENV`, `_ROLE`, `_SHA`, `_VERSION`, `_STATE` and `_IMAGE_<NAME>`. A hook of kind check (`post-deploy`) that exits non-zero is reported as a warning, changes nothing else, and leaves the exit code as it was. | §8; §9 |
 | R30 | Every override takes a reason. The reason goes into the record where there is one, and always into the run log. | §6 |
-| R31 | Every command writes a run log on its own machine, naming each gate it ran. A command that ends with a gate unrun refuses. Exits are 0 done; 1 refused, failed with nothing changed, or rolled back; 3 live but a later step failed; 70 a profile error or a crash. | §6 |
+| R31 | Every command writes a run log on its own machine, naming each gate it ran. A command that ends with a gate unrun refuses. Exits are 0 done, with at most warnings; 1 a gate refused or a business error; 2 a fundamental technical error; 75 a blip whose retries ran out, or `--wait` at its limit; 70 an unexpected error; 3 done with errors, a step after the command's pivot having failed. A run that stops before its pivot has undone what it changed. | §6 |
 | R32 | `--check` runs every gate and changes nothing. | §6 |
 | R33 | Each component has its own registry access, and no component's credential can do another role's writes: the builder alone writes and removes candidates, the copier alone writes releases, the controller and the hosts write nothing. | §5; §3; §13 |
 | R34 | Nothing secret is written to a profile, record, tag or log. | §13 |
@@ -72,15 +72,17 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R40 | `status ENV` shows the digests, the matching record, the deploy state and host-file equality. `list ENV` shows the records beside what ENV runs. | §6 |
 | R44 | Each component has a registry login of its own. A component that only calls `skopeo` (the controller's reads, the copier, the builder's reads and pushes) uses its own auth file, `~/.config/turpin/auth/APP/COMPONENT.json` (directory 0700, file 0600), chosen by `REGISTRY_AUTH_FILE` alone; a component that calls `docker` (a deployer's pull) uses the machine user's own `docker` login; the builder pushes with its own auth file. `DOCKER_CONFIG` is never set, so contexts and builders stay. Components sharing a machine never replace one another's login. The one exception is an environment on the builder's machine (preview on the laptop), which shares the builder's `docker` login: `turpin login` refuses it and names `turpin login builder`, as does a refused pull. A `docker-config` auth file that is missing is refused, naming `turpin login COMPONENT`; a registry refusal names it too. | §3 |
 | R45 | The controller reads candidates and releases (digests, tags, records) with its own login, `[turpin].login`, and with no other. | §5; §3 |
-| R46 | `prune`: the controller chooses what to remove, and sends `turpin remove` on `[turpin.build].on` a request listing each tag with its digest (`removes`) and the digests releases holds (`keep`). The builder removes each through the Artifacts API with its removal credential, only while the tag still has the digest sent, and refuses any digest in `keep`. The controller never removes. `--dry-run` sends nothing. | §6; §3 |
+| R46 | `prune`: the controller chooses what to remove, and sends `turpin remove` on `[turpin.build].on` a request listing each tag with its digest (`removes`) and the digests releases holds (`keep`). The builder removes each through the Artifacts API with its removal credential, only while the tag still has the digest sent, and refuses any digest in `keep`. A candidate it fails to remove, or refuses, is an error: the others are removed and the exit is 3. A tag moved to another digest is left, which is no error. The controller never removes. `--dry-run` sends nothing. | §6; §3 |
 | R47 | `turpin login COMPONENT` makes the `docker-config` login on the component's machine: `skopeo login --authfile` for the controller and copier, that for the builder too, and its `docker login` only where an environment on its machine pulls with that login, each by `turpin login` (passed on by `ssh` where the machine is another); `docker login` for an environment's deployer, by `turpin-host login`. The token is read at a hidden prompt and passed on standard input only: never printed, logged or an argument. | §6; §3; R34 |
-| R48 | A domain type checks its own form where the value is made: a `Digest` is `sha256:` and 64 hexadecimal characters, a `Version` is semver, a `Build`'s `commit` is a full 40-character SHA, a `Repository`'s kind is candidates or releases. A value that fails its form is refused before any registry call: from the command line, a business error, exit 1, naming the value; from the profile, exit 70. A short SHA is resolved to a full one by *list versions* before it reaches a `Build`; one resolving to no build or to several is a business error then, exit 1, naming it. The request's rules (no overwrite, the keep list) are checked before any write. | §3 *Validation and errors* |
-| R49 | The middle layer, through the translators, reads Oracle's answers: a manifest unknown is *absent* on a read and a business error (exit 1) where the operation needed it; a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region) is a bug, never *absent*. Output not in the tool's format at all (not JSON, no envelope) is a bug the bottom layer finds. A bug exits 70, its message saying it is a defect to raise as an issue, its cause in the log. | §3 *Validation and errors* |
-| R50 | An error reaches the user as one of three types. It is raised where it is found (a business error by the top or the middle, a technical error and a bug of output not in its format by the bottom, a bug of an invalid reply by the middle), with the registry address, namespace and OCIDs removed, translated once and keeping its type when wrapped: business (exit 1, naming the value or thing), technical (exit 1; a blip says to try again later, a fundamental one names its next step: `turpin login COMPONENT`, the policy or installing the tool) and bug (exit 70). Whatever is neither business nor technical is a bug. | §3 *Operations*, *Validation and errors*; §6 |
-| R51 | The bottom layer retries a blip (a network error, a timeout, HTTP 429 or 5xx), and only in reads, copy, push and delete: three attempts, waiting 2 seconds then 4, each retry logged; retries run out as a technical error, a blip that kept failing. A fundamental technical error (authorisation, a missing tool) is never retried. Every `oci` call carries `--no-retry`. `skopeo`'s status is read from its error text; its exit status 2 is never taken as absence. | §3 *Validation and errors*; §13 |
+| R48 | A domain type checks its own form where the value is made: a `Digest` is `sha256:` and 64 hexadecimal characters, a `Version` is semver, a `Build`'s `commit` is a full 40-character SHA, a `Repository`'s kind is candidates or releases. A value that fails its form is refused before any registry call, as a business error, exit 1, naming the argument or, from the profile, the key, with each bad value in its result's `violations` (field, value, limit and reason). A short SHA is resolved to a full one by *list versions* before it reaches a `Build`; one resolving to no build or to several is a business error then, exit 1, naming the argument. The request's rules (no overwrite, the keep list) are checked before any write. | §3 *Validation and errors* |
+| R49 | The middle layer, through the translators, reads Oracle's answers: a manifest unknown is *absent* on a read and a business error (exit 1) where the operation needed it; a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region) is an unexpected error, never *absent*. Output not in the tool's format at all (not JSON, no envelope) is an unexpected error the bottom layer finds. An unexpected error exits 70, its message saying it was not expected and is to be raised as an issue, its cause in the log. | §3 *Validation and errors* |
+| R50 | An error reaches the user as one of three types. It is raised where it is found (a business error by the top or the middle, a technical error and an unexpected error of output not in its format by the bottom, an unexpected error of an invalid reply by the middle), with the registry address, namespace and OCIDs removed, translated once and keeping its type when wrapped. Where it stops the run it exits by type: business 1, naming which input to fix; technical 75 for a blip, saying to try again later, and 2 for a fundamental one, naming its next step (`turpin login COMPONENT`, the policy or installing the tool); unexpected 70. Whatever is neither business nor technical is unexpected. | §3 *Operations*, *Validation and errors*; §6 |
+| R51 | The bottom layer retries a blip (a network error, a timeout, HTTP 429 or 5xx), and only in reads, copy, push and delete: three attempts, waiting 2 seconds then 4, each retry logged; retries run out as a technical error, a blip that kept failing, exit 75. A fundamental technical error (authorisation, a missing tool) is never retried. Every `oci` call carries `--no-retry`. `skopeo`'s status is read from its error text; its exit status 2 is never taken as absence. | §3 *Validation and errors*; §13 |
 | R52 | Promote writes every image, then the record: a failure before the record leaves no record, and a resumed release copies only what is missing. A remove that fails between its check and its delete leaves the image, and the next `prune` removes it. | §3 *Validation and errors*; §10 |
-| R53 | A delete answered `NotAuthorizedOrNotFound` is a fundamental technical error naming the builder's policy, exit 1, unless an earlier attempt of the same delete in this run timed out or got a 5xx; then a fresh find of the image by digest that finds nothing counts as removed. | §3 *Validation and errors* |
+| R53 | A delete answered `NotAuthorizedOrNotFound` is a fundamental technical error naming the builder's policy, an error in `prune` (R46), unless an earlier attempt of the same delete in this run timed out or got a 5xx; then a fresh find of the image by digest that finds nothing counts as removed. | §3 *Validation and errors* |
 | R54 | Pruning a host's deploy folders other than current and previous leaves only each folder's `meta.json`, holding the whole record. | §11 |
+| R55 | Each command that changes something has a pivot. `deploy`'s is marking the state `finished`, once `smoke` has passed, so a `smoke` failure after the switch and `compose up` still restores; `release`'s is the tag; `settle` and `prune` have none. Before the pivot an error stops the run, undoes what changed and exits by its type. After it, or at an action of `settle` or a delete of `prune`, an error is logged at severity *error*, the steps that do not need the failed one still run, and the exit is 3, the message naming the command that reruns what failed. | §6 *Errors, results and the pivot*; §10; §11; §12 |
+| R56 | Each error and warning in the run log, and `turpin-host status --json`'s output, is docs/1.10's result object: `outcome` (ok, warning, error or fatal); for an error or a fatal one, `type` and, for a technical one, `blip`; `reason`, upper snake case and unique in its domain; `domain`, `turpin`, or `oracle` for a registry call's cause; `message`, one sentence naming the next step, holding no tool's text and no registry address, namespace or OCID; `metadata`; `violations` for a refused value (field, value, limit and reason); `cause`, the result from below, nested. | §2 *Domain model*; §3 *Validation and errors*; §6 |
 | R41 | Tile Lite Elite's move: the first `turpin` deploy to rehearsal takes `--off-level`. The fallback until 0.10.2 has run in production is the written procedure to 0.10.0: stop the `turpin` project, restore the snapshot, then `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason. 0.10.2 is the first release with a record. The board reads `v` as released and `prod-` as history. | §14; (H) |
 
 ### Checked for contradiction
@@ -131,6 +133,9 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 - **C36 failure part way** (complete): promote, none · promote, after some images, before the record · promote, at the record · remove, between its check and its delete
 - **C37 a delete answered `NotAuthorizedOrNotFound`** (complete): on its first attempt · after an attempt that timed out or got a 5xx, the fresh find finding nothing · the same, the fresh find finding the image
 - **C38 deploys on a host** (complete): two or fewer · more than two
+- **C39 where a step fails, against its command's pivot** (complete over the four commands that name one): deploy, before `save-state` · deploy, after `save-state`, at `smoke` · deploy, after `finished` (the host's prune; settle on production) · release, before the tag · release, after the tag · settle, one action of several · prune, one delete of several
+- **C40 the type of an error that stops the run** (complete over the types): business · technical, fundamental · technical, a blip whose retries ran out · unexpected
+- **C41 a result's fields** (complete over R56): a cause nested from a registry call · `violations` on a refused value · a tool's error text holding an identifier · `turpin-host status --json` with no error
 
 ## 3. Outcomes
 
@@ -142,7 +147,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | O4 | Exit 0. The containers' `RepoDigests` equal the named digests. `current` points at a new `deploys/<n>`, `previous` at the earlier one, and `state` = finished. |
 | O5 | The steps ran from `/turpin/` extracted from `payload_image`. A sentinel in the operator's working-tree copy is never touched. The joined files in `current/` equal the payload's own, or the environment's own `join`. |
 | O6 | Hook calls were logged in the order R11 gives, each with the R29 environment variables. |
-| O7 | After a failure: `restore-state` was called, `current` = the previous deploy, the previous digests are running, the previous host files are in place, and the exit is 1. |
+| O7 | After a failure: `restore-state` was called, `current` = the previous deploy, the previous digests are running, the previous host files are in place, and the exit is by the error's type (1 for a hook's refusal or failure). |
 | O8 | Host files have the payload's content and mode. The stub `systemctl` saw `daemon-reload`, then enable and restart for the marked units. |
 | O9 | `status` reports a host file that differs, and is quiet when the files are equal. |
 | O10 | Releases holds each digest identical to candidates (skopeo inspect), and holds `VERSION-record`. The annotated tag `vVERSION`'s message parses to the same JSON. Every §10 field is present. `set_aside` is `[]` when no gate was set aside. |
@@ -159,8 +164,9 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | O21 | The host image list holds exactly the current and previous sets. |
 | O22 | Prune leaves every release, every candidate referenced by an environment's current or previous deploy, and every candidate newer than the newest release. It removes the rest. |
 | O23 | The run log names every gate that §9 lists for the command. |
-| O24 | After a first deploy fails past `save-state`: `restore-state` was called, `state` = `failed, no previous deploy`, the new containers were stopped, `current` was removed, the exit is 1, and stderr names the application's fallback. |
+| O24 | After a first deploy fails past `save-state`: `restore-state` was called, `state` = `failed, no previous deploy`, the new containers were stopped, `current` was removed, the exit is by the error's type, and stderr names the application's fallback. |
 | O25 | The host-file set equals the intended deploy's set exactly: files the intended deploy carries have the payload's content and mode, and files it does not carry are absent. |
+| O26 | Exit 3. What was done before the failed step stands, the steps that do not need it ran, the run log holds its result at severity *error*, and the message names the command that reruns it. |
 
 ## 4. Matrix
 
@@ -204,7 +210,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S7 | Deploy to preview on the controller, with the preview's own `join`. | C2 preview, C3 local | O4; the joined files are `docker-compose.preview.yml` and `Caddyfile.preview` from the payload; no ssh call | CI |
 | S8 | A registry tag repointed so the digest's revision label is another SHA; then a true image. | R7 | O1, then O4 | CI |
 | S9 | Deploy while the lock is held; release it; deploy; `--wait` while held. | C7, C22 | O1, then O4, then O16 | CI |
-| S10 | `pre-deploy` exits 1, then 75, then 75 with `--wait` returning 0 later, then 0. | C9 | O1, O1, O16, O4 | CI |
+| S10 | `pre-deploy` exits 1, then 75, then 75 with `--wait` returning 0 later, then 0. | C9 | O1; O1's snapshot with exit 75; O16; O4 | CI |
 | S11 | A required hook missing, then not executable, then present; an optional hook missing. | C9 | O1, O1, O4; the optional one is a no-op | CI |
 | S12 | `--set-aside pre-deploy R` where overridable and where not. | C22 | O4 + O12; O1 | CI |
 | S13 | A deploy is killed after `save-state`, then rerun, then `turpin rollback`, then deployed. | C8 | O1 (it names the step), then O7-like restore, then O4 | CI |
@@ -250,7 +256,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S53a | The release's commits reference an Application Tooling work package that is in a date milestone, not in milestone VERSION; then a Production Release work package that is not in milestone VERSION. | C19 | O10, the tooling work package neither counted nor carried; then O1 naming the milestone gate | CI |
 | S53b | A work package in milestone VERSION with an unticked test box; one with neither heading; all ticked; then `--emergency` with an unticked box. | C32 | O1 naming the tests-passed gate; O1; O10; O10 with the unticked box reported | CI |
 | S53 | `--set-aside milestone R`, five cases: (1) the milestone disagrees, no flag; (2) the flag without a reason; (3) the flag where the profile does not list `milestone` in `overridable`; (4) the flag with a reason where it is overridable; (5) the milestone agreeing, no flag. | C22, C19 | O1; O1; O1; O10 + O12, with the record's `set_aside` = `[{"gate":"milestone","reason":R}]` and `carries` the milestone's open items; O10 with `set_aside` empty | CI |
-| S54 | `--wait=1` with the lock held beyond the limit; with a hook returning 75 beyond it; with the lock freed within it. | C7, C9, C22 | O1 (refuses, exit 1, naming the lock) and nothing changed; O1 (the same, naming the hook); O16 then O4 | CI |
+| S54 | `--wait=1` with the lock held beyond the limit; with a hook returning 75 beyond it; with the lock freed within it. | C7, C9, C22 | exit 75, naming the lock, and O1's snapshot shows no change; the same, naming the hook; O16 then O4 | CI |
 | S55 | A host file the previous deploy installed and this one drops; then `status`. | C28 | O25 (the dropped file is gone, the others have the payload's mode); `status` is quiet | CI; REH half of S34 |
 | S56 | A rollback from a release that added a host file (and the unit it enables) to the previous release's set. | C28, C12 exists | O7 and O25 (the extra file and unit are gone, the previous set is back) | CI |
 | S57 | A first deploy to a bare environment: failing at `migrate`; at `smoke`; at `compose up`; and before `save-state`. Then a fresh deploy of the same REF after the restore. | C11, C12 none, C8 | O24 for the first three; O1 for the last; the fresh deploy is not refused by the state check and gives O4 | CI |
@@ -265,21 +271,27 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S66 | The copier, builder and controller each log in with `turpin login`, in turn, with different users; then a release. A builder with no login made. | R44 | three auth files, each keeping its own user, and the builder's `docker` login made once where an environment on its machine shares it, and not otherwise; no `DOCKER_CONFIG` set; the release works; the build refuses, naming `turpin login builder`; a copier refused by the registry is told to `turpin login copier`; a refused pull on preview names `turpin login builder` | CI |
 | S67 | A release with the controller's login absent; then made for the wrong role; then right. A local preview build and deploy with no controller login. | R45 | O1 naming `turpin login controller`; O1 (releases refused to it); O10; the preview deploy needs none | CI |
 | S68 | `prune` with the builder on another machine; on the controller's own; a removal attempted with the controller's credential. | R46, R33 | the removal runs on the builder's machine through the Artifacts API with the builder's removal credential, the controller's calls are reads, and the controller's removal is refused | CI |
-| S69 | `prune --dry-run`; a remove request whose tag has moved to another digest; one naming a tag already gone; one naming a digest in its `keep` list. | R46 | nothing sent and nothing changed (O1's snapshot); the moved tag is left and the command fails; the gone tag is a no-op; the kept digest is refused, left in candidates, and the command fails | CI |
+| S69 | `prune --dry-run`; a remove request whose tag has moved to another digest; one naming a tag already gone; one naming a digest in its `keep` list. | R46 | nothing sent and nothing changed (O1's snapshot); the moved tag is left, which is no error, exit 0; the gone tag is a no-op; the kept digest is refused, left in candidates, an error, exit 3 | CI |
 | S70 | `turpin login` with a canary token, for the builder, for a deployer on another machine over `ssh` (the builder's file landing on its own machine), and for preview, which is refused as sharing the builder's login; then with an empty token. | R47, R34 | the canary is in no output, log, argument or file (the `ssh` log too); the auth directory is 0700 and the file 0600; the empty token is refused and writes nothing | CI |
-| S71 | Each C33 value, from the command line and from the profile; a short commit resolving to one build. | C33 | each bad form refused before any bottom-layer call (the stub records none), and a short commit resolving to none or several after a `list tags` call only: a business error, exit 1, naming the value; exit 70 from the profile; the resolving short commit reaches the `Build` as the full SHA | CI (unittest) |
-| S72 | Middle layer: the stub's reply, whole but invalid in each way C34 lists; then output not in the tool's format at all. | C34 | a bug each time, never *absent*: the invalid replies found by the middle layer, the malformed output by the bottom; exit 70, the message saying it is a defect to raise as an issue, the cause in the log | CI (unittest) |
-| S73 | Middle layer: a manifest unknown on inspect during a build; then for a digest a promote needs. | C34 | *absent*, and the build goes on to build it; then a business error naming the digest, exit 1 | CI (unittest) |
+| S71 | Each C33 value, from the command line and from the profile; a short commit resolving to one build. | C33 | each bad form refused before any bottom-layer call (the stub records none), and a short commit resolving to none or several after a `list tags` call only: a business error, exit 1, naming the argument or the profile's key, from the command line and the profile alike; the resolving short commit reaches the `Build` as the full SHA | CI (unittest) |
+| S72 | Middle layer: the stub's reply, whole but invalid in each way C34 lists; then output not in the tool's format at all. | C34 | an unexpected error each time, never *absent*: the invalid replies found by the middle layer, the malformed output by the bottom; exit 70, the message saying it was not expected and is to be raised as an issue, the cause in the log | CI (unittest) |
+| S73 | Middle layer: a manifest unknown on inspect during a build; then for a digest a promote needs. | C34 | *absent*, and the build goes on to build it; then a business error with the digest in its `metadata`, exit 1 | CI (unittest) |
 | S74 | Bottom layer: a read answered 503, then success; another meeting a network error, then success. | C35 | two attempts each, the second 2 seconds after the first; the read succeeds; the run log shows the retry and both attempts | CI (unittest) |
-| S75 | Bottom layer: a copy answered 429 on every attempt; a read answered 503 on every attempt. | C35 | three attempts each, waiting 2 seconds then 4, each retry logged, then a technical error saying to try again later; exit 1 | CI (unittest) |
-| S76 | Bottom layer: a read whose authorisation is refused; a `skopeo` call exiting 2 with a network error's text; the argv of every `oci` call the stub records. | C35 | a fundamental technical error after one attempt, naming `turpin login COMPONENT`, exit 1; the exit 2 read as a blip from its text, never *absent*; every `oci` call carries `--no-retry` | CI (unittest) |
-| S77 | A delete answered 503, then `NotAuthorizedOrNotFound`, the fresh find finding nothing; then the same with the find finding the image. | C37 | the first counted as removed, exit 0; the second a fundamental technical error naming the builder's policy, exit 1 | CI (unittest) |
-| S78 | A delete answered `NotAuthorizedOrNotFound` on its first attempt. | C37 first | a fundamental technical error naming the builder's policy; not counted as removed; exit 1 | CI (unittest) |
-| S79 | Every failing call of S72 to S78, with the stub's error text holding a registry address, a namespace and an OCID. | C34, C35, C37 | none of the three in the screen output, the run log or the message; the log keeps the cause, with them removed | CI (unittest) |
+| S75 | Bottom layer: a copy answered 429 on every attempt; a read answered 503 on every attempt. | C35 | three attempts each, waiting 2 seconds then 4, each retry logged, then a technical error, a blip, saying to try again later; exit 75 | CI (unittest) |
+| S76 | Bottom layer: a read whose authorisation is refused; a `skopeo` call exiting 2 with a network error's text; the argv of every `oci` call the stub records. | C35 | a fundamental technical error after one attempt, naming `turpin login COMPONENT`, exit 2; the `skopeo` exit 2 read as a blip from its text, never *absent*; every `oci` call carries `--no-retry` | CI (unittest) |
+| S77 | A delete answered 503, then `NotAuthorizedOrNotFound`, the fresh find finding nothing; then the same with the find finding the image. | C37 | the first counted as removed, exit 0; the second a fundamental technical error naming the builder's policy, the other deletes made, exit 3 | CI (unittest) |
+| S78 | A delete answered `NotAuthorizedOrNotFound` on its first attempt. | C37 first | a fundamental technical error naming the builder's policy; not counted as removed; the other deletes made, exit 3 | CI (unittest) |
+| S79 | Every failing call of S72 to S78, with the stub's error text holding a registry address, a namespace and an OCID. | C34, C35, C37 | none of the three in the screen output, the run log or any `message`; the log keeps the cause, of domain `oracle`, the tool's text in its `metadata` with them removed | CI (unittest) |
 | S80 | A promote failing after the first image, before the record; then the release rerun. | C36 promote | no `VERSION-record` in releases; the rerun copies only the missing images, then pushes the record, exit 0 | CI (unittest) |
-| S81 | A remove whose delete fails after its check passed; then `prune` again. | C36 remove | the image left, exit 1; the next `prune` removes it | CI (unittest) |
+| S81 | A remove whose delete fails after its check passed; then `prune` again. | C36 remove | the image left, an error, exit 3; the next `prune` removes it | CI (unittest) |
 | S82 | Four deploys to one environment. | C38 | the two oldest folders hold only `meta.json`, each with its whole record; current and previous are whole | CI (bats) |
-| S83 | Bottom layer: a read that exceeds the call's timeout on every attempt. | C35 timeout | the call stopped at the timeout and retried as a blip, three attempts, each logged; then a technical error saying to try again later, exit 1 | CI (unittest) |
+| S83 | Bottom layer: a read that exceeds the call's timeout on every attempt. | C35 timeout | the call stopped at the timeout and retried as a blip, three attempts, each logged; then a technical error saying to try again later, exit 75 | CI (unittest) |
+| S84 | A production deploy whose `settle` fails at one item of three; then `turpin settle VERSION`. | C39 deploy after `finished`, settle one action | O4 and O26: the other two items settled, the message naming `turpin settle VERSION`; then the item settled, exit 0 | CI |
+| S85 | A deploy whose `smoke` fails after the switch and `compose up`; then one whose host prune fails after `finished`; then one whose pull fails before `save-state`. | C39 deploy | O7; O4 and O26, the next deploy's prune removing what was left; exit by type with nothing that runs changed (O1's snapshot of the containers and state) | CI (bats) |
+| S86 | A release failing at the GitHub Release, after the tag; a release failing at the `VERSION-record` push, before it. | C39 release | O26: the bump and the next milestone done, the message naming `turpin release`, whose rerun makes the GitHub Release only; then exit by type, no tag, nothing spent | CI |
+| S87 | `prune` with three candidates chosen, the second delete answered 503 on every attempt. | C39 prune one delete | O26: the first and third removed, the second left, the message naming `turpin prune` | CI (unittest) |
+| S88 | A command stopped by each C40 type: a bad `--commit`; authorisation refused; 503 on every attempt; an Oracle reply with an unknown media type. | C40 | exits 1, 2, 75 and 70, each run log's last result `fatal` with that `type`, and `blip` true only for the third | CI (unittest) |
+| S89 | A promote's missing digest answered by the registry with a manifest unknown and an error text holding a registry address; a bad digest on the command line; `turpin-host status --json` on a finished deploy. | C41 | the logged result's `cause` is the API error's result, of domain `oracle`, `reason` in upper snake case, its `metadata` the tool's text with the address removed, and no `message` holds tool text or the address; the bad digest's result has one `violations` entry with field, value, limit and reason; the status is one result object, `outcome` ok, the status in `metadata` | CI |
 
 ## 6. Refusals and successes
 
@@ -348,7 +360,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R28 | S31, S56 |
 | R29 | S6, S10, S11, S33, S59 |
 | R30 | S12, S17, S19, S20, S29, S49, S53 |
-| R31 | S32, S59 |
+| R31 | S32, S59, S88 |
 | R32 | S32 |
 | R33 | S35, S40, S65, S68 |
 | R34 | S41, S44, S70 |
@@ -363,15 +375,17 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R41 | S39, S47 |
 | R44 | S65, S66 |
 | R45 | S65, S67 |
-| R46 | S68, S69 |
+| R46 | S68, S69, S87 |
 | R47 | S70 |
-| R48 | S71 |
+| R48 | S71, S89 |
 | R49 | S72, S73 |
-| R50 | S75, S76, S79 |
+| R50 | S75, S76, S79, S88 |
 | R51 | S74, S75, S76, S83 |
 | R52 | S80, S81 |
 | R53 | S77, S78 |
 | R54 | S82 |
+| R55 | S84, S85, S86, S87 |
+| R56 | S79, S89 |
 
 | scenario | rules |
 | --- | --- |
@@ -455,11 +469,17 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S76 | R50, R51 |
 | S77 | R53 |
 | S78 | R53 |
-| S79 | R50 |
+| S79 | R50, R56 |
 | S80 | R52 |
 | S81 | R52 |
 | S82 | R54 |
 | S83 | R51 |
+| S84 | R27, R55 |
+| S85 | R12, R55 |
+| S86 | R22, R55 |
+| S87 | R46, R55 |
+| S88 | R31, R50 |
+| S89 | R48, R56 |
 
 ## 8. Approach
 
@@ -610,7 +630,7 @@ A test of what `turpin` decides is a `unittest` test; one of what a host does (`
 ### Registry adapter
 
 - `a_bad_value_is_refused_before_any_call_and_a_short_sha_resolves_first`
-- `an_invalid_oracle_reply_is_a_bug_found_in_the_middle_layer`
+- `an_invalid_oracle_reply_is_unexpected_and_found_in_the_middle_layer`
 - `manifest_unknown_is_absent_on_a_read_and_a_business_error_where_needed`
 - `a_503_then_success_is_retried_and_logged`
 - `429_or_503_three_times_runs_out_as_a_technical_error`
@@ -622,6 +642,18 @@ A test of what `turpin` decides is a `unittest` test; one of what a host does (`
 - `a_promote_failing_before_the_record_leaves_none_and_resumes`
 - `a_remove_failing_after_its_check_is_retried_by_the_next_prune`
 - `a_pruned_deploy_folder_keeps_only_its_meta_json`
+
+### Errors, results and the pivot
+
+- `each_error_type_stops_the_run_with_its_own_exit`
+- `a_settle_failure_after_a_live_deploy_exits_3_and_names_the_rerun`
+- `a_smoke_failure_after_the_switch_still_restores`
+- `a_release_failure_after_the_tag_carries_on_and_exits_3`
+- `one_failed_delete_in_prune_leaves_the_others_removed_and_exits_3`
+- `a_registry_error_nests_its_oracle_cause_in_the_result`
+- `a_refused_value_is_listed_in_violations`
+- `no_tool_text_or_identifier_reaches_a_message`
+- `host_status_json_is_one_result_object`
 
 ### [REH]
 
@@ -639,7 +671,7 @@ A test of what `turpin` decides is a `unittest` test; one of what a host does (`
 - X1 by S30 (a carried work package of another route is in the fixture) and the settle test `settle_advances_a_carried_work_package_of_any_route`.
 - X3 by S20: "on `main`" stands, and docs/1.2 §1.0 is corrected (design §5).
 - X4 by S20 and S50: an emergency descends from the release production runs, not the newest tag.
-- X5 by S57 and the C11 × C12 matrix cell: `restore-state`, state `failed, no previous deploy`, exit 1 naming the fallback.
+- X5 by S57 and the C11 × C12 matrix cell: `restore-state`, state `failed, no previous deploy`, exit by the error's type, naming the fallback.
 - X6 by S12 and S53: `[release].overridable` names the gates, and `milestone` is the tool's own.
 - X7 by S54: the 60-minute limit is tested at `--wait=1`; the default of 60 is asserted only by review.
 - X8 by S29: `--unrecorded` takes a full SHA, and a copy already present is a no-op where the digests match. Not yet covered: another digest refuses (no test reaches it).
@@ -648,7 +680,7 @@ A test of what `turpin` decides is a `unittest` test; one of what a host does (`
 - X11 by S43, which asserts the `created` label, the build's start time
   (design §6).
 - X12 by S58 and X13 by S59.
-- X17 (the next deploy after a failed first deploy proceeds) by S57, and X18 (`--wait` at its limit refuses, exit 1, naming what it waited for) by S54.
+- X17 (the next deploy after a failed first deploy proceeds) by S57, and X18 (`--wait` at its limit stops, exit 75, naming what it waited for) by S54.
 - X16 no longer applies: #117's body now has a decisions list.
 
 Still open, each a question for the owner:
