@@ -48,8 +48,9 @@ The process in short is:
    commit's SHA).
 2. From the candidates repository it is deployed to non-production
    environments for testing.
-3. After testing, the build is promoted to a release and stored in the releases
-   repository.
+3. After testing, the build is promoted to a release: all release checks are
+   done, it is assigned a fixed application version (semver), and it is stored
+   in the releases repository.
 4. From the releases repository it is deployed into the production environment.
 
 The repositories contain image sets
