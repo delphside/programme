@@ -74,12 +74,12 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R45 | The controller reads candidates and releases (digests, tags, records) with its own login, `[turpin].login`, and with no other. | §5; §3 |
 | R46 | `prune`: the controller chooses what to remove, and sends `turpin remove` on `[turpin.build].on` a request listing each tag with its digest (`removes`) and the digests releases holds (`keep`). The builder removes each through the Artifacts API with its removal credential, only while the tag still has the digest sent, and refuses any digest in `keep`. The controller never removes. `--dry-run` sends nothing. | §6; §3 |
 | R47 | `turpin login COMPONENT` makes the `docker-config` login on the component's machine: `skopeo login --authfile` for the controller and copier, that for the builder too, and its `docker login` only where an environment on its machine pulls with that login, each by `turpin login` (passed on by `ssh` where the machine is another); `docker login` for an environment's deployer, by `turpin-host login`. The token is read at a hidden prompt and passed on standard input only: never printed, logged or an argument. | §6; §3; R34 |
-| R48 | A domain type checks its own form where the value is made: a `Digest` is `sha256:` and 64 hexadecimal characters, a `Version` is semver, a `Build`'s `commit` is a full 40-character SHA, a `Repository`'s kind is candidates or releases. A short SHA is resolved to a full one by *list versions* before it reaches a `Build`. A bad value is refused before any registry call: from the command line (a short SHA resolving to no build or to more than one included), a usage error, exit 1, naming the value; from the profile, exit 70. | §3 *Validation and errors* |
-| R49 | The middle layer meets Oracle's business errors: a manifest unknown is *absent* on a read and *not found* where the operation needed it; a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region) is *failed*, never *absent*. Output not in the tool's format at all (not JSON, no envelope) is the bottom layer's *failed*. | §3 *Validation and errors* |
-| R50 | A registry error is raised once, by the bottom layer, with the registry address, namespace and OCIDs removed, and translated once. *Refused* and *unreachable* come from the bottom, *absent* and *not found* from the middle. A command turns a port failure into exit 1 and a message naming its kind and next step (*refused*: `turpin login COMPONENT` or the policy); anything else is a crash, exit 70. | §3 *Validation and errors*; §6 |
-| R51 | The bottom layer retries only *unreachable*, HTTP 429 and 5xx, and only reads, copy, push and delete: three attempts, waiting 2 seconds then 4, each retry logged; retries run out as *unreachable*. *Refused* is never retried. Every `oci` call carries `--no-retry`. `skopeo`'s status is read from its error text; its exit status 2 is never taken as absence. | §3 *Validation and errors*; §13 |
+| R48 | A domain type checks its own form where the value is made: a `Digest` is `sha256:` and 64 hexadecimal characters, a `Version` is semver, a `Build`'s `commit` is a full 40-character SHA, a `Repository`'s kind is candidates or releases. A value that fails its form is refused before any registry call: from the command line, a business error, exit 1, naming the value; from the profile, exit 70. A short SHA is resolved to a full one by *list versions* before it reaches a `Build`; one resolving to no build or to several is a business error then, exit 1, naming it. The request's rules (no overwrite, the keep list) are checked before any write. | §3 *Validation and errors* |
+| R49 | The middle layer, through the translators, reads Oracle's answers: a manifest unknown is *absent* on a read and a business error (exit 1) where the operation needed it; a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region) is a bug, never *absent*. Output not in the tool's format at all (not JSON, no envelope) is a bug the bottom layer finds. A bug exits 70, its message saying it is a defect to raise as an issue, its cause in the log. | §3 *Validation and errors* |
+| R50 | An error reaches the user as one of three types, raised once, by the bottom layer, with the registry address, namespace and OCIDs removed, translated once and keeping its type when wrapped: business (exit 1, naming the value or thing), technical (exit 1; a blip says to try again later, a fundamental one names its next step: `turpin login COMPONENT`, the policy or installing the tool) and bug (exit 70). Whatever is neither business nor technical is a bug. | §3 *Operations*, *Validation and errors*; §6 |
+| R51 | The bottom layer retries a blip (a network error, a timeout, HTTP 429 or 5xx), and only in reads, copy, push and delete: three attempts, waiting 2 seconds then 4, each retry logged; retries run out as a technical error, a blip that kept failing. A fundamental technical error (authorisation, a missing tool) is never retried. Every `oci` call carries `--no-retry`. `skopeo`'s status is read from its error text; its exit status 2 is never taken as absence. | §3 *Validation and errors*; §13 |
 | R52 | Promote writes every image, then the record: a failure before the record leaves no record, and a resumed release copies only what is missing. A remove that fails between its check and its delete leaves the image, and the next `prune` removes it. | §3 *Validation and errors*; §10 |
-| R53 | A delete answered `NotAuthorizedOrNotFound` is *not found*, naming the builder's policy, and exits 1, unless an earlier attempt of the same delete in this run timed out or got a 5xx; then a fresh find of the image by digest that finds nothing counts as removed. | §3 *Validation and errors* |
+| R53 | A delete answered `NotAuthorizedOrNotFound` is a fundamental technical error naming the builder's policy, exit 1, unless an earlier attempt of the same delete in this run timed out or got a 5xx; then a fresh find of the image by digest that finds nothing counts as removed. | §3 *Validation and errors* |
 | R54 | Pruning a host's deploy folders other than current and previous leaves only each folder's `meta.json`, holding the whole record. | §11 |
 | R41 | Tile Lite Elite's move: the first `turpin` deploy to rehearsal takes `--off-level`. The fallback until 0.10.2 has run in production is the written procedure to 0.10.0: stop the `turpin` project, restore the snapshot, then `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason. 0.10.2 is the first release with a record. The board reads `v` as released and `prod-` as history. | §14; (H) |
 
@@ -127,7 +127,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 - **C32 test boxes of a work package in the milestone** (complete): all ticked · one unticked · neither heading · one unticked, with `--emergency`
 - **C33 a value's form, from the command line or the profile** (complete over the four forms): valid · a bad digest · a bad version · a non-hexadecimal commit · a short commit resolving to one build · a short commit resolving to none or to several · an unknown repository kind
 - **C34 Oracle's reply** (complete): valid · whole but invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind) · not in the tool's format at all · a manifest unknown on a read · a manifest unknown where the operation needed it
-- **C35 one call's attempts** (complete over the retry rule): success · *unreachable* then success · 503 then success · 429 on every attempt · 503 on every attempt · *refused* · `skopeo` exit 2 with an *unreachable* error text
+- **C35 one call's attempts** (complete over the retry rule): success · a network error then success · 503 then success · 429 on every attempt · 503 on every attempt · a timeout on every attempt · authorisation refused · `skopeo` exit 2 with a network error's text
 - **C36 failure part way** (complete): promote, none · promote, after some images, before the record · promote, at the record · remove, between its check and its delete
 - **C37 a delete answered `NotAuthorizedOrNotFound`** (complete): on its first attempt · after an attempt that timed out or got a 5xx, the fresh find finding nothing · the same, the fresh find finding the image
 - **C38 deploys on a host** (complete): two or fewer · more than two
@@ -267,18 +267,19 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S68 | `prune` with the builder on another machine; on the controller's own; a removal attempted with the controller's credential. | R46, R33 | the removal runs on the builder's machine through the Artifacts API with the builder's removal credential, the controller's calls are reads, and the controller's removal is refused | CI |
 | S69 | `prune --dry-run`; a remove request whose tag has moved to another digest; one naming a tag already gone; one naming a digest in its `keep` list. | R46 | nothing sent and nothing changed (O1's snapshot); the moved tag is left and the command fails; the gone tag is a no-op; the kept digest is refused, left in candidates, and the command fails | CI |
 | S70 | `turpin login` with a canary token, for the builder, for a deployer on another machine over `ssh` (the builder's file landing on its own machine), and for preview, which is refused as sharing the builder's login; then with an empty token. | R47, R34 | the canary is in no output, log, argument or file (the `ssh` log too); the auth directory is 0700 and the file 0600; the empty token is refused and writes nothing | CI |
-| S71 | Each C33 value, from the command line and from the profile; a short commit resolving to one build. | C33 | the bad values refused before any bottom-layer call (the stub records none): exit 1 naming the value from the command line, exit 70 from the profile; the resolving short commit reaches the `Build` as the full SHA | CI (unittest) |
-| S72 | Middle layer: the stub's reply, whole but invalid in each way C34 lists; then output not in the tool's format at all. | C34 | *failed* each time, never *absent*, the invalid replies found by the middle layer and the malformed output by the bottom; exit 1 | CI (unittest) |
-| S73 | Middle layer: a manifest unknown on inspect during a build; then for a digest a promote needs. | C34 | *absent*, and the build goes on to build it; then *not found*, naming the digest, exit 1 | CI (unittest) |
-| S74 | Bottom layer: a read answered 503, then success; another answered *unreachable*, then success. | C35 | two attempts each, the second 2 seconds after the first; the read succeeds; the run log shows the retry and both attempts | CI (unittest) |
-| S75 | Bottom layer: a copy answered 429 on every attempt; a read answered 503 on every attempt. | C35 | three attempts each, waiting 2 seconds then 4, each retry logged, then *unreachable*; exit 1, the message naming the kind | CI (unittest) |
-| S76 | Bottom layer: a read answered *refused*; a `skopeo` call exiting 2 with an *unreachable* error text; the argv of every `oci` call the stub records. | C35 | *refused* after one attempt, naming `turpin login COMPONENT`; the exit 2 read as *unreachable* from its text, never *absent*; every `oci` call carries `--no-retry` | CI (unittest) |
-| S77 | A delete answered 503, then `NotAuthorizedOrNotFound`, the fresh find finding nothing; then the same with the find finding the image. | C37 | the first counted as removed, exit 0; the second *not found*, naming the builder's policy, exit 1 | CI (unittest) |
-| S78 | A delete answered `NotAuthorizedOrNotFound` on its first attempt. | C37 first | *not found*, naming the builder's policy; not counted as removed; exit 1 | CI (unittest) |
+| S71 | Each C33 value, from the command line and from the profile; a short commit resolving to one build. | C33 | each bad form refused before any bottom-layer call (the stub records none), and a short commit resolving to none or several after a `list tags` call only: a business error, exit 1, naming the value; exit 70 from the profile; the resolving short commit reaches the `Build` as the full SHA | CI (unittest) |
+| S72 | Middle layer: the stub's reply, whole but invalid in each way C34 lists; then output not in the tool's format at all. | C34 | a bug each time, never *absent*: the invalid replies found by the middle layer, the malformed output by the bottom; exit 70, the message saying it is a defect to raise as an issue, the cause in the log | CI (unittest) |
+| S73 | Middle layer: a manifest unknown on inspect during a build; then for a digest a promote needs. | C34 | *absent*, and the build goes on to build it; then a business error naming the digest, exit 1 | CI (unittest) |
+| S74 | Bottom layer: a read answered 503, then success; another meeting a network error, then success. | C35 | two attempts each, the second 2 seconds after the first; the read succeeds; the run log shows the retry and both attempts | CI (unittest) |
+| S75 | Bottom layer: a copy answered 429 on every attempt; a read answered 503 on every attempt. | C35 | three attempts each, waiting 2 seconds then 4, each retry logged, then a technical error saying to try again later; exit 1 | CI (unittest) |
+| S76 | Bottom layer: a read whose authorisation is refused; a `skopeo` call exiting 2 with a network error's text; the argv of every `oci` call the stub records. | C35 | a fundamental technical error after one attempt, naming `turpin login COMPONENT`, exit 1; the exit 2 read as a blip from its text, never *absent*; every `oci` call carries `--no-retry` | CI (unittest) |
+| S77 | A delete answered 503, then `NotAuthorizedOrNotFound`, the fresh find finding nothing; then the same with the find finding the image. | C37 | the first counted as removed, exit 0; the second a fundamental technical error naming the builder's policy, exit 1 | CI (unittest) |
+| S78 | A delete answered `NotAuthorizedOrNotFound` on its first attempt. | C37 first | a fundamental technical error naming the builder's policy; not counted as removed; exit 1 | CI (unittest) |
 | S79 | Every failing call of S72 to S78, with the stub's error text holding a registry address, a namespace and an OCID. | C34, C35, C37 | none of the three in the screen output, the run log or the message; the log keeps the cause, with them removed | CI (unittest) |
 | S80 | A promote failing after the first image, before the record; then the release rerun. | C36 promote | no `VERSION-record` in releases; the rerun copies only the missing images, then pushes the record, exit 0 | CI (unittest) |
 | S81 | A remove whose delete fails after its check passed; then `prune` again. | C36 remove | the image left, exit 1; the next `prune` removes it | CI (unittest) |
 | S82 | Four deploys to one environment. | C38 | the two oldest folders hold only `meta.json`, each with its whole record; current and previous are whole | CI (bats) |
+| S83 | Bottom layer: a read that exceeds the call's timeout on every attempt. | C35 timeout | the call stopped at the timeout and retried as a blip, three attempts, each logged; then a technical error saying to try again later, exit 1 | CI (unittest) |
 
 ## 6. Refusals and successes
 
@@ -367,7 +368,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R48 | S71 |
 | R49 | S72, S73 |
 | R50 | S75, S76, S79 |
-| R51 | S74, S75, S76 |
+| R51 | S74, S75, S76, S83 |
 | R52 | S80, S81 |
 | R53 | S77, S78 |
 | R54 | S82 |
@@ -458,6 +459,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S80 | R52 |
 | S81 | R52 |
 | S82 | R54 |
+| S83 | R51 |
 
 ## 8. Approach
 
@@ -608,11 +610,12 @@ A test of what `turpin` decides is a `unittest` test; one of what a host does (`
 ### Registry adapter
 
 - `a_bad_value_is_refused_before_any_call_and_a_short_sha_resolves_first`
-- `an_invalid_oracle_reply_is_failed_in_the_middle_layer`
-- `manifest_unknown_is_absent_on_a_read_and_not_found_where_needed`
+- `an_invalid_oracle_reply_is_a_bug_found_in_the_middle_layer`
+- `manifest_unknown_is_absent_on_a_read_and_a_business_error_where_needed`
 - `a_503_then_success_is_retried_and_logged`
-- `429_or_503_three_times_runs_out_as_unreachable`
-- `refused_is_never_retried_and_oci_calls_carry_no_retry`
+- `429_or_503_three_times_runs_out_as_a_technical_error`
+- `a_call_past_its_timeout_is_retried_then_technical`
+- `a_refused_authorisation_is_never_retried_and_oci_calls_carry_no_retry`
 - `not_authorized_or_not_found_after_a_5xx_is_removed_only_if_the_image_is_gone`
 - `not_authorized_or_not_found_on_a_first_delete_names_the_policy`
 - `no_registry_address_namespace_or_ocid_in_any_error`

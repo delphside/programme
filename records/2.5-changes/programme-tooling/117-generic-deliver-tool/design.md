@@ -618,16 +618,20 @@ tool, protocol or tag form:
 | promote to releases | a `Build`, with a `Version` and its `ReleaseRecord`, or with neither for `--unrecorded` | the image set and record in releases | the release copy: every image by digest, then `VERSION-record` |
 | remove a candidate | one image of a `Build`, the `Digest` it was chosen at, and the digests to keep | removed, or left where the tag has moved | `prune`, on the builder |
 
-*Absent* is an answer, not a failure: the registry says the image or record is
-not there, which is told apart from its being unreachable. A failure reaches
-Turpin as one of four kinds, with no registry address or repository, on screen
-or in the log:
+*Absent* is an answer, not an error: the registry says the image or record is
+not there, which is told apart from its being unreachable. An error reaches
+Turpin as one of three types, as a user meets it, with no registry address or
+repository on screen or in the log:
 
-- *refused*: the registry refused the credential or the right;
-- *not found*: an operation needed something that is not there, such as a
-  digest to promote that candidates lacks;
-- *unreachable*: the registry could not be reached;
-- *failed*: anything else.
+| Type | What it is | Exit | The message says |
+| --- | --- | --- | --- |
+| business | the input is wrong: a request the port implementation refuses on validation (a bad value, a short SHA resolving to no build or to several, the keep list, no overwrite), or a correct answer that something the operation needed is not there | 1 | the value or the thing, for the user to fix the input |
+| technical | authorisation refused, a network failure, a timeout or a missing tool. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (authorisation, a missing tool) is never retried | 1 | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy or installing the tool |
+| bug | a case returns an invalid response: a reply that arrives whole but is invalid, output not in a tool's format at all, or anything else unexpected | 70 | that it is a defect, to raise as an issue; the cause is in the log |
+
+Whatever is neither business nor technical is a bug. A bad value is exit 1,
+refused, since it is there and wrong; docs/1.10's exit 2 is for a check that
+could not judge for want of one.
 
 Every deploy pulls by digest with `docker pull`, in the payload's steps
 ([§11](#11-on-the-host)), outside the port.
@@ -680,7 +684,7 @@ flowchart TB
 
 | Layer | Module | Holds |
 | --- | --- | --- |
-| port | `registry/port.py` | the interface: the [operations](#operations), in the [domain model](#domain-model)'s types, and the four failures |
+| port | `registry/port.py` | the interface: the [operations](#operations), in the [domain model](#domain-model)'s types, and the three [error types](#operations) |
 | top: port implementation | `registry/ocir/adapter.py` | each operation as Oracle calls, with the switches (every platform, digests preserved, on the release copy) and the rules: refuse to write a version tag or `VERSION-record` that releases already holds with other contents, since OCIR has [no immutable repositories](#images-tags-and-digests) (a same-digest copy is a no-op); refuse to remove a digest in the request's keep list; the tag forms `SHA-IMAGE`, `VERSION-IMAGE` and `VERSION-record` |
 | middle: Oracle calls | `registry/ocir/calls.py` | one thin function per Oracle call used, returning domain types built through the translators; it meets Oracle's business errors ([validation and errors](#validation-and-errors)) |
 | beside the middle: translators | `registry/ocir/translate.py` | Oracle's data types, each to and from the domain model ([translators](#translators)) |
@@ -729,73 +733,71 @@ no layer above the middle sees Oracle's formats:
 | OCID | parsing one, and checking its kind (`containerimage`) and region; never logged |
 | image reference | a repository, a tag or a digest, to and from `REGISTRY/NAMESPACE/REPO:TAG@sha256:…` |
 | manifest or index | the media types; the platform manifests and attestation manifests an index lists; the digest that is the image digest |
-| Oracle error | the error envelope (`code`, `message`, HTTP status), as one of the port's four failures |
+| Oracle error | the error envelope (`code`, `message`, HTTP status), as the [error type](#operations) it names |
 
 ##### Validation and errors
 
-**Each layer meets one kind of error.** The top validates the request before
-any call, the middle meets the business errors Oracle returns, and the bottom
-meets the technical ones:
+**Each layer finds its own errors**, and keeps their [type](#operations):
 
-| Layer | Validates, or meets | Reports |
+| Layer | Finds | Reports |
 | --- | --- | --- |
-| top: port implementation | the request, before any call: its values together, and the rules ([the registry adapter](#the-registry-adapter)): the keep list, no overwrite of a version tag or `VERSION-record`. It wraps whatever comes from below in the port's terms, with the operation's context (which image, which step) | a usage error for a bad value (below); a rule's refusal; a remove left where the tag has moved; a failure from below, wrapped |
-| middle: Oracle calls | business errors Oracle returns, through the translators: a manifest unknown; a delete answered `NotAuthorizedOrNotFound` (below); a reply that arrives whole but is invalid: an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region. Its calls are well formed, since the top has validated them, so it meets no error in the call itself | *absent* for a manifest unknown on a read; *not found* where the operation needed the thing; *failed* for an invalid reply |
-| bottom: the APIs | technical errors: authorisation, the network, a timeout, a missing tool, output not in the tool's format at all (not JSON, no envelope). It retries the transient ones (below) | *refused*, *unreachable* or *failed* |
+| top: port implementation | business errors on validation: each value's form, before any call; the request's rules ([the registry adapter](#the-registry-adapter)), the keep list and no overwrite of a version tag or `VERSION-record`, before any write, since no overwrite needs an inspect of releases. It wraps whatever comes from below with the operation's context (which image, which step), keeping its type | business errors; a remove left where the tag has moved, which is no error; what comes from below, wrapped |
+| middle: Oracle calls | through the translators, Oracle's answers: a manifest unknown; a delete answered `NotAuthorizedOrNotFound` (below); a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region). Its calls are well formed, since the top has validated them | *absent* for a manifest unknown on a read; a business error where the operation needed the thing; a bug for an invalid reply |
+| bottom: the APIs | technical errors: authorisation, the network, a timeout, a missing tool; and output not in the tool's format at all (not JSON, no envelope). It retries a blip (below) | technical errors; a bug for output not in its format |
 
-So *refused* and *unreachable* are technical, from the bottom; *absent* and
-*not found* are business, from the middle; *failed* comes from either.
+So business errors come from the top (validation) and the middle (not found),
+technical errors from the bottom, and bugs from the middle (an invalid reply)
+or the bottom (output not in its format).
 
 **A domain type checks its own form where the value is made**: a `Digest` is
 `sha256:` and 64 hexadecimal characters, a `Version` is semver, a `Build`'s
 `commit` is a full 40-character hexadecimal SHA, and a `Repository`'s `kind`
 is candidates or releases. The top's validation is of the request as a whole.
-A short SHA is resolved to a full one, by *list versions*, before it reaches a
-`Build`. A value that fails its form is refused before any call:
-
-- from the command line, including a short SHA that resolves to no build or to
-  more than one: a usage error, exit 1, naming the value;
-- from the profile: a profile error, exit 70.
+A value that fails its form is refused before any call: from the command line,
+a business error naming the value; from the profile, a profile error, exit 70.
+A short SHA is resolved to a full one by *list versions* before it reaches a
+`Build`, and one that resolves to no build or to several is a business error
+then.
 
 **An error is raised once and translated once**, layer by layer:
 
 1. The bottom layer raises one API error, carrying the tool, the call, the exit
    status, the HTTP status where it can tell it, the attempts it made and the
    tool's error text, with the registry address, namespace and OCIDs removed.
-2. The middle layer, through the Oracle-error translator, turns a business
-   error into *absent*, *not found* or *failed*, and passes a technical one on.
+2. The middle layer, through the Oracle-error translator, turns Oracle's answer
+   into *absent*, a business error or a bug, and passes a technical error on.
    It keeps the API error as the cause, for the log.
 3. The port implementation wraps it in the operation's context.
-4. The commands turn a port failure into exit 1 and a message naming its kind
-   and the next step: for *refused*, `turpin login COMPONENT` or the policy,
-   and that a new auth token can take a few minutes to start working (observed
-   2026-11-12). Anything that is not a port failure is a crash, exit 70
-   ([exit statuses](#6-commands)).
+4. The commands give each type its exit status and message
+   ([operations](#operations), [exit statuses](#6-commands)). For a
+   fundamental technical error from a login, the message also says that a new
+   auth token can take a few minutes to start working (observed 2026-11-12).
 
-**The bottom layer retries a call that is safe to repeat after a transient
-error**, *unreachable* or HTTP 429 or 5xx, since only it sees the status:
+**The bottom layer retries a blip**, after a network error or a timeout, HTTP
+429 or 5xx, in a call that is safe to repeat, since only it sees the status:
 
 - reads;
 - copy and push, since the same digest again is a no-op;
 - delete, under the rule below.
 
-It logs each retry. *Refused* is never retried, and retries run out as
-*unreachable*. The number of attempts, the backoff and the call's timeout are
-in [§13](#13-non-functional-design). Every `oci` call carries `--no-retry`,
+It logs each retry. A fundamental technical error is never retried, and
+retries run out as a technical error, a blip that kept failing. The number of
+attempts, the backoff and the call's timeout are in
+[§13](#13-non-functional-design). Every `oci` call carries `--no-retry`,
 since the CLI otherwise retries on its own, so this rule is the only one.
-`skopeo` reports no HTTP status, and its exit status 2 is best effort for a
-remote registry, so the bottom layer reads the status from `skopeo`'s error
-text and never takes exit 2 as absence.
+`skopeo` reports no HTTP status, and it does not reliably exit 2 for an image
+missing from a remote registry (`skopeo(1)`), so the bottom layer reads the
+status from `skopeo`'s error text and never takes exit 2 as absence.
 
-**A delete answered `NotAuthorizedOrNotFound` is *not found*, naming the
-builder's policy**, because Oracle's API answers a missing image and a missing
-right alike, with HTTP 404. A business error, it is the middle layer's, with
-one exception:
-
-- where an earlier attempt of the same delete in this run timed out or got a
-  5xx, the middle layer finds the image by digest again, and finding nothing
-  counts as removed;
-- otherwise the image is not counted as removed, and the command exits 1.
+**A delete answered `NotAuthorizedOrNotFound` is a fundamental technical
+error, naming the builder's policy.** Oracle's API answers a missing image and
+a missing right alike, with HTTP 404, so the answer could be business (the
+image is gone) or technical (the policy). The image was there when `prune`
+chose it, and only this builder removes candidates, so the policy is the
+likelier cause and the one the owner can act on. The middle layer finds it.
+The exception is a delete whose earlier attempt in this run timed out or got
+a 5xx: the middle layer finds the image by digest again, and finding nothing
+counts as removed.
 
 **A failure part way leaves nothing half-written that a rerun trips on:**
 
@@ -818,8 +820,8 @@ so the builder needs no read on releases.
 
 **On an environment's host, `lib/registry.sh` holds only the deployer's
 login**: the `docker login` a pull uses, made for the deployer's credential
-kind ([logins](#logins)), and a failed login or pull in the four failures'
-words. The host reaches the registry by `docker pull` alone
+kind ([logins](#logins)), and a failed login or pull reported as a technical
+error, with its next step. The host reaches the registry by `docker pull` alone
 ([§11](#11-on-the-host)).
 
 #### Identities
@@ -1330,9 +1332,9 @@ its list did not.
 | Exit | Meaning |
 | --- | --- |
 | 0 | done |
-| 1 | refused or failed, previous deploy restored if any |
+| 1 | refused, on a business or a technical error ([§3](#operations)), previous deploy restored if any |
 | 3 | live, but a later step (settle, GitHub Release, milestone) failed, named |
-| 70 | a profile error or a crash, never read as refused |
+| 70 | a profile error, or a bug: a defect, to raise as an issue; never read as refused |
 
 ### The commands
 
@@ -2096,8 +2098,8 @@ with the items left, and the deploy exits 3.
   application's, such as Tile Lite Elite's 60-second smoke test. A registry
   call that may be retried ([validation and errors](#validation-and-errors))
   gets three attempts, waiting 2 seconds, then 4; a registry call times out
-  after 300 seconds, the size of Tile Lite Elite's `pull_timeout`, since a
-  copy moves no more than a pull. All three are unmeasured starting values,
+  after 300 seconds, Tile Lite Elite's measured pull time used for a registry
+  call. All three are unmeasured starting values,
   product settings in `settings.py` ([§5](#scripts-and-their-dependencies)),
   set from the first runs' call times ([§14](#14-moving-tile-lite-elite-to-it))
   and then revisited from the run log.
@@ -2144,10 +2146,11 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
   `oci artifacts container image list` finding its OCID, then
   `oci artifacts container image delete`. It shows both the lookup and the
   delete work under that policy.
-- **The call times.** From the proof by hand and the first `turpin build` and
-  release, read each registry API and Artifacts API call's duration from the
-  run log, and set the call timeout and the retry numbers in `settings.py`
-  from them ([§13](#13-non-functional-design)).
+- **The call times.** Claude reads each registry API and Artifacts API call's
+  duration from the run logs of the first `turpin build`, release and `prune`,
+  with the owner's timing of the proof by hand, and sets the call timeout and
+  the retry numbers in `settings.py` from them
+  ([§13](#13-non-functional-design)).
 - **The first rehearsal cycle** has no production record to start from. It
   starts from production's commit deployed by `deploy.sh`, as today, and the
   first `turpin deploy` to rehearsal takes
