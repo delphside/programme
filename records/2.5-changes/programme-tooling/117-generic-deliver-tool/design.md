@@ -670,7 +670,7 @@ flowchart TB
   CMD -->|"calls the operations"| PORT
   PORT -->|"implemented by"| TOP
   TOP -->|"Oracle calls"| MID
-  MID -->|"Oracle data to domain types"| TRN
+  MID <-->|"domain types to and from Oracle data"| TRN
   MID -->|"registry API call, typed arguments"| RAPI
   MID -->|"Artifacts API call, typed arguments"| AAPI
   RAPI -->|"[registry v2, HTTPS]"| REG
