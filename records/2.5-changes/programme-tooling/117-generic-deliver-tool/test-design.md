@@ -490,8 +490,7 @@ The refusal is shown first and the successful deploy follows, as the other gates
 ### Only a real host can show
 
 - instance-principal login and the OCI IAM split;
-- the pull time, measured by delphside/tile-lite-elite#555's first deploy, and the
-  1 GB footprint, including the OCI CLI's peak (#554);
+- the pull time, measured by delphside/tile-lite-elite#555's first deploy, and the 1 GB footprint, including the OCI CLI's peak (#554);
 - systemd units really enabled;
 - the state surviving a reboot;
 - the lock shared with the backup;
