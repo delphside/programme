@@ -60,14 +60,14 @@ files a host runs to deploy the set. Environment-specific information, secrets
 included, is stored in each environment's `.env` file. A deployment needs an
 image set from a repository and an environment's `.env` file.
 
-Turpin is made of CLI *programs*, implemented as shell scripts. `turpin` is the
-Turpin client. It is run from a checkout of the application and can be close to
-the user. `turpin-host` is deployed on the machine where it carries out its
-action. Mainly it is invoked from `turpin`, but it can also be invoked
+Turpin is made of two CLI *programs*. `turpin`, the Turpin client, is a Python
+program. It is run from a checkout of the application and can be close to the
+user. `turpin-host`, a Bash script, is deployed on the machine where it carries
+out its action. Mainly it is invoked from `turpin`, but it can also be invoked
 directly. It is installed by `host-install`.
 
 Turpin exposes CLI *commands*, each of which is a program and a subcommand,
-such as `turpin build` or `turpin-host copy`, typed by a person or sent by
+such as `turpin build` or `turpin-host deploy`, typed by a person or sent by
 another component.
 
 A *component* is a set of related commands with a common
@@ -85,12 +85,13 @@ There are four components:
 | Component | Responsibility | Commands it runs |
 | --- | --- | --- |
 | controller | decides what ships, and is the only component that changes `main`, git tags and the board | `turpin release`, `deploy`, `settle`, `rollback`, `status`, `list`, `prune`, `login`, `host-install` |
-| builder | builds each commit once, and owns the candidates | `turpin build`; `turpin-host delete`, which `prune` sends it |
-| release copier | writes releases | `turpin-host copy` |
+| builder | builds each commit once, and owns the candidates | `turpin build`; `turpin remove`, which `prune` sends it |
+| release copier | writes releases | `turpin promote`, which `release` and `deploy --unrecorded` send it |
 | deployer | changes one application environment, by one locked, restorable path | `turpin-host deploy`, `rollback`, `status`, `allowlist`, `env`, `root-ops`; `turpin env create`, `destroy`, typed on the environment's host |
 
-`turpin-host login`, which `turpin login` sends, runs as whichever component
-the login is for.
+`turpin login COMPONENT` makes the component's login on that component's
+machine: through `turpin` for the controller, builder and copier, and through
+`turpin-host login` for a deployer.
 
 Both programs are installed and run directly on their machine by a Linux user;
 only the application runs in Docker, started by the deployer with
@@ -109,6 +110,38 @@ An *application environment* is one running copy of the application, with an
 | `test` | candidates | none beyond every deploy's |
 | `rehearsal` | candidates | release reads what it runs; each [cycle](#stages) starts at production's level, production's current release deployed first |
 | `production` | releases only | needs a [record](#10-the-release-and-its-record); [settle](#12-settling) follows (a check) |
+
+### Domain model
+
+**The client's code speaks in a few types.** Each is a frozen dataclass or an
+enumeration in `model.py`, except `GateRequest` and `GateResult`, which are the
+board model's own, in `scripts/board/release.py`; `GateResult` is not frozen.
+The [registry port](#operations) takes and gives them.
+
+A component's *credential kind* is how its registry login is made:
+`docker-config`, `oci-api-key` or `oci-instance-principal`, named by the
+profile's `login` ([logins](#logins)). Each kind starts from a `Credential` of
+one *form*: `docker-config` from an auth token, `oci-api-key` from an API key,
+`oci-instance-principal` from an instance principal. A `Credential` used for
+the Artifacts API makes no registry login and has no kind: the builder's
+*removal credential* is one, of form API key or instance principal.
+
+| Type | Purpose | Fields |
+| --- | --- | --- |
+| `Version` | a release's version, ordered as semver | `major`, `minor`, `patch` |
+| `Digest` | an image digest: `sha256:` and 64 hexadecimal characters | the text |
+| `Image` | one image as the registry holds it | `name` (from the profile's `images`), `digest`, `revision` and `created` (its labels) |
+| `Build` | one commit's image set, built once and stored in candidates | `commit` (the full SHA), `images` (each image name to its `Digest`) |
+| `ReleaseRecord` | a release's record, read and written whole | the fields of [§10](#10-the-release-and-its-record)'s record, with `version` a `Version` and `images` as a `Build`'s |
+| `Role` | what an environment is for, which gates key on | an enumeration: `preview`, `test`, `rehearsal`, `production` ([roles](#application-environments)) |
+| `Environment` | one application environment in the profile | `name`, `role`, `machine` (the controller, or an `ssh` alias), `login` (its credential kind), `project`, `url`, `lock`, `pull_timeout`, `host_files`, `join` |
+| `Credential` | one way a component proves who it is to Oracle | `form` (an auth token, an API key or an instance principal), `api` (the registry API or the Artifacts API, [§3](#the-protocol)) |
+| `Component` | whose credentials an operation uses | `kind` (an enumeration: controller, builder, copier, deployer), `environment` (a deployer's `Environment`, else none), `login` (its credential kind), `credentials` (each `Credential` it holds: Tile Lite Elite's builder holds an auth token and an API key) |
+| `Repository` | one of the application's two repositories | `kind` (candidates or releases), `name` (`APP/candidates`) |
+| `Deployed` | what an environment runs, as `turpin-host status` reports it | `state`; for `current` and `previous`, the `Build`, the `ReleaseRecord` where there is one and when it was deployed |
+| `Profile` | the application's profile at a commit or in the working tree | the keys of [§8](#8-profile-and-hooks), with `environments` as `Environment`s |
+| `GateRequest` | what the release gate needs that the board does not hold; the [board model](#the-board-model)'s own type | `version`, `sha`, `range`, `main_range`, `carry_from`, `prefixes`, `emergency`, `milestone_set_aside` |
+| `GateResult` | the release gate's answer; the board model's own type | `gates` (each a verdict: `name`, `passed`, `message`, `reported`), `notes`, `carries`, `left_out` |
 
 ### The process
 
@@ -135,8 +168,8 @@ flowchart TB
   OWN(["<i>owner</i><br>[Person]"])
   TIMER(["<i>timer</i><br>[Software System: systemd timer]<br>Dark Portal's"])
   CTL["<i>controller</i><br>[Component]<br>turpin release, deploy, settle, rollback,<br>status, list, prune, login, host-install"]
-  BLD["<i>builder</i><br>[Component]<br>turpin build;<br>turpin-host delete"]
-  COPY["<i>release copier</i><br>[Component]<br>turpin-host copy"]
+  BLD["<i>builder</i><br>[Component]<br>turpin build;<br>turpin remove"]
+  COPY["<i>release copier</i><br>[Component]<br>turpin promote"]
   DEP["<i>deployer</i><br>[Component]<br>turpin-host deploy, rollback, status,<br>allowlist, env, root-ops;<br>turpin env"]
   subgraph OCIR["OCI Registry"]
     CAND[("<i>APP/candidates</i><br>[Container: OCI repository]")]
@@ -150,9 +183,9 @@ flowchart TB
   GH -->|"fetch the commit (git)"| BLD
   CAND -->|"read: digests, tags"| CTL
   REL -->|"read: digests, records"| CTL
-  CTL -->|"delete request (JSON)"| BLD
-  BLD -->|"delete candidates"| CAND
-  CTL -->|"copy request (JSON)"| COPY
+  CTL -->|"remove request (JSON)"| BLD
+  BLD -->|"remove candidates (Artifacts API)"| CAND
+  CTL -->|"promote request (JSON)"| COPY
   CAND -->|"image set, by digest"| COPY
   COPY -->|"image set, VERSION-record"| REL
   CTL -->|"deploy request (JSON)"| DEP
@@ -174,7 +207,7 @@ flowchart TB
 #### Command flow
 
 A component view: who starts each command, what it is given (its parameters),
-and which `turpin-host` command it runs with what request.
+and which `turpin` or `turpin-host` command it runs with what request.
 [§6](#6-commands) lists each request's fields.
 
 ```mermaid
@@ -192,9 +225,9 @@ flowchart LR
   LG["<i>controller</i><br>[Component]<br>turpin login COMPONENT"]
   HI["<i>controller</i><br>[Component]<br>turpin host-install ENV"]
   ENV["<i>deployer</i><br>[Component]<br>turpin env create, destroy NAME"]
-  COPY["<i>release copier</i><br>[Component]<br>turpin-host copy APP"]
-  BDEL["<i>builder</i><br>[Component]<br>turpin-host delete APP"]
-  HLG["<i>any component</i><br>[Component]<br>turpin-host login APP COMPONENT"]
+  COPY["<i>release copier</i><br>[Component]<br>turpin promote APP"]
+  BDEL["<i>builder</i><br>[Component]<br>turpin remove APP"]
+  HLG["<i>any component</i><br>[Component]<br>turpin login COMPONENT, or<br>turpin-host login APP deployer ENV"]
   HST["<i>deployer</i><br>[Component]<br>turpin-host status APP ENV"]
   HDEP["<i>deployer</i><br>[Component]<br>turpin-host deploy APP ENV"]
   HRB["<i>deployer</i><br>[Component]<br>turpin-host rollback APP ENV"]
@@ -285,7 +318,7 @@ sequenceDiagram
   Note over H: technical tests and regression, test manager checks, owner judges passed
   Note over DEV,P: 5. Release
   CN->>CN: turpin release: gates, record
-  CN->>RC: copy request: digests, record
+  CN->>RC: turpin promote: digests, record
   C-->>RC: image set, by digest
   RC-->>R: image set as VERSION-IMAGE, and VERSION-record
   CN-->>GH: tag vVERSION (the record), GitHub Release, bump main, next milestone
@@ -368,8 +401,9 @@ per platform.
   each manifest every blob, by its hash, the digest is a fingerprint of every
   byte in the image.
 - A *tag* is a name for one digest within a repository. A push can move a tag to
-  another image; a digest always names the same image. OCIR can make a
-  repository's tags immutable.
+  another image; a digest always names the same image. OCIR has no immutable
+  repositories: it refuses `isImmutable` when a repository is created or
+  updated, so any login that may push to a repository may move its tags.
 - A *label* is a key and value in the configuration, set when the image is
   built. `org.opencontainers.image.revision` is the standard label for the
   source revision the image was built from.
@@ -387,14 +421,18 @@ scheme. A call goes like this:
 1. **Authenticate.** The registry answers a request without a token with 401,
    naming its token service. The client presents a login there
    ([identities](#identities-and-policies)). The token service asks the
-   policy whether that identity may take the action (pull, push or delete) on
-   that repository, and if so returns a short-lived *bearer token* scoped to
+   policy whether that identity may take the action (pull or push) on that
+   repository, and if so returns a short-lived *bearer token* scoped to
    both. Every later request carries it.
 2. **Read the manifest** by tag or digest.
 3. **Move the blobs.** A pull fetches the blobs it lacks. A push or copy
    uploads those the target lacks; within one registry it can ask the registry
    to mount a blob from another repository rather than upload it again.
 4. **Write the manifest** at the target's tag.
+
+OCIR also has the *Artifacts API*, Oracle's own REST API for its registry,
+which the `oci` CLI calls. It lists a repository's images and deletes one,
+naming each by its OCID.
 
 #### Identities and policies
 
@@ -413,13 +451,24 @@ condition picks out: `Allow group G to read repos in tenancy where
 target.repo.name = 'R'`. `read` pulls; `use` also pushes; `manage` also
 deletes. The registry refuses any action no statement grants.
 
+**Neither API keeps a session.** The registry API exchanges the stored
+credential for a short-lived bearer token, scoped to the repository and the
+action, on each call (step 1 of [the protocol](#the-protocol)), and the
+Artifacts API signs every request. So logging in only puts a credential in
+place for those calls to use.
+
+**An image is deleted through the Artifacts API.** OCIR's token service refuses
+the registry API's delete scope with 400, so a delete is an Artifacts API call
+naming the image by its OCID. That call is signed by an API key or an instance
+principal; an auth token cannot make it.
+
 ### How Turpin uses the registry
 
 #### Repositories and what they hold
 
 Each application has two private repositories, `APP/candidates` and
-`APP/releases`, with immutable tags where offered. The first diagram shows what
-each repository stores, each image by its tag; the second, what one image is.
+`APP/releases`. The first diagram shows what each repository stores, each image
+by its tag; the second, what one image is.
 
 ```mermaid
 %%{init: {"themeVariables": {"clusterBkg": "#ffffff", "clusterBorder": "#8c959f", "edgeLabelBackground": "#ffffff"}}}%%
@@ -488,9 +537,9 @@ whose digest is the image digest. The index lists one manifest per platform,
 and an attestation manifest per platform where the build adds attestations,
 and each manifest lists its configuration and layers by digest. An image built
 for one platform with no attestation has no index: the tag names its manifest,
-whose digest is then the image digest. The release copy (`skopeo copy --all`)
-writes the index, every manifest and every blob to releases under the tag
-`0.10.2-server`, so both tags name `sha256:9b1e…`.
+whose digest is then the image digest. The release copy
+([operations](#operations)) writes the index, every manifest and every blob to
+releases under the tag `0.10.2-server`, so both tags name `sha256:9b1e…`.
 
 The *commit SHA* (`3f2a9c1…`, 40 characters in full) is git's SHA-1 hash of
 the source commit. Each image carries it in its
@@ -514,13 +563,26 @@ and pulls each image it names by digest.
 
 - **`APP/candidates`** holds the image set of every commit built and not yet
   pruned. The builder writes it; preview, test and rehearsal
-  ([roles](#application-environments)) deploy from it, and `prune` deletes
+  ([roles](#application-environments)) deploy from it, and `prune` removes
   from it.
 - **`APP/releases`** holds every release: its image set and its record. The
   release copier writes it, copying each image from candidates by digest, so
   production runs the bytes rehearsal ran; production deploys from it alone.
   A deploy with `--unrecorded` ([flags](#flags-that-set-a-gate-aside)) is the
   exception: it copies a commit's image set, as `SHA-IMAGE`, without a record.
+
+**A release is never overwritten** (#117's G9, delphside/tile-lite-elite#545
+R7). OCIR [cannot hold a tag in place](#images-tags-and-digests), so three
+things do it between them:
+
+- **The policy**: only the releasers' group writes releases
+  ([policy](#policy)).
+- **The adapter**: promoting refuses to write a version tag or a
+  `VERSION-record` that releases already holds with other contents
+  ([the registry adapter](#the-registry-adapter)).
+- **Pulling by digest**: every production deploy pulls the digests the record
+  names ([§10](#10-the-release-and-its-record)), so a moved tag changes nothing
+  that runs.
 
 One image of the set, the profile's `payload_image`, carries the payload at
 `/turpin/`: what each host runs to deploy the image set
@@ -541,17 +603,33 @@ It holds nothing secret; secrets stay in each host's `.env`.
 
 #### Operations
 
-Turpin calls the registry through `skopeo` and `docker`:
+**Turpin reaches the registry through one port**, whose operations are in
+Turpin's own terms, the types of the [domain model](#domain-model), and name no
+tool, protocol or tag form:
 
-| Operation | Through | Used for |
-| --- | --- | --- |
-| inspect an image | `skopeo inspect` | digest and labels; only *absent*, told from *unreachable*, allows a build |
-| list tags | `skopeo list-tags` | resolving a short SHA; the candidates `prune` considers (`list` reads git tags); the controller's read |
-| copy an image set | `skopeo copy --all --preserve-digests` | the release copy: every architecture, the bytes rehearsal ran |
-| push the record | `skopeo copy` from an OCI layout | `VERSION-record`: a one-layer scratch image holding `record.json` |
-| delete a candidate | `skopeo delete` | `prune`, run by the builder |
-| pull on a host | `docker pull` by digest | every deploy ([§11](#11-on-the-host)) |
-| push from the builder | the `build` hook | `SHA-IMAGE` to candidates |
+| Operation | Takes | Gives | Used for |
+| --- | --- | --- | --- |
+| ensure a component's credentials | a `Component` | its credentials in place ([logins](#logins)) | every other operation, under that component's credentials |
+| find an image by digest or tag | a `Repository`, and a `Build`'s or a release's image or a `Digest` | the `Image`, or *absent* | digest and labels; only *absent* allows a build |
+| list versions | a `Repository` | the commits built in candidates, or the `Version`s in releases | resolving a short SHA; the candidates `prune` considers (`list` reads git tags) |
+| store a build | a commit and the profile's image names | the `Build` | `turpin build`: the `build` hook writes each image as an OCI image layout ([§8](#8-profile-and-hooks)), and each layout is pushed as `SHA-IMAGE`; the image digest is the layout's index or manifest digest, the one the registry stores |
+| read a release's record | a `Version` | its `ReleaseRecord`, or *absent* | a resumed `turpin release` |
+| promote to releases | a `Build`, with a `Version` and its `ReleaseRecord`, or with neither for `--unrecorded` | the image set and record in releases | the release copy: every image by digest, then `VERSION-record` |
+| remove a candidate | one image of a `Build`, the `Digest` it was chosen at, and the digests to keep | removed, or left where the tag has moved | `prune`, on the builder |
+
+*Absent* is an answer, not a failure: the registry says the image or record is
+not there, which is told apart from its being unreachable. A failure reaches
+Turpin as one of four kinds, with no registry address or repository, on screen
+or in the log:
+
+- *refused*: the registry refused the credential or the right;
+- *not found*: an operation needed something that is not there, such as a
+  digest to promote that candidates lacks;
+- *unreachable*: the registry could not be reached;
+- *failed*: anything else.
+
+Every deploy pulls by digest with `docker pull`, in the payload's steps
+([§11](#11-on-the-host)), outside the port.
 
 The release copy skips each blob that releases already holds, and downloads
 and uploads the rest through the copier's machine. Before downloading a blob,
@@ -560,9 +638,114 @@ records as holding it, and a download is what records candidates there. So a
 first copy moves every blob that releases lacks through the copier, and only a
 resumed copy may mount the blobs it has already read.
 
-A `skopeo` failure is summarised (`reg_summarise`) to *refused*, *not found*,
-*unreachable* or *failed*, keeping the address and repository off screen and
-log (the `build` hook prints image references, which carry the address).
+#### The registry adapter
+
+**The `OCIR` adapter implements the registry port in three layers**, after
+Cockburn's ports and adapters, where the port is only the interface. The
+adapter is an anti-corruption layer (Evans, *Domain-Driven Design*), and its
+bottom layer is a Gateway (Fowler, *Patterns of Enterprise Application
+Architecture*) for each of Oracle's two APIs. Each layer calls only the one
+below it, with one exception: the translators sit beside the middle layer, and
+only it uses them. Only the bottom layer knows a tool's syntax; it pushes what
+the `build` hook writes ([§8](#8-profile-and-hooks)).
+
+```mermaid
+%%{init: {"themeVariables": {"clusterBkg": "#ffffff", "clusterBorder": "#8c959f", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart TB
+  CMD["<i>commands</i><br>[Component: Python]<br>build, release, deploy, status, list,<br>prune, login, promote, remove"]
+  PORT["<i>registry port</i><br>[Component: Python]<br>the interface: the operations,<br>in the domain model's types"]
+  subgraph OCIRA["Component: OCIR adapter"]
+    TOP["<i>port implementation</i><br>[Component: Python]<br>each operation: the switches<br>and the rules"]
+    MID["<i>Oracle calls</i><br>[Component: Python]<br>one typed function per call:<br>log in, inspect manifest, list tags,<br>copy image, push, pull, find image,<br>delete image"]
+    TRN["<i>translators</i><br>[Component: Python]<br>OCIDs, image references,<br>manifests and indexes, Oracle errors"]
+    RAPI["<i>registry API</i><br>[Component: Python, skopeo]<br>auth files, invocation, errors"]
+    AAPI["<i>Artifacts API</i><br>[Component: Python, OCI CLI]<br>API key, instance principal,<br>JSON envelope and paging"]
+  end
+  REG["<i>OCI Registry</i><br>[Software System]"]
+  CMD -->|"calls the operations"| PORT
+  PORT -->|"implemented by"| TOP
+  TOP -->|"Oracle calls"| MID
+  MID -->|"Oracle data to domain types"| TRN
+  MID -->|"registry API call, typed arguments"| RAPI
+  MID -->|"Artifacts API call, typed arguments"| AAPI
+  RAPI -->|"[registry v2, HTTPS]"| REG
+  AAPI -->|"[Artifacts API, HTTPS]"| REG
+  classDef unchanged    fill:#f6f8fa,stroke:#8c959f,color:#1f2328
+  classDef new          fill:#dafbe1,stroke:#1a7f37,color:#0a3622
+  classDef changed      fill:#fff8c5,stroke:#9a6700,color:#4d2d00
+  class CMD,PORT,TOP,MID,TRN,RAPI,AAPI new
+  class REG unchanged
+```
+
+| Layer | Module | Holds |
+| --- | --- | --- |
+| port | `registry/port.py` | the interface: the [operations](#operations), in the [domain model](#domain-model)'s types, and the four failures |
+| top: port implementation | `registry/ocir/adapter.py` | each operation as Oracle calls, with the switches (every platform, digests preserved, on the release copy) and the rules: refuse to write a version tag or `VERSION-record` that releases already holds with other contents, since OCIR has [no immutable repositories](#images-tags-and-digests) (a same-digest copy is a no-op); refuse to remove a digest in the request's keep list; the tag forms `SHA-IMAGE`, `VERSION-IMAGE` and `VERSION-record` |
+| middle: Oracle calls | `registry/ocir/calls.py` | one thin function per Oracle call used, returning domain types built through the translators, and errors as the four failures, without the registry address |
+| beside the middle: translators | `registry/ocir/translate.py` | Oracle's data types, each to and from the domain model ([translators](#translators)) |
+| bottom: the APIs | `registry/ocir/api.py` | one function per API, taking the call's name and typed arguments: the registry API through `skopeo`, and the Artifacts API through the `oci` CLI. Each alone maps a call to its tool's subcommand, flags and auth file or configuration; holds each component's credential (an auth file; an API key's configuration; an instance principal); reads its tool's output format (the `oci` CLI's JSON envelope, `data`, and paging by `opc-next-page`; a `skopeo` or `docker` auth file); and captures its errors |
+
+The Oracle calls, and what the bottom layer runs for each:
+
+| Oracle call | API | Bottom layer runs |
+| --- | --- | --- |
+| log in | registry, Artifacts | `skopeo login --authfile`, or a check that the auth file holds a login; `docker login` for the builder where an environment on its machine shares its login; a check that the API key's configuration or the instance principal is there |
+| inspect manifest | registry | `skopeo inspect` |
+| list tags | registry | `skopeo list-tags` |
+| copy image, every platform, digests preserved | registry | `skopeo copy --all --preserve-digests` |
+| push | registry | `skopeo copy` from an OCI layout: the record's; or, for a build, `skopeo copy --all --preserve-digests oci:DIR` from each layout the `build` hook wrote, which holds one image, to the tag `SHA-IMAGE` |
+| pull | registry | `skopeo copy` to an OCI layout (the record) |
+| find image by repository and digest | Artifacts | `oci artifacts container image list`, in the compartment `TURPIN_OCI_COMPARTMENT` names ([the registry address](#the-registry-address)), giving the image's OCID |
+| delete image | Artifacts | `oci artifacts container image delete`, by the OCID |
+
+How the port implementation uses them:
+
+| Operation | Oracle calls | Credential |
+| --- | --- | --- |
+| ensure a component's credentials | log in ([logins](#logins)) | the component's ([identities](#identities)) |
+| find an image, list versions, read a record | inspect manifest; list tags; pull `VERSION-record` | the component's `skopeo` login |
+| store a build | push each image's layout; inspect manifest for each digest | the builder's |
+| promote to releases | inspect manifest of each target; copy image; push the record | the copier's |
+| remove a candidate | first, the keep list: a digest in it is refused, with no call; then inspect manifest, that the tag still names the chosen digest; find image by repository and digest; delete image | the builder's [removal credential](#logins) |
+
+A test replaces a bottom-layer function with a stub, with `unittest`. Another
+registry would be a second adapter behind the same port, reusing the
+registry-API function where it can; only `OCIR` is built.
+
+**A candidate is removed through the Artifacts API**
+([identities and policies](#identities-and-policies)), under the builder's
+`manage repos` on candidates ([policy](#policy)), once the owner's proof by
+hand ([§14](#14-moving-tile-lite-elite-to-it)) has shown it works under that
+policy.
+
+##### Translators
+
+The translators turn Oracle's data types into the domain model's and back, so
+no layer above the middle sees Oracle's formats:
+
+| Translator | Handles |
+| --- | --- |
+| OCID | parsing one, and checking its kind (`containerimage`) and region; never logged |
+| image reference | a repository, a tag or a digest, to and from `REGISTRY/NAMESPACE/REPO:TAG@sha256:…` |
+| manifest or index | the media types; the platform manifests and attestation manifests an index lists; the digest that is the image digest |
+| Oracle error | the error envelope (`code`, `message`, HTTP status), as one of the port's four failures |
+
+##### Where each operation runs
+
+**Promote and remove run on another component's machine**, under its
+credentials: `turpin release` and `turpin deploy --unrecorded` send
+`turpin promote` to the copier's machine, and `prune` sends `turpin remove` to
+the builder's, each with a request, as `turpin build` is passed on
+([§6](#6-commands)). Each runs the same adapter there, so every layer is in one
+place; promote inspects each target in releases at the moment it writes it.
+`prune` puts the digests releases holds in the remove request as its keep list,
+so the builder needs no read on releases.
+
+**On an environment's host, `lib/registry.sh` holds only the deployer's
+login**: the `docker login` a pull uses, made for the deployer's credential
+kind ([logins](#logins)), and a failed login or pull in the four failures'
+words. The host reaches the registry by `docker pull` alone
+([§11](#11-on-the-host)).
 
 #### Identities
 
@@ -572,13 +755,13 @@ Each component has its own identity, with the least access
 | Component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- |
 | controller | Oracle user `tle-controller`, group `tle-controllers`, auth token; `docker-config` | Oracle user `dp-controller`, group `dp-controllers`, auth token; `docker-config` |
-| builder | Oracle user `tle-builder`, group `tle-builders`, auth token; `docker-config` | the non-production VM, instance principal; `oci-instance-principal` |
+| builder | Oracle user `tle-builder`, group `tle-builders`, auth token; `docker-config`; and its [removal credential](#logins), an API key | the non-production VM, instance principal; `oci-instance-principal` |
 | release copier | Oracle user `tle-releaser`, group `tle-releasers`, auth token; `docker-config` | Linux user `dp-release` on the non-production VM, holding Oracle user `dp-releaser`'s API key (never leaves it); `oci-api-key` |
 | preview deployer | the laptop's `preview` environment, which uses the builder's `docker` login ([the one shared login](#logins)); `docker-config` | none |
 | rehearsal, production hosts | instance principal, dynamic groups `tle-nonprod` (rehearsal) and `tle-prod` (production); `oci-instance-principal` | instance principal; `oci-instance-principal` |
 
 The Oracle users have no console password. Each cell that names an identity
-ends with the component's [login adapter](#logins).
+ends with the component's [credential kind](#logins).
 
 #### Policy
 
@@ -607,17 +790,27 @@ its builder runs there.
 
 #### Logins
 
-**Login adapters** are named for the vendor; another registry adds one, nothing
-else changing. Docker's credential store holds the login.
+**The credential kinds are the [`OCIR` adapter](#the-registry-adapter)'s**,
+named for the vendor, and a component's `login` in the profile names its kind
+([domain model](#domain-model)).
+Docker's credential store holds the login.
 
-| Adapter | How the login is made |
+| Credential kind | How the login is made |
 | --- | --- |
 | `docker-config` | a login made once by `turpin login COMPONENT`, the auth token typed at a hidden prompt; a `skopeo` user's file is checked on each use and `turpin login` named if it holds no login for the registry; a `docker` user's is the machine user's own |
 | `oci-instance-principal` | runs the host's `TURPIN_OCI_TOKEN_CMD`, an `oci` call (such as `oci raw-request --auth instance_principal`) printing a short-lived token, then `docker login -u $TURPIN_REGISTRY_USER --password-stdin` |
 | `oci-api-key` | the same with the API key: `OCI_CLI_KEY_FILE` or `OCI_CLI_CONFIG_FILE`, or `~/.oci/config` |
 
-The `oci-*` adapters write a short-lived token into the login the component
-uses: the machine user's `docker` login, or the component's auth file.
+The `oci-*` kinds write a short-lived token into the login the component uses:
+the machine user's `docker` login, or the component's auth file.
+
+**The builder's removal credential**, a `Credential` of form API key or
+instance principal ([domain model](#domain-model)), signs its Artifacts API
+calls: its instance principal where its credential kind is
+`oci-instance-principal` (Dark Portal's), and otherwise an API key of the
+builder's Oracle user, configured in `~/.oci/config` (or
+`OCI_CLI_CONFIG_FILE`) with its private key in `~/.oci/` (Tile Lite Elite's,
+beside its auth token).
 
 **One login per component.** `skopeo` takes its login from the auth file
 `REGISTRY_AUTH_FILE` names, so a component that only calls `skopeo` has a file
@@ -629,15 +822,14 @@ every use:
 | --- | --- | --- |
 | controller | `skopeo` reads | `controller.json` |
 | release copier | `skopeo` copy and record push | `copier.json` |
-| builder | `skopeo` reads in `build`, and the delete `prune` sends | `builder.json` |
-| builder | `docker` push, by the `build` hook | the machine user's `docker` login |
+| builder | `skopeo` reads and pushes in `build`, and reads in the removal `prune` sends | `builder.json` |
 | deployer | `docker` pull | the machine user's `docker` login |
 
 `docker` keeps the machine user's login in `~/.docker`, with the user's contexts
-and `buildx` builders (Dark Portal's multi-arch build needs a `docker-container`
-builder there), so the tool never sets `DOCKER_CONFIG`, and the builder's push
-and each deployer's pull use that login as they always did. The tool sets
-`REGISTRY_AUTH_FILE` only, before a `skopeo` call.
+and `buildx` builders (the Buildx builder a hook's OCI output needs, as
+[the builder's dependencies](#the-components) say, is one of them), so the tool
+never sets `DOCKER_CONFIG`, and each deployer's pull uses that login as it
+always did. The tool sets `REGISTRY_AUTH_FILE` only, before a `skopeo` call.
 
 **The one shared login.** On Tile Lite Elite's laptop the builder and the
 `preview` deployer are the same machine user, so they share its `docker` login,
@@ -651,15 +843,18 @@ environment is on the builder's machine when its `ssh` alias is the builder's
 
 `turpin login COMPONENT` makes the login, on the component's machine and with
 the token on standard input only: `controller` and `copier` run `skopeo login
---authfile` for their file; `builder` does that for `builder.json` and also
-`docker login` for the machine user; an environment runs `docker login` for its
-machine user, except one on the builder's machine (preview on the laptop), which
-refuses and names `turpin login builder`: it shares the builder's login.
+--authfile` for their file; `builder` does that for `builder.json`, and also
+`docker login` for the machine user where an environment on its machine pulls
+with that login ([the one shared login](#logins)); for a builder or copier on
+another machine, `turpin login` passes itself on there by `ssh`. An
+environment runs `turpin-host login`, a `docker login` for its machine user,
+except one on the builder's machine (preview on the laptop), which refuses and
+names `turpin login builder`: it shares the builder's login.
 
-The controller's adapter is `[turpin].login`; the builder's,
+The controller's kind is `[turpin].login`; the builder's,
 `[turpin.build].login`; the copier's, `[turpin.release].copy_login`; a
 deployer's, its environment's `login`; each defaults to `docker-config`. An
-`oci-*` adapter makes a `docker` user's login with `docker login` and a
+`oci-*` kind makes a `docker` user's login with `docker login` and a
 `skopeo` user's with `skopeo login --authfile`. A refusal by the registry (an
 expired or revoked token, or a missing right) names `turpin login` and the
 component (`builder` for an environment on the builder's machine). The
@@ -679,7 +874,10 @@ builder or copier on another machine reads its own user's `APP.env`. A host's
 `TURPIN_OCI_TOKEN_CMD`, `TURPIN_REGISTRY_USER`, `OCI_CLI_AUTH`,
 `OCI_CLI_KEY_FILE` and `OCI_CLI_CONFIG_FILE`, so `oci-instance-principal` works
 over non-interactive `ssh`, which carries no environment.
-`~/.config/turpin/APP.env` is sourced as shell.
+`~/.config/turpin/APP.env` holds `KEY=value` lines, which `turpin` reads as
+text and `turpin-host` sources; the builder's also holds
+`TURPIN_OCI_COMPARTMENT`, the OCID of the compartment holding candidates, for a
+removal.
 
 ## 4. GitHub integration
 
@@ -723,11 +921,12 @@ Every rule about issues, milestones and `Refs` is the board model's, in
 `scripts/board/`, and every GitHub API call goes through it: **the board model
 is the GitHub adapter**, and `turpin` keeps no GitHub code of its own. So the
 lifecycle's checks and gates share one code and one logic: `board-check.py`
-before a release, this tool's gates at it, `settle` after it. The controller
-calls one command, `board-release.py`, and keeps only what is about images,
-hosts and git. Python 3 is therefore a controller prerequisite; the builder,
-copier and hosts need no Python. The board model runs beside the controller,
-under the [credentials](#credentials-used) set out below.
+before a release, this tool's gates at it, `settle` after it. `turpin`, in
+Python too, imports the model's `release` module and calls it in-process, and
+keeps only what is about images, hosts and git. `board-release.py` is a thin
+command-line entry point over the same module, with no logic of its own, for
+use by hand and for its tests. The board model runs in the
+controller, under the [credentials](#credentials-used) set out below.
 
 Release and settle assume the programme's board: issue types
 (projects, with sub-issues as work packages), the `Route` and `Project State`
@@ -739,19 +938,17 @@ done (exit 3).
 ```mermaid
 %%{init: {"themeVariables": {"clusterBkg": "#ffffff", "clusterBorder": "#8c959f", "edgeLabelBackground": "#ffffff"}}}%%
 flowchart LR
-  CTL["<i>controller</i><br>[Component: bash]<br>turpin release, deploy, settle"]
+  CTL["<i>controller</i><br>[Component: Python]<br>turpin release, deploy, settle"]
   subgraph MODEL["Container: board model"]
-    BR["<i>board-release.py</i><br>[Component: Python]<br>entry point: gate, settle, next, checks, publish"]
-    RL["<i>release.py</i><br>[Component]<br>gate, settle, publish logic"]
+    RL["<i>release.py</i><br>[Component: Python]<br>gate, checks, next, settle, publish"]
     M["<i>model.py</i><br>[Component]<br>classify: work package, parent, ..."]
     MS["<i>milestone.py</i><br>[Component]<br>carried, unbuilt"]
     RF["<i>refs.py, repo.py</i><br>[Component]<br>Refs in a range, reverts"]
     SRC["<i>sources.py</i><br>[Component]<br>GitHub reads and writes"]
   end
   GH["<i>GitHub</i><br>[Software System]<br>issues, milestones, the board"]
-  CTL -->|"VERSION, commit, ranges, tag prefixes<br>[JSON on standard input]"| BR
-  BR -->|"verdict, carries, findings<br>[JSON on standard output, exit code]"| CTL
-  BR --> RL
+  CTL -->|"GateRequest, the record<br>[Python call]"| RL
+  RL -->|"GateResult, what is left<br>[return value]"| CTL
   RL -->|unchanged| M
   RL --> MS
   RL --> RF
@@ -760,30 +957,35 @@ flowchart LR
   classDef unchanged    fill:#f6f8fa,stroke:#8c959f,color:#1f2328
   classDef new          fill:#dafbe1,stroke:#1a7f37,color:#0a3622
   classDef changed      fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-  class CTL,BR new
+  class CTL new
   class RL,MS,RF,SRC changed
   class M,GH unchanged
 ```
 
-| Command | Rule it holds | Answers |
+| Function | Rule it holds | Answers |
 | --- | --- | --- |
-| `board-release.py gate < request` | the tests-passed and milestone gates: `Refs` in the range, reverts, the work-package classification | passed or refused, with each finding; what the release carries (`work_packages`, `issues`, and `releases` with `dropped`), which goes into the record; with `--emergency`, the items left out |
-| `board-release.py settle --announcement TEXT --tag TAG < record` | [§12](#12-settling)'s table | does the table, skipping what is done; prints what is left; exit 3 if anything is, with a reason where the issues could not be read |
-| `board-release.py next VERSION [--move N...]` | step 7 of [§10](#10-the-release-and-its-record) | opens the next milestone and moves the left-out items into it |
-| `board-release.py checks SHA --require NAME...` | the `ci-passed` gate's read | each `required_checks` check's conclusion on the commit |
-| `board-release.py publish TAG [--notes-start-tag PREV] [--retrospective REASON --version V --commit SHA]` | step 5 of [§10](#10-the-release-and-its-record), and `--skip-rehearsal`'s issue | the GitHub Release, and the retrospective issue, each skipped where it exists; `--notes-start-tag` is left out for a first release |
+| `gate(request)` | the tests-passed and milestone gates: `Refs` in the range, reverts, the work-package classification | passed or refused, with each finding; what the release carries (`work_packages`, `issues`, and `releases` with `dropped`), which goes into the record; with `--emergency`, the items left out |
+| `settle(record, announcement, tag)` | [§12](#12-settling)'s table | does the table, skipping what is done; returns what is left, with a reason where the issues could not be read |
+| `open_next(version, move)` | step 7 of [§10](#10-the-release-and-its-record) | opens the next milestone and moves the left-out items into it |
+| `checks(sha, required)` | the `ci-passed` gate's read | each `required_checks` check's conclusion on the commit |
+| `publish(tag, notes_start_tag, retrospective, version, commit)` | step 5 of [§10](#10-the-release-and-its-record), and `--skip-rehearsal`'s issue | the GitHub Release, and the retrospective issue, each skipped where it exists; `notes_start_tag` is none for a first release, and `version` and `commit` go with `retrospective` |
 
-The gate's request carries the version, the commit, the release's range, the
-range on `main` (for `--emergency`), where the carried range starts and the tag
-prefixes; it holds no records. `settle` takes this release's own record.
-`board-release.py` reads the earlier releases' records from their tags'
-messages in git, so it never touches the registry. Only `gate` and `settle` read
-standard input.
+The gate's request is a [`GateRequest`](#domain-model); it holds no records.
+`settle` takes this release's own record. The model reads the earlier
+releases' records from their tags' messages in git, so it never touches the
+registry.
 
-Exit codes are the tool's: 0 passed or done; 1 refused, or for `gate` and
-`checks` the board or git could not be read; 2 usage (an unknown command);
-3 partly done (`settle`, `next`, `publish`), with what is left named; 70 a profile error or a crash
-(`profile.EXIT_PROFILE_ERROR`), never read as refused.
+`turpin` turns each answer into its exit status
+([docs/1.10](../../../../docs/1.10-development-standards.md#what-a-scripts-exit-status-means));
+a read that cannot be made, or a profile error, raises and is never read as
+refused or as empty:
+
+| Condition | Exit |
+| --- | --- |
+| a `GateResult` that refuses | 1 |
+| a read of the board or git that cannot be made | 1 |
+| work left undone in `settle`, `open_next` or `publish`, named | 3 |
+| a profile error or a crash | 70 |
 
 **The revert rule** ([the milestone gate](#the-milestone-gate)) is in
 `repo.py`, so `board-check.py`'s pre-flight counts reverts as the gate does.
@@ -839,10 +1041,11 @@ on needs `flock`. Common tools are named only; the others are described under
 - **Controller.**
   - Runs where the owner works, with a route to every other component.
   - Local dependencies: `turpin` in a checkout of the application, whose
-    `programme/` submodule carries it; bash, awk, git, `gh`, `jq`, `ssh`,
-    `curl`, Python 3; the board model; `skopeo`; Docker, for a preview
-    `--local` deploy; the application's `release-check`, `post-deploy` and
-    `bump` hooks.
+    `programme/` submodule carries it; Python 3.11 or later; git, `gh`, `ssh`;
+    the board model; `skopeo`; Docker, for a preview `--local` deploy;
+    `turpin-host`, with Bash, awk and `jq`, where an environment is on its
+    machine; the application's `release-check`, `post-deploy` and `bump`
+    hooks.
   - Reached by the owner, at a shell.
   - Reaches GitHub (git, and the board model's API calls), OCI Registry (reads),
     and by `ssh` the builder, the release copier and every environment's host
@@ -854,21 +1057,29 @@ on needs `flock`. Common tools are named only; the others are described under
   - Runs where there is enough memory and processor to build the application.
   - Local dependencies: `turpin` on the `PATH`, with `TURPIN_REPO` naming a
     checkout of the application, both set where a non-interactive `ssh`
-    session reads them, since a passed-on build starts in the home folder; bash,
-    awk, git, `jq`; Docker, to build and push; `skopeo`; `turpin-host`, for
-    `delete`; the application's `build` hook.
+    session reads them, since a passed-on build starts in the home folder;
+    Python 3.11 or later; git; `skopeo`; the OCI CLI, for `turpin remove`;
+    the application's `build` hook, with the tools its hook needs, such as
+    Docker or Buildx. A hook that writes OCI output needs a Buildx builder
+    named `turpin` with the `docker-container` driver, since the plain
+    `docker` driver cannot export OCI; the user's default builder is left as
+    it is.
   - Reached by the controller by `ssh`, the owner at a shell, and a timer where
     the application has one.
-  - Reaches GitHub (git fetch) and OCI Registry (push, read and delete
-    candidates).
-  - Credentials: its own `skopeo` registry login; the machine user's `docker`
-    login; the machine's git login.
+  - Reaches GitHub (git fetch), OCI Registry (push and read candidates) and
+    Oracle's Artifacts API (remove candidates).
+  - Credentials: its own `skopeo` registry login, which pushes; the machine
+    user's `docker` login, where an environment on its machine pulls with it
+    ([the one shared login](#logins)); its [removal credential](#logins); the
+    machine's git login.
 - **Release copier.**
   - Runs on the host the profile's `copy_on` names, with a registry login of
     its own. Tile Lite Elite's is Oracle user `tle-releaser`, on the
     controller's machine; Dark Portal also gives it a Linux user, `dp-release`,
     on the non-production VM.
-  - Local dependencies: `turpin-host`; bash, awk, `jq`; `skopeo`.
+  - Local dependencies: `turpin` on the `PATH`, from a checkout of the
+    application, set where a non-interactive `ssh` session reads it; Python
+    3.11 or later; `skopeo`.
   - Reached by the controller, by `ssh` where it is on another machine.
   - Reaches OCI Registry (read candidates, write releases).
   - Credentials: its own `skopeo` registry login.
@@ -880,7 +1091,7 @@ on needs `flock`. Common tools are named only; the others are described under
     while `turpin-host env` runs its `env-*` hooks; the `sudo` rule
     *root-ops* ([privileges](#privileges));
     for `turpin env`, `turpin` in a checkout of the application, with
-    `TURPIN_PROFILE` naming its profile.
+    `TURPIN_PROFILE` naming its profile, and Python 3.11 or later.
   - Reached by the controller, by `ssh` where it is on another machine, and by
     the owner on the host, for `turpin env`.
   - Reaches OCI Registry (pull candidates, or releases for production).
@@ -892,10 +1103,12 @@ on needs `flock`. Common tools are named only; the others are described under
 #### Dependencies
 
 - **Board model** (`scripts/board/`, Python): an existing programme tool,
-  reused here and installed beside the controller
-  ([the board model](#the-board-model)).
-- **skopeo**: the registry client of the controller, builder and release
+  reused here and imported by the controller from the same `programme/`
+  checkout ([the board model](#the-board-model)).
+- **skopeo**: the registry API's client for the controller, builder and release
   copier ([Technologies](#technologies)).
+- **OCI CLI**: the Artifacts API's client for the builder's removals, and the
+  token source of the `oci-*` credential kinds ([logins](#logins)).
 - **Application hooks**: the application's own scripts in `turpin/hooks/`,
   which the tool calls at fixed points to build, check, migrate and smoke-test
   that application ([§8](#8-profile-and-hooks)). The controller and builder run
@@ -904,49 +1117,84 @@ on needs `flock`. Common tools are named only; the others are described under
 
 ### Scripts and their dependencies
 
-Each program is one bash script with a front end that reads the subcommand and
-calls that subcommand's function (`cmd_build`, `cmd_copy` and so on). Both
-source the same libraries in `scripts/deliver/lib/`: `common.sh` (run log,
-gates, hooks, errors), `toml.sh` with `toml.awk` (the profile) and `registry.sh`
-(registry calls and logins). The deploy steps a host runs are not in either
-program but in the payload (`scripts/deliver/payload/`, [§11](#11-on-the-host)).
+**`turpin` is a Python package behind a short entry script.**
+`scripts/deliver/turpin` calls `turpinlib`'s front end, which reads the
+subcommand and calls that command's module. It uses the standard library only
+([docs/1.10](../../../../docs/1.10-development-standards.md#each-languages-standard-and-checks)),
+reading the profile with `tomllib` (hence Python 3.11 or later) and JSON with
+`json`, and calls GitHub through the board model, in-process.
 
-What each script sources, runs or calls: the tool's own scripts, the
-application's profile and hooks, and the external tools
-([Technologies](#technologies)).
+| Module, in `scripts/deliver/turpinlib/` | Holds |
+| --- | --- |
+| `cli.py` | the front end: arguments, the [flags that set a gate aside](#flags-that-set-a-gate-aside), exit statuses |
+| `model.py` | the [domain model](#domain-model) |
+| `profile.py` | `app-profile.toml` at a commit or in the working tree, as a `Profile` |
+| `runlog.py` | the run log, and the gates each command expects to run |
+| `gates.py` | the [§9](#9-gates-and-checks) gates that are not the board model's |
+| `hooks.py` | running the application's hooks, with their environment and exit 75 |
+| `gitrepo.py` | fetching, tags, the bump of `main`; `record_of_tag`, which calls the board model's `repo.tag_record`, the one parser of a record ([§10](#10-the-release-and-its-record)) |
+| `hosts.py` | `turpin-host`, on this machine or by `ssh`: the requests, and `Deployed` from `status` |
+| `remote.py` | a `turpin` command on another component's machine, by `ssh`: `build`, `promote`, `remove` and `login` passed on |
+| `payload.py` | assembling the payload and its `profile.json` |
+| `board.py` | the board model's `release` module, imported from `scripts/board/`; before calling it, sets what `board-release.py`'s `_environment()` sets: `BOARD_REPOSITORY` from `TURPIN_GH_REPO` or the origin URL, and `PROGRAMME_CONFIG` where it is unset |
+| `registry/` | the registry port and the `OCIR` adapter ([the registry adapter](#the-registry-adapter)) |
+| `commands/` | one module per command: `build`, `deploy` (and `rollback`), `release`, `settle`, `status` (and `list`), `prune`, `promote`, `remove`, `login`, `host_install`, `env` |
+
+`turpin-host` is one Bash script whose front end calls each subcommand's
+function (`cmd_deploy`, `cmd_status` and so on). It and the payload source
+`scripts/deliver/lib/`: `common.sh` (run log, gates, hooks, errors), `toml.sh`
+with `toml.awk` (a TOML profile `turpin-host env` is given) and `registry.sh`
+(the [deployer's registry login](#where-each-operation-runs)). The run log and
+the gate list are in both languages, because a host's deploy steps run the
+*every deploy* gates of [§9](#9-gates-and-checks) themselves: `runlog.py`
+serves `turpin`'s commands, and `common.sh` those of `turpin-host` and the
+payload.
+The deploy steps a host runs are in the payload (`scripts/deliver/payload/`,
+[§11](#11-on-the-host)).
+
+What each script imports, sources, runs or calls: the tool's own scripts, the
+application's profile and hooks and the external tools
+([Technologies](#technologies)). The diagram takes no C4 view: each box is a
+file or a folder.
 
 ```mermaid
 %%{init: {"themeVariables": {"clusterBkg": "#ffffff", "clusterBorder": "#8c959f", "edgeLabelBackground": "#ffffff"}}}%%
 flowchart TB
-  DLV["<i>turpin</i><br>[Script: bash]<br>front end: a function per subcommand"]
-  DH["<i>turpin-host</i><br>[Script: bash]<br>one action from a request"]
-  LIB["<i>lib/</i><br>[Library: bash, awk]<br>common.sh: run log, gates, hooks<br>toml.sh, toml.awk: the profile<br>registry.sh: registry calls, logins"]
-  PAY["<i>payload/</i><br>[Scripts: bash]<br>deploy, rollback, steps.sh:<br>a host's deploy steps"]
-  BR["<i>board-release.py</i><br>[Script: Python]<br>the board model"]
+  DLV["<i>turpin</i><br>[Script: Python]<br>entry point"]
+  PKG["<i>turpinlib/</i><br>[Library: Python]<br>front end, a module per command,<br>model, registry port and adapter"]
+  DH["<i>turpin-host</i><br>[Script: Bash]<br>one action from a request"]
+  LIB["<i>lib/</i><br>[Library: Bash, awk]<br>common.sh: run log, gates, hooks<br>toml.sh, toml.awk: a TOML profile<br>registry.sh: the deployer's login"]
+  PAY["<i>payload/</i><br>[Scripts: Bash]<br>deploy, rollback, steps.sh:<br>a host's deploy steps"]
+  BR["<i>release.py</i><br>[Library: Python]<br>the board model"]
   subgraph APP["the application"]
     PROF["<i>app-profile.toml</i>"]
     HOOKS["<i>turpin/hooks/</i>"]
   end
   subgraph EXT["external tools"]
     SKO["<i>skopeo</i>"]
+    OCIX["<i>oci</i>"]
     DOCK["<i>docker</i>"]
     GITX["<i>git</i>"]
     GHX["<i>gh</i>"]
     SSHX["<i>ssh</i>"]
   end
-  DLV -->|sources| LIB
-  DH -->|sources| LIB
-  LIB -->|reads| PROF
-  LIB -->|registry| SKO
-  DLV -->|gate, checks, next,<br>settle, publish| BR
+  DLV -->|imports| PKG
+  PKG -->|reads, tomllib| PROF
+  PKG -->|registry API| SKO
+  PKG -->|Artifacts API| OCIX
+  PKG -->|imports: gate, checks,<br>next, settle, publish| BR
   BR -->|REST, GraphQL| GHX
-  DLV -->|tag, bump, fetch| GITX
-  DLV -->|turpin-host on another<br>machine; passes on build| SSHX
-  SSHX --> DH
-  DLV -->|turpin-host on<br>the same machine| DH
-  DLV -->|build, release-check,<br>post-deploy, bump| HOOKS
-  DLV -->|copies into the payload image| PAY
-  DLV -->|buildx bake, image inspect| DOCK
+  PKG -->|tag, bump, fetch| GITX
+  PKG -->|turpin-host on another<br>machine; passes on build| SSHX
+  SSHX -->|runs| DH
+  PKG -->|turpin-host on<br>the same machine| DH
+  PKG -->|build, release-check,<br>post-deploy, bump| HOOKS
+  PKG -->|copies into the payload image| PAY
+  PKG -->|image inspect, for --local| DOCK
+  DH -->|sources| LIB
+  LIB -->|reads, for env| PROF
+  LIB -->|login| DOCK
+  LIB -->|token, for an oci-* kind| OCIX
   PAY -->|sources, payload copy| LIB
   DH -->|env-create, env-destroy| HOOKS
   DH -->|starts| PAY
@@ -957,10 +1205,14 @@ flowchart TB
   classDef unchanged    fill:#f6f8fa,stroke:#8c959f,color:#1f2328
   classDef new          fill:#dafbe1,stroke:#1a7f37,color:#0a3622
   classDef changed      fill:#fff8c5,stroke:#9a6700,color:#4d2d00
-  class DLV,DH,LIB,PAY,BR,HOOKS new
-  class PROF changed
-  class SKO,DOCK,GITX,GHX,SSHX unchanged
+  class DLV,PKG,DH,LIB,PAY,HOOKS new
+  class PROF,BR changed
+  class SKO,OCIX,DOCK,GITX,GHX,SSHX unchanged
 ```
+
+**Tests**: `unittest` for `turpinlib`, each bottom-layer registry function and
+each external call replaced by a stub; Bats for `turpin-host` and the payload,
+with stub tools.
 
 ### Technologies
 
@@ -968,17 +1220,16 @@ Where each runs is in the two deployment views.
 
 | Technology | What it is | Used for |
 | --- | --- | --- |
-| [bash](https://www.gnu.org/software/bash/), [jq](https://jqlang.org/) | the shell the tool is written in; a command-line JSON processor | the tool; requests, state and records |
-| [awk](https://www.gnu.org/software/gawk/manual/) | a text-processing language | reading the profile (`toml.awk`) |
-| [skopeo](https://github.com/containers/skopeo) | a command-line tool that inspects, copies and deletes images in a registry without pulling them or running a Docker daemon | registry reads, the release copy, the record, deletes ([§3](#3-oci-registry-integration)) |
+| [Python 3](https://www.python.org/), 3.11 or later | the language of the client and of the reused board model; its standard library reads TOML (`tomllib`) and JSON | `turpin`, on the controller, the builder, the copier and any host where `turpin env` runs; the board model's gates, checks, next, settle and publish ([§4](#the-board-model)) |
+| [bash](https://www.gnu.org/software/bash/), [jq](https://jqlang.org/), [awk](https://www.gnu.org/software/gawk/manual/) | the shell `turpin-host` and the payload are written in; a command-line JSON processor; a text-processing language | `turpin-host` and the payload; their requests, state and records; a TOML profile given to `turpin-host env` (`toml.awk`) |
+| [skopeo](https://github.com/containers/skopeo) | a command-line tool that inspects and copies images in a registry without pulling them or running a Docker daemon | registry API reads, the release copy, the record ([§3](#3-oci-registry-integration)) |
 | [Docker](https://docs.docker.com/), [Compose](https://docs.docker.com/compose/), [Buildx](https://docs.docker.com/build/) | the container engine; its multi-container runner; its builder, which can build several architectures in one run | pull by digest and run; the default `build` hook |
-| [Python 3](https://www.python.org/) | the language of the reused board model | `board-release.py`'s gate, checks, next, settle and publish, on the controller ([§4](#the-board-model)) |
 | [git](https://git-scm.com/) | version control | worktrees, the payload archive, tag, bump |
 | [GitHub CLI](https://cli.github.com/) (`gh`) | GitHub's command-line client, which also calls its REST and GraphQL APIs | every GitHub call, made through the board model ([§4](#4-github-integration)) |
-| [OpenSSH](https://www.openssh.com/), [curl](https://curl.se/) | remote commands; HTTP requests | `turpin-host` calls; production's `/health` ([§9](#9-gates-and-checks)) |
+| [OpenSSH](https://www.openssh.com/) | remote commands | `turpin-host` calls |
 | [flock](https://man7.org/linux/man-pages/man1/flock.1.html), [sudo](https://www.sudo.ws/), [systemd](https://systemd.io/) | a file lock; running one command as root; Linux's service manager | the deploy lock; `root-ops`; units ([§11](#11-on-the-host)) |
-| [OCI CLI](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/cliconcepts.htm) (`oci`) | Oracle Cloud's command-line client | the registry token for `oci-instance-principal` and `oci-api-key` ([§3](#3-oci-registry-integration)) |
-| [Bats](https://github.com/bats-core/bats-core) | a test framework for bash | the tool's tests, in development and CI |
+| [OCI CLI](https://docs.oracle.com/en-us/iaas/Content/API/Concepts/cliconcepts.htm) (`oci`) | Oracle Cloud's command-line client | the Artifacts API, for a removal; the registry token for `oci-instance-principal` and `oci-api-key` ([§3](#3-oci-registry-integration)) |
+| [unittest](https://docs.python.org/3/library/unittest.html), [Bats](https://github.com/bats-core/bats-core) | Python's test framework; a test framework for Bash | the tool's tests, in development and CI |
 
 ### Layout
 
@@ -986,11 +1237,13 @@ In the programme repository:
 
 | Path | What |
 | --- | --- |
-| `scripts/deliver/turpin`, `turpin-host` | the commands; `turpin-host` is installed by `host-install` |
+| `scripts/deliver/turpin` | the client's entry point |
+| `scripts/deliver/turpinlib/` | the client ([modules](#scripts-and-their-dependencies)) |
+| `scripts/deliver/turpin-host` | the host command, installed by `host-install` |
+| `scripts/deliver/lib/` | `turpin-host`'s and the payload's libraries: run log, gate list, a TOML profile, the deployer's registry login |
 | `scripts/deliver/payload/` | deploy and rollback steps for the payload image |
-| `scripts/deliver/lib/` | profile, run log, gate list, registry and login adapters |
-| `scripts/tests/turpin-*.bats` | tests |
-| `scripts/board/` | the board model, reused, which is the GitHub adapter: `board-release.py` its entry point, `sources.py` its GitHub calls; the board reads tags with `tag_prefix` as releases and `history_prefixes` as history |
+| `scripts/tests/test_turpin_*.py`, `scripts/tests/turpin-*.bats` | tests: the client's; `turpin-host`'s and the payload's |
+| `scripts/board/` | the board model, reused, which is the GitHub adapter: `release.py` the module the client imports, `board-release.py` a thin command-line entry point over it, `sources.py` its GitHub calls; the board reads tags with `tag_prefix` as releases and `history_prefixes` as history |
 | docs/1.1, 1.2 | 1.1: the tool's row. 1.2: *Making a release, then deploying it*, and §1.0, which states that a release is "a commit on `main`" (delphside/tile-lite-elite#545 R5) |
 
 ## 6. Commands
@@ -1003,35 +1256,37 @@ its list did not.
 | 0 | done |
 | 1 | refused or failed, previous deploy restored if any |
 | 3 | live, but a later step (settle, GitHub Release, milestone) failed, named |
+| 70 | a profile error or a crash, never read as refused |
 
 ### The commands
 
 `ENV` is a profile environment, `REF` a commit or version, `GATE` a
-[§9](#9-gates-and-checks) gate, `COPIER` the release copier's host (`copy_on`),
-`BUILDER` the builder's (`build.on`), `COMPONENT` `controller`, `builder`,
+[§9](#9-gates-and-checks) gate, `COMPONENT` `controller`, `builder`,
 `copier` or an `ENV`. The `turpin-host` commands are called by `turpin` (over
 `ssh`, or directly on the same machine), or, as `root-ops`, by the payload steps
-through `sudo`; `deploy`, `rollback`, `copy` and `delete` take a JSON request on
-standard input.
+through `sudo`. `turpin promote` and `remove` are called by `turpin` on the
+copier's or builder's machine in the same way, as `turpin build` is passed on.
+`turpin-host deploy` and `rollback`, and `turpin promote` and `remove`, take a
+JSON request on standard input.
 
 | Command | Component | Called by | What | Privileges |
 | --- | --- | --- | --- | --- |
-| `turpin build [REF] [--local]` | builder | owner; timer; controller by `ssh` | builds REF (default `HEAD`) once, pushes to candidates; non-interactive. The `build` hook (default `docker buildx bake`); labels `org.opencontainers.image.revision` (SHA) and `.version` (from the version file); prints digests (an index digest for a multi-arch build). `--local` (preview only): local Docker, no push; identified by image id and revision label, not `RepoDigests` | builder: its `skopeo` login (read candidates), the machine user's `docker` login (push candidates), the machine's git login (fetch) |
+| `turpin build [REF] [--local]` | builder | owner; timer; controller by `ssh` | builds REF (default `HEAD`) once, pushes to candidates; non-interactive. The `build` hook writes each image as an OCI image layout ([§8](#8-profile-and-hooks); the default runs `docker buildx bake` with OCI output per target), and the [registry adapter](#the-registry-adapter) pushes it; labels `org.opencontainers.image.revision` (SHA) and `.version` (from the version file); prints digests (an index digest for a multi-arch build). `--local` (preview only): the hook, given `TURPIN_LOCAL=1`, loads the images into local Docker (the default with `--load`), no push; identified by image id and revision label, not `RepoDigests` | builder: its `skopeo` login (read and push candidates), the machine's git login (fetch) |
 | `turpin deploy ENV REF [--wait[=MIN]] [--check] [--set-aside GATE REASON] [--unrecorded REASON] [--off-level REASON]` | controller | owner | preview, test, rehearsal: REF is a SHA (full or short; ambiguous refuses) or version, resolved to candidates' digests. Production: a version with a record | controller: its `skopeo` login (read), the owner's `ssh` key. Deployer: the machine user's `docker` login (pull candidates, or releases for production); the deploy user and *root-ops* |
-| `turpin release [--expect VERSION] [--commit REF] [--emergency REASON] [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]` | controller; copy on the copier | owner | releases the commit rehearsal runs; `--commit REF` names another commit instead, as `--skip-rehearsal` needs. Shows version (from the version file at that commit), commit, digests, last passing rehearsal deploy; the owner types the version to confirm (`--expect` if non-interactive). Gates [§9](#9-gates-and-checks), steps [§10](#10-the-release-and-its-record) | controller: its `skopeo` login (read), the owner's `gh` login (through the board model), the owner's git login (push `main`, by admin bypass, and the tag), the owner's `ssh` key to the copier's machine. Copier: its `skopeo` login (write releases) |
+| `turpin release [--expect VERSION] [--commit REF] [--emergency REASON] [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]` | controller; `turpin promote` on the copier | owner | releases the commit rehearsal runs; `--commit REF` names another commit instead, as `--skip-rehearsal` needs. Shows version (from the version file at that commit), commit, digests, last passing rehearsal deploy; the owner types the version to confirm (`--expect` if non-interactive). Gates [§9](#9-gates-and-checks), steps [§10](#10-the-release-and-its-record) | controller: its `skopeo` login (read), the owner's `gh` login (through the board model), the owner's git login (push `main`, by admin bypass, and the tag), the owner's `ssh` key to the copier's machine. Copier: its `skopeo` login (write releases) |
 | `turpin settle VERSION` | controller | owner | the board to what the record says shipped ([§12](#12-settling)); safe to rerun | controller: the owner's `gh` login, through the board model |
 | `turpin rollback ENV` | controller | owner | `turpin-host rollback`: ENV's previous deploy ([§11](#11-on-the-host)) | controller: the owner's `ssh` key. Deployer: as for `deploy` |
 | `turpin status ENV`, `list ENV` | controller | owner | digests ENV runs (`RepoDigests`), their record, deploy state, host files against the payload's (a check); `list`: the records beside what ENV runs | controller: its `skopeo` login (read), the owner's `ssh` key |
-| `turpin prune [--dry-run]` | controller; delete on the builder | owner | the controller picks the unneeded candidates, reading every environment's state and the registry with its own login, and sends the list to the builder (`[turpin.build].on`), whose login deletes them; never releases. `--dry-run` lists and sends nothing. Exit 1 if the builder fails to delete any chosen candidate (the rest are deleted) | controller: its `skopeo` login (read), `ssh` to every host and the builder. Builder: its `skopeo` login (delete candidates) |
-| `turpin login COMPONENT` | controller; `turpin-host login` on the component's machine | owner | the owner's one `docker-config` login for `controller`, `builder`, `copier` or an environment (its deployer): asks for the registry user, reads the token at a hidden prompt, and sends both on standard input to `turpin-host login` on the component's machine ([§3](#3-oci-registry-integration) says which login each makes). Prints nothing of the token | the owner's `ssh` key to the component's machine; writes only that component's login |
+| `turpin prune [--dry-run]` | controller; `turpin remove` on the builder | owner | the controller picks the unneeded candidates, reading every environment's state and the registry with its own login, and sends the list to the builder (`[turpin.build].on`), with the digests releases holds as its keep list; the builder's removal credential removes them; never releases. `--dry-run` lists and sends nothing. Exit 1 if the builder fails to remove any chosen candidate (the rest are removed) | controller: its `skopeo` login (read), `ssh` to every host and the builder. Builder: its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates, through the Artifacts API) |
+| `turpin login COMPONENT` | controller; on the component's machine, `turpin login` (builder, copier) or `turpin-host login` (an environment) | owner | the owner's one `docker-config` login for `controller`, `builder`, `copier` or an environment (its deployer): asks for the registry user, reads the token at a hidden prompt, and sends both on standard input to the component's machine ([§3](#3-oci-registry-integration) says which login each makes). Prints nothing of the token | the owner's `ssh` key to the component's machine; writes only that component's login |
 | `turpin env create\|destroy NAME` | deployer, on the environment's host | owner, on the environment's host | an ephemeral environment from the profile template: user, state folder, `.env` (secrets at a hidden prompt), Compose project; the `env-*` hooks | deployer: the deploy user and *root-ops* |
-| `turpin host-install ENV\|COPIER\|BUILDER` | controller | owner | installs or updates `turpin-host` and libraries on ENV's host, the copier or the builder; installs `jq` if missing; refuses if `flock` or the login adapter's tools (`oci`) are absent. A copier or builder hosting no environment gets `turpin-host` and libraries (including `registry.sh`), no allowlist or sudo rule. Refuses environments that would remove each other's host files ([§9](#9-gates-and-checks)) | the owner's `ssh` key, as a user with `sudo` on the target machine, to install into `/usr/local` |
+| `turpin host-install ENV` | controller | owner | installs or updates `turpin-host` and libraries on ENV's host; installs `jq` if missing; refuses if `flock` or the tools its credential kind needs (`oci`) are absent. Refuses environments that would remove each other's host files ([§9](#9-gates-and-checks)) | the owner's `ssh` key, as a user with `sudo` on the target machine, to install into `/usr/local` |
 | `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
 | `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | switch to `previous`. The request: `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait` | as for `deploy` |
 | `turpin-host status APP ENV --json` | deployer | `status`, `list`, `prune`, release, the rehearsal-level gate, production's version read | what runs, its record, state | the deploy user (reads its state) |
-| `turpin-host copy APP < request` | release copier | `turpin release` and `turpin deploy --unrecorded`, on `[turpin.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request: `login`, `candidates`, `releases`, `copies` (`digest`, `dest` name), `record` (`tag`, `body`) or null | its `skopeo` login (read candidates, write releases) |
-| `turpin-host delete APP < request` | builder | `turpin prune`, on `[turpin.build].on` with the build login | delete each candidate the controller chose, the request being `login`, `candidates` and `deletes` (`tag`, `digest`), and only while the tag still has that digest; an absent tag is done | its `skopeo` login (delete candidates) |
-| `turpin-host login APP COMPONENT [ENV]` | the component the login is for | `turpin login`, on the component's machine | `skopeo login --authfile` for the controller and copier; both that and `docker login` for the builder; `docker login` for a deployer; all `--password-stdin`, user and token on standard input | writes only that component's login |
+| `turpin promote APP < request` | release copier | `turpin release` and `turpin deploy --unrecorded`, on `[turpin.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request: `login`, `candidates`, `releases`, `copies` (`digest`, `dest` name), `record` (`tag`, `body`) or null | its `skopeo` login (read candidates, write releases) |
+| `turpin remove APP < request` | builder | `turpin prune`, on `[turpin.build].on` with the build login | remove each candidate the controller chose, through the Artifacts API ([the registry adapter](#the-registry-adapter)), only while the tag still has that digest, and never a digest in `keep`; an absent tag is done. The request: `login`, `candidates`, `removes` (`tag`, `digest`) and `keep` (the digests releases holds) | its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates) |
+| `turpin-host login APP deployer ENV` | deployer | `turpin login ENV`, on the environment's host | `docker login --password-stdin` for the machine user, user and token on standard input | writes only that deployer's login |
 | `turpin-host allowlist APP < lines` | deployer | `host-install`, as root | the root-owned allowlist | root, through `host-install`'s `sudo` |
 | `turpin-host env create\|destroy NAME` | deployer | `turpin env` | an ephemeral environment | the deploy user and *root-ops* |
 | `turpin-host root-ops ...` | deployer | payload steps and `env`, by one `sudo` rule | the deploy user's root operations ([privileges](#privileges)) | root, by the one `sudo` rule |
@@ -1060,7 +1315,10 @@ ssh tle-rehearsal "turpin-host deploy tile-lite-elite rehearsal" <<< "$request"
 ssh tle-production "turpin-host status tile-lite-elite production --json"
 
 # turpin release, to the copier's host: the image set and record to releases
-ssh "$copy_on" "turpin-host copy tile-lite-elite" <<< "$request"
+ssh "$copy_on" "turpin promote tile-lite-elite" <<< "$request"
+
+# turpin prune, to the builder's host: the candidates to remove
+ssh "$build_on" "turpin remove tile-lite-elite" <<< "$request"
 
 # turpin build, typed on the controller's host, passing itself to the builder's
 ssh "$build_on" "TURPIN_ON_BUILD_HOST=1 turpin build 3f2a9c1"
@@ -1099,7 +1357,7 @@ side of each login is [§3](#3-oci-registry-integration)'s policy, GitHub's is
   only fetches, and the copier and deployer have no GitHub credential
   ([§4](#4-github-integration)).
 - `ssh`: the controller is the one component that calls out by it.
-- Registry: the controller only reads; the builder writes and deletes
+- Registry: the controller only reads; the builder writes and removes
   candidates and reads nothing of releases; the copier writes releases; each
   deployer pulls what its role reads. Tile Lite Elite's preview deployer uses
   the builder's login, which can also write candidates.
@@ -1151,14 +1409,17 @@ application:
   builder's (`[turpin.build].on`), where the same command runs as the builder.
   A command started on the builder's own host, such as a timer's, sets
   `TURPIN_ON_BUILD_HOST=1`, so it builds there rather than passing itself on.
+- `turpin promote` and `turpin remove` are passed the same way, by `turpin
+  release` to the copier's host (`[turpin.release].copy_on`) and by `prune` to
+  the builder's; `turpin login` passes itself to the builder's or copier's.
 
 The scripts live in the programme repository ([Layout](#layout)) and run from
 three places:
 
 | Scripts | Run from |
 | --- | --- |
-| `turpin` | the application's checkout, as `programme/scripts/deliver/turpin`, from the `programme/` submodule at the commit the application pins |
-| `turpin-host` and `lib/` | `/usr/local/bin/turpin-host` and `/usr/local/lib/turpin/`, copied there by `turpin host-install` |
+| `turpin` | the application's checkout, as `programme/scripts/deliver/turpin`, from the `programme/` submodule at the commit the application pins; on a builder or copier on another machine, and on an environment's host for `turpin env`, that machine's own checkout |
+| `turpin-host` and `lib/` | on each environment's host, `/usr/local/bin/turpin-host` and `/usr/local/lib/turpin/`, copied there by `turpin host-install` |
 | `payload/` and the hooks | the deploy's folder under the environment's [state folder](#11-on-the-host), taken out of the payload image |
 
 Tile Lite Elite runs all four components on the owner's laptop, with a deployer
@@ -1182,10 +1443,10 @@ flowchart TB
   GH["<i>GitHub</i><br>[Software System]<br>delphside/tile-lite-elite: repository,<br>issues, Releases; the board"]
   subgraph LAPTOP["Owner's laptop: WSL"]
     subgraph TOOLS["tool environments"]
-      CTL["<i>controller</i><br>[Component: bash, jq, skopeo,<br>git, ssh, curl]<br>skopeo auth file controller.json"]
+      CTL["<i>controller</i><br>[Component: Python, skopeo,<br>git, ssh]<br>skopeo auth file controller.json"]
       BM["<i>board model</i><br>[Container: Python]<br>GitHub adapter, reused"]
-      BLD["<i>builder</i><br>[Component: git, docker buildx,<br>skopeo]<br>skopeo auth file builder.json, docker login"]
-      COPY["<i>release copier</i><br>[Component: skopeo]<br>skopeo auth file copier.json"]
+      BLD["<i>builder</i><br>[Component: Python, git, docker buildx,<br>skopeo, oci CLI]<br>skopeo auth file builder.json, docker login,<br>tle-builder API key"]
+      COPY["<i>release copier</i><br>[Component: Python, skopeo]<br>skopeo auth file copier.json"]
     end
     subgraph PREV["preview"]
       DEPP["<i>deployer</i><br>[Component: docker compose,<br>flock]<br>the builder's docker login"]
@@ -1202,14 +1463,15 @@ flowchart TB
     DEPX["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>instance principal (dynamic group tle-prod)"]
   end
   GH -->|"fetch the commit<br>[git]<br>the machine's git login"| BLD
-  CTL -->|"gate, checks, next, settle, publish<br>[local process; JSON in<br>for gate, settle]"| BM
+  CTL -->|"gate, checks, next, settle, publish<br>[Python call, in-process]"| BM
   BM -->|"checks, milestones, Release, settle<br>[GraphQL or REST, HTTPS]<br>owner's gh token"| GH
   CTL -->|"tag, bump main<br>[git]<br>owner's git login, admin bypass"| GH
-  BLD -->|"push SHA-IMAGE, delete pruned<br>[registry v2]<br>tle-builder token"| CAND
+  BLD -->|"push SHA-IMAGE<br>[registry v2]<br>tle-builder token"| CAND
+  BLD -->|"remove pruned<br>[Artifacts API, HTTPS]<br>tle-builder API key"| CAND
   CAND -->|"digests, tags<br>[registry v2]<br>tle-controller token"| CTL
   REL -->|"digests, records<br>[registry v2]<br>tle-controller token"| CTL
-  CTL -->|"delete request<br>[local process]"| BLD
-  CTL -->|"copy request<br>[local process]"| COPY
+  CTL -->|"turpin remove<br>[local process]"| BLD
+  CTL -->|"turpin promote<br>[local process]"| COPY
   CAND -->|"read by digest<br>[registry v2]<br>tle-releaser token"| COPY
   COPY -->|"copy, VERSION-record<br>[registry v2]<br>tle-releaser token"| REL
   CTL -->|"deploy request<br>[local process]"| DEPP
@@ -1234,7 +1496,7 @@ flowchart TB
 flowchart TB
   GH["<i>GitHub</i><br>[Software System]<br>delphside/dark-portal: repository,<br>issues, Releases; the board"]
   subgraph OWNER["Owner's machine"]
-    CTL["<i>controller</i><br>[Component: bash, jq, skopeo,<br>git, ssh]<br>skopeo auth file controller.json"]
+    CTL["<i>controller</i><br>[Component: Python, skopeo,<br>git, ssh]<br>skopeo auth file controller.json"]
     BM["<i>board model</i><br>[Container: Python]<br>GitHub adapter, reused"]
   end
   subgraph OCIR["OCI Registry"]
@@ -1243,8 +1505,8 @@ flowchart TB
   end
   subgraph NONPROD["Oracle VM: non-production"]
     subgraph TOOLS["tool environments"]
-      BLD["<i>builder</i><br>[Component: git, docker buildx,<br>skopeo, oci CLI]<br>E2, on a timer; the VM's instance principal"]
-      COPY["<i>release copier</i><br>[Component: skopeo, oci CLI]<br>Linux user dp-release;<br>dp-releaser's API key"]
+      BLD["<i>builder</i><br>[Component: Python, git, docker buildx,<br>skopeo, oci CLI]<br>E2, on a timer; the VM's instance principal"]
+      COPY["<i>release copier</i><br>[Component: Python, skopeo, oci CLI]<br>Linux user dp-release;<br>dp-releaser's API key"]
     end
     subgraph TEST["E3 to E5 (role test)"]
       DEPT["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>the VM's instance principal"]
@@ -1257,14 +1519,15 @@ flowchart TB
     DEPX["<i>deployer</i><br>[Component: docker compose, flock,<br>sudo, systemd, oci CLI]<br>the VM's instance principal"]
   end
   GH -->|"fetch the commit<br>[git]<br>the machine's git login"| BLD
-  CTL -->|"gate, checks, next, settle, publish<br>[local process; JSON in<br>for gate, settle]"| BM
+  CTL -->|"gate, checks, next, settle, publish<br>[Python call, in-process]"| BM
   BM -->|"checks, milestones, Release, settle<br>[GraphQL or REST, HTTPS]<br>owner's gh token"| GH
   CTL -->|"tag, bump main<br>[git]<br>owner's git login, admin bypass"| GH
-  BLD -->|"push SHA-IMAGE, delete pruned<br>[registry v2]<br>the VM's instance principal"| CAND
+  BLD -->|"push SHA-IMAGE<br>[registry v2]<br>the VM's instance principal"| CAND
+  BLD -->|"remove pruned<br>[Artifacts API, HTTPS]<br>the VM's instance principal"| CAND
   CAND -->|"digests, tags<br>[registry v2]<br>dp-controller token"| CTL
   REL -->|"digests, records<br>[registry v2]<br>dp-controller token"| CTL
-  CTL -->|"delete request<br>[ssh]<br>owner's ssh key"| BLD
-  CTL -->|"copy request<br>[ssh]<br>owner's ssh key"| COPY
+  CTL -->|"turpin remove<br>[ssh]<br>owner's ssh key"| BLD
+  CTL -->|"turpin promote<br>[ssh]<br>owner's ssh key"| COPY
   CAND -->|"read by digest<br>[registry v2]<br>dp-releaser API key"| COPY
   COPY -->|"copy, VERSION-record<br>[registry v2]<br>dp-releaser API key"| REL
   CTL -->|"deploy request<br>[ssh]<br>owner's ssh key"| DEPT
@@ -1290,7 +1553,7 @@ The credential on an arrow or in a box is one of these:
 | instance principal (dynamic group X) | the VM's own identity, which the policy grants by the named dynamic group; its token comes from the `oci` CLI on the host ([§3](#3-oci-registry-integration)) |
 | the VM's instance principal | the same, with the group not shown |
 | `NAME token` | the auth token of Oracle user NAME, typed once at `turpin login` ([§3](#3-oci-registry-integration)) |
-| API key | Oracle user dp-releaser's key, which never leaves its machine ([§3](#3-oci-registry-integration)) |
+| `NAME API key` | the API key of Oracle user NAME, whose private key never leaves its machine ([logins](#logins)) |
 | skopeo auth file, docker login | the logins `turpin login` makes: a file per component, and the machine user's `docker` login ([§3](#3-oci-registry-integration)) |
 | owner's gh token | the controller's `gh` login ([§4](#4-github-integration)) |
 | owner's git login, admin bypass | the owner's git credential, which bypasses `main`'s ruleset for the bump, where `main` has one ([§4](#4-github-integration)) |
@@ -1298,7 +1561,8 @@ The credential on an arrow or in a box is one of these:
 | the machine's git login | the credential the machine's `git` uses to fetch `origin`: none, as both applications' repositories are public; a private one needs a read-only fetch credential |
 
 On Tile Lite Elite's laptop the controller, builder and copier run as one Linux
-user with four logins (three skopeo auth files and the `docker` login), and the
+user with four logins (three skopeo auth files and the `docker` login) and the
+builder's API key, and the
 payload's deploy steps run on each host as its deploy user, reaching root
 through `root-ops` ([privileges](#privileges)).
 
@@ -1328,7 +1592,7 @@ join = ["docker-compose.yml", "Caddyfile"]
 login = "docker-config"                    # the controller's own login: reads candidates and releases
 
 [turpin.build]
-on    = "controller"                     # dp: ssh alias of the non-production VM; builds and deletes candidates
+on    = "controller"                     # dp: ssh alias of the non-production VM; builds and removes candidates
 login = "docker-config"                    # dp: "oci-instance-principal"
 
 [turpin.release]
@@ -1363,8 +1627,8 @@ pull_timeout = 300                         # from delphside/tile-lite-elite#554'
 
 Also:
 
-- a `login` is one of the [§3](#3-oci-registry-integration) adapters; where a component has none
-  it is `docker-config`;
+- a `login` is one of the [§3](#3-oci-registry-integration) credential kinds;
+  where a component has none it is `docker-config`;
 - `[turpin].fallback`, the sentence a failed first deploy prints;
 - `[turpin.ephemeral]` (`user_prefix`, `home`, `secrets`), `turpin env`'s
   template;
@@ -1392,14 +1656,38 @@ missing hook is a no-op. Only `build` has a default.
 | 75 | not yet (`--wait` retries; else refuse) |
 | other | refused, or step failed |
 
+**The `build` hook writes OCI image layouts.** It builds each image of the set
+and writes it as an OCI image layout, a directory holding that one image,
+naming on standard output one line per image: its name and its layout's
+directory. Buildx writes one with `--output type=oci,dest=DIR,tar=false`,
+every platform in one index; both applications' hooks use it, passing
+`--builder turpin` to `docker buildx bake`, the Buildx builder
+[the builder's dependencies](#the-components) name. The builder pushes each
+layout ([the registry adapter](#the-registry-adapter)), so the hook needs no
+registry login. With `TURPIN_LOCAL` set, the hook loads the images into local
+Docker instead and prints their names only.
+
+**The default hook** bakes one target per name in the profile's `images`, the
+target named as the image. It writes each to a directory it creates in the
+worktree, `.turpin/oci/IMAGE`, and prints the lines; each directory is then
+the `DIR` the builder pushes with
+`skopeo copy --all --preserve-digests oci:DIR`. With `TURPIN_LOCAL` set, it
+runs `docker buildx bake --builder turpin --load` instead.
+
+```sh
+docker buildx bake --builder turpin \
+  --set "IMAGE.output=type=oci,dest=.turpin/oci/IMAGE,tar=false" IMAGE
+```
+
 Each hook gets `TURPIN_APP`, `TURPIN_ENV`, `TURPIN_ROLE` (`controller` for
 the release step, `ephemeral` for create and destroy), `TURPIN_SHA`,
-`TURPIN_VERSION`, `TURPIN_STATE` (state folder) and `TURPIN_IMAGE_<NAME>`
-(each image by digest). A hook that cannot judge answers refused.
+`TURPIN_VERSION`, `TURPIN_STATE` (state folder), `TURPIN_IMAGE_<NAME>`
+(each image by digest) and, for `build` under `--local` only,
+`TURPIN_LOCAL=1`. A hook that cannot judge answers refused.
 
 | Hook | Kind | Component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- | --- | --- |
-| `build` | step | builder | `docker compose build`, build id | `docker buildx`, arm64 and amd64 |
+| `build` | step | builder | `docker buildx bake --builder turpin` from the compose file's `build:` blocks, to OCI layouts | `docker buildx bake --builder turpin`, arm64 and amd64, to OCI layouts |
 | `release-check` | gate | controller | no `functional` change in a patch | none |
 | `pre-deploy` | gate | deployer | database not ahead of the build's schema | window :40 to :10 (75 outside) |
 | `save-state` | step | deployer | stop server, snapshot database, keep five | copy DuckLake catalog aside |
@@ -1475,9 +1763,9 @@ The release step ([stages](#stages), stage 5) puts what cannot be undone last:
 
 1. every release gate ([§9](#9-gates-and-checks)), then the owner's
    confirmation;
-2. copy each image by digest to releases as `VERSION-IMAGE`
-   (`skopeo copy --all --preserve-digests`, on the copier; a same-digest copy is
-   a no-op, another digest refuses);
+2. copy each image by digest to releases as `VERSION-IMAGE`, on the copier
+   ([the registry adapter](#the-registry-adapter)); a same-digest copy is a
+   no-op, another digest refuses;
 3. push the record as a scratch image `VERSION-record`;
 4. push the annotated tag `vVERSION`, whose message is the record. **The version
    is spent here**: a rerun checks the tag's record and resumes at 5;
@@ -1514,21 +1802,23 @@ reader does with one, and with an unknown version.
 
 | Copy | Written | Read by |
 | --- | --- | --- |
-| the message of the annotated tag `vVERSION` | step 4, by the controller | `record_of_tag` in `turpin`, for a deploy by version, `settle`, `status`, `list`, `prune` and a resumed `turpin release`; the board model's carried releases (`tag_record`) |
+| the message of the annotated tag `vVERSION` | step 4, by the controller | `record_of_tag` in `gitrepo.py`, for a deploy by version, `settle`, `status`, `list`, `prune` and a resumed `turpin release`; the board model's carried releases (`tag_record`) |
 | `VERSION-record` in releases | step 3, by the copier | `turpin release`, which reuses a record a failed run left there, or refuses one for another commit or other digests |
 | the host's deploy directory ([§11](#11-on-the-host)): the `record` field of `meta.json`, and `record.json` | at each deploy, from the deploy request | `turpin-host status` reads `meta.json`, and through it production's current record for [Which release production runs](#which-release-production-runs); no tool reads `record.json` |
 
-`record_of_tag` takes a tag name, after its caller has run `git fetch --tags`:
+`record_of_tag` takes a tag name, after its caller has run `git fetch --tags`,
+and calls the board model's `repo.tag_record`, the one parser of a record:
 
 1. It reads the tag's message with
    `git tag --list vVERSION --format='%(contents)'`.
-2. It returns 1 for a message without a `record` field (a tag that predates
-   the tool) and 2 for a record version this tool does not know.
-3. Otherwise it returns the record's JSON.
+2. It answers *no record* for a message without a `record` field (a tag that
+   predates the tool), and *unknown version* for a record version this tool
+   does not know.
+3. Otherwise it returns the `ReleaseRecord` ([domain model](#domain-model)).
 
-What a caller does with 1 or 2:
+What a caller does with each:
 
-| Caller | 1, no record | 2, unknown version |
+| Caller | No record | Unknown version |
 | --- | --- | --- |
 | a deploy by version | production refuses; another environment deploys the tag's commit from candidates | refuses |
 | a resumed `turpin release` | refuses | refuses |
@@ -1633,7 +1923,9 @@ builder uses it with its `build:` blocks.
 9. switch `current`, run `compose up`, then `smoke`;
 10. mark the state `finished` and prune images under the registry address, and
     `deploys/<n>` folders, other than current and previous (local images are
-    untouched).
+    untouched). A pruned folder keeps its `meta.json`, a few hundred bytes, so
+    the host keeps the history of what it ran: which commit, version and
+    record, and when.
 
 A failure after `save-state` runs `restore-state`, switches to `previous`,
 reinstalls its host files and exits 1. A host's first `turpin` deploy has no
@@ -1717,7 +2009,7 @@ with the items left, and the deploy exits 3.
   leaves. A release copy moves each blob that releases lacks, usually only the
   layers changed since the last release, through the copier's machine
   ([operations](#operations)): Tile Lite Elite's laptop, Dark Portal's
-  non-production VM.
+  non-production VM. The builder's removals need the OCI CLI on its machine.
 - **Failure.** Gates refuse before a host changes ([§9](#9-gates-and-checks)); a
   failed deploy restores ([§11](#11-on-the-host)); a release resumes
   ([§10](#10-the-release-and-its-record)).
@@ -1726,7 +2018,8 @@ with the items left, and the deploy exits 3.
   application's, such as Tile Lite Elite's 60-second smoke test.
 - **Secrets and access.** The tool holds no credential of its own: each
   component's registry login is in its own auth file or the machine user's
-  `docker` login, written by those tools ([§3](#3-oci-registry-integration)), and GitHub's is the `gh` login
+  `docker` login, written by those tools, or an API key in `~/.oci/`
+  ([§3](#3-oci-registry-integration)), and GitHub's is the `gh` login
   ([§4](#4-github-integration)); the [privileges](#privileges) are
   least access, and a token reaches `turpin login` at a hidden prompt, then
   standard input only. Nothing secret
@@ -1740,6 +2033,32 @@ Production runs 0.10.0, built the old way. 0.10.1 is released (`v0.10.1`, a text
 tag, no record) and has never run in production. 0.10.2 is the first release
 made with `turpin` (owner, 2026-10-28), and the first with a record.
 
+- **The Python client.** Before delphside/tile-lite-elite#555 starts, the
+  Python `turpin`, with its `OCIR` adapter
+  ([§5](#scripts-and-their-dependencies)), reaches the programme's `main` and
+  Tile Lite Elite's `programme/` pin moves to it, so that work package is
+  built and tested against it.
+- **The builder's API key.** Before the first `prune`: make an API key for
+  Oracle user `tle-builder`, with its private key and `config` in `~/.oci/` on
+  the laptop; install the OCI CLI there; set `TURPIN_OCI_COMPARTMENT` in
+  `~/.config/turpin/tile-lite-elite.env`
+  ([the registry address](#the-registry-address)).
+- **The laptop's Buildx builder.** Before the first `turpin build`, check that
+  `docker buildx ls` lists a builder named `turpin` with the
+  `docker-container` driver ([§5](#the-components)). If it is absent, make it,
+  without `--use`, so the default builder, and `deploy.sh`'s
+  `docker compose build`, are untouched:
+
+  ```sh
+  docker buildx create --name turpin --driver docker-container
+  ```
+
+- **The proof by hand.** Before `prune`, the owner removes one candidate by
+  hand on his laptop, with the builder's [removal credential](#logins), under
+  the policy conditioned on `target.repo.name` ([policy](#policy)): an
+  `oci artifacts container image list` finding its OCID, then
+  `oci artifacts container image delete`. It shows both the lookup and the
+  delete work under that policy.
 - **The first rehearsal cycle** has no production record to start from. It
   starts from production's commit deployed by `deploy.sh`, as today, and the
   first `turpin deploy` to rehearsal takes
@@ -1755,9 +2074,9 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
   `rollback.sh` are retired in 0.10.3.
 - **The logins.** Before the first `turpin` command: run `turpin login
   controller`, `copier` and `builder` on the laptop (each asks for its Oracle
-  user and auth token; preview shares the builder's `docker` login); `host-install` on a remote builder before
-  `prune` deletes there; and `docker logout` of any old `tle-releaser` login left
-  in the laptop's `~/.docker`, so the builder's and preview's `docker` login is
+  user and auth token; preview shares the builder's `docker` login); and
+  `docker logout` of any old `tle-releaser` login left in the laptop's
+  `~/.docker`, so the builder's and preview's `docker` login is
   `tle-builder`'s alone.
 - **The board** reads the `v` prefix for releases and keeps `prod-*` as history
   (`history_prefixes`); "running in production" comes from settle and `/health`,
@@ -1766,7 +2085,9 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
   delphside/tile-lite-elite#556's: the profile keys
   ([§8](#8-profile-and-hooks)); the hooks, which wrap today's schema,
   snapshot, migrate and smoke steps and refuse where today's pass for want of
-  an answer; the compose files' `image:` lines; the payload in
+  an answer; the `build` hook writing OCI layouts, with a Buildx builder able
+  to export them ([§5](#the-components)); the compose files' `image:` lines;
+  the payload in
   the server image; `Caddyfile` mounted, not copied; `[ships].non_shipping` no
   longer listing what the payload carries; `verify.sh` using `turpin status`
   and `--check`; the `sa` alias as an `/etc/profile.d` host file naming the
