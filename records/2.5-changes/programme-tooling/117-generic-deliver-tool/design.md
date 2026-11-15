@@ -1104,8 +1104,8 @@ never read as refused or as empty:
 | a crash, or anything else unexpected | 70 |
 
 `turpin` catches the board model's `ProfileError`, otherwise unexpected (70),
-and exits 2; it redirects the board model's standard error around the call, so
-the operator sees one message.
+and exits 2; it redirects the board model's standard error to the run log
+around the call, so the operator sees one message.
 
 **The revert rule** ([the milestone gate](#the-milestone-gate)) is in
 `repo.py`, so `board-check.py`'s pre-flight counts reverts as the gate does.
@@ -1433,29 +1433,37 @@ Then, on a Ctrl+C:
 1. A tool, a hook or a data-reading call already running runs to its end.
 2. `turpin` closes the input of each call that has one held open.
 3. The called side reads the end of its input as the interruption at its next
-   step or while it waits (the lock, a hook's *not yet*). `turpin-host
-   rollback` reads it only before its first step: once begun, it runs to its
-   end, since a rollback stopped part-way has no rerun.
+   step or while it waits (the lock, a hook's *not yet*). `turpin-host rollback`
+   reads it only before its first step, which includes its wait on the lock:
+   once begun, it runs to its end, since a rollback stopped part-way has no
+   rerun, and its message says the rollback finished.
 4. `turpin`, and each called side that read the interruption, starts no further
    step of the command's work. Each one:
    - before the command's pivot, undoes what changed, as for an error;
    - after it, leaves the remaining steps for the rerun it names;
    - in `settle` or `prune`, which have no pivot, leaves each action done or
      not done, for a rerun that retries what is not done;
-   - in any other command with no pivot (`build`, `host-install`), has its
-     message say which steps are done; a rerun is safe, since `build` never
-     overwrites what it pushed and `host-install` installs or updates
-     ([the commands](#the-commands)).
+   - in any other command with no pivot, has its message say which steps are
+     done, for a rerun its section says is safe: `build`, for example, never
+     overwrites what it pushed, and `host-install` installs or updates ([the
+     commands](#the-commands)).
 5. A called side that read the interruption exits 130, which comes back over
    the `ssh` connection, still open. Once every call has returned, `turpin`
    exits 130.
 
-A dropped connection also ends a call's input, so the called side stops as for
-an interruption. `turpin` then sees `ssh`'s 255, and reports it as a technical
-blip, exit 75, naming `turpin status ENV` to see where the call stopped.
-
 `turpin`'s message names the rerun and, for a command with a pivot, says
 whether its change is live.
+
+**A dropped connection** ends a call's input too, so a called side whose input
+is held open stops as for an interruption. A data-reading call uses its data
+only once it has read the final line that ends it, so a drop never hands it part
+of an allowlist or an environment. `turpin` maps `ssh`'s 255 by `ssh`'s error
+text, as docs/1.10 requires: a refused key or host key is a fundamental
+technical error, exit 2, naming the key or the host to fix; a lost connection is
+a blip, exit 75. `turpin` never retries a call over `ssh` itself, since the call
+may have changed something before the drop. Its message says how to find where
+the call stopped: `turpin status ENV` for a call to an environment's host, and
+the run log on the builder's or copier's machine for a call there.
 
 ### The commands
 

@@ -292,7 +292,8 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S87 | `prune` with three candidates chosen, the second delete answered 503 on every attempt. | C39 prune one delete | O26: the first and third removed, the second left, the message naming `turpin prune` | CI (unittest) |
 | S88 | A command stopped by each C40 type: a short `--commit` resolving to no build; authorisation refused; 503 on every attempt; an Oracle reply with an unknown media type. | C40 | exits 1, 2, 75 and 70, each run log's last result `fatal` with that `type`, and `blip` true only for the third | CI (unittest) |
 | S89 | A promote's missing digest answered by the registry with a manifest unknown and an error text holding a registry address; a `turpin promote` request with a bad digest; `turpin-host status --json` on a finished deploy. | C41 | the logged result's `cause` is the API error's result, of domain `oracle`, `reason` in upper snake case, its `metadata` the tool's text with the address removed, and no `message` holds tool text or the address; the bad digest's result has one `violations` entry with field, value, limit and reason; the status is one result object, `outcome` ok, the status in `metadata` | CI |
-| S90 | A misspelt flag; then a production deploy given SIGINT during its gates, one given SIGINT while `turpin-host deploy` runs `smoke` and one given SIGINT during `settle`; then a `deploy --wait` given SIGINT while the host waits on the lock; then a `rollback` given SIGINT after its first step; then a `prune` given SIGINT after its first delete. | R31, R50: exits 64, 130 | exit 64 naming the flag, nothing run; exit 130, nothing that runs changed (O1's snapshot), the message saying the change is not live and naming `turpin deploy`; the host restores the previous deploy (O7-like), `settle` is not started, exit 130, the message saying the change is not live and naming `turpin deploy`; the action under way finished and no other started, exit 130, the message saying the change is live and naming `turpin settle VERSION`; the host stops waiting, nothing that runs changed, exit 130, the message saying the change is not live and naming `turpin deploy`; the rollback runs to its end, exit 130; the first image removed and no other delete started, exit 130, the message naming `turpin prune` | CI (bats) |
+| S90 | A misspelt flag; then a production deploy given SIGINT during its gates, one given SIGINT while `turpin-host deploy` runs `smoke` and one given SIGINT during `settle`; then a `deploy --wait` given SIGINT while the host waits on the lock; then a `rollback` given SIGINT after its first step; then a `prune` given SIGINT after its first delete. | R31, R50: exits 64, 130 | exit 64 naming the flag, nothing run; exit 130, nothing that runs changed (O1's snapshot), the message saying the change is not live and naming `turpin deploy`; the host restores the previous deploy (O7-like), `settle` is not started, exit 130, the message saying the change is not live and naming `turpin deploy`; the action under way finished and no other started, exit 130, the message saying the change is live and naming `turpin settle VERSION`; the host stops waiting, nothing that runs changed, exit 130, the message saying the change is not live and naming `turpin deploy`; the rollback runs to its end, the previous deploy restored and `previous` removed, exit 130, the message saying the rollback finished; the first image removed and no other delete started, exit 130, the message naming `turpin prune` | CI (bats) |
+| S91 | A production deploy whose `ssh` connection the stub drops while `turpin-host deploy` runs `smoke`; one whose stub `ssh` refuses the key with exit 255; a `turpin-host allowlist` whose stub drops the connection part-way through the list. | R31, R50: exit 75 for a lost connection, 2 for a refused key | the host restores the previous deploy, exit 75, the message naming `turpin status ENV`; exit 2, nothing run on the host, the message naming the key to fix; the allowlist unchanged, exit 75 | CI (bats) |
 
 ## 6. Refusals and successes
 
@@ -361,7 +362,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R28 | S31, S56 |
 | R29 | S6, S10, S11, S33, S59 |
 | R30 | S12, S17, S19, S20, S29, S49, S53 |
-| R31 | S32, S59, S88, S90 |
+| R31 | S32, S59, S88, S90, S91 |
 | R32 | S32 |
 | R33 | S35, S40, S65, S68 |
 | R34 | S41, S44, S70 |
@@ -380,7 +381,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R47 | S70 |
 | R48 | S45, S71, S89 |
 | R49 | S72, S73 |
-| R50 | S75, S76, S79, S88, S90 |
+| R50 | S75, S76, S79, S88, S90, S91 |
 | R51 | S74, S75, S76, S83 |
 | R52 | S80, S81 |
 | R53 | S77, S78 |
@@ -482,6 +483,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S88 | R31, R50 |
 | S89 | R48, R56 |
 | S90 | R31, R50 |
+| S91 | R31, R50 |
 
 ## 8. Approach
 
