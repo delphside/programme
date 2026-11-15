@@ -165,7 +165,10 @@ The check covers each way marked *yes*.
 | `gh issue close` and `gh pr close` with `--comment` | yes |
 | `gh pr review` with `--body` (comment, approve or request changes) | yes |
 | `gh api -X POST` to `issues/N/comments`, `pulls/N/comments`, `pulls/N/reviews` or a comment's `replies` | yes |
-| the GitHub MCP tools `add_issue_comment`, `add_reply_to_pull_request_comment` and `pull_request_review_write` when it creates or submits a review with a body (`create` with an `event`, or `submit_pending`) | yes, once wired: in WSL by delivery 2's pin moves and wiring, in a cloud thread by the setup script pasted in delivery 3 |
+| the GitHub MCP tools `add_issue_comment` and `add_reply_to_pull_request_comment`, with a body | yes, once wired: in WSL by delivery 2's pin moves and wiring, in a cloud thread by the setup script pasted in delivery 3 |
+| `pull_request_review_write` with `submit_pending`, or with `create` and an `event` | yes, whatever the body, because it posts the pending comments. Wired as above |
+| `gh pr comment` and `gh pr review` with no number | yes: the branch's pull request, found with `gh pr view`; if that fails the post is allowed with a note |
+| a post to another repository than the application's (`-R`, `GH_REPO`, a URL, an MCP owner and repo) | no, a known gap: the board reads one repository, so the post is let through unchecked |
 | a reaction, through a tool's `reaction` parameter | no: it posts no comment, so it is let through |
 | `add_comment_to_pending_review` | no: nothing is posted until the review is submitted, which is covered |
 | editing Claude's own comment (`update_issue_comment`, `gh api -X PATCH`) | no: it answers nothing new |

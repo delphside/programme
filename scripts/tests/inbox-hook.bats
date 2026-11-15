@@ -232,7 +232,7 @@ BODY
   context
   assert_success
   assert_output --partial "actions on the board (programme/scripts/board/board-actions.py --claude for the detail) could not be read (exit 3): boom from board-actions.py"
-  assert_output --partial "Programme activities could not be judged (programme/scripts/board/board-practices.py) could not be read (exit 2): boom from board-practices.py"
+  assert_output --partial "For the activity's owner: programme activities overdue (programme/scripts/board/board-practices.py) could not be read (exit 2): boom from board-practices.py"
   assert_output --partial "#9     opened        something"
   assert_output --partial "#13 a finding"
 }

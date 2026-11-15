@@ -39,6 +39,15 @@ class Check(Cases):
         self.addCleanup(self.dir.cleanup)
         self.stub = Path(self.dir.name) / "inbox"
         self.say(ASK)
+        self.bin = Path(self.dir.name) / "bin"
+        self.bin.mkdir()
+        self.gh(7)
+
+    def gh(self, number):
+        """A stub `gh` that answers `gh pr view` with a number, or fails when None."""
+        script = f"#!/bin/sh\necho {number}\n" if number else "#!/bin/sh\necho 'no pull request' >&2\nexit 1\n"
+        (self.bin / "gh").write_text(script)
+        (self.bin / "gh").chmod(0o755)
 
     def say(self, lines, status=0, error=""):
         """What the stub board-inbox.py prints, and how it exits."""
@@ -50,7 +59,8 @@ class Check(Cases):
         run = subprocess.run([str(HOOK)], input=json.dumps(data) if isinstance(data, dict) else data,
                              capture_output=True, text=True,
                              env={**os.environ, "COMMENT_CHECK_INBOX": str(self.stub),
-                                  "COMMENT_CHECK_NOW": str(now), "TMPDIR": self.dir.name, **env})
+                                  "COMMENT_CHECK_NOW": str(now), "TMPDIR": self.dir.name,
+                                  "PATH": f"{self.bin}:{os.environ['PATH']}", **env})
         return run
 
     def decision(self, run):
@@ -83,6 +93,10 @@ class Check(Cases):
         "gh pr review 7 --approve --body ok",
         "gh pr review 7 --request-changes -b no",
         "gh pr review --comment -b hm 7",
+        "gh pr comment --body hi",
+        "gh pr review --approve --body ok",
+        "GH_REPO=fakeorg/widget gh issue comment 7 --body hi",
+        "gh api -X POST repos/{owner}/{repo}/issues/7/comments -f body=x",
         "gh api -X POST repos/fakeorg/widget/issues/7/comments -f body=x",
         "gh api repos/fakeorg/widget/issues/7/comments -f body=x",
         "gh api --method POST /repos/fakeorg/widget/pulls/7/comments -f body=x",
@@ -110,7 +124,7 @@ class Check(Cases):
         "echo gh issue comment 7 --body hi",
         "git commit -m 'gh issue comment 7'",
         "cat <<'EOF'\ngh issue comment 7 --body hi\nEOF",
-        "gh pr comment --body hi",
+        "gh issue comment --body hi",
         "ls -l",
     )
 
@@ -129,6 +143,33 @@ class Check(Cases):
         _, reason = self.decision(self.run_hook(bash("gh issue comment 9 --body 'see #7'")))
         self.expect("asked about 9", True, "#9" in reason)
 
+    def test_a_post_with_no_number_is_the_branchs_pull_request(self):
+        self.gh(9)
+        self.stub.write_text('#!/bin/sh\n[ "$3" = "9" ] && echo "  > 2026-10-01T09:00  #9  nine  asked  (comment 5)"\nexit 0\n')
+        self.stub.chmod(0o755)
+        for n, command in enumerate(("gh pr comment --body hi", "gh pr review -c -b hi")):
+            _, reason = self.decision(self.run_hook(bash(command, f"branch-{n}")))
+            self.expect(f"{command!r} asks about 9", True, "#9" in reason)
+
+    def test_a_branch_with_no_pull_request_lets_the_post_through_and_says_so(self):
+        self.gh(None)
+        verdict, said = self.decision(self.run_hook(bash("gh pr comment --body hi")))
+        self.expect("allowed", "allow", verdict)
+        self.expect("saying it could not read", True, "Could not read" in said)
+
+    def test_gh_repo_names_the_repository_the_post_goes_to(self):
+        other = "gh issue comment 7 --body hi"
+        self.expect("GH_REPO in the environment", "allow", self.decision(
+            self.run_hook(bash(other), GH_REPO="other/repo"))[0])
+        self.expect("GH_REPO before the command", "allow", self.decision(
+            self.run_hook(bash("GH_REPO=other/repo " + other)))[0])
+        self.expect("GH_REPO as a URL", "allow", self.decision(
+            self.run_hook(bash(other), GH_REPO="https://github.com/other/repo"))[0])
+        self.expect("without the branch's pull request being read", "", self.run_hook(
+            bash("gh pr comment --body hi"), GH_REPO="other/repo").stdout)
+        self.expect("the application's own", "deny", self.decision(
+            self.run_hook(bash(other, "mine"), GH_REPO="fakeorg/widget"))[0])
+
     def test_a_post_to_another_repository_is_not_checked_here(self):
         self.expect("-R names another repository", "allow", self.decision(self.run_hook(
             bash("gh issue comment https://github.com/other/repo/issues/7 --body hi")))[0])
@@ -145,6 +186,11 @@ class Check(Cases):
             pullNumber=7, body="hi", event="COMMENT"),
         mcp("pull_request_review_write", method="submit_pending", owner="fakeorg", repo="widget",
             pullNumber=7, body="hi", event="APPROVE"),
+        # it posts the pending comments, so the body does not matter
+        mcp("pull_request_review_write", method="submit_pending", owner="fakeorg", repo="widget",
+            pullNumber=7, event="APPROVE"),
+        mcp("pull_request_review_write", method="create", owner="fakeorg", repo="widget",
+            pullNumber=7, event="COMMENT"),
     )
 
     MCP_LET_THROUGH = (
@@ -162,17 +208,18 @@ class Check(Cases):
     )
 
     def test_comment_check_fires_on_every_post_and_no_read_for_the_mcp_tools(self):
-        for data in self.MCP_POSTS:
-            sid = data["tool_name"] + str(data["tool_input"].get("method"))
+        for n, data in enumerate(self.MCP_POSTS):
+            sid = f"{n}-" + data["tool_name"] + str(data["tool_input"].get("method"))
             self.expect(f"denies {sid}", True, self.denied({**data, "session_id": sid}))
         for data in self.MCP_LET_THROUGH:
             self.expect(f"lets through {data['tool_name']} {data['tool_input']}", "",
                         self.run_hook(data).stdout)
 
-    def test_live_comment_check_denies_once_then_allows_each_hook_input(self):
-        """TT10: the hook invoked directly with piped hook-input JSON, a stub in
-        place of GitHub and no real post: denied once with the comment, then
-        allowed, for a Bash input and for each MCP comment tool."""
+    def test_stub_comment_check_denies_once_then_allows_each_hook_input(self):
+        """The hook invoked directly with piped hook-input JSON and a stub in place
+        of GitHub (not TT10, which runs against the real repositories): denied
+        once with the comment, then allowed, for a Bash input and for each MCP
+        comment tool."""
         inputs = [bash("gh issue comment 7 --body hi")] + list(self.MCP_POSTS)
         for n, data in enumerate(inputs):
             data = {**data, "session_id": f"tt10-{n}"}
@@ -200,6 +247,61 @@ class Check(Cases):
         self.run_hook(post, PROGRAMME_CONFIG=str(shorter))
         self.expect("59 s", "allow", self.decision(self.run_hook(post, T0 + 59, PROGRAMME_CONFIG=str(shorter)))[0])
         self.expect("61 s", "deny", self.decision(self.run_hook(post, T0 + 61, PROGRAMME_CONFIG=str(shorter)))[0])
+
+    def test_the_marker_is_of_the_kind_of_post_as_well(self):
+        self.run_hook(bash("gh issue comment 7 --body hi"))
+        self.expect("a close with a comment is another post", "deny", self.decision(
+            self.run_hook(bash("gh issue close 7 --comment done"), T0 + 5))[0])
+        self.expect("and its own retry is allowed", "allow", self.decision(
+            self.run_hook(bash("gh issue close 7 --comment done"), T0 + 10))[0])
+        self.expect("a review is another", "deny", self.decision(
+            self.run_hook(mcp("pull_request_review_write", method="submit_pending", owner="fakeorg",
+                              repo="widget", pullNumber=7, event="COMMENT"), T0 + 15))[0])
+
+    def test_without_a_session_id_the_marker_is_the_hooks_parents(self):
+        post = {"tool_name": "Bash", "tool_input": {"command": "gh issue comment 7 --body hi"}}
+        self.run_hook(post)
+        self.expect("the same parent retries", "allow", self.decision(self.run_hook(post, T0 + 5))[0])
+        self.expect("another parent is a new session", True, self.denied_as_other_parent(post))
+
+    def denied_as_other_parent(self, post):
+        """Run the hook through a different parent process: a shell that runs it."""
+        run = subprocess.run(["sh", "-c", f"{HOOK}; true"], input=json.dumps(post), capture_output=True,
+                             text=True, env={**os.environ, "COMMENT_CHECK_INBOX": str(self.stub),
+                                             "COMMENT_CHECK_NOW": str(T0 + 5), "TMPDIR": self.dir.name})
+        return self.decision(run)[0] == "deny"
+
+    def test_the_marker_folder_is_private_and_a_link_is_refused(self):
+        post = bash("gh issue comment 7 --body hi")
+        self.run_hook(post)
+        parent = Path(self.dir.name) / f"claude-comment-check-{os.getuid()}"
+        self.expect("mode 0700", 0o700, stat.S_IMODE(parent.stat().st_mode))
+        markers = [m for m in parent.glob("*/*")]
+        self.expect("the marker is private", 0o600, stat.S_IMODE(markers[0].stat().st_mode))
+        # the folder is a link to somewhere else: nothing is recorded, nothing denied
+        other = Path(self.dir.name) / "elsewhere"
+        other.mkdir()
+        for child in parent.glob("*"):
+            for m in child.glob("*"):
+                m.unlink()
+            child.rmdir()
+        parent.rmdir()
+        parent.symlink_to(other)
+        verdict, said = self.decision(self.run_hook(post, T0 + 1000))
+        self.expect("allowed", "allow", verdict)
+        self.expect("saying why", True, "Could not keep a record" in said)
+        self.expect("and wrote nothing through the link", [], list(other.iterdir()))
+
+    def test_a_marker_that_is_a_link_is_not_followed(self):
+        post = bash("gh issue comment 7 --body hi")
+        self.run_hook(post)
+        marker = next(Path(self.dir.name).glob("claude-comment-check-*/*/*"))
+        target = Path(self.dir.name) / "victim"
+        target.write_text("keep")
+        marker.unlink()
+        marker.symlink_to(target)
+        self.expect("a link is no marker and cannot be recorded in, so it allows", "allow", self.decision(self.run_hook(post, T0 + 5))[0])
+        self.expect("and the file it pointed at is untouched", "keep", target.read_text())
 
     def test_the_marker_is_the_sessions(self):
         post = lambda sid: bash("gh issue comment 7 --body hi", sid)
