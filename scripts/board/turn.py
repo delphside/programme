@@ -13,9 +13,10 @@ The fourth cannot, and that is reported rather than passed over:
 | source | how it is read |
 | --- | --- |
 | a decision waiting on the owner | `Decision State` is one the owner holds (`model.DECISION_TURNS`, the programme's docs/1.2's table) |
-| a pull request waiting to be reviewed | `PR State` is `Awaiting review` |
+| a pull request waiting to be reviewed | `PR State` is `Awaiting review` (the flow table's owner row) |
 | a phase only the owner can advance | `User testing`, with Preview boxes unticked |
 | an unanswered question in a body | an unticked `- [ ]` labelled **owner** |
+| an item the daily sweep says is his | `Turn` is `Owner` (`model.FLOW`, the flow table) |
 
 **The fourth source was underivable until 2026-09-18.** Bodies used `- [ ]` for
 work of every kind and nothing distinguished a box the owner must tick from one
@@ -35,6 +36,11 @@ from datetime import date
 from .model import (
     CLAUDE,
     OWNER,
+    RELEASE_CHECK,
+    REVIEW_DUE_DAYS,
+    ROLE_OWNER,
+    TURN,
+    TURN_OWNER,
     Box,
     Decision,
     Issue,
@@ -43,6 +49,7 @@ from .model import (
     StandaloneProject,
     WorkPackage,
     classify,
+    flow_row,
 )
 from . import repo
 from .sources import Snapshot, step_ages, token_days_left
@@ -175,8 +182,10 @@ def waiting_on_owner(issue: Issue) -> Waiting | None:
     if isinstance(issue, Decision) and issue.turn and issue.turn[0] == OWNER:
         return Waiting(issue, issue.turn[1], "decision")
 
-    if isinstance(issue, PullRequest) and issue.step == "Awaiting review":
-        return Waiting(issue, "review: approve or request changes", "pull request")
+    if isinstance(issue, PullRequest):
+        row = flow_row(issue)
+        if row is not None and row.role == ROLE_OWNER:
+            return Waiting(issue, row.owes, "pull request")
 
     # The one phase whose exit only the owner can evidence: somebody has to
     # have used it in a browser, and only he can say so.
@@ -203,18 +212,13 @@ def waiting_on_owner(issue: Issue) -> Waiting | None:
         first = his[0].text
         more = f" (+{len(his) - 1} more)" if len(his) > 1 else ""
         return Waiting(issue, f"{first[:60]}{more}", "checkbox")
+
+    # The daily sweep's word that the move is his: an approval or a joint
+    # triage no state above derives (design.md, *The turn*). Last, so the
+    # specific ask above names what he is to do, and an item is listed once.
+    if issue.field(TURN) == TURN_OWNER:
+        return Waiting(issue, "your move: see the latest comment", "turn")
     return None
-
-
-# A delivery at Post-deployment owes a review after this long. `actions.py`'s
-# REVIEW_DUE_DAYS, kept at its value so the move changes nothing.
-REVIEW_DUE_DAYS = 7
-
-# A delivery carrying this waits for the next release and owes nobody an
-# action: the difference between "you have not done this" and "this cannot be
-# done yet". Without it a Release Check project nags for a review for ever,
-# which is #310.
-RELEASE_CHECK = "Release Check"
 
 
 def waiting_on_claude(issue: Issue) -> Waiting | None:
@@ -229,11 +233,10 @@ def waiting_on_claude(issue: Issue) -> Waiting | None:
         return Waiting(issue, issue.turn[1], "decision")
 
     if isinstance(issue, PullRequest):
-        if issue.step == "Approved":
-            return Waiting(issue, "approved — mine to merge", "pull request")
-        if issue.step == "Changes requested":
-            return Waiting(issue, "make the changes, then re-request the review",
-                           "pull request")
+        # Every state that is not the owner's is its author's (the flow table).
+        row = flow_row(issue)
+        if row is not None and row.role is not None and row.role != ROLE_OWNER:
+            return Waiting(issue, row.owes, "pull request")
         return None
 
     if (isinstance(issue, DELIVERING) and issue.step == "Post-deployment"

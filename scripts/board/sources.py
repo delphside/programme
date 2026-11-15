@@ -14,13 +14,14 @@ from __future__ import annotations
 import json
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Sequence
 
-from . import profile
-from .model import (PR_STATE, OpenItem, RawBoardItem, RawIssue, RawPullRequest,
-                    RawSubIssue)
+from . import flow_settings, profile
+from .model import (PR_STATE, Comment, Link, MergedPull, Milestone, Observed,
+                    OpenItem, RawBoardItem, RawIssue, RawPullRequest, RawSubIssue)
 
 
 def _repository() -> tuple[str, str]:
@@ -1120,7 +1121,8 @@ class _Rest:
 
     def _read(self, path: str, url: str):
         try:
-            run = subprocess.run(["gh", "api", url], capture_output=True, text=True, timeout=120)
+            run = subprocess.run(["gh", "api", url], capture_output=True, text=True,
+                                 timeout=flow_settings.REST_TIMEOUT_SECONDS)
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise Unavailable(f"GitHub did not answer: {exc}") from exc
         if run.returncode != 0:
@@ -1343,7 +1345,8 @@ def rest_get(path: str):
     """One REST GET as JSON. None only when GitHub answers 404; any other
     failure raises `Unavailable`, so *absent* and *unreadable* are never merged."""
     try:
-        run = subprocess.run(["gh", "api", path], capture_output=True, text=True, timeout=120)
+        run = subprocess.run(["gh", "api", path], capture_output=True, text=True,
+                                 timeout=flow_settings.REST_TIMEOUT_SECONDS)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise Unavailable(f"GitHub did not answer: {exc}") from exc
     if run.returncode != 0:
@@ -1366,7 +1369,8 @@ def _rest_write(method: str, path: str, **fields) -> None:
         else:
             args += ["-f", f"{key}={value}"]
     try:
-        run = subprocess.run(args, capture_output=True, text=True, timeout=120)
+        run = subprocess.run(args, capture_output=True, text=True,
+                             timeout=flow_settings.REST_TIMEOUT_SECONDS)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise Unavailable(f"GitHub did not answer: {exc}") from exc
     if run.returncode != 0:
@@ -1451,3 +1455,202 @@ def create_release(tag: str, notes_start_tag: str | None) -> None:
         raise Unavailable(f"GitHub did not answer: {exc}") from exc
     if run.returncode != 0:
         raise Unavailable(f"GitHub refused the Release {tag}: {run.stderr.strip()[:300]}")
+
+
+# --------------------------------------------------------------------------
+# the daily sweep's reads and writes (`flow.py`, `board-flow.py`)
+# --------------------------------------------------------------------------
+#
+# **All REST**, so they run from a cloud session whose token GitHub refuses
+# GraphQL (implementation.md, *The daily sweep*). Every function takes the
+# repository it is about as `owner/name`, because the sweep reads five and
+# the module's other readers are about the application's own. A read that could
+# not be made raises `Unavailable` naming the call: an item that could not be
+# read must never read as one with nothing to report.
+
+# REST's timeline carries no field name or value (checked 2026-11-15), only that
+# a field was added, changed or removed.
+_FIELD_EVENTS = ("issue_field_added", "issue_field_changed", "issue_field_removed")
+_REVIEW_EVENTS = ("review_requested", "review_request_removed", "ready_for_review",
+                  "convert_to_draft", "reviewed")
+
+
+def _field_values(item: dict) -> tuple[dict[str, str], dict[str, int], bool]:
+    """(values by field name, ids by field name, whether they could be read).
+
+    A single-select reads as its option's name, any other kind as its value.
+    An item that carries no `issue_field_values` at all is *not visible*: an
+    empty list means no field is set, the key's absence means nobody can say."""
+    raw = item.get("issue_field_values")
+    if raw is None:
+        return {}, {}, False
+    values: dict[str, str] = {}
+    ids: dict[str, int] = {}
+    for v in raw:
+        name = v.get("issue_field_name")
+        if not name:
+            continue
+        if v.get("issue_field_id") is not None:
+            ids[name] = v["issue_field_id"]
+        option = (v.get("single_select_option") or {}).get("name")
+        value = option if option else v.get("value")
+        if value is not None and value != "":
+            values[name] = str(value)
+    return values, ids, True
+
+
+def _latest(events: Sequence[dict], names: Sequence[str]) -> str | None:
+    """The latest time among the timeline events of the given kinds."""
+    times = [e.get("submitted_at") or e.get("created_at") for e in events
+             if e.get("event") in names]
+    times = [t for t in times if t]
+    return max(times) if times else None
+
+
+def _observe_issue(rest: _Rest, repo: str, n: dict) -> Observed:
+    base = f"repos/{repo}/issues/{n['number']}"
+    values, ids, visible = _field_values(n)
+    subs: tuple[RawSubIssue, ...] = ()
+    open_packages = 0
+    if (n.get("sub_issues_summary") or {}).get("total"):
+        listed = rest.list(f"{base}/sub_issues")
+        subs = tuple(RawSubIssue(s["number"], (s.get("type") or {}).get("name"))
+                     for s in listed)
+        open_packages = sum(1 for s in listed
+                            if (s.get("type") or {}).get("name") == "Project"
+                            and (s.get("state") or "").lower() == "open")
+    links: tuple[Link, ...] = ()
+    if (n.get("issue_dependencies_summary") or {}).get("total_blocked_by"):
+        links = tuple(Link(_rest_repo(i) or repo, i["number"], (i.get("state") or "").lower())
+                      for i in rest.list(f"{base}/dependencies/blocked_by"))
+    parent = None
+    if n.get("parent_issue_url"):
+        parent = int(n["parent_issue_url"].rstrip("/").split("/")[-1])
+    events = rest.list(f"{base}/timeline")
+    milestone = n.get("milestone") or {}
+    raw = RawIssue(
+        number=n["number"], title=n.get("title") or "", state=(n.get("state") or "").upper(),
+        body=n.get("body") or "", issue_type=(n.get("type") or {}).get("name"),
+        fields=values, sub_issues=subs, parent=parent, milestone=milestone.get("title"),
+        labels=frozenset(label["name"] for label in n.get("labels") or []),
+        created_at=n.get("created_at"), updated_at=n.get("updated_at"),
+        closed_at=n.get("closed_at"))
+    return Observed(repo=repo, raw=raw, fields_visible=visible, field_ids=ids,
+                    changed_at=_latest(events, _FIELD_EVENTS), links=links,
+                    open_packages=open_packages,
+                    milestone_state=(milestone.get("state") or "").lower() or None)
+
+
+def _observe_pull(rest: _Rest, repo: str, p: dict) -> Observed:
+    """A pull request, its `PR State` derived from REST as `_rest_pull_requests`
+    does: it is never read from the board (GraphQL only), and never typed."""
+    owner, _, name = repo.partition("/")
+    decision = _rest_review_decision(rest, owner, name, p["number"])
+    reviewers = len(p.get("requested_reviewers") or []) + len(p.get("requested_teams") or [])
+    events = rest.list(f"repos/{repo}/issues/{p['number']}/timeline")
+    milestone = p.get("milestone") or {}
+    raw = RawIssue(
+        number=p["number"], title=p.get("title") or "", state="OPEN",
+        body=p.get("body") or "", issue_type="PullRequest",
+        fields={PR_STATE: pr_state(bool(p.get("draft")), decision, reviewers, "OPEN")},
+        sub_issues=(), parent=None, milestone=milestone.get("title"),
+        labels=frozenset(label["name"] for label in p.get("labels") or []),
+        created_at=p.get("created_at"), updated_at=p.get("updated_at"),
+        head_ref=(p.get("head") or {}).get("ref"),
+        bot=(p.get("user") or {}).get("type") == "Bot")
+    return Observed(repo=repo, raw=raw, pull=True,
+                    changed_at=_latest(events, _REVIEW_EVENTS),
+                    head_sha=(p.get("head") or {}).get("sha"))
+
+
+def observe(repo: str) -> list[Observed]:
+    """Every open issue and pull request of `repo` (`owner/name`) over REST.
+
+    The listings are read first, then each item's own reads (sub-issues,
+    dependencies, timeline, reviews) a few at a time: they are independent, and a
+    board of a hundred items made one after another took over two minutes. The
+    order of the result is the listings'. A failed read names the item."""
+    listing = _Rest()
+    jobs = [("issue", n) for n in listing.items(f"repos/{repo}/issues?state=open")
+            if "pull_request" not in n]
+    jobs += [("pull", p) for p in listing.items(f"repos/{repo}/pulls?state=open")]
+
+    def one(job):
+        kind, entry = job
+        try:
+            return (_observe_issue if kind == "issue" else _observe_pull)(_Rest(), repo, entry)
+        except Unavailable as exc:
+            raise Unavailable(f"{repo}#{entry['number']}: {exc}") from None
+
+    with ThreadPoolExecutor(max_workers=flow_settings.READ_WORKERS) as pool:
+        return list(pool.map(one, jobs))
+
+
+def comments_of(repo: str, number: int) -> tuple[Comment, ...]:
+    """Every comment on an issue or pull request, oldest first."""
+    return tuple(Comment((c.get("user") or {}).get("login") or "", c.get("created_at") or "",
+                         c.get("body") or "")
+                 for c in _Rest().list(f"repos/{repo}/issues/{number}/comments"))
+
+
+def milestones_of(repo: str) -> tuple[Milestone, ...]:
+    """Every milestone of `repo`, open and closed."""
+    return tuple(Milestone(m.get("title") or "", (m.get("state") or "").lower(),
+                           m.get("closed_at"))
+                 for m in _Rest().list(f"repos/{repo}/milestones?state=all"))
+
+
+def merged_since(repo: str, since_iso: str) -> tuple[MergedPull, ...]:
+    """The pull requests merged into the default branch of `repo` that were
+    updated since `since_iso`, newest first. Read a page at a time and stopped
+    at the first one older, so the whole history is never read."""
+    out: list[MergedPull] = []
+    for p in _Rest().items(f"repos/{repo}/pulls?state=closed&sort=updated&direction=desc"):
+        if (p.get("updated_at") or "") < since_iso:
+            break
+        if p.get("merged_at") and (p.get("base") or {}).get("ref") == flow_settings.DEFAULT_BRANCH:
+            out.append(MergedPull(p["number"], p.get("title") or "", p.get("body") or "",
+                                  p["merged_at"]))
+    return tuple(out)
+
+
+def commit_time(repo: str, sha: str) -> str:
+    """When a commit was made (its committer date, ISO)."""
+    data = rest_get(f"repos/{repo}/commits/{sha}")
+    when = ((((data or {}).get("commit") or {}).get("committer") or {}).get("date"))
+    if not when:
+        raise Unavailable(f"no commit {sha[:12]} in {repo} to date")
+    return when
+
+
+def _write_json(method: str, path: str, payload: dict) -> None:
+    """A REST write whose body is JSON, which the issue-field endpoint takes."""
+    args = ["gh", "api", "-X", method, path, "--input", "-"]
+    try:
+        run = subprocess.run(args, input=json.dumps(payload), capture_output=True, text=True,
+                             timeout=flow_settings.REST_TIMEOUT_SECONDS)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise Unavailable(f"GitHub did not answer: {exc}") from exc
+    if run.returncode != 0:
+        raise Unavailable(f"GitHub refused {method} {path}: {run.stderr.strip()[:300]}")
+
+
+def write_issue_field(repo: str, number: int, field_id: int, value: str) -> None:
+    """Set an issue field: a single-select by its option's NAME, a text field by
+    its text. Issues only: a pull request's value can be written but never
+    cleared (docs/1.6), so the sweep never calls this for one."""
+    _write_json("POST", f"repos/{repo}/issues/{number}/issue-field-values",
+                {"issue_field_values": [{"field_id": field_id, "value": value}]})
+
+
+def clear_issue_field(repo: str, number: int, field_id: int) -> None:
+    """Take a field's value off an issue (204)."""
+    _rest_write("DELETE", f"repos/{repo}/issues/{number}/issue-field-values/{field_id}")
+
+
+def set_issue_type(repo: str, number: int, name: str) -> None:
+    _rest_write("PATCH", f"repos/{repo}/issues/{number}", type=name)
+
+
+def rewrite_body(repo: str, number: int, body: str) -> None:
+    _rest_write("PATCH", f"repos/{repo}/issues/{number}", body=body)
