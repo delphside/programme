@@ -11,6 +11,7 @@ import os
 import stat
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -157,6 +158,40 @@ class Check(Cases):
         self.expect("allowed", "allow", verdict)
         self.expect("saying it could not read", True, "Could not read" in said)
 
+    def test_a_branch_name_is_resolved_by_gh_pr_view_in_the_inputs_cwd(self):
+        where = Path(self.dir.name) / "worktree"
+        where.mkdir()
+        (self.bin / "gh").write_text(f'#!/bin/sh\necho "$*|$PWD" > "{self.dir.name}/gh-args"\necho 7\n')
+        (self.bin / "gh").chmod(0o755)
+        for command in ("gh pr comment my-branch --body hi", "gh pr review my-branch -c -b hi"):
+            data = {**bash(command, f"b-{command[3:9]}"), "cwd": str(where)}
+            self.expect(f"{command!r} is denied for #7", True, "#7" in self.decision(self.run_hook(data))[1])
+            self.expect("by the view of the word, in the cwd",
+                        f"pr view my-branch --json number -q .number|{where.resolve()}",
+                        (Path(self.dir.name) / "gh-args").read_text().strip())
+        self.gh(None)
+        verdict, said = self.decision(self.run_hook(bash("gh pr comment no-such --body hi", "nb")))
+        self.expect("a word gh cannot find is allowed", "allow", verdict)
+        self.expect("saying it could not read", True, "Could not read" in said)
+
+    def test_the_hook_gives_itself_one_deadline(self):
+        slow = '#!/bin/sh\nsleep 5\necho 7\n'
+        (self.bin / "gh").write_text(slow)
+        (self.bin / "gh").chmod(0o755)
+        start = time.monotonic()
+        verdict, said = self.decision(self.run_hook(bash("gh pr comment --body hi"), COMMENT_CHECK_SECONDS="1"))
+        self.expect("a slow gh is allowed", "allow", verdict)
+        self.expect("with the note", True, "Could not read" in said)
+        self.expect("inside the deadline, not the subprocess's own limit", True, time.monotonic() - start < 4)
+        self.gh(7)
+        self.stub.write_text("#!/bin/sh\nsleep 5\necho '%s'\n" % ASK[0])
+        self.stub.chmod(0o755)
+        start = time.monotonic()
+        verdict, said = self.decision(self.run_hook(bash("gh issue comment 7 --body hi"), COMMENT_CHECK_SECONDS="2"))
+        self.expect("a slow board-inbox.py is allowed", "allow", verdict)
+        self.expect("with the note", True, "Could not read" in said)
+        self.expect("at the deadline", True, time.monotonic() - start < 4.5)
+
     def test_gh_repo_names_the_repository_the_post_goes_to(self):
         other = "gh issue comment 7 --body hi"
         self.expect("GH_REPO in the environment", "allow", self.decision(
@@ -291,6 +326,27 @@ class Check(Cases):
         self.expect("allowed", "allow", verdict)
         self.expect("saying why", True, "Could not keep a record" in said)
         self.expect("and wrote nothing through the link", [], list(other.iterdir()))
+
+    def test_a_loose_parent_is_made_private_and_a_session_folder_that_is_a_link_is_refused(self):
+        post = bash("gh issue comment 7 --body hi")
+        parent = Path(self.dir.name) / f"claude-comment-check-{os.getuid()}"
+        parent.mkdir(mode=0o755)
+        parent.chmod(0o755)
+        self.expect("denied", True, self.denied(post))
+        self.expect("the parent is now 0700", 0o700, stat.S_IMODE(parent.stat().st_mode))
+        other = Path(self.dir.name) / "elsewhere"
+        other.mkdir()
+        folder = parent / "s2"
+        folder.symlink_to(other)
+        verdict, said = self.decision(self.run_hook(bash("gh issue comment 7 --body hi", "s2")))
+        self.expect("allowed", "allow", verdict)
+        self.expect("saying why", True, "Could not keep a record" in said)
+        self.expect("and wrote nothing through the link", [], list(other.iterdir()))
+        folder.unlink()
+        folder.mkdir(mode=0o755)
+        folder.chmod(0o755)
+        self.expect("a loose session folder is used", True, self.denied(bash("gh issue comment 7 --body hi", "s2")))
+        self.expect("and made 0700", 0o700, stat.S_IMODE(folder.stat().st_mode))
 
     def test_a_marker_that_is_a_link_is_not_followed(self):
         post = bash("gh issue comment 7 --body hi")

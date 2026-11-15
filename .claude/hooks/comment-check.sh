@@ -10,8 +10,8 @@
 # GitHub MCP tools `add_issue_comment`, `add_reply_to_pull_request_comment` and
 # `pull_request_review_write` when it creates a review with an event or submits
 # a pending one, whatever its body (it posts the pending comments).
-# `gh pr comment` and `gh pr review` with no number mean the branch's pull
-# request. A post to another repository than the application's, by `-R`, a URL,
+# `gh pr comment` and `gh pr review` with no number, or a branch name, mean the
+# branch's pull request. A post to another repository than the application's, by `-R`, a URL,
 # `GH_REPO` or an MCP owner and repo, is not checked: the board reads one
 # repository. The table of ways is implementation.md §6 of
 # delphside/programme#176. A reaction, an edit, a pending review comment, a
@@ -34,6 +34,12 @@
 # **A check, not a gate** (docs/1.2 §2.16) apart from that one denial. When the
 # comments cannot be read it allows the post and says it could not read. Every
 # other path allows silently, and the hook always exits 0.
+#
+# **One deadline.** The hook gives itself `COMMENT_CHECK_SECONDS` (25) in all:
+# each subprocess takes the least of its own limit and the time left, `gh pr
+# view` at most 5 seconds. When the deadline is reached the post is allowed with
+# the "Could not read" note. `gh pr view` runs in the hook input's `cwd`; a `cd`
+# inside the same command is not followed (implementation.md §6).
 #
 # `COMMENT_CHECK_INBOX` replaces the command that reads the issue, and
 # `COMMENT_CHECK_NOW` (epoch seconds) the clock, so both can be tested without
@@ -61,12 +67,30 @@ def say(**fields):
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", **fields}}))
 
 
-def profile_value(key):
-    """One programme-file value, or None: a hook must not fail."""
+DEADLINE = time.monotonic() + float(os.environ.get("COMMENT_CHECK_SECONDS") or 25)
+
+
+class Late(Exception):
+    """The hook's deadline was reached."""
+
+
+def run_within(command, cap, **kwargs):
+    """subprocess.run with the least of `cap` and the time left; Late when none is."""
+    left = min(cap, DEADLINE - time.monotonic())
+    if left <= 0:
+        raise Late()
     try:
-        run = subprocess.run([sys.executable, f"{BOARD}/board-profile.py", "get", key],
-                             capture_output=True, text=True, timeout=10)
-    except (OSError, subprocess.TimeoutExpired):
+        return subprocess.run(command, capture_output=True, text=True, timeout=left, **kwargs)
+    except subprocess.TimeoutExpired:
+        raise Late()
+
+
+def profile_value(key):
+    """One programme-file value, or None: a hook must not fail. Each is its own
+    call, as board-profile.py takes one key; they are read only when needed."""
+    try:
+        run = run_within([sys.executable, f"{BOARD}/board-profile.py", "get", key], 10)
+    except OSError:
         return None
     return run.stdout.strip() or None if run.returncode == 0 else None
 
@@ -138,8 +162,8 @@ def target(word, repo, kind, branch_ok=False):
     m = re.fullmatch(r"#?(\d+)", word or "")
     if m:
         return norm_repo(repo), int(m.group(1)), kind
-    if word is None and branch_ok:
-        return norm_repo(repo), BRANCH, kind
+    if branch_ok:
+        return norm_repo(repo), (BRANCH, word), kind   # the current branch's, or the named branch's
     return None
 
 
@@ -245,6 +269,14 @@ def which_post(data):
 
 # --- what is unanswered, and whether this is the retry ----------------------
 
+def private(path):
+    """Require a folder of ours that is not a link, and make it 0700."""
+    info = os.lstat(path)
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
+        raise OSError("not ours")
+    os.chmod(path, 0o700)
+
+
 def main():
     try:
         data = json.loads(sys.stdin.read())
@@ -253,17 +285,28 @@ def main():
         return
     if not post:
         return
+    try:
+        check(data, post)
+    except Late:
+        say(additionalContext="Could not read the comments: the check's time ran out, so this "
+                              "post was not checked for unanswered comments from the owner.")
+
+
+def check(data, post):
     repo, number, kind = post
     ours = profile_value("profile.identity.repository")
     if repo and ours and repo.lower() != ours.lower():
         return               # the board reads this application's repository only
-    if number == BRANCH:
+    if isinstance(number, tuple):
+        word = number[1]
+        cwd = data.get("cwd")
         try:
-            view = subprocess.run(["gh", "pr", "view", "--json", "number", "-q", ".number"],
-                                  capture_output=True, text=True, timeout=20,
-                                  env={**os.environ, **({"GH_REPO": repo} if repo else {})})
+            view = run_within(["gh", "pr", "view", *([word] if word else []), "--json", "number",
+                               "-q", ".number"], 5,
+                              cwd=cwd if isinstance(cwd, str) and os.path.isdir(cwd) else None,
+                              env={**os.environ, **({"GH_REPO": repo} if repo else {})})
             number = int(view.stdout.strip()) if view.returncode == 0 else None
-        except (OSError, subprocess.TimeoutExpired, ValueError):
+        except (OSError, ValueError):
             number = None
         if number is None:
             say(additionalContext="Could not read the comments: the pull request for this branch "
@@ -272,10 +315,9 @@ def main():
             return
 
     try:
-        run = subprocess.run([INBOX, "--open", "--issue", str(number), "--all", "--ids", "--no-colour"],
-                             capture_output=True, text=True, timeout=20)
+        run = run_within([INBOX, "--open", "--issue", str(number), "--all", "--ids", "--no-colour"], 20)
         failed = None if run.returncode == 0 else (run.stderr.strip().splitlines() or [f"exit {run.returncode}"])[0]
-    except (OSError, subprocess.TimeoutExpired) as exc:
+    except OSError as exc:
         run, failed = None, str(exc)
     if failed is not None:
         say(additionalContext=f"Could not read the comments on #{number} ({failed[:150]}), "
@@ -298,12 +340,9 @@ def main():
             os.mkdir(parent, 0o700)
         except FileExistsError:
             pass
-        info = os.lstat(parent)
-        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
-            raise OSError("not ours")
+        private(parent)
         os.makedirs(folder, mode=0o700, exist_ok=True)
-        if os.lstat(folder).st_uid != os.getuid():
-            raise OSError("not ours")
+        private(folder)
     except OSError:
         say(additionalContext=f"Could not keep a record of a denial in {parent} (it is not a folder "
                               "of yours), so this post was not checked for unanswered comments "
