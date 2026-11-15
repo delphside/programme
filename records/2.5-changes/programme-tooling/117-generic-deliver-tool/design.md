@@ -1435,13 +1435,11 @@ Then, on a Ctrl+C:
 1. A tool, a hook or a data-reading call already running runs to its end.
 2. `turpin` closes the input of each call that has one held open.
 3. The called side reads the end of its input as the interruption at its next
-   step or while it waits (the lock, a hook's *not yet*). `turpin-host` ignores
-   SIGPIPE and SIGHUP, and takes a failed write to `turpin` as the end of its
-   input too, so a dropped connection never kills it part-way.
-   `turpin-host rollback` reads the interruption only until it holds the lock.
-   Once it holds the lock, it runs to its end, since a rollback stopped part-way
-   has no rerun: it exits as it would have, and `turpin` exits by its result,
-   its message saying the interruption came after the rollback began.
+   step or while it waits (the lock, a hook's *not yet*). `turpin-host rollback`
+   reads the interruption only until it holds the lock. Once it holds the lock,
+   it runs to its end, since a rollback stopped part-way has no rerun: it exits
+   as it would have, and `turpin` exits by its result, its message saying the
+   interruption came after the rollback began.
 4. `turpin`, and each called side that read the interruption, starts no further
    step of the command's work. Each one:
    - before the command's pivot, undoes what changed, as for an error;
@@ -1460,7 +1458,9 @@ message is step 3's.
 
 **A dropped connection** ends a call's input too, so a called side whose input
 is held open stops as for an interruption, and a data-reading call finds its
-closing line missing and changes nothing.
+closing line missing and changes nothing. `turpin-host` ignores SIGPIPE and
+SIGHUP, and takes a failed write to `turpin` as the end of its input, so it
+reaches its next step after a dropped connection.
 
 `turpin` maps `ssh`'s 255 by the error text `ssh` prints, as
 [docs/1.10](../../../../docs/1.10-development-standards.md#what-a-scripts-exit-status-means)
@@ -1977,7 +1977,7 @@ production deploy, an error after the deploy's
 | build | no overwrite | existing `SHA-IMAGE` not rebuilt; failed registry query refuses; releases tags never overwritten | gate | — |
 | every deploy | exact bytes | pulled by digest; revision label is the SHA; running `RepoDigests` match (`--local`: image id and label) | gate | — |
 | every deploy | no overlap | lock free, held to the end | gate | nothing (`--wait` waits) |
-| every deploy | *state gate* | state is finished, restored or `failed, no previous deploy`; else refuses, naming the step reached and `turpin rollback ENV`. A failed restore leaves `failed: the restore did not complete`, which refuses alike | gate | nothing: `turpin rollback` |
+| every deploy | *state gate* | state is none (a first deploy), finished, restored or `failed, no previous deploy`; else refuses, naming the step reached and `turpin rollback ENV`. A failed restore leaves `failed: the restore did not complete`, which refuses alike | gate | nothing: `turpin rollback` |
 | deploy, release | application's hooks | every `required_hooks` hook present and executable; `pre-deploy` (deploy) and `release-check` (release) pass | gate | the two hooks by `--set-aside`, where overridable |
 | every deploy | allowed host files | destination off the allowlist refuses ([§11](#11-on-the-host)) | gate | nothing: rerun `turpin host-install` |
 | deploy, host-install | no mutual removal | two environments of one application on one host both installing host files refuse | gate | nothing: `host_files = false` on all but one |
@@ -2200,30 +2200,33 @@ runs `restore-state`, switches to `previous` and reinstalls its host files. A
 host's first `turpin` deploy has no `previous`: failure runs `restore-state`,
 stops the new containers, removes `current`, marks the state
 `failed, no previous deploy` and names the fallback (`[turpin].fallback`). A
-restore marks the state `restored`; a deploy stopped before `save-state`, which
+restore to `previous` marks the state `restored`; a deploy stopped before `save-state`, which
 has changed nothing that runs, writes back the state it found. A failed prune
 after the pivot is an error, exit 3, and the deploy stands.
 
 **The last request.** `turpin-host deploy` and `rollback` read and write
-`last_request` only while they hold the lock, so two requests never race on it.
+`last_request` only while they hold the lock, so one request at a time uses it.
 On taking the lock, before any other step, the host reads it. Given a request
 whose `request_id` is the last one's, the host acts on its outcome:
 
 | Outcome | Written when | The repeat |
 | --- | --- | --- |
-| `finished` | the request passed its pivot (a deploy) or ran to its end (a rollback); the result's exit is kept, 3 where a step after the pivot failed, 0 where a dropped connection stopped the prune | answered with the recorded result, running nothing |
+| `finished` | the request passed its pivot (a deploy) or ran to its end (a rollback); the exit is kept: 3 where the prune failed, 0 where an interruption or a dropped connection stopped it | answered with the recorded result, running nothing |
 | `failed` | the request stopped on an error, or its restore failed | answered with the recorded result, running nothing |
-| `refused` | a gate refused it after the lock was taken | answered with the recorded result, running nothing |
+| `refused` | a gate refused it after the lock was taken, `smoke` included | answered with the recorded result, running nothing |
 | `interrupted` | an interruption or a dropped connection stopped a deploy before its pivot, and what it changed was undone | run again |
-| `running` | the request took the lock; found by its repeat, it means the request died part-way, such as by a reboot | run again, and step 2's state gate decides: a state part-way through refuses, naming `turpin rollback ENV` |
+| `running` | left by a request that died part-way (a reboot, a kill) | refused, running nothing, naming `turpin status ENV` for the owner to judge what the host holds |
 
-Any other request runs as a new one, and writes its own `request_id` with the
-outcome `running` before its next step. A rollback holding the lock runs to its
-end, so it is never `interrupted`. A request refused because the lock is held,
-and any request under `--check`, writes nothing. A repeat waits for the lock as
-`--wait` does, and at the limit exits 75. A `request_id` is a version 4 UUID,
-which `turpin` generates once per command and the host validates, so each
-command has its own.
+- Any other request runs as a new one, and writes its own `request_id` with the
+  outcome `running` before its next step.
+- A rollback's outcome is `finished`, `failed` or `refused`, since one holding
+  the lock runs to its end.
+- A request refused because the lock is held, and any request under `--check`,
+  write nothing.
+- `turpin` sends each repeat with `wait` set, so it waits for the lock as
+  `--wait` does, up to the 60-minute default, and at the limit exits 75.
+- A `request_id` is a version 4 UUID, which `turpin` generates once per command
+  and the host validates, so each command has its own.
 
 **Rollback** is the same switch to `previous` on demand, with `restore-state`
 and host files restored alike. It removes `previous`, so a second refuses, as
@@ -2322,9 +2325,9 @@ exits 3, the message naming `turpin settle VERSION`.
   login and `allowlist` time out after 60 seconds, and `host-install`'s install
   after 300, both guesses; `turpin-host deploy` and `rollback` are bounded by
   `pull_timeout`, the hooks' limits and `--wait`'s, `turpin build` by the
-  `build` hook's and its registry calls', and `promote` and `remove` by their
-  registry calls' timeout. The attempts, the waits and the three timeouts are
-  starting values, product settings in `settings.py`
+  `build` hook's limit and its registry calls' timeout, and `promote` and
+  `remove` by their registry calls' timeout. The attempts, the waits and the
+  three timeouts are starting values, product settings in `settings.py`
   ([§5](#scripts-and-their-dependencies)), set from the first runs' call times
   ([§14](#14-moving-tile-lite-elite-to-it)) and then revisited from the run log.
 - **Secrets and access.** The tool holds no credential of its own: each
