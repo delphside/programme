@@ -245,7 +245,7 @@ H_PRACTICE="Programme activities overdue, whose move is the activity's owner in 
 if FAIL="$(failure practice "$H_PRACTICE")"; then
   PRACTICE_SECTION="$FAIL"
 else
-  PRACTICE="$(grep -E 'OVERDUE|never logged' "$TMP/practice" 2>/dev/null || true)"
+  PRACTICE="$(grep -E 'OVERDUE|never logged|could not read' "$TMP/practice" 2>/dev/null || true)"
   PRACTICE_SECTION="${PRACTICE:+$H_PRACTICE:$'\n'$PRACTICE}"
 fi
 
