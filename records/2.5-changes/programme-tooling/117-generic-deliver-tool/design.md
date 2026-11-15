@@ -635,7 +635,7 @@ log:
 | Type | What it is | Exit, where it stops the run | The message says |
 | --- | --- | --- | --- |
 | *business* | the input is wrong: a request the port implementation refuses on validation (a value that fails its form, from an argument or the version file; a short SHA resolving to no build or to several; the keep list; no overwrite), or a correct answer that something the operation needed is not there | 1 | which input to fix; the value is in `violations`, the thing in `metadata` |
-| *technical* | authorisation refused, a network failure, a timeout, a missing tool or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing, except over `ssh` in a call that changes something ([interruption](#interruption)); a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
+| *technical* | authorisation refused, a network failure, a timeout, a missing tool or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
 | *unexpected* | any error the code did not expect: an Oracle reply that is invalid, a tool's output not in its format, or anything else not foreseen; usually a defect, Turpin's or a vendor's | 70 | that it was not expected, to raise as an issue; the cause is in the log |
 
 A usage error (64) and an interruption (130) are outside the three types
@@ -1255,7 +1255,7 @@ reading the profile with `tomllib` (hence Python 3.11 or later) and JSON with
 | `gitrepo.py` | fetching, tags, the bump of `main`; `record_of_tag`, which calls the board model's `repo.tag_record`, the one parser of a record ([§10](#10-the-release-and-its-record)) |
 | `hosts.py` | `turpin-host`, on this machine or by `ssh`: the requests, and `Deployed` from `status` |
 | `remote.py` | a `turpin` command on another component's machine, by `ssh`: `build`, `promote`, `remove` and `login` passed on |
-| `settings.py` | the client's product settings: the registry retry limit, its backoff and a registry call's timeout ([§13](#13-non-functional-design)) |
+| `settings.py` | the client's product settings: the retry limit and backoff, shared by registry calls and `ssh` calls that change nothing, and the timeout of each ([§13](#13-non-functional-design)) |
 | `payload.py` | assembling the payload and its `profile.json` |
 | `board.py` | the board model's `release` module, imported from `scripts/board/`; before calling it, sets what `board-release.py`'s `_environment()` sets: `BOARD_REPOSITORY` from `TURPIN_GH_REPO` or the origin URL, and `PROGRAMME_CONFIG` where it is unset |
 | `registry/` | the registry port and the `OCIR` adapter ([the registry adapter](#the-registry-adapter)) |
@@ -1450,11 +1450,10 @@ Then, on a Ctrl+C:
      done and what to run next.
 5. A called side that read the interruption exits 130, which comes back over
    the `ssh` connection, still open. Once every call has returned, `turpin`
-   exits 130, except for a rollback that had begun (step 3).
+   exits 130, except for a rollback that held the lock (step 3).
 
 `turpin`'s message names the rerun and, for a command with a pivot, says
-whether its change is live. A rollback that ran to its end has no rerun, and
-its message is step 3's.
+whether its change is live.
 
 **A dropped connection** ends a call's input too, so a called side whose input
 is held open stops as for an interruption, and a data-reading call finds its
@@ -1469,24 +1468,26 @@ requires every child's status to be mapped:
 | `Permission denied` | fundamental | 2 | the `ssh` key to load into the agent |
 | `Host key verification failed` | fundamental | 2 | the host's entry in `known_hosts` to fix |
 | `Could not resolve hostname` | fundamental | 2 | the host alias to fix in the `ssh` configuration |
-| `Connection timed out`, `Connection refused`, `Connection reset`, `Broken pipe`, `Connection closed` | blip | 75 | where to look next, below |
+| `Connection timed out`, `Connection refused`, `Connection reset`, `Broken pipe`, `Connection closed` | blip | 75 | where to look next (the next table) |
 | anything else | unexpected | 70 | the text, in the run log, to raise as an issue |
 
 A blip is handled by what the call does:
 
-- a read, such as `turpin-host status --json`, is retried as a registry call
-  is, with [§13](#13-non-functional-design)'s attempts, waits and timeout;
-- a call that changes something exits 75 at once, since it may have changed
-  the host before the drop. This departs from docs/1.10, which retries every
-  blip.
+- a call that changes nothing, such as `turpin-host status --json`, is retried,
+  and times out, as [§13](#13-non-functional-design) says;
+- a call that changes something exits 75 at once, since the connection may have
+  dropped after the call changed something. This departs from docs/1.10, which
+  retries every blip.
 
 The message then names where to look next:
 
 | The call | Where to look next |
 | --- | --- |
 | `turpin-host deploy` or `rollback` | `turpin status ENV`, to see where it stopped |
-| `turpin-host login` or `allowlist` | the command that made it, to rerun: `turpin login ENV` or `turpin host-install ENV` |
-| `turpin` on the builder's or copier's machine | the run log on that machine |
+| `turpin-host login` | `turpin login ENV`, to rerun |
+| `turpin-host allowlist`, or `host-install`'s install of `turpin-host` | `turpin host-install ENV`, to rerun |
+| `turpin login` on the builder's or copier's machine | `turpin login builder` or `turpin login copier`, to rerun |
+| `turpin build`, `promote` or `remove` on the builder's or copier's machine | the run log on that machine |
 
 ### The commands
 
@@ -2276,16 +2277,16 @@ exits 3, the message naming `turpin settle VERSION`.
   says.
 - **Limits and timeouts.** `pull_timeout` per environment, set from a pull
   measured on its host (Tile Lite Elite's by delphside/tile-lite-elite#555's
-  first deploy); a hook's limit is the application's, such as Tile Lite
-  Elite's 60-second smoke test. A registry call that may be retried
-  ([validation and errors](#validation-and-errors)), and a read over `ssh`
-  ([interruption](#interruption)), gets three attempts,
-  waiting 2 seconds, then 4; a registry call times out after 300 seconds,
-  Tile Lite Elite's unmeasured `pull_timeout`, used for a registry call too.
-  All three are unmeasured starting values, product settings in `settings.py`
+  first deploy); a hook's limit is the application's, such as Tile Lite Elite's
+  60-second smoke test. A registry call that may be retried
+  ([validation and errors](#validation-and-errors)), and a call over `ssh` that
+  changes nothing ([interruption](#interruption)), get three attempts, waiting 2
+  seconds, then 4. A registry call times out after 300 seconds, Tile Lite
+  Elite's unmeasured `pull_timeout`, used for a registry call too; a call over
+  `ssh` that changes nothing times out after 60 seconds. All four are unmeasured
+  starting values, product settings in `settings.py`
   ([§5](#scripts-and-their-dependencies)), set from the first runs' call times
-  ([§14](#14-moving-tile-lite-elite-to-it)) and then revisited from the run
-  log.
+  ([§14](#14-moving-tile-lite-elite-to-it)) and then revisited from the run log.
 - **Secrets and access.** The tool holds no credential of its own: each
   component's registry login is in its own auth file or the machine user's
   `docker` login, written by those tools, or an API key in `~/.oci/`
@@ -2330,10 +2331,10 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
   `oci artifacts container image delete`. It shows both the lookup and the
   delete work under that policy.
 - **The call times.** Claude reads each registry API and Artifacts API call's
-  duration from the run logs of the first `turpin build`, release and `prune`,
-  with the owner's timing of the proof by hand, and sets the call timeout and
-  the retry numbers in `settings.py` from them
-  ([§13](#13-non-functional-design)).
+  duration, and each `turpin-host status --json` call's, from the run logs of
+  the first `turpin build`, release and `prune`, with the owner's timing of the
+  proof by hand, and sets the call timeout and the retry numbers in
+  `settings.py` from them ([§13](#13-non-functional-design)).
 - **The first rehearsal cycle** has no production record to start from. It
   starts from production's commit deployed by `deploy.sh`, as today, and the
   first `turpin deploy` to rehearsal takes
