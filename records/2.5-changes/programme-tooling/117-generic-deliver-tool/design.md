@@ -771,15 +771,17 @@ its result's `violations`:
 | From | Type | Exit | The message names |
 | --- | --- | --- | --- |
 | an argument or the version file | *business* | 1 | the argument or the file |
-| a field of a request sent to another machine's `turpin` or to `turpin-host` ([§6](#6-commands)), or of a reply Turpin reads | *unexpected* | 70 | the field |
+| a field of a request sent to another machine's `turpin` or to `turpin-host` ([§6](#6-commands)) | *unexpected* | 70 | the field |
 
 The second row is unexpected because `turpin` wrote the request from values it
-had already checked. An argument carries a version or a commit; a digest and a
-repository's kind arrive only in a request or a reply.
+had already checked; the called side finds it. Of the four forms, an argument
+carries only a version or a commit. A digest or a repository's kind read from a
+reply, a record or a host's state is the middle layer's invalid reply, also
+unexpected.
 
-A short SHA is resolved to a full one by *list versions*
-before it reaches a `Build`, and one that resolves to no build or to several is
-a business error then.
+A short SHA is resolved to a full one by *list versions* before it reaches a
+`Build`, and one that resolves to no build or to several is a business error
+then.
 
 **An error is raised where it is found and translated once.** The top raises
 its own business errors; an error from a registry call goes layer by layer:
@@ -1423,7 +1425,8 @@ Then, on a Ctrl+C:
    step or while it waits (the lock, a hook's *not yet*), and exits 130, which
    comes back over the `ssh` connection, still open.
 
-Whoever is interrupted then starts no further step of the command's work, and:
+`turpin`, and each called side that reads the interruption, then starts no
+further step of the command's work, and:
 
 - before the command's pivot, it undoes what changed, as for an error;
 - after it, it leaves the remaining steps for the rerun it names;
@@ -1432,13 +1435,6 @@ Whoever is interrupted then starts no further step of the command's work, and:
 
 Its message names the rerun and, for a command that changes what runs, says
 whether the change is live.
-
-Each `ssh` runs without a terminal, so before the first run the operator:
-
-- loads the `ssh` key into an agent;
-- adds each host to `known_hosts`;
-- gives the host user that `host-install` connects as `sudo` without a
-  password.
 
 ### The commands
 
@@ -1489,9 +1485,15 @@ non-interactive call: the command runs, its exit status and error output come
 back, and the connection closes. Its standard input carries its data, or its
 request or an empty line held open, as [interruption](#interruption) says. For
 reading, the examples show each request as a here-string, which closes the
-input, leave out the empty line, and show the deploy request's JSON over several
+input, leave out the empty line and show the deploy request's JSON over several
 lines. On the same machine the call is the same without `ssh`. The aliases are
-the profile's, defined in `~/.ssh/config`.
+the profile's, defined in `~/.ssh/config`. Since no `ssh` has a terminal, before
+the first run the operator:
+
+- loads the `ssh` key into an agent;
+- adds each host to `known_hosts`;
+- gives the host user that `host-install` connects as `sudo` without a
+  password.
 
 ```sh
 # turpin deploy, to the environment's host: the request on standard input
@@ -1827,8 +1829,8 @@ Also:
 A setting missing or malformed is found where it is read, before it is used: in
 a profile, in the reading machine's `~/.config/turpin/APP.env` or in a host's
 `.env`. Whichever of `turpin` or `turpin-host` reads it raises a fundamental
-technical error, exit 2, naming the key, or the line of a file read as text
-that does not parse, since it is the operator's to fix.
+technical error, exit 2, naming the key, or the line where the file does not
+parse, since it is the operator's to fix.
 
 Each key is read from one of two profiles:
 
