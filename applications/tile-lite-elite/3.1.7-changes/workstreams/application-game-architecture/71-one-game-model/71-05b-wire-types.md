@@ -120,7 +120,6 @@ impl GameEventDto {
     pub fn category(&self) -> ChangeCategory {
         use GameEventDto::*;
         match self {
-            Placed { ended: Some(_), .. }          => ChangeCategory::Game,
             Placed { .. }                          => ChangeCategory::Board,
             ChatPosted { .. }                      => ChangeCategory::Periphery,
             _                                      => ChangeCategory::Game,
@@ -136,10 +135,9 @@ pub struct RackAdjustment { pub seat: u8, pub score_delta: i32 }
 ```
 
 **`Finished` is the event of a game that ends without a turn**, an
-administrator's force-end. A turn that ends the game says so in `ended`, and a
+administrator's force-end after the start. A turn that ends the game says so in `ended`, and a
 resignation or timeout that leaves one seat playing keeps its own event, so a
-client reads the end from the state's `status`, not from one event. A placement
-that ends the game is a game change, because scores and the winner move with it.
+client reads the end from the state's `status`, not from one event.
 
 **`ForceResigned` does not say who did it.** Every client of the game receives
 the event, and which administrator acted is not theirs to know; the server's own
