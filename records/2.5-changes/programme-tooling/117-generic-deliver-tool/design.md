@@ -1948,15 +1948,23 @@ the release step, `ephemeral` for create and destroy), `TURPIN_SHA`,
 (each image by digest) and, for `build` under `--local` only,
 `TURPIN_LOCAL=1`. A hook that cannot judge answers refused.
 
+`save-state` and `restore-state` also get `TURPIN_DEPLOY`, a deploy number
+([§11](#11-on-the-host)), so neither needs to know how far a deploy got.
+`save-state` keys its snapshot to `pending`'s number and marks it complete
+last. `restore-state` is given the number of the deploy being undone,
+`pending`'s for a restore and `current`'s for a rollback, restores that
+deploy's snapshot, and does nothing where it has no complete one, since then
+nothing has changed the data.
+
 | Hook | Kind | Component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- | --- | --- |
 | `build` | step | builder | `docker buildx bake --builder turpin` from the compose file's `build:` blocks, to OCI layouts | `docker buildx bake --builder turpin`, arm64 and amd64, to OCI layouts |
 | `release-check` | gate | controller | no `functional` change in a patch | none |
 | `pre-deploy` | gate | deployer | database not ahead of the build's schema | window :40 to :10 (75 outside) |
-| `save-state` | step | deployer | stop server, snapshot database, keep five | copy DuckLake catalog aside |
+| `save-state` | step | deployer | stop server, snapshot database keyed to `TURPIN_DEPLOY`, keep five | copy DuckLake catalog aside, keyed to `TURPIN_DEPLOY` |
 | `migrate` | step | deployer | `server --migrate-only` | catalog migrations |
 | `smoke` | gate | deployer | `/health` shows `VERSION+SHA` within 60 s | release's own checks |
-| `restore-state` | step | deployer | restore snapshot | restore catalog copy; bronze untouched |
+| `restore-state` | step | deployer | restore `TURPIN_DEPLOY`'s snapshot, if complete | restore `TURPIN_DEPLOY`'s catalog copy, if complete; bronze untouched |
 | `post-deploy` | check | controller | list open `Release Check` issues | next collection, about :36, lands |
 | `env-create`, `env-destroy` | step | deployer | preview slot's volume | user, `/srv/dp/NAME` |
 
@@ -2153,7 +2161,7 @@ passed is step 1's confirmation; the tool reads no test report.
   state.json            the host's record, below, replaced whole by rename
   deploys/<n>/          per deploy:
     turpin.env           images by digest
-    meta.json             the deploy's facts: SHA, version, images, role, the record, joined files, host files or not; the finish time and smoke result, added once `smoke` has passed
+    meta.json             the deploy's facts: SHA, version, images, role, the record, joined files, host files or not; the time `smoke` passed (`deployed`) and its result, added then
     payload/              the payload as built, with the commit's `profile.json`, the hooks and the host files
     record.json           the record, if any
     the joined files, at their own paths
@@ -2202,8 +2210,8 @@ writing their step to `state.json`:
    `systemctl daemon-reload`, enable and restart units marked `enable`, as root
    through `root-ops`. A host file in `installed_host_files` that `pending`
    lacks is removed;
-9. run `compose up` from `pending`'s folder, then `smoke`, then add the finish
-   time (`deployed`) and the smoke result to `pending`'s `meta.json`;
+9. run `compose up` from `pending`'s folder, then `smoke`, then add the time
+   `smoke` passed (`deployed`) and its result to `pending`'s `meta.json`;
 10. the pivot, one write: `previous` becomes `current`, `current` becomes
     `pending`, `pending` and `target` are cleared, `installed_host_files`
     becomes `pending`'s, the state `finished`; then prune images under the
@@ -2211,7 +2219,7 @@ writing their step to `state.json`:
     (local images are untouched). A pruned folder keeps only its `meta.json`,
     which holds the whole record and is under a kilobyte, and one without a
     `meta.json` is removed, so the host keeps the history of what it tried:
-    which commit, version and record, and when it finished, if it did.
+    which commit, version and record, and when `smoke` passed, if it did.
 
 **Step 10 is the deploy's [pivot](#errors-results-and-the-pivot).** A failure
 before it stops the deploy and exits by its type, after the restore where one
