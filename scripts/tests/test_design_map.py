@@ -239,6 +239,10 @@ class Views(Cases):
         for name in ("tle.server.games", "tle.server.bot", "push"):
             self.assertIn(name, dsl)
 
+    def test_the_view_leaves_out_lines_the_package_does_not_own(self):
+        dsl = design_map.package_view(268, "T", ["tle.server.games", "tle.server.bot"])
+        self.assertIn('exclude "relationship.tag!=wp:268"', dsl)
+
     def test_a_container_view_includes_the_containers_not_the_components(self):
         dsl = design_map.package_view(5, "T", ["tle.server.games", "tle.web.page", "resend"])
         self.assertIn('container tle "wp-5" "T"', dsl)
