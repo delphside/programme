@@ -764,11 +764,11 @@ reply) or the bottom (output not in its format).
 `sha256:` and 64 hexadecimal characters, a `Version` is semver, a `Build`'s
 `commit` is a full 40-character hexadecimal SHA, and a `Repository`'s `kind`
 is candidates or releases. The top's validation is of the request as a whole.
-A value that fails its form, whether from an argument, a request's field or
-the version file, is refused before any call, as a business error, exit 1,
-naming where it came from, with each bad value in its result's `violations`. A short SHA is resolved to a full one by
-*list versions* before it reaches a `Build`, and one that resolves to no build
-or to several is a business error then.
+A value that fails its form, whether from an argument, a request's field or the
+version file, is refused before any call, as a business error, exit 1, naming
+where it came from, with each bad value in its result's `violations`. A short
+SHA is resolved to a full one by *list versions* before it reaches a `Build`,
+and one that resolves to no build or to several is a business error then.
 
 A setting missing or malformed is not the request's fault:
 [§8](#8-profile-and-hooks) has it.
@@ -1785,9 +1785,9 @@ Also:
   `on` and `copy_on` also take an `ssh` alias.
 
 A setting missing or malformed is found where it is read, before it is used: in
-a profile, in the controller's `~/.config/turpin/APP.env`, or in a host's `.env`.
-It is a fundamental technical error, exit 2, naming the key, since it is the
-operator's to fix.
+a profile, in the controller's `~/.config/turpin/APP.env`, or in a host's
+`.env`. It is a fundamental technical error, exit 2, naming the key, since it is
+the operator's to fix.
 
 Each key is read from one of two profiles:
 
