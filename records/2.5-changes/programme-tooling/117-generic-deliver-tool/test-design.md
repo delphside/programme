@@ -35,7 +35,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R6 | `deploy ENV REF` checks REF against the environment's role. For preview, test and rehearsal, REF is a full or short SHA or a version, resolved in candidates. A short SHA that matches more than one candidate refuses. For production it is a version with a record, pulled from releases. The deploy runs over ssh, or locally where `host = "controller"`, and then `settle` for production. Gates key on the role, never the name. | §2; §6 |
 | R7 | Every image is pulled by digest. Its revision label must equal the SHA, and the running containers' `RepoDigests` must match. | §9 |
 | R8 | The environment's lock (`flock`) must be free and is held to the end. `--wait[=MINUTES]` waits for the lock and for a hook's exit 75, checking each minute, for at most 60 minutes by default. At the limit it stops as a blip, exit 75, naming what it waited for, with nothing changed. | §6; §9; §11 |
-| R9 | A deploy refuses unless the state file shows the last deploy finished. Exceptions: no state (a first deploy), `restored`, `failed, no previous deploy` (a first deploy that failed and was restored) and a step before `save-state`, which has changed nothing that runs, do not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `turpin rollback`; a redeploy refuses until then. | §9; §11 |
+| R9 | A deploy refuses unless the state file shows the last deploy finished. Exceptions: no state (a first deploy), `restored`, `failed, no previous deploy` (a first deploy that failed and was restored) and a step before `save-state` (nothing that runs has changed yet) do not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `turpin rollback`; a redeploy refuses until then. | §9; §11 |
 | R10 | `pre-deploy` is a gate. It can be set aside with `--set-aside`, where the profile marks it overridable. | §8; §9 |
 | R11 | A deploy runs these steps in order: lock, then state, then pull by digest, then payload, then `pre-deploy`, then the new deploy folder, then `save-state`, then `migrate`, then host files, then the `current` switch, then `compose up`, then `smoke`, then finished, then pruning host images. Compose runs with a fixed project name, `--project-directory` the deploy's own folder `deploys/N`, the host `.env` and then `deploys/N/turpin.env`, and `--no-build`. | §11 |
 | R12 | A failure after `save-state` runs `restore-state`, switches back to `previous` and reinstalls its host files, then exits by the error's type: 1 for a hook's refusal or failure. On a host's first `turpin` deploy there is no `previous`: the failure runs `restore-state`, stops the new containers, removes `current`, marks the state `failed, no previous deploy`, and exits by the error's type, naming the application's fallback. | §9; §11 |
@@ -141,7 +141,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 
 | | outcome |
 | --- | --- |
-| O1 | Exit 1. The run log and stderr name the refusing gate. A before-and-after snapshot of the registry, the host's containers and the state folder (`last_request` apart, which records a refusal after the lock), git refs and the `gh` stub log shows no change. |
+| O1 | Exit 1. The run log and stderr name the refusing gate. A before-and-after snapshot of the registry, the host's containers and the state folder (`last_request` apart, which records the outcome after the lock), git refs and the `gh` stub log shows no change. |
 | O2 | Candidates holds `SHA-IMAGE` for each profile image. Stdout prints each digest. The labels `revision` = SHA and `version` = the version file. |
 | O3 | No push reaches the registry log for an image already present, and that image's digest is unchanged. |
 | O4 | Exit 0. The containers' `RepoDigests` equal the named digests. `current` points at a new `deploys/<n>`, `previous` at the earlier one, and `state` = finished. |
@@ -297,6 +297,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S92 | A `turpin status ENV` whose stub `ssh` drops every `turpin-host status --json` call; one whose stub `ssh` hangs past the timeout on every attempt. | R31, R50: exit 75 | three attempts each, waiting 2 seconds then 4, each retry logged with the call's duration, then the message saying to try again later and naming `turpin status ENV` to rerun, exit 75 | CI (bats) |
 | S93 | A production deploy whose stub `ssh` drops the connection after the state is marked `finished`; a `rollback` whose stub drops the connection after it took the lock; a rollback with no previous deploy whose stub drops the connection after the host refused; a second deploy of the build already current and finished, with a new `request_id`, whose stub drops the connection before the host takes the lock. | R31, R50 | the retry with the same `request_id` answered from the record, nothing run again, `turpin` carrying on to `settle`, exit 0; the retry waiting on the lock, then answered from the record, the rollback run once, exit 0; the retry answered with the recorded refusal, exit 1, naming the fallback; the retry run, the deploy run once, exit 0 | CI (bats) |
 | S94 | A production deploy whose `smoke` refuses, the host restoring, its stub `ssh` dropping the connection once the outcome is recorded; a first deploy to a host whose stub drops the connection after `save-state` and before its pivot; a deploy refused because another request holds a shared lock, then the holder's connection dropped after its pivot; a deploy cut off by a reboot after step 2, `last_request` left `running`, then its repeat; a new deploy after one killed before `save-state`; a deploy under `--check`. | R31, R50 | the retry answered with the recorded refusal, nothing run again, exit 1; the retry run, the outcome `interrupted` before it, the state `failed, no previous deploy` not refusing, exit 0; the refusal writing nothing to `last_request`, the holder's retry answered from its own record, exit 0; the repeat refused, nothing run, naming `turpin status ENV`, exit 1; the new deploy not refused by the state gate, exit 0; `last_request` unchanged | CI (bats) |
+| S95 | A deploy whose restore fails, then a new deploy; a deploy killed during step 6, on a host with pruned folders, then a new deploy; a deploy failing during step 6. | C8, R9 | the new deploy refused, naming the step and `turpin rollback ENV`, exit 1; the part-written folder removed and every pruned folder's `meta.json` kept, the new deploy giving O4; the failing deploy's folder removed, O1 | CI (bats) |
 
 ## 6. Refusals and successes
 
@@ -342,7 +343,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R6 | S6, S7, S29, S58 |
 | R7 | S5, S8 |
 | R8 | S9, S10, S37, S54 |
-| R9 | S13, S38, S57 |
+| R9 | S13, S38, S57, S95 |
 | R10 | S10, S12, S53 |
 | R11 | S6 |
 | R12 | S14, S33, S57 |
@@ -490,6 +491,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S92 | R31, R50 |
 | S93 | R31, R50 |
 | S94 | R31, R50 |
+| S95 | R9 |
 
 ## 8. Approach
 
