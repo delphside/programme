@@ -167,7 +167,7 @@ pub enum ServerMessageDto {
     GameRemoved { game_id: String },
 }
 
-pub struct SeatRefDto { pub game_id: String, pub seat: String }  // the seat's id
+pub struct SeatRefDto { pub game_id: String, pub seat: u32 }  // the seat's id
 ```
 
 `ExternalLink` maps each `GameUpdate`
