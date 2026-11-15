@@ -882,7 +882,7 @@ def last_complete_run(board=sources) -> date:
         raise Unavailable(f"there is no open issue titled {STALLED_LIST_TITLE!r} in {repo}")
     found = _LAST_RUN_STAMP.search(issue.get("body") or "")
     if found is None:
-        raise Unavailable(f"{repo}#{issue.get('number')} has no `Last complete run:` line")
+        raise Unavailable(f"{repo}#{issue.get('number')} records no complete run yet")
     return date.fromisoformat(found.group(1))
 
 

@@ -132,7 +132,7 @@ def activities() -> list[Activity]:
             try:
                 last = _pinned_run()
             except (sources.Unavailable, profile.ProfileError) as exc:
-                last, unread = None, str(exc) or "the programme file could not be read"
+                last, unread = None, getattr(exc, "message", None) or str(exc) or "the programme file could not be read"
         out.append(Activity(aid, name, freq, owner, last, unread))
     return out
 
@@ -141,8 +141,7 @@ def render(items: list[Activity]) -> str:
     lines = []
     for a in items:
         if a.unread:
-            status = (f"could not read the pinned issue's `Last complete run:` line "
-                      f"({a.unread}), not judged")
+            status = f"could not read when it last ran: {a.unread}; not judged"
         elif a.last is None:
             status = "never logged"
         else:
