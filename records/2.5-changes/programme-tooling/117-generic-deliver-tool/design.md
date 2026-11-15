@@ -635,7 +635,7 @@ log:
 | Type | What it is | Exit, where it stops the run | The message says |
 | --- | --- | --- | --- |
 | *business* | the input is wrong: a request the port implementation refuses on validation (a value that fails its form, from an argument or the version file; a short SHA resolving to no build or to several; the keep list; no overwrite), or a correct answer that something the operation needed is not there | 1 | which input to fix; the value is in `violations`, the thing in `metadata` |
-| *technical* | authorisation refused, a network failure, a timeout, a missing tool or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing, except over `ssh` as [interruption](#interruption) says; a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
+| *technical* | authorisation refused, a network failure, a timeout, a missing tool or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing, except a call over `ssh` that changes something, which exits 75 at once ([interruption](#interruption)); a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
 | *unexpected* | any error the code did not expect: an Oracle reply that is invalid, a tool's output not in its format, or anything else not foreseen; usually a defect, Turpin's or a vendor's | 70 | that it was not expected, to raise as an issue; the cause is in the log |
 
 A usage error (64) and an interruption (130) are outside the three types
@@ -1253,7 +1253,7 @@ reading the profile with `tomllib` (hence Python 3.11 or later) and JSON with
 | `gates.py` | the [§9](#9-gates-and-checks) gates that are not the board model's |
 | `hooks.py` | running the application's hooks, with their environment and exit 75 |
 | `gitrepo.py` | fetching, tags, the bump of `main`; `record_of_tag`, which calls the board model's `repo.tag_record`, the one parser of a record ([§10](#10-the-release-and-its-record)) |
-| `hosts.py` | `turpin-host`, on this machine or by `ssh`: the requests, and `Deployed` from `status`; it logs each call's duration, and maps and retries `ssh`'s failures ([interruption](#interruption)) |
+| `hosts.py` | `turpin-host`, on this machine or by `ssh`: the requests, and `Deployed` from `status`; it logs each call's duration, maps `ssh`'s 255 for itself and for `remote.py`, and retries `ssh`'s blips where the call changes nothing ([interruption](#interruption)) |
 | `remote.py` | a `turpin` command on another component's machine, by `ssh`: `build`, `promote`, `remove` and `login` passed on |
 | `settings.py` | the client's product settings: the retry limit and backoff, shared by registry calls and `ssh` calls that change nothing, and the timeout of each ([§13](#13-non-functional-design)) |
 | `payload.py` | assembling the payload and its `profile.json` |
