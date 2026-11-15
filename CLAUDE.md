@@ -138,6 +138,8 @@ docs/1.6 records the app it works through.
   proposes moving a workstream's Q1 project to Design and Test Approach where
   it has none there, and the owner agrees it (owner, 2026-11-04; docs/1.2
   §2.15, §2.22).
+  The daily sweep lists a phase that has sat past its bound for its holder
+  (docs/1.2 §2.24).
 
   The post-deployment check has one row per requirement.
 - **A problem found in testing is fixed on the branch, and the branch is
