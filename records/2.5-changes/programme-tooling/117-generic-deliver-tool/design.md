@@ -139,7 +139,7 @@ the Artifacts API makes no registry login and has no kind: the builder's
 | `Credential` | one way a component proves who it is to Oracle | `form` (an auth token, an API key or an instance principal), `api` (the registry API or the Artifacts API, [§3](#the-protocol)) |
 | `Component` | whose credentials an operation uses | `kind` (an enumeration: controller, builder, copier, deployer), `environment` (a deployer's `Environment`, else none), `login` (its credential kind), `credentials` (each `Credential` it holds: Tile Lite Elite's builder holds an auth token and an API key) |
 | `Repository` | one of the application's two repositories | `kind` (candidates or releases), `name` (`APP/candidates`) |
-| `Deployed` | what an environment runs, as `turpin-host status` reports it | `state`; for `current` and `previous`, the `Build`, the `ReleaseRecord` where there is one and when it was deployed |
+| `Deployed` | what an environment runs, as `turpin-host status` reports it | `state`, with the last request's `request_id` and outcome; for `current` and `previous`, the `Build`, the `ReleaseRecord` where there is one and when it was deployed |
 | `Profile` | the application's profile at a commit or in the working tree | the keys of [§8](#8-profile-and-hooks), with `environments` as `Environment`s |
 | `GateRequest` | what the release gate needs that the board does not hold; the [board model](#the-board-model)'s own type | `version`, `sha`, `range`, `main_range`, `carry_from`, `prefixes`, `emergency`, `milestone_set_aside` |
 | `GateResult` | the release gate's answer; the board model's own type | `gates` (each a verdict: `name`, `passed`, `message`, `reported`), `notes`, `carries`, `left_out` |
@@ -635,7 +635,7 @@ log:
 | Type | What it is | Exit, where it stops the run | The message says |
 | --- | --- | --- | --- |
 | *business* | the input is wrong: a request the port implementation refuses on validation (a value that fails its form, from an argument or the version file; a short SHA resolving to no build or to several; the keep list; no overwrite), or a correct answer that something the operation needed is not there | 1 | which input to fix; the value is in `violations`, the thing in `metadata` |
-| *technical* | authorisation refused, a network failure, a timeout, a missing tool or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; over `ssh`, once a retry is known to be safe ([interruption](#interruption)); a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
+| *technical* | authorisation refused, a network failure, a timeout, a missing tool or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing, and over `ssh` is retried only where a retry is safe ([interruption](#interruption)); a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
 | *unexpected* | any error the code did not expect: an Oracle reply that is invalid, a tool's output not in its format, or anything else not foreseen; usually a defect, Turpin's or a vendor's | 70 | that it was not expected, to raise as an issue; the cause is in the log |
 
 A usage error (64) and an interruption (130) are outside the three types
@@ -1253,9 +1253,9 @@ reading the profile with `tomllib` (hence Python 3.11 or later) and JSON with
 | `gates.py` | the [§9](#9-gates-and-checks) gates that are not the board model's |
 | `hooks.py` | running the application's hooks, with their environment and exit 75 |
 | `gitrepo.py` | fetching, tags, the bump of `main`; `record_of_tag`, which calls the board model's `repo.tag_record`, the one parser of a record ([§10](#10-the-release-and-its-record)) |
-| `hosts.py` | `turpin-host`, on this machine or by `ssh`: the requests, and `Deployed` from `status`; it logs each call's duration, maps `ssh`'s 255 for itself and for `remote.py`, and retries `ssh`'s blips once it knows a retry is safe ([interruption](#interruption)) |
+| `hosts.py` | `turpin-host`, on this machine or by `ssh`: the requests, and `Deployed` from `status`; it logs each call's duration, maps `ssh`'s 255 for itself and for `remote.py`, and retries `ssh`'s blips where a retry is safe ([interruption](#interruption)) |
 | `remote.py` | a `turpin` command on another component's machine, by `ssh`: `build`, `promote`, `remove` and `login` passed on |
-| `settings.py` | the client's product settings: the retry limit and backoff, shared by registry calls and `ssh` calls that change nothing, and the timeout of each ([§13](#13-non-functional-design)) |
+| `settings.py` | the client's product settings: the retry limit and backoff, shared by registry calls and `ssh` calls, and the timeout of each ([§13](#13-non-functional-design)) |
 | `payload.py` | assembling the payload and its `profile.json` |
 | `board.py` | the board model's `release` module, imported from `scripts/board/`; before calling it, sets what `board-release.py`'s `_environment()` sets: `BOARD_REPOSITORY` from `TURPIN_GH_REPO` or the origin URL, and `PROGRAMME_CONFIG` where it is unset |
 | `registry/` | the registry port and the `OCIR` adapter ([the registry adapter](#the-registry-adapter)) |
@@ -1469,27 +1469,42 @@ requires every child's status to be mapped:
 | `Permission denied` | fundamental | 2 | the `ssh` key to load into the agent |
 | `Host key verification failed` | fundamental | 2 | the host's entry in `known_hosts` to fix |
 | `Could not resolve hostname` | fundamental | 2 | the host alias to fix in the `ssh` configuration |
-| `Connection timed out`, `Connection refused`, `Connection reset`, `Broken pipe`, `Connection closed` | blip | 75, once retries run out | where the call stopped |
+| `Connection timed out`, `Connection refused`, `Connection reset`, `Broken pipe`, `Connection closed` | blip | 75 | where the call stopped |
 | anything else | unexpected | 70 | the text, in the run log, to raise as an issue |
 
-**A blip over `ssh` is retried**, with [§13](#13-non-functional-design)'s
-attempts, waits and timeouts, once `turpin` knows a retry is safe. The
-connection may have dropped after the call changed something, so `turpin` first
-learns what the call did:
+**A blip over `ssh` is retried where a retry is safe**, with
+[§13](#13-non-functional-design)'s attempts and waits. The connection may have
+dropped after the call changed something, so each call is made safe to repeat or
+is not retried:
 
-| The call | How `turpin` learns what it did | Then |
-| --- | --- | --- |
-| a call that changes nothing, such as `turpin-host status --json` | nothing to learn | retried |
-| `turpin-host deploy` | reads `turpin-host status --json`, itself retried | the requested build `current` and the state `finished`: the deploy is done, and `turpin` carries on as if the call had returned. The lock held: waits for it, as `deploy --wait` does, then reads again. Otherwise the host restored or never began, nothing live changed, and the call is retried |
-| `turpin-host rollback` | reads `turpin-host status --json`, itself retried | `previous` gone and the lock free: the rollback is done. The lock held: waits, then reads again. Otherwise it never took the lock, and the call is retried |
-| `turpin-host login` and `allowlist`; `host-install`'s install of `turpin-host`; `turpin login`, `build`, `promote` and `remove` on the builder's or copier's machine | nothing to learn: each is safe to repeat, since a login overwrites, an allowlist merges, an install installs or updates, `build` never overwrites what it pushed, and `promote` and `remove` repeat as [§3](#operations)'s registry calls do | retried |
+- **`turpin-host deploy` and `rollback` are idempotent receivers.** Each request
+  carries a `request_id`, which `turpin` sets once per command and keeps across
+  its retries. The host records the last request's id and outcome in `state`
+  ([§11](#11-on-the-host)). Given a request whose id is the last one's, the
+  host:
+  - answers with the recorded result, running nothing, where that request
+    finished, failed or was refused;
+  - waits for the lock, as `--wait` does, where that request still holds it,
+    then answers likewise;
+  - runs it again, where the drop stopped it before its pivot and the host
+    restored.
 
-Once retries run out, `turpin` exits 75, its message naming where the call
-stopped: `turpin status ENV` for an environment's host, and the run log on the
-builder's or copier's machine for a call there.
+  A request the host never took has an id other than the last one's, so it
+  runs as any new request does. Where the drop came after the pivot, the
+  recorded result is the finished deploy, and the host's prune it stopped is
+  left for the next deploy.
+- **A call that changes nothing, or is safe to repeat as it is, is retried**:
+  `turpin-host status --json`; a login, which overwrites; `allowlist`, which
+  merges; `host-install`'s install, which installs or updates; and
+  `turpin promote` and `remove`, which repeat as [§3](#operations)'s registry
+  calls do.
+- **`turpin build` on the builder is not retried**, since the build gate
+  ([§9](#9-gates-and-checks)) refuses a commit whose images are already pushed.
 
-`turpin-host status --json` reports whether the lock is held, beside the state
-and `current`, for this check.
+A retry repeats only the call over `ssh`, never the controller's gates. Once
+retries run out, or for `build`, `turpin` exits 75, its message naming where the
+call stopped: `turpin status ENV` for an environment's host, and the run log on
+the builder's or copier's machine for a call there.
 
 `turpin-host env` runs on its own host, called by `turpin env` there, so it has
 no connection to drop.
@@ -1517,8 +1532,8 @@ JSON request on standard input.
 | `turpin login COMPONENT` | controller; on the component's machine, `turpin login` (builder, copier) or `turpin-host login` (an environment) | owner | the owner's one `docker-config` login for `controller`, `builder`, `copier` or an environment (its deployer): asks for the registry user, reads the token at a hidden prompt, and sends both on standard input to the component's machine ([§3](#3-oci-registry-integration) says which login each makes). Prints nothing of the token | the owner's `ssh` key to the component's machine; writes only that component's login |
 | `turpin env create\|destroy NAME` | deployer, on the environment's host | owner, on the environment's host | an ephemeral environment from the profile template: user, state folder, `.env` (secrets at a hidden prompt), Compose project; the `env-*` hooks | deployer: the deploy user and *root-ops* |
 | `turpin host-install ENV` | controller | owner | installs or updates `turpin-host` and libraries on ENV's host; installs `jq` if missing; refuses if `flock` or the tools its credential kind needs (`oci`) are absent. Refuses environments that would remove each other's host files ([§9](#9-gates-and-checks)) | the owner's `ssh` key, as a user with `sudo` on the target machine, to install into `/usr/local` |
-| `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
-| `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | switch to `previous`. The request: `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait` | as for `deploy` |
+| `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `request_id`, `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
+| `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | switch to `previous`. The request: `request_id`, `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait` | as for `deploy` |
 | `turpin-host status APP ENV --json` | deployer | `status`, `list`, `prune`, release, the rehearsal-level gate, production's version read | what runs, its record, state, as a [result object](#errors-results-and-the-pivot) | the deploy user (reads its state) |
 | `turpin promote APP < request` | release copier | `turpin release` and `turpin deploy --unrecorded`, on `[turpin.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request: `login`, `candidates`, `releases`, `copies` (`digest`, `dest` name), `record` (`tag`, `body`) or null | its `skopeo` login (read candidates, write releases) |
 | `turpin remove APP < request` | builder | `turpin prune`, on `[turpin.build].on` with the build login | remove each candidate the controller chose, through the Artifacts API ([the registry adapter](#the-registry-adapter)), only while the tag still has that digest, and never a digest in `keep`; an absent tag is done. The request: `login`, `candidates`, `removes` (`tag`, `digest`) and `keep` (the digests releases holds) | its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates) |
@@ -2143,7 +2158,7 @@ passed is step 1's confirmation; the tool reads no test report.
 /var/lib/turpin/APP/ENV/
   .env                  the host's own settings: registry address, login settings, keys, limits
   lock                  flock, held to the end of a deploy or rollback; `lock` may share a path across environments
-  state                 the step reached, written at each step; "finished" at the end
+  state                 the step reached, written at each step; "finished" at the end; the last request's `request_id` and outcome
   host_files.installed  the host files the current deploy installed
   deploys/<n>/          per deploy:
     turpin.env           images by digest
@@ -2284,12 +2299,13 @@ exits 3, the message naming `turpin settle VERSION`.
   measured on its host (Tile Lite Elite's by delphside/tile-lite-elite#555's
   first deploy); a hook's limit is the application's, such as Tile Lite Elite's
   60-second smoke test. A registry call that may be retried
-  ([validation and errors](#validation-and-errors)), and a call over `ssh`
-  ([interruption](#interruption)), get three attempts, waiting 2 seconds, then
-  4. A registry call times out after 300 seconds, Tile Lite Elite's unmeasured
-  `pull_timeout`; a call over `ssh` that changes nothing times out after 60
-  seconds, a guess with no measurement behind it. The attempts, the waits and
-  both timeouts are starting values, product settings in `settings.py`
+  ([validation and errors](#validation-and-errors)), and a call over `ssh` that
+  may be ([interruption](#interruption)), get three attempts, waiting 2 seconds,
+  then 4. A registry call times out after 300 seconds, Tile Lite Elite's
+  unmeasured `pull_timeout`; `turpin-host status --json` times out after 60
+  seconds, a guess; a call over `ssh` that changes the host is bounded by its
+  own limits, `pull_timeout` and the hooks'. The attempts, the waits and both
+  timeouts are starting values, product settings in `settings.py`
   ([§5](#scripts-and-their-dependencies)), set from the first runs' call times
   ([§14](#14-moving-tile-lite-elite-to-it)) and then revisited from the run log.
 - **Secrets and access.** The tool holds no credential of its own: each
