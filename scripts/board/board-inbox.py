@@ -62,7 +62,7 @@ def main() -> int:
                         help="how many days back to look (default 7)")
     parser.add_argument("--no-colour", action="store_true")
     parser.add_argument("--open", action="store_true",
-                        help="the owner's comments Claude has not answered, of any age")
+                        help="the owner's comments Claude has not answered, from the to-do floor (comments.to_do_floor) on")
     parser.add_argument("--all", action="store_true", help="with --open: no cap on the list")
     parser.add_argument("--issue", type=int, help="with --open: only this issue")
     parser.add_argument("--ids", action="store_true", help="with --open: add each comment's GitHub id")

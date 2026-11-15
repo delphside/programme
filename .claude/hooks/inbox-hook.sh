@@ -15,8 +15,9 @@
 # **Each section's heading says whose move it is, and each is read on its own**:
 # one read that fails prints its failure and hides no other section (#455).
 #
-# Never fails a session: every error path exits 0 with no output, because a
-# broken inbox must not stop work starting.
+# Never fails a session: every error path exits 0, because a broken inbox must
+# not stop work starting. A section whose read failed prints a line saying so
+# under its own heading; a failure before any section is read prints nothing.
 #
 # **Fast, because it reads a cache (#452).** The three board calls take ~48s,
 # and a session whose first message was sent while the hook ran appears to have
@@ -241,7 +242,7 @@ fi
 # previous one. Its stderr is the reason when it cannot judge (the live checkout
 # missing), so it reaches the session rather than being thrown away.
 H_PRACTICE="Programme activities overdue, whose move is the activity's owner in the programme's docs/1.4 (programme/scripts/board/board-practices.py)"
-if FAIL="$(failure practice "Programme activities could not be judged (programme/scripts/board/board-practices.py)")"; then
+if FAIL="$(failure practice "For the activity's owner: programme activities overdue (programme/scripts/board/board-practices.py)")"; then
   PRACTICE_SECTION="$FAIL"
 else
   PRACTICE="$(grep -E 'OVERDUE|never logged' "$TMP/practice" 2>/dev/null || true)"

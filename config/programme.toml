@@ -37,8 +37,8 @@ owner_name = "Steve"
 # 2026-11-13). Read by `board/inbox.py`.
 to_do_floor = "2026-08-25"
 # How long after a denied comment the same post to the same issue is allowed, in
-# minutes: ample to read the reason and rewrite the comment within a turn (owner,
-# 2026-11-13). No measurement behind it; revisit if a retry is ever denied for
+# minutes: ample to read the reason and rewrite the comment within a turn (chosen
+# 2026-11-13, no measurement behind it); revisit if a retry is ever denied for
 # being late. Read by `.claude/hooks/comment-check.sh`.
 retry_minutes = 10
 
