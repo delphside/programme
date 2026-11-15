@@ -476,8 +476,11 @@ def package_view(package: int, title: str, names: list[str]) -> str:
     else:
         shown = names
     included = "\n".join(f"            include {n}" for n in dict.fromkeys(shown))
+    # Only the package's own lines: the as-is map is the place for context
+    # (owner, 2026-11-15).
+    own = f'            exclude "relationship.tag!=wp:{package}"'
     title = title.replace('"', "'")
-    return (f'        {kind} {scope} "wp-{package}" "{title}" {{\n{included}\n'
+    return (f'        {kind} {scope} "wp-{package}" "{title}" {{\n{included}\n{own}\n'
             f"        }}\n")
 
 
