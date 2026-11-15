@@ -233,3 +233,24 @@ hook_run() {
   assert_output --partial "demand-manager"
   assert_output --partial "board-actions.py --role <role>"
 }
+
+@test "each repository's programme/ submodule is fetched before any session starts" {
+  local pin="$BATS_TEST_TMPDIR/pin" src="$BATS_TEST_TMPDIR/src"
+  export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=protocol.file.allow GIT_CONFIG_VALUE_0=always
+  mkdir -p "$pin/.claude/hooks"
+  printf '#!/usr/bin/env bash\necho pinned\n' > "$pin/.claude/hooks/inbox-hook.sh"
+  chmod +x "$pin/.claude/hooks/inbox-hook.sh"
+  git init -q "$pin" && git -C "$pin" add -A
+  git -C "$pin" -c user.name=t -c user.email=t@t commit -q -m pin
+  git init -q "$src"
+  git -C "$src" submodule add -q "$pin" programme
+  git -C "$src" -c user.name=t -c user.email=t@t commit -q -m app
+  git clone -q "$src" "$WS/tile-lite-elite"
+  mkdir -p "$WS/notes"
+  [ ! -e "$WS/tile-lite-elite/programme/.claude/hooks/inbox-hook.sh" ]
+  CLAUDE_SETUP_WORKSPACE="$WS" run "$SETUP"
+  assert_success
+  [ -x "$WS/tile-lite-elite/programme/.claude/hooks/inbox-hook.sh" ]
+  hook_run '{}' inbox-hook.sh
+  assert_output "pinned"
+}

@@ -36,6 +36,12 @@
 # the board scripts refuse to run in the programme's own repository, so it has
 # no hooks of its own to fall back on.
 #
+# It initialises each repository's `programme/` submodule first. The hooks run
+# that submodule's copy, and a repository's own cloud-setup.sh, which would
+# otherwise fetch it, runs beside the inbox hook at session start: the hook ran
+# first and found nothing (2026-11-15). The script starts in the folder that
+# holds the repositories; CLAUDE_SETUP_WORKSPACE names another.
+#
 # It also installs the desktop client's libraries, which are slow and so
 # belong here, where the result is cached (Tile Lite Elite's docs/4.3.1).
 #
@@ -49,6 +55,13 @@
 # are written, and CLAUDE_SETUP_NO_PACKAGES skips the libraries; a test sets both.
 
 export CLAUDE_USER_DIR="${CLAUDE_USER_DIR:-/root/.claude}"
+
+# Each repository's pinned programme/, so the hooks find it at session start.
+for d in "${CLAUDE_SETUP_WORKSPACE:-$PWD}"/*/; do
+  git -C "$d" config -f .gitmodules --get submodule.programme.path >/dev/null 2>&1 || continue
+  timeout 120 git -C "$d" submodule update --init programme >/dev/null 2>&1 \
+    || echo "setup: could not fetch ${d}programme" >&2
+done
 # The application whose hooks run when the cwd is in none that has them.
 DEFAULT_APP="tile-lite-elite"
 mkdir -p "$CLAUDE_USER_DIR"
