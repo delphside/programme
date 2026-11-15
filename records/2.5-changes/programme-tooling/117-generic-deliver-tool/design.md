@@ -1524,8 +1524,8 @@ JSON request on standard input.
 | `turpin login COMPONENT` | controller; on the component's machine, `turpin login` (builder, copier) or `turpin-host login` (an environment) | owner | the owner's one `docker-config` login for `controller`, `builder`, `copier` or an environment (its deployer): asks for the registry user, reads the token at a hidden prompt, and sends both on standard input to the component's machine ([§3](#3-oci-registry-integration) says which login each makes). Prints nothing of the token | the owner's `ssh` key to the component's machine; writes only that component's login |
 | `turpin env create\|destroy NAME` | deployer, on the environment's host | owner, on the environment's host | an ephemeral environment from the profile template: user, state folder, `.env` (secrets at a hidden prompt), Compose project; the `env-*` hooks | deployer: the deploy user and *root-ops* |
 | `turpin host-install ENV` | controller | owner | installs or updates `turpin-host` and libraries on ENV's host; installs `jq` if missing; refuses if `flock` or the tools its credential kind needs (`oci`) are absent. Refuses environments that would remove each other's host files ([§9](#9-gates-and-checks)) | the owner's `ssh` key, as a user with `sudo` on the target machine, to install into `/usr/local` |
-| `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `request_id`, `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
-| `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | switch to `previous`. The request: `request_id`, `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait` | as for `deploy` |
+| `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `request_id`, `repeat`, `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
+| `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | switch to `previous`. The request: `request_id`, `repeat`, `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait` | as for `deploy` |
 | `turpin-host status APP ENV --json` | deployer | `status`, `list`, `prune`, release, the rehearsal-level gate, production's version read | what runs, its record, state, as a [result object](#errors-results-and-the-pivot) | the deploy user (reads its state) |
 | `turpin promote APP < request` | release copier | `turpin release` and `turpin deploy --unrecorded`, on `[turpin.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request: `login`, `candidates`, `releases`, `copies` (`digest`, `dest` name), `record` (`tag`, `body`) or null | its `skopeo` login (read candidates, write releases) |
 | `turpin remove APP < request` | builder | `turpin prune`, on `[turpin.build].on` with the build login | remove each candidate the controller chose, through the Artifacts API ([the registry adapter](#the-registry-adapter)), only while the tag still has that digest, and never a digest in `keep`; an absent tag is done. The request: `login`, `candidates`, `removes` (`tag`, `digest`) and `keep` (the digests releases holds) | its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates) |
@@ -1977,7 +1977,7 @@ production deploy, an error after the deploy's
 | build | no overwrite | existing `SHA-IMAGE` not rebuilt; failed registry query refuses; releases tags never overwritten | gate | — |
 | every deploy | exact bytes | pulled by digest; revision label is the SHA; running `RepoDigests` match (`--local`: image id and label) | gate | — |
 | every deploy | no overlap | lock free, held to the end | gate | nothing (`--wait` waits) |
-| every deploy | *state gate* | state is none (a first deploy), finished, restored or `failed, no previous deploy`; else refuses, naming the step reached and `turpin rollback ENV`. A failed restore leaves `failed: the restore did not complete`, which refuses alike | gate | nothing: `turpin rollback` |
+| every deploy | *state gate* | state is none (a first deploy), finished, restored, `failed, no previous deploy`, or a step before `save-state`, where nothing that runs had changed; else refuses, naming the step reached and `turpin rollback ENV`. A failed restore leaves `failed: the restore did not complete`, which refuses alike | gate | nothing: `turpin rollback` |
 | deploy, release | application's hooks | every `required_hooks` hook present and executable; `pre-deploy` (deploy) and `release-check` (release) pass | gate | the two hooks by `--set-aside`, where overridable |
 | every deploy | allowed host files | destination off the allowlist refuses ([§11](#11-on-the-host)) | gate | nothing: rerun `turpin host-install` |
 | deploy, host-install | no mutual removal | two environments of one application on one host both installing host files refuse | gate | nothing: `host_files = false` on all but one |
@@ -2212,20 +2212,22 @@ whose `request_id` is the last one's, the host acts on its outcome:
 
 | Outcome | Written when | The repeat |
 | --- | --- | --- |
-| `finished` | the request passed its pivot (a deploy) or ran to its end (a rollback); the exit is kept: 3 where the prune failed, 0 where an interruption or a dropped connection stopped it | answered with the recorded result, running nothing |
+| `finished` | the request passed its pivot (a deploy) or ran to its end (a rollback); the exit is kept: 3 where the prune failed, recorded as 0 where an interruption or a dropped connection stopped it | answered with the recorded result, running nothing |
 | `failed` | the request stopped on an error, or its restore failed | answered with the recorded result, running nothing |
-| `refused` | a gate refused it after the lock was taken, `smoke` included | answered with the recorded result, running nothing |
+| `refused` | a gate refused it after the lock was taken, `smoke` included, and any restore succeeded | answered with the recorded result, running nothing |
 | `interrupted` | an interruption or a dropped connection stopped a deploy before its pivot, and what it changed was undone | run again |
-| `running` | left by a request that died part-way (a reboot, a kill) | refused, running nothing, naming `turpin status ENV` for the owner to judge what the host holds |
+| `running` | the request took the lock; found by its repeat, it died part-way, as in a reboot | refused, exit 1, running nothing and leaving `last_request` as found, naming `turpin status ENV` for the owner to judge what the host holds |
 
 - Any other request runs as a new one, and writes its own `request_id` with the
   outcome `running` before its next step.
-- A rollback's outcome is `finished`, `failed` or `refused`, since one holding
-  the lock runs to its end.
+- A rollback is never `interrupted`, since one holding the lock runs to its end.
+  A rollback that finishes leaves the state `restored`.
 - A request refused because the lock is held, and any request under `--check`,
   write nothing.
-- `turpin` sends each repeat with `wait` set, so it waits for the lock as
-  `--wait` does, up to the 60-minute default, and at the limit exits 75.
+- `turpin` marks each repeat with `repeat` set, which makes the host wait for
+  the lock, up to the command's `--wait` limit or else 60 minutes, and at the
+  limit exit 75; the repeat waits for a hook's *not yet* only where the
+  command's own `wait` says so.
 - A `request_id` is a version 4 UUID, which `turpin` generates once per command
   and the host validates, so each command has its own.
 
