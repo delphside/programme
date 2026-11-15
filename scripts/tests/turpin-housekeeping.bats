@@ -193,7 +193,10 @@ oci-instance-principal"
 }
 
 @test "tool_names_no_application (S45, R1)" {
-  run grep -rniE 'tile[ -]?lite|dark[ -]?portal|oracle|ocid|oci\.oraclecloud|tenancy-' "$TURPIN_SRC"
+  run grep -rniE 'tile[ -]?lite|dark[ -]?portal' "$TURPIN_SRC"
+  assert_failure 1
+  # R1 forbids application names; a vendor adapter may name its vendor, so only its folder is exempt from these
+  run grep -rniE --exclude-dir=ocir 'oracle|ocid|oci\.oraclecloud|tenancy-' "$TURPIN_SRC"
   assert_failure 1
 }
 

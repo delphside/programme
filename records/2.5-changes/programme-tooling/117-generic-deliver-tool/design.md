@@ -623,7 +623,7 @@ tool, protocol or tag form:
 | store a build | a commit and the profile's image names | the `Build` | `turpin build`: the `build` hook writes each image as an OCI image layout ([§8](#8-profile-and-hooks)), and each layout is pushed as `SHA-IMAGE`; the image digest is the layout's index or manifest digest, the one the registry stores |
 | read a release's record | a `Version` | its `ReleaseRecord`, or *absent* | a resumed `turpin release` |
 | promote to releases | a `Build`, with a `Version` and its `ReleaseRecord`, or with neither for `--unrecorded` | the image set and record in releases | the release copy: every image by digest, then `VERSION-record` |
-| remove a candidate | one image of a `Build`, the `Digest` it was chosen at, and the digests to keep | removed, or left where the tag has moved | `prune`, on the builder |
+| remove a candidate | one image of a `Build`, the `Digest` it was chosen at, the digests to keep and the tags this prune removes | removed, or left where the tag has moved, the tag is gone or the image is shared | `prune`, on the builder |
 
 *Absent* is an answer, not an error: the registry says the image or record is
 not there, which is told apart from its being unreachable. An error reaches
@@ -645,6 +645,25 @@ run carries on and exits 3.
 
 Every deploy pulls by digest with `docker pull`, in the payload's steps
 ([§11](#11-on-the-host)), outside the port.
+
+**The port's shapes.** An image is named by a build's image (commit and name),
+a release's image (version and name) or a `Digest`; found by a digest, its
+`name` is empty. *List versions* gives the full SHAs built in candidates, or
+the `Version`s in releases, sorted, and passes over any tag not of the
+[tag forms](#the-registry-adapter). *Store a build* takes the commit and the path of each image's layout.
+*Promote* takes both repositories, the `Build`, and the `Version` and
+`ReleaseRecord` or neither, and gives the digests, the record and the tags it
+wrote and found already there. *Remove a candidate* takes the `Build`, the
+image's name, the keep list and the tags this prune removes, and gives
+`removed`, `tag-moved`, `already-gone` or `shared`. The port resolves a short
+SHA from *list versions* (at least 7 characters, git's default abbreviation).
+
+**The image digest is the SHA-256 of the manifest or index `skopeo inspect
+--raw` writes**, hashed byte for byte as read, since `skopeo` writes the stored
+bytes unchanged; a digest asked for is checked against it, and a reply with
+another digest is invalid. This rule is checked on rehearsal's real registry. An image's labels are read from its
+configuration, and for an index from its first platform image, never an
+attestation manifest; a label the image lacks reads as empty.
 
 The release copy skips each blob that releases already holds, and downloads
 and uploads the rest through the copier's machine. Before downloading a blob,
@@ -671,7 +690,7 @@ flowchart TB
   PORT["<i>registry port</i><br>[Component: Python]<br>the interface: the operations,<br>in the domain model's types"]
   subgraph OCIRA["Component: OCIR adapter"]
     TOP["<i>port implementation</i><br>[Component: Python]<br>each operation: the switches<br>and the rules"]
-    MID["<i>Oracle calls</i><br>[Component: Python]<br>one typed function per call:<br>log in, inspect manifest, list tags,<br>copy image, push, pull, find image,<br>delete image"]
+    MID["<i>Oracle calls</i><br>[Component: Python]<br>one typed function per call:<br>log in, inspect manifest, list tags,<br>copy image, push, pull, find image,<br>get image, delete image"]
     TRN["<i>translators</i><br>[Component: Python]<br>OCIDs, image references,<br>manifests and indexes, Oracle errors"]
     RAPI["<i>registry API</i><br>[Component: Python, skopeo]<br>auth files, invocation, errors"]
     AAPI["<i>Artifacts API</i><br>[Component: Python, OCI CLI]<br>API key, instance principal,<br>JSON envelope and paging"]
@@ -697,6 +716,7 @@ flowchart TB
 | port | `registry/port.py` | the interface: the [operations](#operations), in the [domain model](#domain-model)'s types, and the three [error types](#operations) |
 | top: port implementation | `registry/ocir/adapter.py` | each operation as Oracle calls, with the switches (every platform, digests preserved, on the release copy) and the rules: refuse to write a version tag or `VERSION-record` that releases already holds with other contents, since OCIR has [no immutable repositories](#images-tags-and-digests) (a same-digest copy is a no-op); refuse to remove a digest in the request's keep list; the tag forms `SHA-IMAGE`, `VERSION-IMAGE` and `VERSION-record` |
 | middle: Oracle calls | `registry/ocir/calls.py` | one thin function per Oracle call used, returning domain types built through the translators; it meets Oracle's business errors ([validation and errors](#validation-and-errors)) |
+| beside the middle: reasons | `registry/ocir/reasons.py` | the reasons of domain `oracle` that name a tool's failure; an Oracle error code is made upper snake case, not listed |
 | beside the middle: translators | `registry/ocir/translate.py` | Oracle's data types, each to and from the domain model ([translators](#translators)) |
 | bottom: the APIs | `registry/ocir/api.py` | one function per API, taking the call's name and typed arguments: the registry API through `skopeo`, and the Artifacts API through the `oci` CLI. Each alone maps a call to its tool's subcommand, flags and auth file or configuration; holds each component's credential (an auth file; an API key's configuration; an instance principal); reads its tool's output format (the `oci` CLI's JSON envelope, `data`, and paging by `opc-next-page`; a `skopeo` or `docker` auth file); logs each call's duration; and meets the technical errors, retrying the transient ones, with `--no-retry` on every `oci` call ([validation and errors](#validation-and-errors)) |
 
@@ -710,7 +730,8 @@ The Oracle calls, and what the bottom layer runs for each:
 | copy image, every platform, digests preserved | registry | `skopeo copy --all --preserve-digests` |
 | push | registry | `skopeo copy` from an OCI layout: the record's; or, for a build, `skopeo copy --all --preserve-digests oci:DIR` from each layout the `build` hook wrote, which holds one image, to the tag `SHA-IMAGE` |
 | pull | registry | `skopeo copy` to an OCI layout (the record) |
-| find image by repository and digest | Artifacts | `oci artifacts container image list --no-retry`, in the compartment `TURPIN_OCI_COMPARTMENT` names ([the registry address](#the-registry-address)), giving the image's OCID |
+| find image by repository and digest | Artifacts | `oci artifacts container image list --no-retry --lifecycle-state AVAILABLE`, in the compartment `TURPIN_OCI_COMPARTMENT` names ([the registry address](#the-registry-address)), giving the image's OCID; a listing's items are summaries and carry no tags |
+| get image | Artifacts | `oci artifacts container image get --no-retry`, by the OCID, giving the image's `versions`, its tags |
 | delete image | Artifacts | `oci artifacts container image delete --no-retry`, by the OCID |
 
 How the port implementation uses them:
@@ -721,7 +742,29 @@ How the port implementation uses them:
 | find an image, list versions, read a record | inspect manifest; list tags; pull `VERSION-record` | the component's `skopeo` login |
 | store a build | push each image's layout; inspect manifest for each digest | the builder's |
 | promote to releases | inspect manifest of each target; copy image; push the record | the copier's |
-| remove a candidate | first, the keep list: a digest in it is refused, with no call; then inspect manifest, that the tag still names the chosen digest; find image by repository and digest; delete image | the builder's [removal credential](#logins) |
+| remove a candidate | first, the keep list: a digest in it is refused, with no call; then inspect manifest, that the tag still names the chosen digest; find image by repository and digest, get it for its tags, and that it carries the chosen tag and no tag outside this prune's; delete image | the builder's [removal credential](#logins) |
+
+**The rules apply as follows.**
+
+- No overwrite covers every tag a promotion writes, `SHA-IMAGE` of an
+  `--unrecorded` copy included. Each target in releases is inspected before any
+  write, so a refusal writes nothing, and again as it is written. The record is
+  compared by digest, and is built reproducibly (one uncompressed layer, no
+  timestamps), so the same record is the same digest and another is refused.
+- A promotion checks that each source digest is in candidates before it writes;
+  one missing is a business error naming the digest.
+- A remove finds the image by digest, gets it for its tags, and deletes it only
+  if every tag the image carries is in the request's set of tags this prune
+  removes. Another tag means the image is shared with a commit that is kept, so
+  it is left, as `shared` with no error, the other tags in the run log. A tag no
+  longer there is `already-gone`. A reply with several images for the digest, or
+  an image with no list of tags or without the chosen tag, is invalid, so
+  nothing is deleted on it. A compartment that lists no image after the tag
+  check passed is a setting fault, a fundamental technical error naming
+  `TURPIN_OCI_COMPARTMENT`. A build that pushes the same digest under a new tag
+  between the get and the delete loses that tag with it; the window is narrow,
+  since the builder runs both, and only a candidate is lost, which the next
+  build of that commit makes again.
 
 A test replaces a bottom-layer function with a stub, with `unittest`. Another
 registry would be a second adapter behind the same port, reusing the
@@ -740,7 +783,7 @@ no layer above the middle sees Oracle's formats:
 
 | Translator | Handles |
 | --- | --- |
-| OCID | parsing one, and checking its kind (`containerimage`) and region; never logged |
+| OCID | parsing one, and checking its kind (`containerimage`), not its region, which a registry host and an OCID name differently; never logged |
 | image reference | a repository, a tag or a digest, to and from `REGISTRY/NAMESPACE/REPO:TAG@sha256:…` |
 | manifest or index | the media types; the platform manifests and attestation manifests an index lists; the digest that is the image digest |
 | Oracle error | the error envelope (`code`, `message`, HTTP status), as the [error type](#operations) it names |
@@ -752,7 +795,7 @@ no layer above the middle sees Oracle's formats:
 | Layer | Finds | Reports |
 | --- | --- | --- |
 | top: port implementation | business errors on validation: each value's form (from an argument or the version file), before any call; the request's rules ([the registry adapter](#the-registry-adapter)), the keep list and no overwrite of a version tag or `VERSION-record`, before any write, since no overwrite needs an inspect of releases. It wraps whatever comes from below with the operation's context (which image, which step), keeping its type. | business errors; a remove left where the tag has moved, which is no error; what comes from below, wrapped |
-| middle: Oracle calls | through the translators, Oracle's answers: a manifest unknown; a delete answered `NotAuthorizedOrNotFound` (below); a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region). Its calls are well formed, since the top has validated them | *absent* for a manifest unknown on a read; a business error where the operation needed the thing; a technical error for a delete answered `NotAuthorizedOrNotFound`; an unexpected error for an invalid reply |
+| middle: Oracle calls | through the translators, Oracle's answers: a manifest unknown; a delete answered `NotAuthorizedOrNotFound` (below); a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind). Its calls are well formed, since the top has validated them | *absent* for a manifest unknown on a read; a business error where the operation needed the thing; a technical error for a delete answered `NotAuthorizedOrNotFound`; an unexpected error for an invalid reply |
 | bottom: the APIs | technical errors: authorisation, the network, a timeout, a missing tool; and output not in the tool's format at all (not JSON, no envelope). It retries a blip (below) | technical errors; an unexpected error for output not in its format |
 
 So business errors come from the top (validation) and the middle (not found);
@@ -810,6 +853,15 @@ its own business errors; an error from a registry call goes layer by layer:
    [exit statuses](#errors-results-and-the-pivot)). For a fundamental
    technical error from a login, the message also says that a new auth token
    can take a few minutes to start working (observed 2026-11-12).
+
+**Every error the bottom layer raises is technical, a blip or a fundamental
+one**, including an image unknown (reason `MANIFEST_UNKNOWN` or
+`NAME_UNKNOWN`), apart from output not in the tool's format, which is
+unexpected. The middle layer reads the reason and the HTTP status to give the
+verdict: *absent*, a business error, or an unexpected error for a failure with
+no known meaning (a reason `TOOL_FAILED`, or a status 400, 409 or 422). The
+bottom layer reads the `oci` CLI's error envelope (`code`, `status`), since it
+needs the status to retry; the translators classify its result.
 
 **The bottom layer retries a blip**, after a network error or a timeout, HTTP
 429 or 5xx, in a call that is safe to repeat, since only it sees the status:
@@ -977,6 +1029,10 @@ controller makes its login on its first registry read, so a command that reads
 none, a local preview deploy, needs none. An `oci-*` controller login runs on
 each registry read, with no caching; both applications use `docker-config` for
 the controller.
+
+An `oci-*` login runs each time a component's credentials are ensured. A
+deployer is not served by the port, since it pulls with `docker`. The shared
+`docker` login is made by `turpin login`, not by the port.
 
 #### The registry address
 
@@ -1453,7 +1509,8 @@ own request looks for it. Every hook runs with its input from `/dev/null`.
 
 Then, on a Ctrl+C:
 
-1. A tool, a hook or a data-reading call already running runs to its end.
+1. A tool, a hook or a data-reading call already running runs to its end,
+   within its time limit, however often Ctrl+C is pressed.
 2. `turpin` closes the input of each call that has one held open.
 3. The called side reads the end of its input as the interruption at its next
    step or while it waits (the lock, a hook's *not yet*). `turpin-host rollback`
