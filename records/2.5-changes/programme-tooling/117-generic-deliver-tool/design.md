@@ -2319,9 +2319,10 @@ state table; from `finished`, `restored` or `preparing` its steps are:
 
 A second rollback then refuses, as does one with no `previous`, naming the
 fallback ([§8](#8-profile-and-hooks)). A rollback from `changing` acts on its
-`target`, as the state table says; one that fails or is killed part-way leaves
-`changing`, its step numbered within the rollback, and `turpin rollback ENV`
-runs it again.
+`target`, as the state table says. One that switches to `previous` and fails
+or is killed part-way leaves `changing: rollback`, its step numbered within the
+rollback, and `turpin rollback ENV` runs it again; one that runs a restore ends
+as a restore does (above).
 
 **Every step is safe to run again** on what an earlier run left, so a rerun
 needs no record of how far the last one got: root-ops counts an `rm` of a file
@@ -2339,7 +2340,7 @@ outcome:
 | `finished` | the request passed its pivot (a deploy) or ran to its end (a rollback); the exit is kept: 3 where the prune failed, recorded as 0 where an interruption or a dropped connection stopped it | answered with the recorded result, running nothing |
 | `failed` | the request stopped on an error, or its restore failed | answered with the recorded result, running nothing |
 | `refused` | a gate refused it after the lock was taken, `smoke` included, and any restore succeeded | answered with the recorded result, running nothing |
-| `interrupted` | an interruption, a dropped connection or a hook's *not yet* past the wait stopped a deploy before its pivot, and what it changed was undone | run again |
+| `interrupted` | an interruption, a dropped connection or a hook's *not yet*, with no `--wait` or past its limit, stopped a deploy before its pivot, and what it changed was undone | run again |
 | `running` | on taking the lock, before the next step; found by its repeat, the request died part-way (a reboot, a kill) | refused, exit 1, running nothing and leaving `last_request` as found, naming `turpin status ENV` for the owner to judge what the host holds |
 
 - Any other request runs as a new one, writing its `request_id` with `running`.
