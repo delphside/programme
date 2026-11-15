@@ -52,7 +52,7 @@ PINNED_PROGRAMME_FILE = Path("programme") / "config" / "programme.toml"
 # file when it starts with one of these, to the programme profile when it
 # starts with `profile`, and to the technical profile otherwise.
 PROGRAMME_SECTIONS = ("organisation", "board", "accounts", "programme", "records",
-                      "programme_documents", "comments")
+                      "programme_documents", "comments", "flow")
 PROFILE_PREFIX = "profile"
 
 
@@ -196,6 +196,18 @@ class Section:
         value = self.get(dotted)
         if not isinstance(value, str) or not value:
             raise ProfileError(f"{self.source}: `{dotted}` must be a non-empty string")
+        return value
+
+    def integer(self, dotted: str) -> int:
+        value = self.get(dotted)
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ProfileError(f"{self.source}: `{dotted}` must be a whole number")
+        return value
+
+    def table(self, dotted: str) -> dict:
+        value = self.get(dotted)
+        if not isinstance(value, dict):
+            raise ProfileError(f"{self.source}: `{dotted}` must be a table")
         return value
 
     def strings(self, dotted: str) -> list[str]:

@@ -16,6 +16,20 @@ owner_name = "Pat"
 to_do_floor = "2026-08-25"
 retry_minutes = 10
 
+[flow]
+rest_timeout_seconds = 120
+read_workers = 8
+merged_lookback_days = 30
+
+[flow.field_ids]
+"Turn" = 49935304
+"Project State" = 46162136
+"Requirement State" = 46185224
+"Decision State" = 46531431
+"Ticket State" = 48733274
+"Workstream" = 46217763
+"Route" = 46415058
+
 [programme]
 repository = "fakeorg/fake-programme"
 live_default = "../fake-programme"

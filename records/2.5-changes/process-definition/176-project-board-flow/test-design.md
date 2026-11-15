@@ -79,8 +79,8 @@ Delivery 1 (the fields and the view) is the owner's steps. Delivery 3 (the daily
 | I1 | One flow table in `model.py` maps type and state to role, `Turn`, bound, what the state owes and what it leaves on. Every caller reads it, the bounds live there and nowhere else in code, and the documents link to it. |
 | I2 | `board-flow.py` is plain Python over REST. It reads every open issue and pull request in the five repositories; writes R7's fixes and each item's `Turn`; keeps stale claims and lists them as offered; rewrites the pinned stalled-list issue in the programme repository; and returns the stalled items by role. |
 | I3 | The coordinator's daily cloud trigger runs it and nudges each stalled item's role thread, or starts one. When nothing is stalled it ends without a message. The Monday trigger stays. The run time keeps clear of 21:10 to 22:10 UTC. No GitHub Actions job is added. |
-| I4 | Reconciliation keeps no history, so a missed day is tolerated and the next run corrects it. |
-| I5 | Events: the raising thread sets the starting state and `Turn`; the merging thread moves its work package by route; a missed merge is caught by the next sweep through `Refs #N`; `deploy.sh` moves what it ships, and a missed deploy is caught by the next sweep. `pr-state.yml` is unchanged. Infrastructure pull requests' movers are derived from REST. |
+| I4 | Reconciliation keeps only the ledger of when each item entered its state and the `Turn` the sweep wrote, so a missed day is tolerated and the next run corrects it. |
+| I5 | Events: the raising thread sets the starting state and `Turn`; the merging thread moves its work package by route; a missed merge is listed by the next sweep through `Refs #N` for a person to move; `deploy.sh` moves what it ships, and a missed deploy is caught by the next sweep. `pr-state.yml` is unchanged. Infrastructure pull requests' movers are derived from REST. |
 | I6 | `Turn` is a single select: `Owner` green, `Claude` blue, `Hold` yellow. `Claimed by` is text. The owner creates both. |
 | I7 | `board-actions.py --role <role>` lists one role's items, oldest first, with age and bound, from the same table. Threads run it at start and at each wake (cloud and WSL session-start hooks). The owner's list adds every `Turn` = `Owner` item to its five existing sources. |
 | I8 | Writes are one call per item that changed. |
@@ -112,7 +112,7 @@ Each is the settlement of the gap with the same number in part 10, held in [desi
 | S-G18 | With no pinned issue, `board-flow.py` refuses and names it. Claude creates the issue by hand before delivery 2's TT1; delivery 3 keeps it. |
 | S-G19 | An item appears once on the owner's list. |
 | S-G20 | The REST timeout is a setting. |
-| S-G21 | `board-flow.py` exits 0 when nothing is stalled, 1 when something is, and 2 when it could not finish. |
+| S-G21 | `board-flow.py` exits 0 when nothing is stalled or needs a look, 1 when something is stalled or needs a look, and 2 when it could not finish. |
 | S-G22 | `board-flow.py --dry-run` writes nothing and prints what it would write. |
 | S-G23 | A stopped thread is detected only through the bound. |
 | S-G24 | The owner's view shows `Requirement State` and `Turn` as columns. |
@@ -257,11 +257,11 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | O13 | The owner's list holds every `Turn` = `Owner` item, plus its five existing sources unchanged. |
 | O14 | Across callers, for one world: every open item has exactly one holder, and anyone else with a part in its state sees it on their own list; the stalled set equals the past-bound items on the role lists; `board-check.py` agrees. |
 | O15 | The run completes with GraphQL refused, and its result matches the same world's expected answer. |
-| O16 | The work package's `Project State` is written `Deployment` (Production Release) or `Post-deployment` (tooling route), and nothing else moves. |
+| O16 | The work package is listed under needs a look, for its holder, naming every merged pull request that names it (`merge.next_phase` decides which packages) and how to move it; no `Project State` is written for a merge, and nothing else moves. |
 | O17 | Quiet: the stalled output is empty, the pinned issue says nothing is stalled and gives the run's time, and the exit is 0 (S-G21). |
 | O18 | The item is reported to its role as an invalid or released hold, with the reason. |
 | O19 | `--role` with an unknown role is refused with an error naming it. |
-| O20 | Exit 1: stalled items found, every write made, the pinned issue rewritten. |
+| O20 | Exit 1: stalled items or items needing a look found, every write made, the pinned issue rewritten. |
 | O21 | The write log is empty; standard output lists each write the run would make, item and value. |
 | O22 | The run refuses before any write, exits 2, and names the missing pinned issue. |
 
@@ -330,7 +330,7 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S21 | Black start: every type in every repository, nothing moved for 30 days, plus three items within bound holding live claims. One run. | D4.5, D6.3, D12.2 | O6 for every past-bound item, by role; O7 for the three | CI |
 | S22 | Quiet case: everything within its bound. Then age one item 1 minute past its bound (the check shown to fail first). | D12.1 | O17; then O6 | CI |
 | S23 | The pinned issue's body after two runs with different stalled sets. | D11 | O9 each time; the body holds the second set only | CI |
-| S24 | Missed merges: a merged pull request `Refs #N` to a Production Release package at `Development`; one to a tooling-route package; `Refs` to a parent only; an unmerged pull request; a package already moved. | D9.1–5 | O16; O16; O5; O5; O5 | CI |
+| S24 | Missed merges: a merged pull request `Refs #N` to a Production Release package at `Development`; one to a tooling-route package; several partial merges to one package; a merge before the lookback, touched since; `Refs` to a parent only; an unmerged pull request; a package already moved. | D9.1–5 | O16; O16; O16; O5; O5; O5; O5 | CI |
 | S25 | A read fails at the third repository; then a rerun with the source healthy. | D8.2, D11.3 | O10; then the run completes, corrects the rest, and O9 shows the new complete-run time | CI |
 | S26 | A `Turn` write is refused (403) in one repository; then permitted. | D8.3 | O10, and the item not reported as fixed; then O4 | CI |
 | S27 | A REST call hangs past the limit. | D8.4 | with the timeout setting shortened (S-G20): the call cut, then O10 | CI |
@@ -344,7 +344,7 @@ Merge rule from CLAUDE.md and docs/1.2 §2.1: a merge moves a Production Release
 | S35 | Flow-table completeness: every option of `Requirement State`, `Project State`, `Decision State`, `PR State` and `Ticket State` has a mover and a bound (or "none"). Remove one row and see the test fail. An item carrying a value not in the table. | D3.3 | the table check passes, then fails on the removed row; the item reported, not defaulted (S-G17) | CI |
 | S36 | The table's bounds: 1 day for unset and `Triage`; 14 days for `Post-deployment`; 7 days for each other owed state, `Candidate Project 1` included; none for `Q3` to `Q1`, `Ready for Project`, `Candidate 2` and `3`, `Deployment`, and a `Release Check` package at `Post-deployment` while its hold lasts; 7 days from the next release milestone's close once the hold ends. | — | the values as stated | CI |
 | S37 | Stalled output by role, including a role with no permanent thread. | D12.2–3 | grouped by role; the threadless role named alone | CI |
-| S38 | Exit statuses: a world with nothing stalled; one with a stalled item; one whose read fails. | D8.1–2, D12.1–2 | exit 0 (O17); exit 1 (O20); exit 2 (O10). A failed run never exits 1 | CI |
+| S38 | Exit statuses: a world with nothing stalled or needing a look; one with a stalled item; one with an item that needs a look and nothing stalled; one whose read fails. | D8.1–2, D12.1–2 | exit 0 (O17); exit 1 (O20); exit 1 (O20); exit 2 (O10). A failed run never exits 1 | CI |
 | S39 | `--dry-run` over a world needing type, state, `Turn` and claim writes; then the same world without it. | D11.1 | O21, the pinned issue untouched; then O1, O2, O4, O9 | CI |
 | S40 | No pinned issue in the programme repository; then it is created and the run repeated. | D11.1 | O22; then O9 | CI |
 | S41 | Missed deploy: a closed release milestone carrying a work package at `Deployment` and one already at `Post-deployment`; an open milestone carrying one. | D9.6 | the first moved to `Post-deployment`; the other two O5 | CI |
