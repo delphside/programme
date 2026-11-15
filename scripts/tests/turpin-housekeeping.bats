@@ -51,7 +51,8 @@ setup() {
   # the copier's credential writes releases only
   commit_change two
   STUB_WRITE_ONLY='/releases$' run d build "$SHA"
-  assert_failure 1
+  assert_failure 2
+  assert_output --partial "the registry refused the builder's login"
   [ -z "$(cand "$SHA-server")" ]
   STUB_WRITE_ONLY='/releases$' run d release --expect 0.10.2
   assert_success
@@ -140,6 +141,7 @@ env-destroy"
   mv "$W/p.toml" "$W/work/app-profile.toml"
   mkdir -p "$W/nobin"
   # oci is not on PATH of the stub host
+  rm "$W/bin/oci"
   run d host-install rehearsal
   assert_failure
   assert_output --partial "oci is missing (needed by the oci-instance-principal login)"
@@ -205,9 +207,8 @@ oci-instance-principal"
   sed -i 's|^candidates = .*|&\nregistry = "reg.test/ns"|' "$W/work/app-profile.toml"
   commit_change one
   run d build "$SHA"
-  assert_failure 1
-  assert_output --partial "TURPIN_REGISTRY is not set"
-  assert_output --partial "the profile never holds it"
+  assert_failure 2
+  assert_output --partial "has no TURPIN_REGISTRY"
 }
 
 @test "a second dummy application drives build, deploy and release (S45, R1)" {

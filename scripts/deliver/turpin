@@ -10,8 +10,8 @@ beside it. A command not yet ported runs in `turpin-legacy`.
 import sys
 from pathlib import Path
 
-if sys.version_info < (3, 11):
-    print("turpin: Python 3.11 or later is needed (tomllib)", file=sys.stderr)
+if sys.version_info < (3, 11, 4):
+    print("turpin: Python 3.11.4 or later is needed (tomllib, and tar extraction with a filter)", file=sys.stderr)
     sys.exit(2)
 
 # The real folder, so a symlink to this script (on a PATH) still finds the package.

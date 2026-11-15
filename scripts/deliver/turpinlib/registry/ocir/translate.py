@@ -19,12 +19,9 @@ from typing import Any, Callable, Mapping
 
 from ...model import (Digest, FormError, ProgrammeError, Reason, ReleaseRecord, TechnicalError,
                       UnexpectedError)
+from ... import oci
 from .reasons import NOT_AUTHORIZED_OR_NOT_FOUND, OracleReason
 
-_REVISION_LABEL = "org.opencontainers.image.revision"
-_CREATED_LABEL = "org.opencontainers.image.created"
-_ATTESTATION_ANNOTATION = "vnd.docker.reference.type"
-_ATTESTATION = "attestation-manifest"
 
 _MANIFEST_TYPES = frozenset({"application/vnd.oci.image.manifest.v1+json",
                              "application/vnd.docker.distribution.manifest.v2+json"})
@@ -178,9 +175,7 @@ def parse_manifest(raw: bytes | str, asked: Digest | None = None) -> Manifest:
                 found = Digest(entry["digest"])
             except FormError as exc:
                 raise exc.unexpected("an index entry") from exc
-            platform = entry.get("platform") if isinstance(entry.get("platform"), dict) else {}
-            notes = entry.get("annotations") if isinstance(entry.get("annotations"), dict) else {}
-            if notes.get(_ATTESTATION_ANNOTATION) == _ATTESTATION or platform.get("architecture") == "unknown":
+            if oci.is_attestation(entry):
                 attestations += 1
             else:
                 platforms.append(found)
@@ -200,7 +195,7 @@ def parse_labels(raw: str) -> tuple[str, str]:
         labels = {}
     if not isinstance(labels, dict) or not all(isinstance(v, str) for v in labels.values()):
         raise invalid("the registry's image labels are not strings")
-    return labels.get(_REVISION_LABEL, ""), labels.get(_CREATED_LABEL, "")
+    return labels.get(oci.REVISION, ""), labels.get(oci.CREATED, "")
 
 
 def parse_tags(raw: str) -> list[str]:
@@ -249,11 +244,11 @@ def layout_digest(index_json: str) -> Digest:
     """The digest of the image a layout holds: its `index.json`'s first entry, the
     index or the manifest the hook wrote (design §3 *Operations*, store a build)."""
     data = _json(index_json, "layout index")
-    entries = data.get("manifests") if isinstance(data, dict) else None
-    if not isinstance(entries, list) or not entries or not isinstance(entries[0], dict):
+    entry = oci.first_entry(data)
+    if entry is None:
         raise invalid("a layout's index.json lists no image")
     try:
-        return Digest(str(entries[0].get("digest")))
+        return Digest(str(entry.get("digest")))
     except FormError as exc:
         raise exc.unexpected("a layout's index.json") from exc
 

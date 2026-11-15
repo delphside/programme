@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# A stand-in for the OCI CLI's Artifacts API over the directory registry the skopeo stub
+# keeps ($STUB_REGISTRY): `oci artifacts container image list|get|delete`. It answers in the
+# CLI's JSON envelope (`data`), and an error as its envelope on standard error. The API key
+# is the configuration file (`--config-file`, else ~/.oci/config), whose `role=` line says
+# who the key belongs to: only the builder's may delete, as the policy gives it. Calls are
+# logged in $STUB_LOG_DIR/oci.log, never with an OCID in them.
+#   STUB_OCI_COMPARTMENT   the compartment that holds the images (default ocid1.compartment.oc1..acme)
+#   STUB_OCI_DELETE_FAIL   `delete` answers NotAuthorizedOrNotFound
+#   STUB_OCI_DELETE_503    the first delete answers a 503 after doing the work
+set -uo pipefail
+R="${STUB_REGISTRY:?}"
+ns="${TURPIN_REGISTRY_VALUE:?}"
+echo "oci $3 $4 $5" >> "${STUB_LOG_DIR:?}/oci.log"
+[[ "${1:-}" == artifacts && "${2:-}" == container && "${3:-}" == image ]] || { echo "oci stub: unsupported: $*" >&2; exit 9; }
+sub="$4"; shift 4
+cfg="${OCI_CLI_CONFIG_FILE:-$HOME/.oci/config}"
+args=("$@"); i=0
+while [[ $i -lt ${#args[@]} ]]; do
+  case "${args[$i]}" in
+    --config-file) cfg="${args[$((i + 1))]}"; i=$((i + 2)) ;;
+    --compartment-id) compartment="${args[$((i + 1))]}"; i=$((i + 2)) ;;
+    --repository-name) repo="${args[$((i + 1))]}"; i=$((i + 2)) ;;
+    --image-digest) digest="${args[$((i + 1))]}"; i=$((i + 2)) ;;
+    --image-id) id="${args[$((i + 1))]}"; i=$((i + 2)) ;;
+    *) i=$((i + 1)) ;;
+  esac
+done
+fail() { printf '%s\n' "{\"code\":\"$1\",\"message\":\"$1\",\"status\":$2}" >&2; exit 1; }
+[[ -f "$cfg" ]] || { echo "ConfigFileNotFound: could not find config file" >&2; exit 1; }
+role="$(sed -n 's/^role *= *//p' "$cfg" | head -1)"
+tags_of() { for f in "$R/$ns/$1/tags"/*; do [[ -f "$f" && "$(cat "$f")" == "$2" ]] && basename "$f"; done; }
+case "$sub" in
+  list)
+    echo "oci list ${repo:-} ${role:-none}" >> "$STUB_LOG_DIR/auth.log"
+    [[ "${compartment:-}" == "${STUB_OCI_COMPARTMENT:-ocid1.compartment.oc1..acme}" ]] || { echo '{"data":{"items":[]}}'; exit 0; }
+    if [[ -n "$(tags_of "$repo" "$digest")" ]]; then
+      jq -nc --arg r "$repo" --arg d "$digest" '{data:{items:[{id:("ocid1.containerimage.oc1.iad." + ($r | gsub("/"; "_")) + "." + ($d | ltrimstr("sha256:"))), digest:$d, "repository-name":$r, version:"x"}]}}'
+    else echo '{"data":{"items":[]}}'; fi ;;
+  get)
+    rest="${id#ocid1.containerimage.oc1.iad.}"; repo="$(sed 's/_/\//; s/\..*//' <<< "$rest")"; digest="sha256:${rest##*.}"
+    jq -nc --arg r "$repo" --arg d "$digest" --argjson v "$(tags_of "$repo" "$digest" | jq -Rn '[inputs | {version: .}]')" \
+      '{data:{id:"x", digest:$d, "repository-name":$r, versions:$v}}' ;;
+  delete)
+    rest="${id#ocid1.containerimage.oc1.iad.}"; repo="$(sed 's/_/\//; s/\..*//' <<< "$rest")"; digest="sha256:${rest##*.}"
+    echo "oci delete $repo ${role:-none}" >> "$STUB_LOG_DIR/auth.log"; echo "delete ${TURPIN_HOST_ROOT##*/}" >> "$STUB_LOG_DIR/where.log"
+    [[ -z "${STUB_OCI_DELETE_FAIL:-}" && "$role" == builder ]] || fail NotAuthorizedOrNotFound 404
+    [[ -n "$(tags_of "$repo" "$digest")" ]] || fail NotAuthorizedOrNotFound 404   # it is gone: the API says so as it says a missing right
+    for t in $(tags_of "$repo" "$digest"); do rm -f "$R/$ns/$repo/tags/$t"; done
+    if [[ -n "${STUB_OCI_DELETE_503:-}" && ! -e "$STUB_LOG_DIR/oci.503" ]]; then : > "$STUB_LOG_DIR/oci.503"; fail InternalServerError 503; fi ;;
+  *) echo "oci stub: unsupported: $sub" >&2; exit 9 ;;
+esac

@@ -606,13 +606,13 @@ class Delegation(Isolated):
         self.assertIn("in=hello", done.stdout)
         self.assertEqual("err\n", done.stderr)
 
-    def test_the_entry_script_below_python_3_11_says_so_and_exits_2(self):
+    def test_the_entry_script_below_python_3_11_4_says_so_and_exits_2(self):
         tool = self.copy_tool("#!/bin/sh\n")
-        text = (tool / "turpin").read_text().replace("(3, 11)", "(99, 0)")
+        text = (tool / "turpin").read_text().replace("(3, 11, 4)", "(99, 0)")
         (tool / "turpin").write_text(text)
         done = subprocess.run([str(tool / "turpin"), "list"], capture_output=True, text=True)
         self.assertEqual((2, ""), (done.returncode, done.stdout))
-        self.assertIn("3.11", done.stderr)
+        self.assertIn("3.11.4", done.stderr)
 
     def test_the_legacy_script_is_beside_the_entry_script(self):
         self.assertEqual(DELIVER / "turpin-legacy", cli.LEGACY)

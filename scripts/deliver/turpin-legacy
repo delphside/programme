@@ -440,115 +440,6 @@ tool_programme() {
 
 # ------------------------------------------------------------------ build
 
-cmd_build() {
-  local ref="HEAD" local_only=0
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --local) local_only=1; shift ;;
-      -*) die "build: unknown flag $1" ;;
-      *) ref="$1"; shift ;;
-    esac
-  done
-  TURPIN_SUBCOMMAND=build; load_profile
-  gates_expect build-commit store-query store-immutable build-labels
-  registry_require
-  local sha version tree img d code
-  sha="$(g rev-parse --verify -q "$ref^{commit}")" || gate_fail "build-commit" "$ref is not a commit"
-  if [[ $local_only -eq 1 ]]; then
-    [[ -n "$(env_of_role preview)" ]] || die "--local is for the preview role, and the profile has none"
-    gate_ok build-commit "local, unpushed (preview only)"
-  else
-    g fetch -q origin 2>/dev/null || true
-    if [[ -z "$(g branch -r --contains "$sha" 2>/dev/null | sed 's/ //g')" ]]; then
-      gate_fail "build-commit" "${sha:0:12} is not a commit on the remote: push it first"
-    fi
-    gate_ok build-commit "on the remote"
-  fi
-  use_commit_profile "$sha"
-  local place; place="$(pq .turpin.build.on)"
-  if [[ -n "$place" ]] && ! is_controller "$place" && [[ -z "${TURPIN_ON_BUILD_HOST:-}" ]]; then
-    local fwd=(turpin build "$sha"); [[ $local_only -eq 1 ]] && fwd+=(--local)
-    exec ssh "$place" "TURPIN_ON_BUILD_HOST=1 $(printf '%q ' "${fwd[@]}")"
-  fi
-  if [[ $local_only -eq 0 ]]; then
-    auth_use "$(auth_file_of builder)" builder
-    auth_login "builder" "$(pq .turpin.build.login)" docker
-    auth_login "builder" "$(pq .turpin.build.login)" skopeo
-  fi
-
-  # what is already stored is never rebuilt (design §9); a failed query refuses
-  local tobuild=() have="{}"
-  if [[ $local_only -eq 0 ]]; then
-    for img in "${IMAGES[@]}"; do
-      code=0; reg_digest "$CANDIDATES" "$sha-$img" >/dev/null || code=$?; d="$REG_DIGEST"
-      case $code in
-        0) have="$(jq -c --arg i "$img" --arg d "$d" '. + {($i): $d}' <<< "$have")" ;;
-        1) tobuild+=("$img") ;;
-        *) gate_fail "store-query" "the registry could not be queried: $REG_ERR" ;;
-      esac
-    done
-  else
-    tobuild=("${IMAGES[@]}")
-  fi
-  gate_ok store-query "answered"
-  gate_ok store-immutable "$(jq length <<< "$have") present and kept, ${#tobuild[@]} to build"
-
-  if [[ ${#tobuild[@]} -gt 0 ]]; then
-    tree="$(mktemp -d)"
-    g worktree add -q --detach "$tree" "$sha" || die "cannot make a clean worktree of ${sha:0:12}"
-    # shellcheck disable=SC2064
-    trap "g worktree remove --force '$tree' >/dev/null 2>&1; rm -rf '$tree'; _run_log_exit \$?" EXIT
-    version="$(version_in_tree "$tree")"
-    assemble_payload "$tree" "$tree/.turpin-payload" "$sha"
-    export TURPIN_SHA="$sha" TURPIN_VERSION="$version" TURPIN_BUILD_IMAGES="${tobuild[*]}"
-    TURPIN_LABEL_CREATED="$(now_utc)"
-    export TURPIN_LABEL_REVISION="$sha" TURPIN_LABEL_VERSION="$version" TURPIN_LABEL_CREATED
-    export TURPIN_PAYLOAD_DIR="$tree/.turpin-payload" TURPIN_BUILD_LOCAL="$local_only"
-    for img in "${tobuild[@]}"; do
-      if [[ $local_only -eq 1 ]]; then
-        export "$(image_var "$img" | sed 's/TURPIN_IMAGE/TURPIN_BUILD_TAG/')=turpin-local/$APP-$img:$sha"
-      else
-        export "$(image_var "$img" | sed 's/TURPIN_IMAGE/TURPIN_BUILD_TAG/')=$TURPIN_REGISTRY/$CANDIDATES:$sha-$img"
-      fi
-    done
-    run_log_event build-start "sha=$sha" "images=${tobuild[*]}"
-    if [[ -x "$tree/turpin/hooks/build" ]]; then
-      (cd "$tree" && ./turpin/hooks/build) || die "the build hook failed"
-    else
-      local args=(buildx bake) set_args=()
-      for img in "${tobuild[@]}"; do
-        local tagvar; tagvar="$(image_var "$img" | sed 's/TURPIN_IMAGE/TURPIN_BUILD_TAG/')"
-        set_args+=(--set "$img.tags=${!tagvar}" --set "$img.labels.org.opencontainers.image.revision=$sha"
-                   --set "$img.labels.org.opencontainers.image.version=$version"
-                   --set "$img.labels.org.opencontainers.image.created=$TURPIN_LABEL_CREATED")
-      done
-      [[ $local_only -eq 1 ]] && args+=(--load) || args+=(--push)
-      (cd "$tree" && docker "${args[@]}" "${tobuild[@]}" "${set_args[@]}") || die "docker buildx bake failed"
-    fi
-  fi
-
-  if [[ $local_only -eq 1 ]]; then
-    for img in "${tobuild[@]}"; do
-      local id; id="$(docker image inspect "turpin-local/$APP-$img:$sha" --format '{{.Id}}' 2>/dev/null)" || die "the build left no local image $img"
-      printf '%s %s\n' "$img" "$id"
-    done
-    gate_ok build-labels "local build, labels not read"
-    gates_finish; return 0
-  fi
-
-  # the labels are the claim a deploy later checks: read them back
-  local out="$have"
-  for img in "${tobuild[@]}"; do
-    local json; json="$(reg_inspect "$CANDIDATES" "$sha-$img")" || gate_fail "build-labels" "$img was not pushed"
-    [[ "$(jq -r '.Labels["org.opencontainers.image.revision"] // empty' <<< "$json")" == "$sha" ]] \
-      || gate_fail "build-labels" "$img does not carry the revision label $sha"
-    out="$(jq -c --arg i "$img" --arg d "$(jq -r .Digest <<< "$json")" '. + {($i): $d}' <<< "$out")"
-  done
-  gate_ok build-labels "revision label equals the commit"
-  for img in "${IMAGES[@]}"; do printf '%s %s\n' "$img" "$(jq -r --arg i "$img" '.[$i]' <<< "$out")"; done
-  gates_finish
-}
-
 version_in_tree() {   # TREE -> version from the profile's version file in a checked-out tree
   local file pattern
   file="$(pq .versions.app.file)"; pattern="$(pq .versions.app.pattern)"
@@ -1082,61 +973,6 @@ settle_version() {
 
 # ------------------------------------------------------------------ prune, host-install, env
 
-cmd_prune() {
-  local dry=0
-  [[ "${1:-}" == --dry-run ]] && dry=1
-  TURPIN_SUBCOMMAND=prune; load_profile; registry_require; controller_auth
-  gates_expect
-  g fetch -q --tags origin 2>/dev/null || true
-  local newest_made=0 t made
-  while read -r t; do
-    [[ -n "$t" ]] || continue
-    made="$(g for-each-ref "refs/tags/$t" --format='%(creatordate:unix)')"
-    if rec="$(record_of_tag "$t" 2>/dev/null)"; then made="$(date -u -d "$(jq -r .made <<< "$rec")" +%s 2>/dev/null || echo "$made")"; fi
-    (( made > newest_made )) && newest_made="$made"
-  done < <(release_tags)
-  [[ $newest_made -gt 0 ]] || die "no release has been made: nothing is old enough to prune"
-  # what is released, and what any environment runs now or ran before
-  local keep="" env st
-  while read -r t; do
-    [[ -n "$t" ]] || continue
-    if rec="$(record_of_tag "$t" 2>/dev/null)"; then keep+="$(jq -r '.images[]' <<< "$rec")"$'\n'; fi
-  done < <(release_tags)
-  for env in $(jq -r '.environments | keys[]' <<< "$PJ"); do
-    st="$(host_status "$env")" || die "cannot read $env: refusing to prune without knowing what runs"
-    keep+="$(jq -r '[.current.images, .previous.images] | map(select(. != null) | .[]) | .[]' <<< "$st")"$'\n'
-  done
-  local tag img json created removed=0 deletes="[]"
-  while read -r tag; do
-    [[ -n "$tag" ]] || continue
-    json="$(reg_inspect "$CANDIDATES" "$tag")" || continue
-    d="$(jq -r .Digest <<< "$json")"
-    grep -qxF "$d" <<< "$keep" && continue
-    created="$(jq -r '.Labels["org.opencontainers.image.created"] // empty' <<< "$json")"
-    [[ -n "$created" ]] || continue
-    created="$(date -u -d "$created" +%s 2>/dev/null)" || continue
-    (( created < newest_made )) || continue
-    if [[ $dry -eq 1 ]]; then say "would remove $tag"; else
-      deletes="$(jq -c --arg t "$tag" --arg d "$d" '. + [{tag:$t,digest:$d}]' <<< "$deletes")"
-    fi
-  done < <(reg_list_tags "$CANDIDATES")
-  # the controller decides; the builder, whose login may delete candidates, does it
-  if [[ "$deletes" != "[]" ]]; then
-    local place req out code=0
-    place="$(pq .turpin.build.on)"; place="${place:-controller}"
-    req="$(jq -nc --arg login "$(pq .turpin.build.login)" --arg c "$CANDIDATES" --argjson deletes "$deletes" \
-      '{login:$login,candidates:$c,deletes:$deletes}')"
-    run_log_event step "name=delete" "where=$place"
-    out="$(run_turpin_host "$place" delete "$APP" <<< "$req" 2>&1)" || code=$?
-    removed="$(grep -c '^removed ' <<< "$out" || true)"
-    printf '%s\n' "$out" | sed 's/^turpin-host: /turpin: /'
-    run_log_event prune "removed=$removed"
-    [[ $code -eq 0 ]] || die "prune: the builder could not delete every candidate chosen"
-    return 0
-  fi
-  run_log_event prune "removed=$removed"
-}
-
 cmd_host_install() {
   [[ $# -eq 1 ]] || die "usage: turpin host-install ENV|COPIER|BUILDER"
   local env="$1" target="" ssh login tools="" script f dest mode copier=0
@@ -1190,36 +1026,6 @@ cmd_host_install() {
   if [[ "$target" == local ]]; then bash -c "$script"; else ssh "$ssh" "bash -s" <<< "$script"; fi
 }
 
-# turpin login COMPONENT: the owner's one login for a component's own directory.
-# The user is asked for, the token read at a hidden prompt and sent on standard
-# input to `turpin-host login` on the component's machine; it is never an
-# argument, never echoed and never logged.
-cmd_login() {
-  [[ $# -eq 1 ]] || die "usage: turpin login controller|builder|copier|ENV"
-  local comp="$1" user token place
-  TURPIN_SUBCOMMAND=login; load_profile; registry_require
-  gates_expect
-  case "$comp" in
-    controller) place=controller ;;
-    builder) place="$(pq .turpin.build.on)"; place="${place:-controller}" ;;
-    copier) place="$(pq .turpin.release.copy_on)"; place="${place:-controller}" ;;
-    *) env_exists "$comp" || die "$comp is not controller, builder, copier or an environment of the profile"
-       [[ "$(login_component "$comp")" != builder ]] \
-         || die "$comp shares the builder's docker login on this machine: run turpin login builder" ;;
-  esac
-  printf 'registry user for the %s: ' "$comp" >&2
-  IFS= read -r user || true
-  printf 'token (hidden): ' >&2
-  IFS= read -rs token || true; printf '\n' >&2
-  [[ -n "$user" && -n "$token" ]] || die "login needs a user and a token"
-  run_log_event step "name=login" "component=$comp"
-  case "$comp" in
-    controller|builder|copier)
-      printf '%s\n%s\n# turpin: end\n' "$user" "$token" | run_turpin_host "$place" login "$APP" "$comp" ;;   # T4 shim: the closing line, removed at T8
-    *) printf '%s\n%s\n# turpin: end\n' "$user" "$token" | run_on_host "$comp" login "$APP" deployer "$comp" ;;   # T4 shim: the closing line, removed at T8
-  esac
-}
-
 cmd_env() { exec "${TURPIN_HOST_BIN:-$HERE/turpin-host}" env "$@"; }
 
 # ------------------------------------------------------------------ main
@@ -1232,13 +1038,10 @@ main() {
   local sub="$1"; shift
   TURPIN_SUBCOMMAND="$sub"; TURPIN_ARGS=("$@")
   case "$sub" in
-    build) cmd_build "$@" ;;
     deploy) cmd_deploy "$@" ;;
     release) cmd_release "$@" ;;
     settle) cmd_settle "$@" ;;
     list) cmd_list "$@" ;;
-    prune) cmd_prune "$@" ;;
-    login) cmd_login "$@" ;;
     host-install) cmd_host_install "$@" ;;
     env) cmd_env "$@" ;;
     -h|--help|help) usage ;;

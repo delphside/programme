@@ -32,7 +32,10 @@ world_new() {
   export TURPIN_REGISTRY_VALUE="reg.test/ns"
   export STUB_AUTH_ENFORCE=1
   mkdir -p "$HOME/.config/turpin"
-  printf 'TURPIN_REGISTRY=%s\n' "$TURPIN_REGISTRY_VALUE" > "$HOME/.config/turpin/acme.env"
+  # the builder also holds its removal credential: the compartment that holds candidates, and an API key
+  # (the oci stub reads the key's owner from `role=`)
+  printf 'TURPIN_REGISTRY=%s\nTURPIN_OCI_COMPARTMENT=ocid1.compartment.oc1..acme\n' "$TURPIN_REGISTRY_VALUE" > "$HOME/.config/turpin/acme.env"
+  mkdir -p "$HOME/.oci"; printf '[DEFAULT]\nrole=builder\n' > "$HOME/.oci/config"
   # each skopeo component's own auth file, made once as the owner would
   local c
   for c in controller builder copier; do seed_login "$HOME/.config/turpin/auth/acme/$c.json" "$c"; done
@@ -350,10 +353,15 @@ gh_project() {
 
 # ---- more helpers
 
-# expected_digest SHA IMAGE: what the stub's bake makes of the commit's own content.
-expected_digest() {
-  local content; content="$(git -C "$W/work" show "$1:src.txt")"
-  printf 'sha256:%s' "$(printf '%s|%s|%s' "$content" "$2" "$1" | sha256sum | cut -d' ' -f1)"
+# image_content SHA IMAGE: the content of the layer of the image the registry holds, which the stub's bake
+# writes from the build's own working directory (src.txt), as a real image's layer holds its files.
+image_content() {
+  local c="$W/registry/reg.test/ns/acme/candidates" top man
+  top="$(cand "$1-$2")"
+  man="$top"
+  # an index: its first platform image
+  [[ "$(jq -r '.manifests // empty | length' "$c/blobs/${top#sha256:}")" == "" ]] || man="$(jq -r '.manifests[0].digest' "$c/blobs/${top#sha256:}")"
+  cat "$c/blobs/$(jq -r '.layers[0].digest' "$c/blobs/${man#sha256:}" | sed 's/^sha256://')"
 }
 
 bake_count() { grep -c . "$W/logs/bake.log" 2>/dev/null || echo 0; }

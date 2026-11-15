@@ -1,8 +1,9 @@
 #!/usr/bin/env bats
 
-# `turpin build` (delphside/programme#117; test-design.md S1 to S5, R3, R4).
-# The world is turpin_world.bash's: a dummy application, a directory registry
-# behind a skopeo stub and a docker stub, a bare remote.
+# `turpin build` (delphside/programme#117; test-design.md S1 to S5, S111, R3, R4), the
+# Python client's: black-box, through the registry port's OCIR adapter. The world is
+# turpin_world.bash's: a dummy application, a directory registry behind a skopeo stub and a
+# docker stub whose `buildx bake` writes OCI image layouts, a bare remote.
 
 setup() {
   bats_load_library bats-support
@@ -58,11 +59,12 @@ setup() {
   printf 'new file\n' > "$W/work/untracked.txt"
   run d build "$SHA"
   assert_success
-  assert_equal "$(cand "$SHA-server")" "$(expected_digest "$SHA" server)"
-  assert_equal "$(cand "$SHA-web")" "$(expected_digest "$SHA" web)"
+  # the image holds the commit's content, not the tree's
+  assert_equal "$(image_content "$SHA" server)" "$(git -C "$W/work" show "$SHA:src.txt")"
+  assert_equal "$(image_content "$SHA" web)" "$(git -C "$W/work" show "$SHA:src.txt")"
 }
 
-@test "build_refuses_when_the_registry_cannot_be_queried; a present image is kept and a missing one built (S3, R4)" {
+@test "build_stops_when_the_registry_cannot_be_queried, by exit type; a present image is kept and a missing one built (S3, R4)" {
   commit_change one
   run d build "$SHA"; assert_success
   local server_before; server_before="$(cand "$SHA-server")"
@@ -78,26 +80,34 @@ setup() {
   commit_change two
   local before; before="$(snapshot)"
   STUB_REGISTRY_DOWN=1 run d build "$SHA"
-  assert_failure 1
+  assert_failure 75
   assert_output --partial "store-query"
+  assert_output --partial "try again later"
+  assert_equal "$(snapshot)" "$before"
+  # a fundamental error stops it with exit 2: here the push's refused write, since the
+  # stub refuses writes only; the unittest covers a fundamental store-query failure
+  STUB_WRITE_ONLY='/releases$' run d build "$SHA"
+  assert_failure 2
+  assert_output --partial "the registry refused the builder's login"
   assert_equal "$(snapshot)" "$before"
 }
 
-@test "build_without_a_hook_uses_buildx_bake, and with one calls the hook (S4, R3)" {
+@test "build_without_a_hook_bakes_oci_layouts_or_loads_them_under_local, and with one calls the hook (S4, R3)" {
   commit_change one
   run d build "$SHA"; assert_success
-  run grep -c "buildx bake" "$W/logs/docker.log"
+  run grep -c "buildx bake --builder turpin" "$W/logs/docker.log"
   assert_output --regexp '^[1-9]'
   : > "$HOOKLOG"
   cat > "$W/work/turpin/hooks/build" <<'EOF'
 #!/usr/bin/env bash
-echo "== build $TURPIN_BUILD_IMAGES revision=$TURPIN_LABEL_REVISION version=$TURPIN_LABEL_VERSION" >> "$HOOKLOG"
+echo "== build $TURPIN_BUILD_IMAGES revision=$TURPIN_SHA version=$TURPIN_VERSION created=$TURPIN_CREATED" >> "$HOOKLOG"
 for i in $TURPIN_BUILD_IMAGES; do
-  v="TURPIN_BUILD_TAG_$(printf '%s' "$i" | tr a-z A-Z)"
-  docker buildx bake "$i" --push --set "$i.tags=${!v}" \
-    --set "$i.labels.org.opencontainers.image.revision=$TURPIN_LABEL_REVISION" \
-    --set "$i.labels.org.opencontainers.image.version=$TURPIN_LABEL_VERSION" \
-    --set "$i.labels.org.opencontainers.image.created=$TURPIN_LABEL_CREATED"
+  docker buildx bake --builder turpin \
+    --set "$i.labels.org.opencontainers.image.revision=$TURPIN_SHA" \
+    --set "$i.labels.org.opencontainers.image.version=$TURPIN_VERSION" \
+    --set "$i.labels.org.opencontainers.image.created=$TURPIN_CREATED" \
+    --set "$i.output=type=oci,dest=out/$i,tar=false" "$i" >&2
+  echo "$i out/$i"
 done
 EOF
   chmod +x "$W/work/turpin/hooks/build"
@@ -107,25 +117,30 @@ EOF
   assert_success
   run hook_calls
   assert_output "build"
-  run grep -c "== build server web revision=$SHA version=0.10.2" "$HOOKLOG"
+  run grep -c "== build server web revision=$SHA version=0.10.2 created=20" "$HOOKLOG"
   assert_output 1
   [ -n "$(cand "$SHA-server")" ]
 }
 
-@test "a build whose image lacks the revision label is refused (R3)" {
+@test "a build whose image lacks the revision label is refused and pushes nothing (R3, S111)" {
   commit_change one
   cat > "$W/work/turpin/hooks/build" <<'EOF'
 #!/usr/bin/env bash
 for i in $TURPIN_BUILD_IMAGES; do
-  v="TURPIN_BUILD_TAG_$(printf '%s' "$i" | tr a-z A-Z)"
-  docker buildx bake "$i" --push --set "$i.tags=${!v}" --set "$i.labels.org.opencontainers.image.revision=not-the-commit"
+  docker buildx bake --builder turpin --set "$i.labels.org.opencontainers.image.revision=not-the-commit" \
+    --set "$i.labels.org.opencontainers.image.version=$TURPIN_VERSION" \
+    --set "$i.labels.org.opencontainers.image.created=$TURPIN_CREATED" \
+    --set "$i.output=type=oci,dest=out/$i,tar=false" "$i" >&2
+  echo "$i out/$i"
 done
 EOF
   chmod +x "$W/work/turpin/hooks/build"
   commit_all "a build hook that labels wrongly"
+  local before; before="$(snapshot)"
   run d build "$SHA"
   assert_failure 1
   assert_output --partial "build-labels"
+  assert_equal "$(snapshot)" "$before"
 }
 
 @test "multi_arch_build_deploys_by_index_digest (S5, R3, R7; the index is the stub's)" {

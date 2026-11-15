@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
@@ -89,6 +90,9 @@ class RunLog:
     def gate(self, name: str, verdict: str, detail: str = "") -> None:
         """Record a gate as run: `passed`, `refused`, `reported` or `set-aside`."""
         self.ran.append(name)
+        if os.environ.get(settings.ENV_CALLED) == "1":
+            # called by another `turpin`: the gate goes to its run log too (design §6)
+            print(f"@gate {name} {verdict}", file=sys.stderr, flush=True)
         key = "reason" if verdict == SET_ASIDE else "detail"
         self.event("gate", name=name, result=verdict, **{key: detail})
 

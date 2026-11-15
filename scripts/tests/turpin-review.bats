@@ -179,8 +179,8 @@ setup() {
 @test "F12 a registry failure reaches the screen and the log as a summary, never the registry's words or address" {
   commit_change a
   STUB_REGISTRY_DOWN=1 run d build "$SHA"
-  assert_failure 1
-  assert_output --partial "the registry could not be reached"
+  assert_failure 75
+  assert_output --partial "the registry did not answer in time or is busy"
   refute_output --partial "dial tcp"
   refute_output --partial "reg.test"
   ref_commit "a feature" 12
@@ -190,7 +190,8 @@ setup() {
   assert_output --partial "the registry refused access"
   refute_output --partial "requested access"
   refute_output --partial "reg.test"
-  run grep -rl "reg.test\|dial tcp\|requested access" "$XDG_STATE_HOME/turpin/acme"
+  # the log keeps the tool's own text as the cause (design §3), but never the registry's address
+  run grep -rl "reg.test\|requested access" "$XDG_STATE_HOME/turpin/acme"
   [ "$status" -ne 0 ] || { echo "the run log holds: $output" >&2; false; }
 }
 
@@ -199,7 +200,18 @@ setup() {
   commit_change a; build_ok "$SHA"
   hook_exit pre-deploy 75
   lock_hold rehearsal rehearsal
-  ( sleep 2.4; kill "$LOCK_PID" ) &
+  # release the lock once this test's deploy is waiting on it (a `flock -w` holding this lock file
+  # on fd 9), not at a fixed time: the deploy may start late on a busy machine
+  local lockfile; lockfile="$(host_state_dir rehearsal rehearsal)/lock"
+  (
+    for _ in $(seq 300); do
+      for p in $(pgrep -f 'flock -w 1 9'); do
+        [ "$(readlink "/proc/$p/fd/9" 2>/dev/null)" = "$lockfile" ] && break 2
+      done
+      sleep 0.1
+    done
+    sleep 1.5; kill "$LOCK_PID"
+  ) &
   run d deploy rehearsal "$SHA" --off-level first --wait=4
   assert_failure 1
   assert_output --partial "still not yet after waiting 4 minute(s)"

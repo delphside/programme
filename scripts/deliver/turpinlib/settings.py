@@ -62,3 +62,14 @@ TAG_PREFIX_LENGTH = 41
 # A tool's error text kept in a result's metadata is cut here: enough for a stack
 # of messages, short enough for a log line. A guess, as the timeouts are.
 ERROR_TEXT_MAX = 2000
+
+# A `turpin` called by another `turpin` (design §6 *Interruption*, §7): the caller sets it,
+# since `ssh` carries no environment, so the called side reports its gates and its result as
+# lines on standard error (`@gate`, `@result`) and reads its input as the caller's protocol.
+ENV_CALLED = "TURPIN_CALLED"
+# A build typed on the builder's own host builds there rather than passing itself on (design §7).
+ENV_ON_BUILD_HOST = "TURPIN_ON_BUILD_HOST"
+ENV_BIN = "TURPIN_BIN"                # `turpin` on this machine, else the entry script beside `turpinlib`
+
+# Over `ssh`, a login: the same limit as a host's (design §13).
+LOGIN_CALL_TIMEOUT = HOST_CALL_TIMEOUT

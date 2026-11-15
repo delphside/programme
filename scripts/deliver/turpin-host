@@ -498,72 +498,22 @@ cmd_copy() {
   fi
 }
 
-# delete APP < request: runs on the builder (design sections 2 and 4), with the
-# builder's own registry login: the controller decides which candidates go and
-# sends them, as it decides what the copier copies. The request:
-#   {login, candidates, deletes:[{tag, digest}]}
-# A tag is deleted only while it still points at the digest the controller saw;
-# an absent tag is done already. Prints `removed TAG` for each.
-cmd_delete() {
-  local app="$1" req conf
-  req="$(cat)"
-  jq -e . >/dev/null 2>&1 <<< "$req" || die "the request is not JSON"
-  conf="${TURPIN_CONFIG_DIR:-$HOME/.config/turpin}/$app.env"
-  if [[ -f "$conf" ]]; then set -a; . "$conf"; set +a; fi
-  [[ -n "${TURPIN_REGISTRY:-}" ]] || die "TURPIN_REGISTRY is not set for the builder: put it in $conf"
-  local login candidates tag digest code have failed=0
-  login="$(jq -r '.login // empty' <<< "$req")"
-  candidates="$(jq -r '.candidates // empty' <<< "$req")"
-  [[ -n "$candidates" ]] || die "the request names no candidates repository"
-  APP="$app"; auth_use "$(auth_file_of builder)" builder
-  auth_login "builder" "$login" skopeo
-  while IFS=$'\t' read -r tag digest; do
-    [[ -n "$tag" ]] || continue
-    [[ "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ && "$digest" == sha256:* ]] || { warn "refusing the tag or digest $tag"; failed=1; continue; }
-    code=0; reg_digest "$candidates" "$tag" >/dev/null || code=$?; have="$REG_DIGEST"
-    case $code in
-      0) ;;
-      1) continue ;;
-      *) die "the registry could not be queried: $REG_ERR" ;;
-    esac
-    [[ "$have" == "$digest" ]] || { warn "$tag no longer points at the digest it was chosen at: left"; failed=1; continue; }
-    if reg_delete "$candidates" "$tag"; then say "removed $tag"; else warn "the delete of $tag failed: $REG_ERR"; failed=1; fi
-  done < <(jq -r '(.deletes // [])[] | [.tag, .digest] | @tsv' <<< "$req")
-  return "$failed"
-}
-
-# login APP COMPONENT [ENV] < "user, newline, token": the owner's one login for
-# a component, made on its machine. The token arrives on standard input and goes
-# straight to `docker login` or `skopeo login --password-stdin`:
-#   controller, copier   the component's auth file (skopeo only)
-#   builder              the auth file and the machine user's docker login
-#   deployer             the machine user's docker login
+# login APP deployer ENV < "user, newline, token, closing line": the owner's one login for
+# an environment's deployer, made on its machine. The token goes straight to
+# `docker login --password-stdin` for the machine user. (The controller's, builder's and
+# copier's logins are `turpin login`'s.)
 cmd_login() {
-  local app="$1" comp="$2" env="${3:-}" conf user token
+  local app="$1" comp="$2" env="${3:-}" user token
   APP="$app"
-  conf="${TURPIN_CONFIG_DIR:-$HOME/.config/turpin}/$app.env"
-  case "$comp" in
-    controller|builder|copier)
-      if [[ -f "$conf" ]]; then set -a; . "$conf"; set +a; fi
-      [[ -n "${TURPIN_REGISTRY:-}" ]] || die "TURPIN_REGISTRY is not set: put it in $conf"
-      auth_use "$(auth_file_of "$comp")" "$comp" ;;
-    deployer)
-      [[ -n "$env" ]] || die "login deployer needs the environment"
-      host_registry "$(env_dir "$app" "$env")"
-      REG_COMPONENT="$env" ;;
-    *) die "unknown component $comp (controller, builder, copier or deployer)" ;;
-  esac
+  [[ "$comp" == deployer ]] || die "unknown component $comp (only deployer: turpin login does the rest)"
+  [[ -n "$env" ]] || die "login deployer needs the environment"
+  host_registry "$(env_dir "$app" "$env")"
+  REG_COMPONENT="$env"
   read_data
   { IFS= read -r user; IFS= read -r token; } <<< "$DATA" || true
   [[ -n "$user" && -n "$token" ]] || REASON=HOST_LOGIN_INCOMPLETE die "login needs a user and a token"
-  case "$comp" in
-    controller|copier) printf '%s' "$token" | login_skopeo "$user" || die "$REG_ERR" ;;
-    builder)
-      printf '%s' "$token" | login_skopeo "$user" || die "$REG_ERR"
-      printf '%s' "$token" | login_docker "$user" || die "$REG_ERR" ;;
-    deployer) printf '%s' "$token" | login_docker "$user" || die "$REG_ERR" ;;
-  esac
-  say "logged in: ${env:-$comp}"
+  printf '%s' "$token" | login_docker "$user" || die "$REG_ERR"
+  say "logged in: $env"
 }
 
 # status APP ENV --json: a docs/1.10 result object whose `metadata` is the status, the
@@ -799,12 +749,11 @@ main() {
     rollback) [[ $# -ge 2 ]] || die "usage: turpin-host rollback APP ENV < request"; cmd_rollback "$@" ;;
     status) [[ $# -ge 2 ]] || die "usage: turpin-host status APP ENV --json"; cmd_status "$@" ;;
     allowlist) [[ $# -ge 1 ]] || die "usage: turpin-host allowlist APP < lines"; cmd_allowlist "$@" ;;
-    delete) [[ $# -ge 1 ]] || die "usage: turpin-host delete APP < request"; cmd_delete "$@" ;;
     login) [[ $# -ge 2 ]] || die "usage: turpin-host login APP COMPONENT [ENV] < user-and-token"; cmd_login "$@" ;;
     copy) [[ $# -ge 1 ]] || die "usage: turpin-host copy APP < request"; cmd_copy "$@" ;;
     root-ops) cmd_root_ops "$@" ;;
     env) cmd_env "$@" ;;
-    *) die "usage: turpin-host deploy|rollback|status|copy|delete|login|allowlist|env|root-ops" ;;
+    *) die "usage: turpin-host deploy|rollback|status|copy|login|allowlist|env|root-ops" ;;
   esac
 }
 main "$@"
