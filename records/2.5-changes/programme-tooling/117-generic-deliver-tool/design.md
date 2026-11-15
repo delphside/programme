@@ -1948,20 +1948,25 @@ the release step, `ephemeral` for create and destroy), `TURPIN_SHA`,
 (each image by digest) and, for `build` under `--local` only,
 `TURPIN_LOCAL=1`. A hook that cannot judge answers refused.
 
-`save-state` and `restore-state` also get `TURPIN_DEPLOY`, a deploy number
-([§11](#11-on-the-host)), so neither needs to know how far a deploy got.
-`save-state` keys its snapshot to `pending`'s number and marks it complete
-last. `restore-state` is given the number of the deploy being undone,
-`pending`'s for a restore and `current`'s for a rollback, restores that
-deploy's snapshot, and does nothing where it has no complete one, since then
-nothing has changed the data.
+`save-state` and `restore-state` also get deploy numbers
+([§11](#11-on-the-host)), so neither needs to know how far a deploy got:
+
+- `save-state` gets `TURPIN_DEPLOY`, `pending`'s number, and `TURPIN_CURRENT`,
+  `current`'s, absent on a first deploy. It removes any snapshot under its own
+  number, takes the snapshot keyed to it, marks it complete last, and then
+  removes every snapshot but these two. A rollback needs only `current`'s and a
+  restore only `pending`'s.
+- `restore-state` gets `TURPIN_DEPLOY`, the number of the deploy being undone:
+  `pending`'s for a restore and `current`'s for a rollback. It restores that
+  deploy's snapshot, and does nothing where it has no complete one, since then
+  `save-state` never finished and nothing has changed the data.
 
 | Hook | Kind | Component | Tile Lite Elite | Dark Portal |
 | --- | --- | --- | --- | --- |
 | `build` | step | builder | `docker buildx bake --builder turpin` from the compose file's `build:` blocks, to OCI layouts | `docker buildx bake --builder turpin`, arm64 and amd64, to OCI layouts |
 | `release-check` | gate | controller | no `functional` change in a patch | none |
 | `pre-deploy` | gate | deployer | database not ahead of the build's schema | window :40 to :10 (75 outside) |
-| `save-state` | step | deployer | stop server, snapshot database keyed to `TURPIN_DEPLOY`, keep five | copy DuckLake catalog aside, keyed to `TURPIN_DEPLOY` |
+| `save-state` | step | deployer | stop server, snapshot database keyed to `TURPIN_DEPLOY`, keep it and `TURPIN_CURRENT`'s | copy DuckLake catalog aside, keyed the same way |
 | `migrate` | step | deployer | `server --migrate-only` | catalog migrations |
 | `smoke` | gate | deployer | `/health` shows `VERSION+SHA` within 60 s | release's own checks |
 | `restore-state` | step | deployer | restore `TURPIN_DEPLOY`'s snapshot, if complete | restore `TURPIN_DEPLOY`'s catalog copy, if complete; bronze untouched |
