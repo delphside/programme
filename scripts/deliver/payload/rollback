@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
-# rollback: the same switch to `previous`, with restore-state, on demand
-# (design §11). Run by `turpin-host rollback` from the payload of the deploy being
-# rolled back from, with the lock held.
-set -uo pipefail
+# rollback: design §11's rollback and restore, acting by the state table. Run by
+# `turpin-host rollback` from the payload of the deploy it chose (`pending`'s where a
+# restore is due, else `current`'s), with the lock held.
+#
+#   switch   from finished, restored, preparing or changing: rollback: the host moves to
+#            `previous` in five steps; one that fails is left `changing: rollback N` and
+#            run again by the next `turpin rollback`
+#   restore  from changing: deploy or a failed restore: `current` is put back, as after
+#            a failed deploy
+#
+# The pivot is the last step's one write of state.json. No prune follows: the next
+# deploy's step 10 does that.
+set -euo pipefail
 PAYLOAD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common.sh
 . "$PAYLOAD/lib/common.sh"
@@ -11,29 +20,49 @@ PAYLOAD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TURPIN_CMD="turpin-host"
 host_ctx_load
 
-CUR="$(link_n current || true)"; PREV="$(link_n previous || true)"
-STATE="$(state_read)"
-if [[ "$STATE" == "failed, no previous deploy" ]]; then
-  gate_fail rollback-target "the last deploy failed with no previous deploy: nothing to roll back to. Fallback: $FALLBACK"
-fi
-if state_settled; then
-  [[ -n "$CUR" ]] || gate_fail rollback-target "nothing is deployed here. Fallback: $FALLBACK"
-  [[ -n "$PREV" ]] || gate_fail rollback-target "there is no previous deploy to go back to. Fallback: $FALLBACK"
-  GOOD="$PREV"; FAILED="$CUR"; PREVPREV=""
-else
-  FAILED="$(state_n)"
-  if [[ "$CUR" == "$FAILED" ]]; then GOOD="$PREV"; PREVPREV=""; else GOOD="$CUR"; PREVPREV="$PREV"; fi
-fi
-gate_ok rollback-target "back to ${GOOD:-nothing}"
-if [[ -n "$GOOD" && ! -d "$(deploy_dir "$GOOD")" ]]; then die "deploy #$GOOD is gone from $ENVDIR/deploys"; fi
+STATE="$(st state)"; CUR="$(st current)"; PREV="$(st previous)"
+case "$STATE" in
+  "changing: deploy "*|"failed: the restore did not complete") MODE=restore ;;
+  "failed, no previous deploy")
+    gate_fail rollback-target "the last deploy failed with no previous deploy: nothing to roll back to. Fallback: $FALLBACK" ;;
+  "finished"|"restored"|"preparing: "*|"changing: rollback "*)
+    MODE=switch
+    [[ -n "$PREV" ]] || gate_fail rollback-target "there is no previous deploy to go back to. Fallback: $FALLBACK" ;;
+  *) gate_fail rollback-target "nothing is deployed here. Fallback: $FALLBACK" ;;
+esac
 
-state_write "in progress: rollback" "$FAILED"
-if ! restore_to "$GOOD" "$FAILED" "$PREVPREV"; then
-  warn "the rollback did not complete: the state is left interrupted ($(state_read)). Fallback: $FALLBACK"; exit 1
+if [[ "$MODE" == restore ]]; then
+  gate_ok rollback-target "a restore to ${CUR:-nothing}"
+  if [[ -n "$CUR" && ! -d "$(deploy_dir "$CUR")" ]]; then die "deploy #$CUR is gone from $ENVDIR/deploys"; fi
+  if ! restore; then
+    warn "the rollback did not complete: the state is left at '$(st state)'. Fallback: $FALLBACK"; exit 1
+  fi
+  if [[ -z "$CUR" ]]; then
+    warn "the failed first deploy is stopped and nothing is running. Fallback: $FALLBACK"; exit 0
+  fi
+  say "rolled back to deploy #$CUR"
+  exit 0
 fi
-if [[ -z "$GOOD" ]]; then
-  warn "rolled back to nothing: the failed first deploy is stopped. Fallback: $FALLBACK"; exit 1
-fi
-prune_host_images
-prune_deploys
-say "rolled back to deploy #$GOOD"
+
+gate_ok rollback-target "back to #$PREV"
+if [[ ! -f "$(deploy_dir "$PREV")/meta.json" || ! -d "$(deploy_dir "$PREV")/payload" ]]; then die "deploy #$PREV is gone from $ENVDIR/deploys"; fi
+
+rollback_failed() {   # STEP: left as it is, to be run again
+  warn "the rollback failed at step $1: the state is left at '$(st state)'; run turpin rollback ENV again once it can succeed. Fallback: $FALLBACK"
+  exit 1
+}
+# 1: changing, with the target
+st_put '.state = "changing: rollback 1" | .target = $n' --argjson n "$PREV"
+# 2: restore-state, given the number of the deploy being undone
+st_step "changing: rollback 2"
+hook_numbered restore-state "$CUR" || rollback_failed 2
+# 3: previous's host files
+st_step "changing: rollback 3"
+host_files_apply "$PREV" "$(st_installed)" || rollback_failed 3
+# 4: compose up from previous's folder
+st_step "changing: rollback 4"
+compose_run "$PREV" up -d --no-build --remove-orphans >/dev/null 2>&1 || rollback_failed 4
+# 5: the pivot, one write
+st_put '.current = .previous | del(.previous, .pending, .target)
+  | .installed_host_files = $hf | .state = "restored"' --argjson hf "$(host_files_of "$PREV")"
+say "rolled back to deploy #$PREV"

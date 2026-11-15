@@ -269,12 +269,12 @@ copier_run() {
   if [[ $code -ne 0 ]]; then REG_ERR="$(sed 's/^turpin-host: //' <<< "$out" | tail -1)"; return 1; fi
 }
 
-host_status() {    # ENV -> status JSON (the host's `turpin-host status --json`)
+host_status() {    # ENV -> the status (the metadata of the host's `turpin-host status --json` result)
   run_log_event ssh-read "env=$1" "what=host state"
   local out
   out="$(run_on_host "$1" status "$APP" "$1" --json)" || die "cannot read the state of $1"
-  jq -e . >/dev/null 2>&1 <<< "$out" || die "state of $1 is not JSON"
-  printf '%s' "$out"
+  jq -e '.metadata' >/dev/null 2>&1 <<< "$out" || die "state of $1 is not a status result"
+  jq -c '.metadata' <<< "$out"   # the host answers with a result object; its metadata is the status
 }
 
 env_url() {        # ENV -> its base URL, literal `url` or from the first variable in `env`

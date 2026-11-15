@@ -62,6 +62,7 @@ case "${1:-}" in
         done ;;
     esac ;;
   rmi)
+    [[ -z "${STUB_RMI_FAIL:-}" ]] || { echo "Error: unable to remove $2 (simulated)" >&2; exit 1; }
     f="$(img_file_for "$2")" && rm -f "$f" "${f%.json}.payload" ;;
   create)
     f="$(img_file_for "$2")" || { echo "No such image: $2" >&2; exit 1; }
@@ -104,7 +105,9 @@ case "${1:-}" in
           [[ "$k" == TURPIN_IMAGE_* ]] || continue
           printf '%s\n' "$v" > "$S/compose/$proj.$k"
         done < "$last" ;;
-      down) rm -f "$S/compose/$proj".* ;;
+      down)
+        [[ -z "${STUB_COMPOSE_DOWN_FAIL:-}" ]] || { echo "compose down failed (simulated)" >&2; exit 1; }
+        rm -f "$S/compose/$proj".* ;;
     esac ;;
   buildx)
     # docker buildx bake T... (--push|--load) --set T.tags=REF --set T.labels.K=V

@@ -13,7 +13,6 @@ setup() {
 
 production_runs() {   # VERSION SHA
   fake_production "$1" "$2"
-  echo 1 > "$(host_state_dir prod production)/counter"
 }
 
 file_commit() {   # NAME N: a commit of its own file, so a revert applies cleanly

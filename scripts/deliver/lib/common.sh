@@ -8,6 +8,7 @@
 
 # Exit codes (design §6): 0 done; 1 refused or failed; 3 live, a later step failed.
 EXIT_REFUSED=1
+EXIT_FUNDAMENTAL=2
 EXIT_PARTIAL=3
 
 TURPIN_CMD="${TURPIN_CMD:-turpin}"
@@ -20,6 +21,9 @@ OVERRIDES=()        # "flag<TAB>reason", for the run log
 say()  { printf '%s\n' "$*"; }
 warn() { printf '%s: %s\n' "$TURPIN_CMD" "$*" >&2; }
 die()  { warn "$*"; exit "$EXIT_REFUSED"; }
+
+# fundamental MESSAGE: stopped by a technical error that only a person can put right (exit 2).
+fundamental() { warn "$*"; exit "$EXIT_FUNDAMENTAL"; }
 
 need_jq() { command -v jq >/dev/null 2>&1 || die "jq is required"; }
 
@@ -172,6 +176,10 @@ HOOK_NOT_YET=75
 hook_env_export() {
   export TURPIN_APP="$H_APP" TURPIN_ENV="$H_ENV" TURPIN_ROLE="$H_ROLE"
   export TURPIN_SHA="$H_SHA" TURPIN_VERSION="$H_VERSION" TURPIN_STATE="$H_STATE"
+  # the deploy numbers only save-state and restore-state get (design §8): the caller
+  # sets H_DEPLOY and H_CURRENT for that one call; no other hook sees them
+  if [[ -n "${H_DEPLOY:-}" ]]; then export TURPIN_DEPLOY="$H_DEPLOY"; else unset TURPIN_DEPLOY; fi
+  if [[ -n "${H_CURRENT:-}" ]]; then export TURPIN_CURRENT="$H_CURRENT"; else unset TURPIN_CURRENT; fi
   local line name
   while IFS='=' read -r name line; do
     [[ -n "$name" ]] || continue
@@ -251,6 +259,73 @@ image_var() { printf 'TURPIN_IMAGE_%s' "$(printf '%s' "$1" | tr 'a-z-' 'A-Z_')";
 
 semver_gt() {      # A B: is A strictly greater than B
   [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" == "$1" ]]
+}
+
+# ---------------------------------------------------------------- the host's record
+
+# state.json is the host's whole record (design §11): state, current, previous,
+# pending, target, installed_host_files and last_request, a field absent where it
+# has no value. Two functions touch the file, so the layout lives in one place:
+# state_get reads it whole and state_save replaces it whole, by a write and a
+# rename. state_put is the edit of one write: a jq filter over the record read.
+
+state_file() { printf '%s/state.json' "${1:?}"; }
+
+state_get_raw() {   # ENVDIR: the record as written, empty where there is none
+  local f; f="$(state_file "$1")"
+  if [[ -f "$f" ]]; then cat "$f"; fi
+}
+
+state_get() {   # ENVDIR: the record, {} where the host has none
+  local raw; raw="$(state_get_raw "$1")"
+  if [[ -n "$raw" ]]; then printf '%s\n' "$raw"; else printf '{}\n'; fi
+}
+
+state_save() {  # ENVDIR JSON: the record, replaced whole by rename; "" removes it (none)
+  local f tmp; f="$(state_file "$1")"
+  if [[ -z "$2" ]]; then rm -f -- "$f"; return 0; fi
+  tmp="$(mktemp "$f.XXXXXX")"
+  printf '%s\n' "$2" > "$tmp"
+  mv -f -- "$tmp" "$f"
+}
+
+state_put() {   # ENVDIR FILTER [jq args...]: one write of the record the filter makes of the one read
+  local envdir="$1" filter="$2" new; shift 2
+  new="$(state_get "$envdir" | jq -c "$@" "$filter")"
+  state_save "$envdir" "$new"
+}
+
+state_field() { state_get "$1" | jq -r --arg f "$2" '.[$f] // empty'; }   # ENVDIR NAME
+
+# state_layout_what ENVDIR: what marks a folder as the Bash turpin's layout (a `state` file or a
+# `current` link, and no state.json), empty where it is not.
+state_layout_what() {
+  local envdir="$1"
+  [[ ! -f "$(state_file "$envdir")" ]] || return 0
+  if [[ -e "$envdir/state" ]]; then printf 'the file %s/state' "$envdir"
+  elif [[ -L "$envdir/current" ]]; then printf 'the link %s/current' "$envdir"; fi
+  return 0
+}
+
+# state_layout_check ENVDIR: such a folder is refused, exit 2: nothing says what it ran.
+state_layout_check() {
+  local envdir="$1" what
+  what="$(state_layout_what "$envdir")"
+  [[ -z "$what" ]] || fundamental "$what is the Bash turpin's layout and there is no state.json: nothing says what it ran, so clear $envdir's state by hand"
+}
+
+# state_layout_check_all DIR...: the same for each environment folder given.
+state_layout_check_all() {
+  local d
+  for d in "$@"; do
+    [[ -d "$d" ]] || continue
+    state_layout_check "${d%/}"
+  done
+}
+
+# state_admits_deploy STATE: the state gate of design §9 and §11's table.
+state_admits_deploy() {
+  case "$1" in ""|"preparing: "*|finished|restored|"failed, no previous deploy") return 0 ;; *) return 1 ;; esac
 }
 
 host_root() { printf '%s' "${TURPIN_HOST_ROOT:-}"; }

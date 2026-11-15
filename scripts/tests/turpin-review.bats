@@ -243,7 +243,7 @@ setup() {
   local i
   for i in a b c d; do commit_change $i; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success; done
   local dirs; dirs="$(ls "$(host_state_dir rehearsal rehearsal)/deploys" | sort | tr '\n' ' ')"
-  assert_equal "$dirs" "3 4 "
+  assert_equal "$dirs" "1 2 3 4 "      # the two oldest are cut to their meta.json (S82), not removed
   assert_equal "$(host_current rehearsal rehearsal)" 4
   assert_equal "$(host_previous rehearsal rehearsal)" 3
 }
@@ -557,4 +557,18 @@ echo backup"
   assert_success
   run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops userdel acme-x
   assert_failure 1
+}
+
+@test "root-ops rm of a file already deleted is done, and drops its entry (R13)" {
+  commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  local root="$W/hosts/rehearsal" st="$W/hosts/rehearsal/var/lib/turpin/acme/rehearsal"
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops install "$st/deploys/1/payload/host_files/ops/backup.sh" /opt/acme/backup.sh 0755
+  assert_success
+  rm "$root/opt/acme/backup.sh"
+  grep -qx /opt/acme/backup.sh "$root/etc/turpin/acme/installed"
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops rm /opt/acme/backup.sh
+  assert_success
+  ! grep -qx /opt/acme/backup.sh "$root/etc/turpin/acme/installed"
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops rm /opt/acme/backup.sh
+  assert_success
 }

@@ -18,12 +18,14 @@
 #
 # It holds the environment's lock for the whole deploy or rollback (descriptor 9,
 # inherited by the payload's steps). State lives in
-# ${TURPIN_STATE_DIR:-/var/lib/turpin}/APP/ENV/ (design §11).
+# ${TURPIN_STATE_DIR:-/var/lib/turpin}/APP/ENV/, its record in state.json (design §11).
+# A folder in the Bash turpin's layout (a `state` file or a `current` link, no
+# state.json) is refused by deploy, rollback, status and allowlist, exit 2.
 #
 # TURPIN_HOST_ROOT prefixes every path this command touches. It is empty on a
 # real host; the tests point it at a scratch directory so a "host" can be a folder.
 
-set -uo pipefail
+set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -z "${TURPIN_LIB:-}" ]]; then
@@ -44,9 +46,16 @@ STATE_ROOT="$ROOT${TURPIN_STATE_DIR:-/var/lib/turpin}"
 
 env_dir() { printf '%s/%s/%s' "$STATE_ROOT" "$1" "$2"; }
 
-state_line() { head -1 "$1/state" 2>/dev/null || true; }
-state_settled() {
-  case "$(state_line "$1")" in ""|finished|restored*|"failed, no previous deploy") return 0 ;; *) return 1 ;; esac
+# the state text of an environment's record, empty where the host has none
+state_text() { state_field "$1" state; }
+
+# State written before the payload takes over (steps 3 and 4) is written back, as found,
+# when the deploy stops before step 7: the host never leaves `preparing` of its own accord.
+UNWIND_ENV=""; UNWIND_FOUND=""
+state_unwind() {
+  [[ -n "$UNWIND_ENV" ]] || return 0
+  case "$(state_text "$UNWIND_ENV")" in "preparing: "*) state_save "$UNWIND_ENV" "$UNWIND_FOUND" ;; esac
+  return 0
 }
 
 # the registry address of this machine: its own .env, else its environment
@@ -83,7 +92,10 @@ take_lock() {
 
 cmd_deploy() {
   local app="$1" env="$2" req envdir lock
-  envdir="$(env_dir "$app" "$env")"; mkdir -p "$envdir"
+  envdir="$(env_dir "$app" "$env")"
+  state_layout_check "$envdir"
+  state_layout_check_all "$STATE_ROOT/$app"/*/   # every environment of the application, before anything is pulled or written
+  mkdir -p "$envdir"
   req="$(mktemp "$envdir/request.XXXXXX")"
   HOST_TMP+=("$req"); trap 'host_cleanup $?' EXIT
   cat > "$req"
@@ -101,16 +113,26 @@ cmd_deploy() {
 
   take_lock "$envdir" "$lock" "$wait"
 
-  if ! state_settled "$envdir"; then
-    gate_fail state "the last deploy did not finish (state: $(state_line "$envdir")); run turpin rollback ENV to put the last good deploy back (a redeploy is refused until then)"
+  local found check
+  found="$(state_text "$envdir")"; check="$(jq -r '.check' "$req")"
+  if ! state_admits_deploy "$found"; then
+    case "$found" in
+      "changing: "*) gate_fail state "the host is mid-change (state: $found); run turpin rollback ENV to finish or undo it (a redeploy is refused until then)" ;;
+      *) gate_fail state "the last deploy did not finish (state: $found); run turpin rollback ENV to put the last good deploy back (a redeploy is refused until then)" ;;
+    esac
   fi
-  gate_ok state "$(state_line "$envdir")"
+  gate_ok state "${found:-none}"
+  if [[ "$check" != true ]]; then
+    UNWIND_ENV="$envdir"; UNWIND_FOUND=""
+    UNWIND_FOUND="$(state_get_raw "$envdir")"
+  fi
 
   # every image by digest; the label must be the commit; then the payload
   # the machine user's own docker login (design §3)
   REG_COMPONENT="$(jq -r '.login_component // empty' "$req")"; REG_COMPONENT="${REG_COMPONENT:-$env}"
   [[ -z "$login" ]] || login_run "$login" || gate_fail digests "registry login ($login) failed: $REG_ERR"
   local name digest ref labels rev
+  [[ "$check" == true ]] || state_put "$envdir" '.state = "preparing: pull"'
   while IFS=$'\t' read -r name digest; do
     [[ -n "$name" ]] || continue
     if [[ "$local_build" == true ]]; then
@@ -132,6 +154,7 @@ cmd_deploy() {
 
   # the payload, taken out of the image that carries it
   local pimg pref tmp cid
+  [[ "$check" == true ]] || state_put "$envdir" '.state = "preparing: payload"'
   pimg="$(jq -r --arg n "$payload" '.images[$n] // empty' "$req")"
   [[ -n "$pimg" ]] || die "the request names no image $payload to take the payload from"
   if [[ "$local_build" == true ]]; then pref="$pimg"; else pref="$TURPIN_REGISTRY/$repo@$pimg"; fi
@@ -144,8 +167,15 @@ cmd_deploy() {
   export PAYLOAD_DIR="$tmp" TURPIN_REQUEST="$req" ENVDIR="$envdir" RUN_LOG GATE_EMIT
   local code=0
   "$tmp/deploy" || code=$?
-  [[ $code -eq 0 ]] || code=1
+  code="$(host_exit "$code")"
   exit "$code"
+}
+
+# host_exit CODE: the exit status of a payload step as the controller reads it (docs/1.10):
+# 0, 1, 2, 3, 64, 70, 75 and 130 are kept; a signal's (128 and over) and any other is 70, an
+# unexpected error.
+host_exit() {
+  case "$1" in 0|1|2|3|64|70|75|130) printf '%s' "$1" ;; *) printf '70' ;; esac
 }
 
 drop_tmp() { local d="${1:?}"; [[ -d "$d" ]] && rm -rf -- "$d"; return 0; }
@@ -154,15 +184,34 @@ drop_tmp() { local d="${1:?}"; [[ -d "$d" ]] && rm -rf -- "$d"; return 0; }
 HOST_TMP=()
 host_cleanup() {
   local code="$1" t
+  state_unwind
   for t in "${HOST_TMP[@]}"; do
     if [[ -d "$t" ]]; then drop_tmp "$t"; elif [[ -n "$t" ]]; then rm -f -- "$t"; fi
   done
   _run_log_exit "$code"
 }
 
+# rollback_payload ENVDIR: the payload whose steps run the rollback: the deploy under way's
+# where a restore is due (its hooks are the ones that changed the data), else the current's;
+# failing both, the newest payload on disk, which only names the fallback.
+rollback_payload() {
+  local envdir="$1" state n="" p
+  state="$(state_text "$envdir")"
+  case "$state" in
+    "changing: deploy "*|"failed: the restore did not complete") n="$(state_field "$envdir" pending)" ;;
+  esac
+  [[ -n "$n" && -x "$envdir/deploys/$n/payload/rollback" ]] || n="$(state_field "$envdir" current)"
+  if [[ -n "$n" && -x "$envdir/deploys/$n/payload/rollback" ]]; then printf '%s' "$envdir/deploys/$n/payload"; return 0; fi
+  p="$(ls -1dt "$envdir"/deploys/*/payload 2>/dev/null | head -1 || true)"
+  if [[ -n "$p" && -x "$p/rollback" ]]; then printf '%s' "$p"; fi
+  return 0
+}
+
 cmd_rollback() {
-  local app="$1" env="$2" req envdir lock wait n payload
-  envdir="$(env_dir "$app" "$env")"; mkdir -p "$envdir"
+  local app="$1" env="$2" req envdir lock wait payload
+  envdir="$(env_dir "$app" "$env")"
+  state_layout_check "$envdir"
+  mkdir -p "$envdir"
   req="$(mktemp "$envdir/request.XXXXXX")"; HOST_TMP+=("$req"); trap 'host_cleanup $?' EXIT
   cat > "$req"
   TURPIN_LOG_DIR="$envdir/log"; run_log_start "." rollback "$app" "$env" 2>/dev/null || true
@@ -172,31 +221,27 @@ cmd_rollback() {
   wait="$(jq -r '.wait // empty' "$req")"
   lock="$(jq -r '.lock // empty' "$req")"; lock="${lock:+$ROOT$lock}"; lock="${lock:-$envdir/lock}"
   take_lock "$envdir" "$lock" "$wait"
-  # the steps come from the deploy being rolled back from
-  payload=""
-  if ! state_settled "$envdir"; then
-    n="$(sed -n 's/^deploy=//p' "$envdir/state" | head -1)"
-    [[ -d "$envdir/deploys/$n/payload" ]] && payload="$envdir/deploys/$n/payload"
-  fi
-  [[ -n "$payload" ]] || [[ ! -L "$envdir/current" ]] || payload="$envdir/current/payload"
-  if [[ -z "$payload" || ! -x "$payload/rollback" ]]; then
-    gate_fail rollback-target "nothing is deployed here to roll back (no payload on disk); use the application's fallback"
+  # the steps come from the deploy the state table names
+  payload="$(rollback_payload "$envdir")"
+  if [[ -z "$payload" ]]; then
+    gate_fail rollback-target "nothing is deployed here to roll back (no payload on disk, so no fallback to name); use the application's [turpin].fallback"
   fi
   export TURPIN_REQUEST="$req" ENVDIR="$envdir" RUN_LOG GATE_EMIT
   local code=0
   "$payload/rollback" || code=$?
-  [[ $code -eq 0 ]] || code=1
+  code="$(host_exit "$code")"
   exit "$code"
 }
 
 # allowlist APP < lines: run by `turpin host-install` as root. It writes the application's
 # host_files.allow from the profile's lines (destination, source, mode, enable), and
 # keeps an entry the new list lacks for as long as the current or previous deploy of an
-# environment (with host files installed) still lists it, so a rollback or a restore across
+# environment (with host files installed) still lists it, read from its state.json, so a rollback or a restore across
 # a moved or dropped host file, and the stop of a dropped unit, find their entries. An entry
 # nothing uses is dropped, and if root-ops installed its file the file is removed too.
 cmd_allowlist() {
-  local app="$1" new old out line dest src mode enable pj meta used dropped=() d
+  local app="$1" new old out line dest src mode enable pj meta used dropped=() d st envd n
+  state_layout_check_all "$STATE_ROOT/$app"/*/
   new="$(cat)"
   old="$ALLOW_ROOT/$app/host_files.allow"
   mkdir -p "$ALLOW_ROOT/$app"
@@ -208,14 +253,18 @@ cmd_allowlist() {
       line="$dest"$'\t'"$src"$'\t'"$mode"$'\t'"$enable"
       grep -qxF -- "$line" "$out" && continue
       used=0
-      for pj in "$STATE_ROOT/$app"/*/current/payload/profile.json "$STATE_ROOT/$app"/*/previous/payload/profile.json; do
-        [[ -f "$pj" ]] || continue
-        meta="$(dirname "$(dirname "$pj")")/meta.json"
-        [[ "$(jq -r '.host_files' "$meta" 2>/dev/null)" == true ]] || continue
-        if jq -e --arg d "$dest" --arg s "$src" --arg m "$mode" \
-          'any((.turpin.host_files // [])[]; .dest == $d and .src == $s and (((.mode // "0644") | ltrimstr("0")) == ($m | ltrimstr("0"))))' "$pj" >/dev/null 2>&1; then
-          used=1; break
-        fi
+      for st in "$STATE_ROOT/$app"/*/; do
+        [[ -d "$st" ]] || continue
+        for n in $(state_get "${st%/}" | jq -r '[.current, .previous] | map(select(. != null)) | .[]' 2>/dev/null); do
+          pj="${st%/}/deploys/$n/payload/profile.json"
+          [[ -f "$pj" ]] || continue
+          meta="${st%/}/deploys/$n/meta.json"
+          [[ "$(jq -r '.host_files' "$meta" 2>/dev/null)" == true ]] || continue
+          if jq -e --arg d "$dest" --arg s "$src" --arg m "$mode" \
+            'any((.turpin.host_files // [])[]; .dest == $d and .src == $s and (((.mode // "0644") | ltrimstr("0")) == ($m | ltrimstr("0"))))' "$pj" >/dev/null 2>&1; then
+            used=1; break 2
+          fi
+        done
       done
       if [[ $used -eq 1 ]]; then printf '%s\n' "$line" >> "$out"; else dropped+=("$line"); fi
     done < "$old"
@@ -341,15 +390,19 @@ cmd_login() {
   say "logged in: ${env:-$comp}"
 }
 
+# status APP ENV --json: a docs/1.10 result object whose `metadata` is the status, the
+# `Deployed` facts of design §2: the state, `pending` and the last request's id and outcome
+# from state.json; for `current` and `previous`, the deploy's meta.json (the build, the
+# record where there is one, when it was deployed); and what runs and the host files.
 cmd_status() {
-  local app="$1" env="$2" envdir state cur prev
+  local app="$1" env="$2" envdir rec cur prev
   envdir="$(env_dir "$app" "$env")"
-  state="$(state_line "$envdir")"
-  cur="$(readlink "$envdir/current" 2>/dev/null)" || cur=""
-  prev="$(readlink "$envdir/previous" 2>/dev/null)" || prev=""
+  state_layout_check "$envdir"
+  rec="$(state_get "$envdir")"
+  cur="$(jq -r '.current // empty' <<< "$rec")"; prev="$(jq -r '.previous // empty' <<< "$rec")"
   local curj="null" prevj="null" deploys="[]" d
-  [[ -n "$cur" && -f "$envdir/$cur/meta.json" ]] && curj="$(jq -c . "$envdir/$cur/meta.json")"
-  [[ -n "$prev" && -f "$envdir/$prev/meta.json" ]] && prevj="$(jq -c . "$envdir/$prev/meta.json")"
+  [[ -n "$cur" && -f "$envdir/deploys/$cur/meta.json" ]] && curj="$(jq -c . "$envdir/deploys/$cur/meta.json")"
+  [[ -n "$prev" && -f "$envdir/deploys/$prev/meta.json" ]] && prevj="$(jq -c . "$envdir/deploys/$prev/meta.json")"
   if [[ -d "$envdir/deploys" ]]; then
     deploys="$(for d in "$envdir"/deploys/*/meta.json; do [[ -f "$d" ]] && jq -c '{n, deployed}' "$d"; done | jq -sc '.')"
   fi
@@ -362,7 +415,7 @@ cmd_status() {
   # the host's copies of the files, against the payload's
   local files="[]" src dest mode have
   if [[ "$curj" != null && "$(jq -r '.host_files' <<< "$curj")" == true ]]; then
-    local p="$envdir/$cur/payload"
+    local p="$envdir/deploys/$cur/payload"
     files="$(while IFS=$'\t' read -r src dest mode; do
       [[ -n "$src" ]] || continue
       have="equal"
@@ -372,9 +425,12 @@ cmd_status() {
       jq -nc --arg d "$dest" --arg s "$have" '{dest:$d,status:$s}'
     done < <(jq -r '(.turpin.host_files // [])[] | [.src, .dest, (.mode // "0644")] | @tsv' "$p/profile.json") | jq -sc '.')"
   fi
-  jq -nc --arg state "$state" --argjson cur "$curj" --argjson prev "$prevj" --argjson deploys "$deploys" \
+  jq -nc --argjson rec "$rec" --argjson cur "$curj" --argjson prev "$prevj" --argjson deploys "$deploys" \
     --argjson running "$running" --argjson files "$files" \
-    '{state:(if $state == "" then null else $state end), current:$cur, previous:$prev, deploys:$deploys, running:$running, host_files:$files}'
+    '{outcome: "ok", reason: "HOST_STATUS", domain: "turpin", message: "the host\u0027s state was read",
+      metadata: {state: ($rec.state // null), pending: ($rec.pending // null),
+        last_request: (if $rec.last_request == null then null else {request_id: $rec.last_request.request_id, outcome: $rec.last_request.outcome} end),
+        current: $cur, previous: $prev, deploys: $deploys, running: $running, host_files: $files}}'
 }
 
 running_digests_status() {
@@ -472,6 +528,11 @@ cmd_root_ops() {
       record_installed "$app" "$dest" ;;
     rm)
       path_ok "$1" || die "root-ops: bad path $1"
+      # a file already absent is done, so a rerun of a step that removed it succeeds
+      if [[ ! -e "${ROOT}${1:?}" && ! -L "${ROOT}$1" ]]; then
+        if installed_dest "$1"; then forget_installed "$A_APP" "$1"; fi
+        return 0
+      fi
       installed_dest "$1" || die "root-ops: $1 is not a file root-ops installed"
       rm -f -- "${ROOT}${1:?}"; forget_installed "$A_APP" "$1" ;;
     systemctl)

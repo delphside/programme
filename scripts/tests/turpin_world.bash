@@ -228,9 +228,19 @@ rel() { reg_tag_digest acme/releases "$1"; }
 reg_meta() { cat "$W/registry/reg.test/ns/$1/meta/${2#sha256:}.json"; }       # REPO DIGEST
 
 host_state_dir() { printf '%s/hosts/%s/var/lib/turpin/acme/%s' "$W" "$1" "$2"; }   # HOST ENV
-host_state() { head -1 "$(host_state_dir "$1" "$2")/state" 2>/dev/null; }
-host_current() { basename "$(readlink "$(host_state_dir "$1" "$2")/current" 2>/dev/null)" 2>/dev/null; }
-host_previous() { basename "$(readlink "$(host_state_dir "$1" "$2")/previous" 2>/dev/null)" 2>/dev/null; }
+# the host's record is state.json (design §11); these read one field of it, empty where absent
+host_field() { jq -r --arg f "$3" '.[$f] // empty' "$(host_state_dir "$1" "$2")/state.json" 2>/dev/null; }   # HOST ENV FIELD
+host_state() { host_field "$1" "$2" state; }
+host_current() { host_field "$1" "$2" current; }
+host_previous() { host_field "$1" "$2" previous; }
+host_pending() { host_field "$1" "$2" pending; }
+host_target() { host_field "$1" "$2" target; }
+# host_record_set HOST ENV FILTER [jq args]: edit the record the way a test needs it left
+host_record_set() {
+  local f filter="$3"; f="$(host_state_dir "$1" "$2")/state.json"; shift 3
+  [[ -f "$f" ]] || echo '{}' > "$f"
+  jq -c "$@" "$filter" "$f" > "$f.new" && mv "$f.new" "$f"
+}
 
 hook_calls() { grep '^== ' "$HOOKLOG" | awk '{print $2}'; }
 hook_log_for() { awk -v n="$1" '/^== /{p=($2==n)} p' "$HOOKLOG"; }
@@ -383,8 +393,7 @@ fake_production() {
   else record=null; fi
   jq -nc --arg sha "$sha" --argjson i "$images" --argjson r "$record" --arg v "$version" \
     '{n:1,sha:$sha,version:$v,images:$i,role:"production",record:$r,join:[],host_files:false,deployed:"2026-10-01T00:00:00Z",smoke:"passed"}' > "$d/deploys/1/meta.json"
-  ln -sfn deploys/1 "$d/current"
-  printf 'finished\ndeploy=1\n' > "$d/state"
+  printf '{"state":"finished","current":1,"installed_host_files":[]}\n' > "$d/state.json"
 }
 
 # text_tag TAG COMMIT: a release made before the tool (no JSON message), pushed.
@@ -410,3 +419,64 @@ release_ready() {
   gh_checks "$RSHA" e2e=success
   gh_milestone 0.10.2 "$@"
 }
+
+# contract_hooks: save-state, migrate and restore-state that do what design §8 says of
+# them, on a "database" file $W/data/db: save-state removes any snapshot under
+# TURPIN_DEPLOY, takes the snapshot, marks it complete, then removes every snapshot but
+# TURPIN_DEPLOY's and TURPIN_CURRENT's; migrate (given no deploy number) appends m<pending> to the database;
+# restore-state restores TURPIN_DEPLOY's snapshot if it is complete, else does nothing.
+# Each logs as the stub hooks do and follows $HOOKCTL (`1` fails, `kill` kills the step);
+# save-state looks at its control after the snapshot is begun and before it is complete.
+contract_hooks() {
+  local hook
+  for hook in save-state migrate restore-state; do
+    {
+      cat <<'EOF2'
+#!/usr/bin/env bash
+name="$(basename "$0")"
+{ echo "== $name $*"; env | grep '^TURPIN_' | grep -v '^TURPIN_REQUEST' | sort; } >> "${HOOKLOG:-/dev/null}"
+data="$(dirname "$HOOKLOG")/data"; mkdir -p "$data/snaps"
+ctl() {
+  local f="${HOOKCTL:-/nonexistent}/$name" mode count seen n
+  [[ -s "$f" ]] || return 0
+  read -r mode count < "$f"
+  if [[ "$mode" == kill ]]; then kill -9 "$PPID"; sleep 1; exit 137; fi
+  if [[ -n "$count" ]]; then
+    seen="$f.seen"; n=0; [[ -f "$seen" ]] && n="$(cat "$seen")"
+    (( n >= count )) && return 0
+    echo $((n + 1)) > "$seen"
+  fi
+  exit "$mode"
+}
+EOF2
+      case "$hook" in
+        save-state) cat <<'EOF2'
+rm -rf "${data:?}/snaps/$TURPIN_DEPLOY"
+mkdir -p "$data/snaps/$TURPIN_DEPLOY"
+if [[ -f "$data/db" ]]; then cp "$data/db" "$data/snaps/$TURPIN_DEPLOY/db"; fi
+ctl
+touch "$data/snaps/$TURPIN_DEPLOY/complete"
+for s in "$data"/snaps/*; do
+  [[ "$(basename "$s")" == "$TURPIN_DEPLOY" || "$(basename "$s")" == "${TURPIN_CURRENT:-}" ]] || rm -rf "$s"
+done
+EOF2
+        ;;
+        migrate) cat <<'EOF2'
+echo "m$(jq -r .pending "$TURPIN_STATE/state.json")" >> "$data/db"
+ctl
+EOF2
+        ;;
+        restore-state) cat <<'EOF2'
+ctl
+s="$data/snaps/$TURPIN_DEPLOY"
+if [[ -f "$s/complete" ]]; then
+  if [[ -f "$s/db" ]]; then cp "$s/db" "$data/db"; else rm -f "$data/db"; fi
+fi
+EOF2
+        ;;
+      esac
+    } > "$W/work/turpin/hooks/$hook"
+    chmod +x "$W/work/turpin/hooks/$hook"
+  done
+}
+data_db() { cat "$W/data/db" 2>/dev/null | tr '\n' ' '; }   # the "database", on one line

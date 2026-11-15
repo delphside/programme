@@ -2301,8 +2301,10 @@ On a host's first deploy, with no `current`, a restore runs `restore-state`,
 stops `pending`'s containers, removes its host files and, in one write, clears
 `pending` and `target` and marks the state `failed, no previous deploy`, naming
 the fallback (`[turpin].fallback`). A restore that fails, either kind, marks
-`failed: the restore did not complete`. Neither removes `pending`'s folder,
-which step 10's prune cuts down like any other.
+`failed: the restore did not complete`. A restore stops at its first failed
+step, so it never starts `current`'s build on data that was not restored.
+Neither removes `pending`'s folder, which step 10's prune cuts down like any
+other.
 
 **Rollback** moves the host to `previous`. It takes the lock and acts by the
 state table; from `finished`, `restored` or `preparing` its steps are:

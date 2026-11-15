@@ -224,7 +224,7 @@ oci-instance-principal"
   [ -f "$W/registry/reg.test/ns/widget/candidates/tags/$SHA-api" ]
   run d deploy rehearsal "$SHA" --off-level first
   assert_success
-  [ -L "$W/hosts/rehearsal/var/lib/turpin/widget/rehearsal/current" ]
+  [ "$(jq -r .current "$W/hosts/rehearsal/var/lib/turpin/widget/rehearsal/state.json")" = 1 ]
   gh_fixture "repos_widget_widget_commits_${SHA}_check-runs" '{"check_runs":[{"name":"e2e","conclusion":"success"}]}'
   jq -nc '[{number:12,title:"issue 12",state:"open",type:{name:"Requirement"},milestone:{title:"0.10.2"},
     sub_issues_summary:{total:0},issue_dependencies_summary:{},labels:[]}]' > "$W/gh/fix/repos_widget_widget_issues.json"
