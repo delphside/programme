@@ -35,6 +35,15 @@ the clock. An item with no entry (or one whose state has changed since) is aged
 from its latest field event of any field, or its creation, judged before this
 run writes anything; the entry then keeps that time. A dry run reads the ledger
 and writes nothing, the ledger included.
+
+A failed run still replaces the ledger, recording the writes actually made, and
+leaves the stalled list as the last complete run's. An item with no entry has
+its `Turn` judged afresh (see `judge_issue`), never taken as a thread's. An item
+not judged this run keeps its entry while it is open. A pinned body that an
+earlier run wrote and that has no readable ledger is listed under "needs a
+look". The ledger is compact (short keys), and a body that would pass
+`BODY_LIMIT` loses the tail of its list, never its ledger. Runs must not
+overlap: the coordinator's one daily trigger runs it.
 """
 
 from __future__ import annotations
@@ -86,8 +95,12 @@ NO_WORKSTREAM = "no workstream"
 NOT_VISIBLE = "not visible"
 MALFORMED_CLAIM = "malformed claim"
 MERGED = "merged, not moved"
+LEDGER_LOST = "no readable ledger"
+NEAR_LIMIT = "pinned body near GitHub's limit"
+# GitHub caps an issue body at 65,536 characters; the sweep stays under this.
+BODY_LIMIT = 65_000
 ATTENTION_ORDER = (LOST, INVALID_HOLD, NO_WORKSTREAM, UNKNOWN_STATE, UNKNOWN_TYPE,
-                   MALFORMED_CLAIM, MERGED, NOT_VISIBLE)
+                   MALFORMED_CLAIM, MERGED, NOT_VISIBLE, LEDGER_LOST, NEAR_LIMIT)
 
 
 def parse_time(text: str | None) -> datetime | None:
@@ -112,7 +125,8 @@ def days(delta: timedelta) -> float:
 # the ledger
 # --------------------------------------------------------------------------
 
-_LEDGER = re.compile(r"<!-- board-flow-ledger\n(.*?)\n-->", re.DOTALL)
+_LEDGER = re.compile(r"<!-- board-flow-ledger\n(.*?)\n-->\n?", re.DOTALL)
+LAST_RUN = re.compile(r"(?m)^Last complete run: ")
 
 
 @dataclass(frozen=True)
@@ -126,30 +140,55 @@ class Seen:
     turn: str | None = None
 
 
-def parse_ledger(body: str | None) -> dict[str, Seen]:
-    """The ledger in a pinned issue's body. Absent or unreadable is empty: every
-    item is then aged as a first sighting, which is today's rule."""
+def _ledger_data(body: str | None) -> dict | None:
+    """The ledger block's JSON object, or None where there is no block or it
+    cannot be read."""
     m = _LEDGER.search(body or "")
     if m is None:
-        return {}
+        return None
     try:
         data = json.loads(m.group(1))
     except json.JSONDecodeError:
-        return {}
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def ledger_lost(body: str | None) -> bool:
+    """Whether a pinned body that a run has written before no longer holds a
+    readable ledger (edited, truncated, or lost). A body no run has written
+    (no ledger and no `Last complete run:` line) is the first run, not a loss."""
+    if _ledger_data(body) is not None:
+        return False
+    return bool(_LEDGER.search(body or "")) or LAST_RUN.search(body or "") is not None
+
+
+def strip_ledger(body: str | None) -> str:
+    """The pinned body without its ledger block: the last complete run's list."""
+    return _LEDGER.sub("", body or "").strip()
+
+
+def parse_ledger(body: str | None) -> dict[str, Seen]:
+    """The ledger in a pinned issue's body. Absent or unreadable is empty: every
+    item is then judged afresh (`judge_issue`) and aged as a first sighting."""
     out: dict[str, Seen] = {}
-    for name, entry in (data if isinstance(data, dict) else {}).items():
-        since = parse_time(entry.get("since")) if isinstance(entry, dict) else None
-        if since is None or not isinstance(entry.get("state"), str):
+    for name, entry in (_ledger_data(body) or {}).items():
+        since = parse_time(entry.get("d")) if isinstance(entry, dict) else None
+        if since is None or not isinstance(entry.get("s"), str):
             continue
-        turn = entry.get("turn")
-        out[name] = Seen(entry["state"], since, turn if isinstance(turn, str) else None)
+        turn = entry.get("t")
+        out[name] = Seen(entry["s"], since, turn if isinstance(turn, str) else None)
     return out
 
 
 def render_ledger(ledger: dict[str, Seen]) -> str:
-    data = {name: {"state": e.state, "since": stamp(e.since), "turn": e.turn}
+    """The ledger as compact JSON with short keys (`s` state, `d` since, `t`
+    the `Turn` last written, left out where there is none): 600 items must fit
+    a body GitHub caps at 65,536 characters."""
+    data = {name: ({"s": e.state, "d": stamp(e.since), "t": e.turn} if e.turn
+                   else {"s": e.state, "d": stamp(e.since)})
             for name, e in sorted(ledger.items())}
-    return "<!-- board-flow-ledger\n" + json.dumps(data, indent=0, sort_keys=True) + "\n-->\n"
+    return ("<!-- board-flow-ledger\n"
+            + json.dumps(data, separators=(",", ":"), sort_keys=True) + "\n-->\n")
 
 
 # --------------------------------------------------------------------------
@@ -316,7 +355,10 @@ class Context:
     def state_since(self, obs: Observed, state: str | None) -> datetime | None:
         """When the item's current state began: the ledger's word where it saw
         the item in this state, else the latest field event (a first sighting,
-        or a state that has changed since)."""
+        or a state that has changed since). REST's timeline does not say which
+        field an event was for (checked 2026-11-15), so the sweep's own `Turn`
+        writes cannot be set aside: with no entry the age may be the age of the
+        sweep's last `Turn` write, never older than the state."""
         seen = self.ledger.get(obs.name)
         if seen is not None and seen.state == state:
             return seen.since
@@ -383,7 +425,12 @@ def release_wait(obs: Observed, issue: Issue, ctx: Context,
     its repository: the first after its own semver, or, where its own is a date
     or missing, the lowest semver milestone that is open or that closed after
     the package `entered` `Post-deployment`. While none is open the wait stays
-    valid."""
+    valid.
+
+    `entered` is the ledger's word, else the latest field event. With no ledger
+    entry that event can be the sweep's own `Turn` write, later than the real
+    entry, so the first run may hold one release that closed in between: it
+    under-reports, the safe direction."""
     raw = obs.raw
     if issue.step == "Deployment":
         if not raw.milestone:
@@ -644,7 +691,10 @@ def judge_issue(obs: Observed, ctx: Context) -> Verdict:
                           "delivered it"))
 
     # What `Turn` says. A `Turn` is kept only where a thread set it: one that is
-    # what the sweep last wrote (the ledger) is the sweep's to rewrite.
+    # what the sweep last wrote (the ledger) is the sweep's to rewrite. With no
+    # ledger entry nothing says who set it, so it is judged afresh: a `Hold` is
+    # kept only while a Hold reason holds, an `Owner` only while an approval
+    # request is pending, and any other is overwritten.
     seen = ctx.ledger.get(obs.name)
     sweep_set = cur is not None and seen is not None and cur == seen.turn
     derived = role_turn(role)
@@ -764,13 +814,36 @@ class Sweep:
     body: str = ""
     ids: dict[str, int] = field(default_factory=dict)
     prior: dict[str, Seen] = field(default_factory=dict)   # the ledger as read
+    open_names: set[str] = field(default_factory=set)      # every item still open
+    attempted: bool = False                                # `perform` has run
+    notices: list[Attention] = field(default_factory=list)  # findings about the run itself
 
     @property
     def ledger(self) -> dict[str, Seen]:
-        """The ledger to publish: every judged item, with the state it is in now
-        and when that began."""
-        return {v.name: Seen(v.state, v.since, v.written_turn)
-                for v in self.verdicts if v.state and v.since}
+        """The ledger to publish: every judged item, with the state it is in and
+        when that began, as far as the writes actually made reach.
+
+        * An item whose `Turn` write was not made keeps the `Turn` the ledger
+          last held for it (the board still holds the old one).
+        * An item whose type or state write was not made keeps its prior entry,
+          or none: what the board holds is not what was judged.
+        * An item not judged this run (not visible, an unknown type or state, a
+          read that failed) keeps its prior entry while it is still open."""
+        made = set(self.made) if self.attempted else None
+        out: dict[str, Seen] = {}
+        for v in self.verdicts:
+            if not (v.state and v.since):
+                continue
+            prior = self.prior.get(v.name)
+            undone = [] if made is None else [w for w in v.writes if w not in made]
+            if any(w.name != TURN for w in undone):
+                continue
+            turn = (prior.turn if prior else None) if undone else v.written_turn
+            out[v.name] = Seen(v.state, v.since, turn)
+        for name, entry in self.prior.items():
+            if name in self.open_names and name not in out:
+                out[name] = entry
+        return out
 
     @property
     def stalled(self) -> list[Verdict]:
@@ -778,7 +851,10 @@ class Sweep:
 
     @property
     def attention(self) -> list[tuple[Verdict, Attention]]:
-        return [(v, a) for v in self.verdicts for a in v.attention]
+        found = [(v, a) for v in self.verdicts for a in v.attention]
+        if self.pinned is not None:
+            found += [(Verdict(self.pinned), a) for a in self.notices]
+        return found
 
 
 def programme_repository() -> str:
@@ -819,7 +895,12 @@ def survey(now: datetime, board=sources, repositories: Sequence[str] | None = No
     items = [o for o in observed if o is not pinned]
     prior = parse_ledger(pinned.raw.body) if pinned is not None else {}
     ctx = Context(observed, now, board, prior)
-    sweep = Sweep([], pinned, now=now, prior=prior)
+    sweep = Sweep([], pinned, now=now, prior=prior, open_names={o.name for o in items})
+    if pinned is not None and ledger_lost(pinned.raw.body):
+        sweep.notices.append(Attention(
+            LEDGER_LOST, ROLE_OWNER,
+            "the pinned body has no readable ledger: every Turn was judged afresh and "
+            "ages fell back to field events"))
     sweep.ids = field_ids(observed)
     for o in items:
         try:
@@ -835,6 +916,7 @@ def perform(sweep: Sweep, board=sources) -> None:
     with the item and the call, and the rest of that item's writes are not
     attempted; every other item is still written."""
     ids = sweep.ids
+    sweep.attempted = True
     for v in sweep.verdicts:
         for w in v.writes:
             try:
@@ -892,14 +974,16 @@ def attention_by_role(sweep: Sweep) -> dict[str, list[tuple[Verdict, Attention]]
     return dict(sorted(groups.items()))
 
 
-def render(sweep: Sweep) -> str:
-    """The stalled list: what the pinned issue's body holds and the run prints."""
-    out = [f"Last complete run: {stamp(sweep.now)}", ""]
+def render(sweep: Sweep, room: int | None = None) -> str:
+    """The stalled list: what the pinned issue's body holds and the run prints.
+    Given `room` (characters), it leaves out the last items, stalled ones before
+    findings, until it fits, and says how many."""
+    head = [f"Last complete run: {stamp(sweep.now)}", ""]
     stalled = stalled_by_role(sweep)
     attention = attention_by_role(sweep)
     if not stalled and not attention:
-        out.append("Nothing is stalled.")
-        return "\n".join(out) + "\n"
+        return "\n".join(head + ["Nothing is stalled."]) + "\n"
+    out = list(head)
     if stalled:
         out.append("## Stalled")
         for (role, workstream), items in stalled.items():
@@ -912,7 +996,32 @@ def render(sweep: Sweep) -> str:
         for role, found in attention.items():
             out += ["", f"### {role}"]
             out += [f"- {v.name} {v.title}: {a.kind}: {a.detail}" for v, a in found]
+    if room is not None and len("\n".join(out)) + 1 > room:
+        out = _fit(out, room)
     return "\n".join(out) + "\n"
+
+
+def _fit(lines: list[str], room: int) -> list[str]:
+    """`lines` without the last items that do not fit `room`, with a line saying
+    how many were left out. Stalled items go before findings, the last first;
+    the finding that the body is near its limit is never left out."""
+    marker = f": {NEAR_LIMIT}: "
+    items = [i for i, text in enumerate(lines) if text.startswith("- ") and marker not in text]
+    attention_at = next((i for i, text in enumerate(lines) if text == "## Needs a look"),
+                        len(lines))
+    droppable = ([i for i in items if i < attention_at][::-1]
+                 + [i for i in items if i >= attention_at][::-1])
+    gone: set[int] = set()
+    note = "Items left out to keep this body within GitHub's limit: {}"
+    size = len("\n".join(lines)) + 1
+    for i in droppable:
+        if size + len(note.format(len(items))) + 1 <= room:
+            break
+        size -= len(lines[i]) + 1
+        gone.add(i)
+    kept = [text for i, text in enumerate(lines) if i not in gone]
+    kept.insert(2, note.format(len(gone)))
+    return kept
 
 
 def role_list(sweep: Sweep, role: str, workstream: str | None = None) -> list[tuple[Verdict, str]]:
@@ -987,11 +1096,30 @@ def run(now: datetime, dry_run: bool = False, board=sources,
         complain("board-flow: the run did not finish:")
         for failure in sweep.failures:
             complain(f"  {failure}")
-        complain("the stalled list was not rewritten, so it still names the last complete run")
+        # The writes that were made are the ledger's to record; the list stays the
+        # last complete run's.
+        if not dry_run:
+            kept = strip_ledger(sweep.pinned.raw.body)
+            sweep.body = (kept + "\n\n" if kept else "") + render_ledger(sweep.ledger)
+            try:
+                board.rewrite_body(sweep.pinned.repo, sweep.pinned.raw.number, sweep.body)
+            except Unavailable as exc:
+                complain(f"board-flow: could not record the ledger in {sweep.pinned.name}: {exc}")
+            else:
+                complain("the stalled list was not rewritten, so it still names the last "
+                         "complete run; the ledger records the writes made")
         say(render(sweep))
         return EXIT_FAILED
 
-    sweep.body = render(sweep) + "\n" + render_ledger(sweep.ledger)
+    ledger = render_ledger(sweep.ledger)
+    text = render(sweep)
+    if len(text) + 1 + len(ledger) > BODY_LIMIT:
+        sweep.notices.append(Attention(
+            NEAR_LIMIT, ROLE_OWNER,
+            f"the body would be {len(text) + 1 + len(ledger)} characters of the "
+            f"{BODY_LIMIT} kept under GitHub's limit: the stalled list is cut, the ledger is not"))
+        text = render(sweep, room=BODY_LIMIT - len(ledger) - 1)
+    sweep.body = text + "\n" + ledger
     if not dry_run:
         try:
             board.rewrite_body(sweep.pinned.repo, sweep.pinned.raw.number, sweep.body)
