@@ -35,7 +35,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R6 | `deploy ENV REF` checks REF against the environment's role. For preview, test and rehearsal, REF is a full or short SHA or a version, resolved in candidates. A short SHA that matches more than one candidate refuses. For production it is a version with a record, pulled from releases. The deploy runs over ssh, or locally where `host = "controller"`, and then `settle` for production. Gates key on the role, never the name. | §2; §6 |
 | R7 | Every image is pulled by digest. Its revision label must equal the SHA, and the running containers' `RepoDigests` must match. | §9 |
 | R8 | The environment's lock (`flock`) must be free and is held to the end. `--wait[=MINUTES]` waits for the lock and for a hook's exit 75, checking each minute, for at most 60 minutes by default. At the limit it stops as a blip, exit 75, naming what it waited for, with nothing changed. | §6; §9; §11 |
-| R9 | A deploy refuses unless the state file shows the last deploy finished. Exceptions: no state (a first deploy), `restored`, `failed, no previous deploy` (a first deploy that failed and was restored), and a step before `save-state`, where nothing that runs had changed, do not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `turpin rollback`; a redeploy refuses until then. | §9; §11 |
+| R9 | A deploy refuses unless the state file shows the last deploy finished. Exceptions: no state (a first deploy), `restored`, `failed, no previous deploy` (a first deploy that failed and was restored) and a step before `save-state`, which has changed nothing that runs, do not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `turpin rollback`; a redeploy refuses until then. | §9; §11 |
 | R10 | `pre-deploy` is a gate. It can be set aside with `--set-aside`, where the profile marks it overridable. | §8; §9 |
 | R11 | A deploy runs these steps in order: lock, then state, then pull by digest, then payload, then `pre-deploy`, then the new deploy folder, then `save-state`, then `migrate`, then host files, then the `current` switch, then `compose up`, then `smoke`, then finished, then pruning host images. Compose runs with a fixed project name, `--project-directory` the deploy's own folder `deploys/N`, the host `.env` and then `deploys/N/turpin.env`, and `--no-build`. | §11 |
 | R12 | A failure after `save-state` runs `restore-state`, switches back to `previous` and reinstalls its host files, then exits by the error's type: 1 for a hook's refusal or failure. On a host's first `turpin` deploy there is no `previous`: the failure runs `restore-state`, stops the new containers, removes `current`, marks the state `failed, no previous deploy`, and exits by the error's type, naming the application's fallback. | §9; §11 |
@@ -101,7 +101,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 - **C5 REF on the remote** (complete): pushed · not pushed
 - **C6 candidates for the SHA** (complete): all images present · some · none · registry query fails
 - **C7 lock** (complete): free · held · held beyond the `--wait` limit
-- **C8 state file** (complete): finished · `restored` · a step before `save-state` recorded · a step from `save-state` on recorded (killed by SIGKILL, or cut off by a reboot) · absent (first deploy) · `failed, no previous deploy`
+- **C8 state file** (complete): finished · `restored` · a step before `save-state` recorded · a step from `save-state` on recorded (killed by SIGKILL, or cut off by a reboot) · absent (first deploy) · `failed, no previous deploy` · `failed: the restore did not complete`
 - **C9 hook** (complete, per hook): required and absent · required and not executable · optional and absent · exit 0 · exit 75 · other non-zero
 - **C10 hook kind** (complete): gate · step · check
 - **C11 deploy failure point** (complete): none · before `save-state` · `save-state` · `migrate` · host files · `compose up` · `smoke`
@@ -141,7 +141,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 
 | | outcome |
 | --- | --- |
-| O1 | Exit 1. The run log and stderr name the refusing gate. A before-and-after snapshot of the registry, the host's containers and the state folder, git refs and the `gh` stub log shows no change. |
+| O1 | Exit 1. The run log and stderr name the refusing gate. A before-and-after snapshot of the registry, the host's containers and the state folder (`last_request` apart, which records a refusal after the lock), git refs and the `gh` stub log shows no change. |
 | O2 | Candidates holds `SHA-IMAGE` for each profile image. Stdout prints each digest. The labels `revision` = SHA and `version` = the version file. |
 | O3 | No push reaches the registry log for an image already present, and that image's digest is unchanged. |
 | O4 | Exit 0. The containers' `RepoDigests` equal the named digests. `current` points at a new `deploys/<n>`, `previous` at the earlier one, and `state` = finished. |
@@ -238,7 +238,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S35 | Instance-principal pull on rehearsal; rehearsal's identity trying to read releases or write candidates. | R33, R39 | pull ✓; refused | REH |
 | S36 | A measured pull on rehearsal within `pull_timeout`; in CI, a throttled pull beyond it. | R35 | REH: within; CI: O1 | REH + CI |
 | S37 | A deploy waits on the lock held by the application's own heavy run (the backup). | R8 | O1, then O16 | REH |
-| S38 | A reboot of the rehearsal VM mid-deploy, then rerun. | R9 | O1 naming the step reached | REH |
+| S38 | A reboot of the rehearsal VM mid-deploy, then rerun. | R9 | from `save-state` on, O1 naming the step reached; before it, the rerun admitted and giving O4 | REH |
 | S39 † | TLE's move: the first `turpin deploy` to rehearsal with `--off-level "first turpin deploy"`; then `deploy.sh` at production's previous commit puts rehearsal back. | R41 | O4 + O12; the old compose and image names running, with `/health` | REH |
 | S40 | Release copy by the copier with skopeo; another component's credential writing releases. | R33 | O10; O17 | CI (htpasswd per component) |
 | S41 | `env create` with secrets at a hidden prompt, then `env destroy`. | R37 | the user, the state folder, `.env` and the project exist, then are gone; hooks called; O18 | CI (pty) |
