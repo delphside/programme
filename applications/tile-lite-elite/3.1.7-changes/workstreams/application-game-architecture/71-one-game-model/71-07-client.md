@@ -446,27 +446,30 @@ the `positions` it filled:
   presentation state. When a state arrives with more moves, `shown_moves`
   steps forward one move at a time, holding each for the playback interval.
 - The board drawn is the server's board with the cells of every move after
-  `shown_moves` left empty, and the scores less those moves' `score_delta`.
-  It is derived on render, like the rest of this file, so a state that arrives
-  mid-playback only lengthens the queue.
+  `shown_moves` left empty. Each seat's score is the sum of its `score_delta`
+  up to `shown_moves`; once caught up, the server's scores are shown, which
+  carry the end-of-game rack adjustment that no move records. Both are derived
+  on render, so a state that arrives mid-playback only lengthens the queue.
 - **just played** marks the cells of move `shown_moves`, not of `moves.last()`.
 - While the queue is behind, the viewer cannot stage, so a player never stages
   against a past board. A viewer's own move is drawn at once.
 - Selecting a game, or reconnecting, sets `shown_moves` to the full count: a
   game opened after the fact shows where it stands rather than replaying it.
+  A state with fewer moves than are shown, as an undo would send, does the
+  same.
 
 **The queue is a count, not a store, and it is capped** (owner, 2026-11-15).
 Nothing is queued but the number `shown_moves`; the moves are in the latest
 state. An update that adds no move, such as a chat message, replaces the state
-and is drawn at once, and an update that arrives before the last is drawn is
-still skipped: only moves are played back. When more than the cap of moves is
+and is drawn at once. Intermediate states are still skipped; their moves are
+played back. When more than the cap of moves is
 unshown, `shown_moves` jumps to that many behind the latest, so a slow or
 hidden tab never falls further behind than the cap.
 
 The interval and the cap are client product settings, listed with the others in
 [4.4.1](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md).
-Their values are set when Core Client UI is built, starting from 600 ms and ten
-moves. Playback ships in Core Client UI, which goes out with Core Game
+They start at 600 ms and ten moves, a first guess that Core Client UI's user
+testing tunes. Playback ships in Core Client UI, which goes out with Core Game
 Lifecycle, so moves are never left unpaced.
 
 ## This is delivered in Core Client UI
