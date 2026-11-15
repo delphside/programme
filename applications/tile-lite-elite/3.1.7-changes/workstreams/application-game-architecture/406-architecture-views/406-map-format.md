@@ -192,7 +192,10 @@ A small programme command, on the model's pattern:
 For each package the command builds an extension of the map holding only that
 package's entries, generates a view of its own, and exports it. The view
 includes every element the package's entries name and both ends of every
-relationship entry.
+relationship entry. A Component view draws only the package's own lines, those
+tagged with its `wp:N`, because the as-is map is the place for context (owner,
+2026-11-15); a Container view's lines are implied and untagged, so it keeps
+them all.
 It is a Component view when all the package's components share a container,
 and a Container view otherwise. The command includes the map's own views too
 (item 1 of [What it does not do](#what-it-does-not-do-and-what-fills-the-gap)),
