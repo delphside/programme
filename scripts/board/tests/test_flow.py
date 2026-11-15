@@ -1480,5 +1480,30 @@ class TheLedger(Flow):
                     sources._merged_pulls(sources._Rest(), TLE, since[:10])])
 
 
+class TheLastCompleteRun(Flow):
+    """`board-practices.py` judges the daily sweep by the pinned issue's
+    `Last complete run:` line, read once over REST."""
+
+    def test_the_day_is_the_pinned_bodys(self):
+        self.w.issues[(PRG, 900)]["body"] = "Last complete run: 2026-11-14T12:00:00Z\n\nNothing is stalled.\n"
+        self.expect("the day of the line", "2026-11-14", flow.last_complete_run().isoformat())
+
+    def test_a_missing_issue_is_unavailable(self):
+        del self.w.issues[(PRG, 900)]
+        with self.assertRaises(sources.Unavailable):
+            flow.last_complete_run()
+
+    def test_a_body_with_no_line_is_unavailable(self):
+        self.w.issues[(PRG, 900)]["body"] = "Nothing is stalled.\n"
+        with self.assertRaises(sources.Unavailable):
+            flow.last_complete_run()
+
+    def test_an_unreadable_github_is_unavailable(self):
+        self.w.issues[(PRG, 900)]["body"] = "Last complete run: 2026-11-14T12:00:00Z\n"
+        self.w.fail_reads["/issues?state=open"] = "HTTP 500"
+        with self.assertRaises(sources.Unavailable):
+            flow.last_complete_run()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -5,7 +5,7 @@
 #
 # **Paste it only after Tile Lite Elite's and Dark Portal's pins have moved past
 # the merge that added `board-actions.py --role` and the demand-manager role
-# name** (implementation.md, delivery 2, step 6). Until then the pinned inbox
+# name** (implementation.md: delivery 3, after delivery 2's step 5). Until then the pinned inbox
 # hook overruns its 90 s timeout and the roles line names a command the pin
 # does not have.
 #
@@ -24,9 +24,9 @@
 # The hooks read GitHub through REST, which works from a cloud thread.
 #
 # Which application's hooks run: the one the hook input's `cwd` is in (for a
-# GitHub MCP tool, the one `tool_input.owner` and `repo` name), when it is a
-# repository beside the others with an initialised `programme/` submodule that
-# has the hook; otherwise DEFAULT_APP's. The pinned submodule's copy runs, as in
+# GitHub MCP tool, the repository `tool_input.repo` names when `tool_input.owner`
+# is given too), when it is a repository beside the others with an initialised
+# `programme/` submodule that has the hook; otherwise DEFAULT_APP's. The pinned submodule's copy runs, as in
 # a local session, so the hooks follow each application's pin. For a cwd in
 # another repository (the programme's, or an application without its
 # submodule) the default application's hooks run with GH_REPO set to that
@@ -41,7 +41,9 @@
 #
 # Always exits 0: a non-zero exit would stop every session starting. A
 # settings.json of an unexpected shape is left untouched, and one that is not
-# JSON is copied to settings.json.bak first; both are said on stderr.
+# JSON is copied to settings.json.bak.<UTC time> first (an existing copy is never
+# overwritten); both are said on stderr. A settings.json that is a symlink is
+# written through to its target, and keeps its mode.
 #
 # CLAUDE_USER_DIR (default /root/.claude) is where the settings and the script
 # are written, and CLAUDE_SETUP_NO_PACKAGES skips the libraries; a test sets both.
@@ -65,7 +67,9 @@ INPUT="$(timeout 2 cat 2>/dev/null)"
 IFS=$'\x1e' read -r CWD REPO <<<"$(printf '%s' "$INPUT" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
-repo = (d.get("tool_input") or {}).get("repo") if str(d.get("tool_name") or "").startswith("mcp__") else ""
+tool = d.get("tool_input") or {}
+named = str(d.get("tool_name") or "").startswith("mcp__") and tool.get("owner") and tool.get("repo")
+repo = tool.get("repo") if named else ""
 print("\x1e".join([d.get("cwd") or "", repo if isinstance(repo, str) else ""]))
 ' 2>/dev/null)"
 has_hook() { [ -x "$1/programme/.claude/hooks/$NAME" ]; }
@@ -108,9 +112,11 @@ sed -i "s|@DEFAULT_APP@|$DEFAULT_APP|" "$CLAUDE_USER_DIR/cloud-programme-hook.sh
 chmod +x "$CLAUDE_USER_DIR/cloud-programme-hook.sh" 2>/dev/null || true
 
 python3 - <<'PY' || echo "setup: could not write the user-level settings.json" >&2
-import json, os, shutil, sys
+import json, os, shutil, stat, sys
+from datetime import datetime, timezone
 d = os.environ["CLAUDE_USER_DIR"]
-p = os.path.join(d, "settings.json")
+# Through a symlink to the file it stands for: the link stays a link.
+p = os.path.realpath(os.path.join(d, "settings.json"))
 helper = os.path.join(d, "cloud-programme-hook.sh")
 
 
@@ -123,8 +129,13 @@ if os.path.exists(p):
     try:
         s = json.load(open(p))
     except Exception:
-        shutil.copyfile(p, p + ".bak")
-        say(f"{p} is not JSON: copied to {p}.bak and started afresh")
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        backup, n = f"{p}.bak.{stamp}", 1
+        while os.path.exists(backup):
+            n += 1
+            backup = f"{p}.bak.{stamp}-{n}"
+        shutil.copyfile(p, backup)
+        say(f"{p} is not JSON: copied to {backup} and started afresh")
         s = {}
     if not isinstance(s, dict):
         say(f"{p} is not a JSON object: left untouched, so no hooks were written")
@@ -166,6 +177,8 @@ replace("PreToolUse", "cloud-programme-hook.sh", [
 tmp = p + ".tmp"
 with open(tmp, "w") as f:
     json.dump(s, f, indent=2)
+if os.path.exists(p):
+    os.chmod(tmp, stat.S_IMODE(os.stat(p).st_mode))
 os.replace(tmp, p)
 PY
 

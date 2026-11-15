@@ -539,7 +539,7 @@ class TheCommentReadPagesByHand(Cases):
     def row(n):
         return f"{n}\t2026-11-15T10:00\towner\ttext {n}\t2026-11-15T10:00:00\t{n}"
 
-    def read(self, pages, timeout=30):
+    def read(self, pages, timeout=30, path="issues/comments?since=x"):
         calls = []
 
         def fake(args, **kw):
@@ -549,8 +549,7 @@ class TheCommentReadPagesByHand(Cases):
 
         with mock.patch.object(sources.subprocess, "run", fake), \
                 mock.patch.object(sources, "_repository", lambda: ("fakeorg", "widget")):
-            got = sources._read_remarks("issues/comments?since=x&per_page=100", "comments",
-                                        "issue_url", False, timeout)
+            got = sources._read_remarks(path, "comments", "issue_url", False, timeout)
         return got, calls
 
     def test_page_two_is_read_by_the_repos_path_and_never_paginated(self):
@@ -569,12 +568,90 @@ class TheCommentReadPagesByHand(Cases):
         self.expect("one call", 1, len(calls))
 
     def test_the_timeout_is_for_the_whole_read(self):
-        full = [self.row(i) for i in range(100)]
-        _, calls = self.read({1: full, 2: full, 3: []}, timeout=30)
-        self.expect("a page gets what is left, never more than the whole",
-                    True, all(0 < c[1]["timeout"] <= 30 for c in calls))
-        self.expect("and it shrinks", True,
-                    calls[0][1]["timeout"] >= calls[2][1]["timeout"])
+        """Each page costs 10 s of a mocked clock: with 25 s for the read, page 2
+        gets 15 s, page 3 gets 5 s, and a fourth page is never asked for."""
+        clock = [1000.0]
+        timeouts = []
+
+        def fake(args, **kw):
+            timeouts.append(kw["timeout"])
+            clock[0] += 10
+            return subprocess.CompletedProcess(
+                [], 0, "\n".join(self.row(i) for i in range(100)) + "\n", "")
+
+        with mock.patch.object(sources.subprocess, "run", fake), \
+                mock.patch.object(sources.time, "monotonic", lambda: clock[0]), \
+                mock.patch.object(sources, "_repository", lambda: ("fakeorg", "widget")):
+            with self.assertRaises(Unavailable) as caught:
+                sources._read_remarks("issues/comments?since=x", "comments",
+                                      "issue_url", False, 25)
+        self.expect("each page gets what is left", [25, 15, 5], timeouts)
+        self.expect("and the read says it timed out", True, "timed out" in str(caught.exception))
+
+    def test_the_page_size_is_asked_for_by_the_read_itself(self):
+        _, calls = self.read({1: [self.row(1)]}, path="issues/comments?since=x")
+        self.expect("per_page is PAGE_SIZE", True,
+                    f"per_page={sources.PAGE_SIZE}&page=1" in calls[0][0][2])
+
+
+class TheRestSnapshotReadsItemsTogether(Cases):
+    """`_rest_fetch` reads each issue's own sub-issues and dependencies, a few at
+    a time, in the listing's order."""
+
+    def issues(self, n):
+        return [{"number": i, "title": f"t{i}", "state": "open",
+                 "sub_issues_summary": {"total": 1}} for i in range(1, n + 1)]
+
+    def fetch(self, listing, sub_read):
+        class Rest(sources._Rest):
+            def items(self, path):
+                if path.endswith("/sub_issues"):
+                    return iter(sub_read(path))
+                return iter(listing)
+
+            def list(self, path):
+                return list(self.items(path))
+
+            def _read(self, path, url):
+                with self._lock:
+                    self.pages += 1
+                return []
+
+        with mock.patch.object(sources, "_Rest", Rest), \
+                mock.patch.object(sources, "_repository", lambda: ("fakeorg", "widget")):
+            return sources._rest_fetch("OPEN", False, False, "OPEN")
+
+    def test_order_is_the_listings_and_every_item_is_read(self):
+        import threading
+        seen, gate = [], threading.Barrier(2, timeout=5)
+
+        def sub_read(path):
+            seen.append(path)
+            if len(seen) <= 2:
+                gate.wait()             # two reads must be under way together
+            return []
+
+        got, _ = self.fetch(self.issues(6), sub_read)
+        self.expect("the listing's order", [1, 2, 3, 4, 5, 6], [i.number for i in got])
+        self.expect("each issue's sub-issues read once", 6, len(seen))
+
+    def test_a_failed_item_read_fails_the_whole_fetch(self):
+        def sub_read(path):
+            if path.endswith("/issues/3/sub_issues"):
+                raise Unavailable("GitHub refused")
+            return []
+
+        with self.assertRaises(Unavailable):
+            self.fetch(self.issues(6), sub_read)
+
+    def test_pages_are_counted_exactly_under_threads(self):
+        rest = sources._Rest()
+        with mock.patch.object(sources.subprocess, "run",
+                               lambda *a, **k: subprocess.CompletedProcess([], 0, "{}", "")):
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=16) as pool:
+                list(pool.map(lambda _: rest.get("x"), range(800)))
+        self.expect("every read counted", 800, rest.pages)
 
 
 if __name__ == "__main__":

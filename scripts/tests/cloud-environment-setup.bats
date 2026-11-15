@@ -63,15 +63,46 @@ hook_run() {
   assert_output "('x', 1, 2, 1)"
 }
 
-@test "a settings file that is not JSON is copied to settings.json.bak, and said on stderr" {
+@test "a settings file that is not JSON is copied to settings.json.bak.<time>, and said on stderr" {
   mkdir -p "$CLAUDE_USER_DIR"
   echo 'not json' > "$CLAUDE_USER_DIR/settings.json"
   run --separate-stderr "$SETUP"
   assert_success
-  assert_equal "$(cat "$CLAUDE_USER_DIR/settings.json.bak")" "not json"
-  [[ "$stderr" == *"settings.json.bak"* ]]
+  local bak=("$CLAUDE_USER_DIR"/settings.json.bak.*)
+  assert_equal "${#bak[@]}" 1
+  assert_equal "$(cat "${bak[0]}")" "not json"
+  [[ "$stderr" == *"${bak[0]}"* ]]
   run hooks 'len(s["hooks"]["PreToolUse"])'
   assert_output 1
+}
+
+@test "an existing backup is never overwritten: a second bad file gets a backup of its own" {
+  mkdir -p "$CLAUDE_USER_DIR"
+  echo 'first' > "$CLAUDE_USER_DIR/settings.json.bak"
+  echo 'not json' > "$CLAUDE_USER_DIR/settings.json"
+  "$SETUP"
+  echo 'also not json' > "$CLAUDE_USER_DIR/settings.json"
+  "$SETUP"
+  assert_equal "$(cat "$CLAUDE_USER_DIR/settings.json.bak")" "first"
+  local bak=("$CLAUDE_USER_DIR"/settings.json.bak.*)
+  assert_equal "${#bak[@]}" 2
+  run cat "${bak[@]}"
+  assert_output --partial "also not json"
+  assert_output --partial "not json"
+}
+
+@test "a settings.json that is a symlink stays one, its target is written, and its mode is kept" {
+  mkdir -p "$CLAUDE_USER_DIR" "$BATS_TEST_TMPDIR/real"
+  echo '{"model": "keep"}' > "$BATS_TEST_TMPDIR/real/settings.json"
+  chmod 600 "$BATS_TEST_TMPDIR/real/settings.json"
+  ln -s "$BATS_TEST_TMPDIR/real/settings.json" "$CLAUDE_USER_DIR/settings.json"
+  run "$SETUP"
+  assert_success
+  [ -L "$CLAUDE_USER_DIR/settings.json" ]
+  run python3 -c 'import json,sys; s=json.load(open(sys.argv[1])); print(s["model"], len(s["hooks"]["PreToolUse"]))' "$BATS_TEST_TMPDIR/real/settings.json"
+  assert_output "keep 1"
+  run stat -c %a "$BATS_TEST_TMPDIR/real/settings.json"
+  assert_output 600
 }
 
 @test "a settings file of the wrong shape is left untouched, and said on stderr" {
@@ -92,8 +123,15 @@ hook_run() {
   run ls "$CLAUDE_USER_DIR"
   refute_output --partial "settings.json.tmp"
   assert_output --partial "settings.json"
-  run grep -c "os.replace" "$SETUP"
-  assert_output 1
+}
+
+@test "a write that fails part-way leaves the settings whole" {
+  mkdir -p "$CLAUDE_USER_DIR/settings.json.tmp"      # the temporary file cannot be created
+  echo '{"model": "keep"}' > "$CLAUDE_USER_DIR/settings.json"
+  run --separate-stderr "$SETUP"
+  assert_success
+  assert_equal "$(cat "$CLAUDE_USER_DIR/settings.json")" '{"model": "keep"}'
+  [[ "$stderr" == *"could not write"* ]]
 }
 
 @test "the hook runs the pinned programme of the repository the input's cwd is in, with the input" {
@@ -154,6 +192,8 @@ hook_run() {
   hook_run '{"cwd": "@WS@/one", "tool_name": "mcp__github__add_issue_comment", "tool_input": {"owner": "x", "repo": "two"}}'
   assert_output --partial "two  GH_REPO=unset"
   hook_run '{"cwd": "@WS@/one", "tool_name": "mcp__github__add_issue_comment", "tool_input": {"owner": "x"}}'
+  assert_output --partial "one  GH_REPO=unset"
+  hook_run '{"cwd": "@WS@/one", "tool_name": "mcp__github__add_issue_comment", "tool_input": {"repo": "two"}}'
   assert_output --partial "one  GH_REPO=unset"
 }
 

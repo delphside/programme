@@ -37,7 +37,7 @@ import os
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from board import records  # noqa: E402
+from board import flow, profile, records, sources  # noqa: E402
 
 # Overridable for the test, which reads a real table and a real CSV rather
 # than stubbing the parser — the same reasoning `CI_STATUS` and `SYNC_PR_STATE`
@@ -47,18 +47,28 @@ REGISTER: Path
 LOG: Path
 
 
+def _pinned_run() -> date:
+    """`PINNED_RUN_OVERRIDE` stands for the pinned issue in the test, as the two
+    overrides above stand for the register and the log: a date, or `unreadable`."""
+    given = os.environ.get("PINNED_RUN_OVERRIDE")
+    if given is None:
+        return flow.last_complete_run()
+    if given == "unreadable":
+        raise sources.Unavailable("GitHub could not be read")
+    return date.fromisoformat(given)
+
+
 def _locate() -> None:
     global REGISTER, LOG
     reg, log = os.environ.get("REGISTER_OVERRIDE"), os.environ.get("LOG_OVERRIDE")
     REGISTER = Path(reg) if reg else records.activity_register()
     LOG = Path(log) if log else records.activity_log()
 
-# An activity whose record is not the log: the daily sweep writes its
+# The one activity whose record is not the log: the daily sweep writes its
 # `Last complete run:` line into the pinned issue (flow.py), so it is judged
-# there and never read as "never logged" here.
-RECORDED_ELSEWHERE = {
-    "board-flow": "the pinned issue's `Last complete run:` line",
-}
+# from that line and never read as "never logged" here. The register's row
+# says where (docs/1.4).
+IN_PINNED_ISSUE = "board-flow"
 
 _ROW = re.compile(
     r"^\|\s*`([\w-]+)`\s*\|([^|]*)\|\s*(\d+)\s*\|([^|]*)\|([^|]*)\|([^|]*)\|",
@@ -73,14 +83,14 @@ class Activity:
     frequency_days: int
     owner: str
     last: date | None
-    elsewhere: str | None = None
+    unread: str | None = None
 
     @property
     def overdue_by(self) -> int | None:
         """Days past due. `None` for something never logged — a separate case
         from a number, because *never done* and *not yet due* must not read
         alike."""
-        if self.last is None or self.elsewhere:
+        if self.last is None:
             return None
         return (date.today() - self.last).days - self.frequency_days
 
@@ -115,15 +125,24 @@ def last_actioned() -> dict[str, date]:
 
 def activities() -> list[Activity]:
     logged = last_actioned()
-    return [Activity(aid, name, freq, owner, logged.get(aid), RECORDED_ELSEWHERE.get(aid))
-            for aid, name, freq, owner in register()]
+    out = []
+    for aid, name, freq, owner in register():
+        last, unread = logged.get(aid), None
+        if aid == IN_PINNED_ISSUE:
+            try:
+                last = _pinned_run()
+            except (sources.Unavailable, profile.ProfileError) as exc:
+                last, unread = None, str(exc) or "the programme file could not be read"
+        out.append(Activity(aid, name, freq, owner, last, unread))
+    return out
 
 
 def render(items: list[Activity]) -> str:
     lines = []
     for a in items:
-        if a.elsewhere:
-            status = f"recorded in {a.elsewhere}, not judged here"
+        if a.unread:
+            status = (f"could not read the pinned issue's `Last complete run:` line "
+                      f"({a.unread}), not judged")
         elif a.last is None:
             status = "never logged"
         else:
@@ -157,13 +176,13 @@ def main() -> int:
 
     items = activities()
     overdue = [a for a in items
-               if not a.elsewhere and (a.last is None or (a.overdue_by or 0) > 0)]
+               if not a.unread and (a.last is None or (a.overdue_by or 0) > 0)]
 
     if args.json:
         print(json.dumps([
             {"id": a.id, "name": a.name, "frequency_days": a.frequency_days,
              "owner": a.owner, "last": a.last.isoformat() if a.last else None,
-             "overdue_by": a.overdue_by, "recorded_elsewhere": a.elsewhere}
+             "overdue_by": a.overdue_by, "unread": a.unread}
             for a in items
         ], indent=2))
     else:

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
@@ -452,9 +453,10 @@ def _read_remarks(path: str, what: str, url_key: str, on_diff: bool,
         if left <= 0:
             raise Unavailable(f"could not read {what}: timed out after {timeout}s")
         sep = "&" if "?" in path else "?"
+        url = f"repos/{'/'.join(_repository())}/{path}{sep}per_page={PAGE_SIZE}&page={page}"
         try:
             run = subprocess.run(
-                ["gh", "api", f"repos/{'/'.join(_repository())}/{path}{sep}page={page}",
+                ["gh", "api", url,
                  "--jq", comment_jq(url_key)],
                 capture_output=True, text=True, timeout=left)
         except (OSError, subprocess.TimeoutExpired) as exc:
@@ -522,7 +524,7 @@ def comments_since(since_iso: str) -> tuple[Remark, ...]:
         ("pulls/comments", "pull_request_url", True),
     ):
         out.extend(_read_remarks(
-            f"{endpoint}?since={since_iso}&sort=updated&direction=asc&per_page=100",
+            f"{endpoint}?since={since_iso}&sort=updated&direction=asc",
             endpoint, url_key, on_diff, 90))
     return tuple(sorted(out, key=lambda r: (r.number, r.when)))
 
@@ -535,10 +537,10 @@ def comments_on(number: int, pull_request: bool = False) -> tuple[Remark, ...]:
     read reads**, through `_read_remarks`: the conversation, and for a pull
     request (`pull_request`, which `one_item` says) the comments on its diff.
     """
-    out = _read_remarks(f"issues/{number}/comments?per_page=100",
+    out = _read_remarks(f"issues/{number}/comments",
                         f"comments on #{number}", "issue_url", False, 30)
     if pull_request:
-        out += _read_remarks(f"pulls/{number}/comments?per_page=100",
+        out += _read_remarks(f"pulls/{number}/comments",
                              f"diff comments on #{number}", "pull_request_url", True, 30)
     return tuple(sorted(out, key=lambda r: r.created or r.when))
 
@@ -1161,6 +1163,7 @@ class _Rest:
 
     def __init__(self) -> None:
         self.pages = 0
+        self._lock = threading.Lock()
 
     def _read(self, path: str, url: str):
         try:
@@ -1174,7 +1177,8 @@ class _Rest:
             data = json.loads(run.stdout)
         except json.JSONDecodeError as exc:
             raise Unavailable(f"GitHub returned no JSON for {path}: {exc}") from exc
-        self.pages += 1
+        with self._lock:
+            self.pages += 1
         return data
 
     def get(self, path: str) -> dict:
@@ -1329,9 +1333,14 @@ def _rest_fetch(states: str, with_bodies: bool, with_pull_requests: bool,
     carries them, so nothing the snapshot holds is missing."""
     owner, repo = _repository()
     rest = _Rest()
-    issues = [_rest_to_raw(rest, owner, repo, n)
-              for n in rest.items(f"repos/{owner}/{repo}/issues?state={'open' if states == 'OPEN' else 'closed'}")
-              if "pull_request" not in n]
+    listing = [n for n in rest.items(
+        f"repos/{owner}/{repo}/issues?state={'open' if states == 'OPEN' else 'closed'}")
+        if "pull_request" not in n]
+    # Each issue's own reads (sub-issues, dependencies) are independent, so
+    # they run `read_workers` at a time; `map` keeps the listing's order and
+    # raises the first failed read, which fails the whole fetch.
+    with ThreadPoolExecutor(max_workers=_flow_setting("read_workers")) as pool:
+        issues = list(pool.map(lambda n: _rest_to_raw(rest, owner, repo, n), listing))
     if not with_bodies:
         issues = [replace(i, body="") for i in issues]
     if with_pull_requests and states == "OPEN":
@@ -1474,6 +1483,16 @@ def issue_titled(title: str) -> bool:
     read; a pull request is listed with the issues and is not one."""
     return any(i.get("title") == title and i.get("pull_request") is None
                for i in _Rest().items(_repo_path("issues?state=all")))
+
+
+def open_issue_titled(repo: str, title: str) -> dict | None:
+    """The open issue of `repo` (`owner/name`) with exactly this title, as
+    REST gives it, or None. Pages are read until it is found; a pull request is
+    listed with the issues and is not one."""
+    for issue in _Rest().items(f"repos/{repo}/issues?state=open"):
+        if issue.get("title") == title and issue.get("pull_request") is None:
+            return issue
+    return None
 
 
 def create_issue(title: str, body: str) -> None:

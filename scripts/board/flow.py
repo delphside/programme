@@ -127,6 +127,7 @@ def days(delta: timedelta) -> float:
 
 _LEDGER = re.compile(r"<!-- board-flow-ledger\n(.*?)\n-->\n?", re.DOTALL)
 LAST_RUN = re.compile(r"(?m)^Last complete run: ")
+_LAST_RUN_STAMP = re.compile(r"(?m)^Last complete run: (\d{4}-\d{2}-\d{2})T[\d:]+Z")
 
 
 @dataclass(frozen=True)
@@ -868,6 +869,21 @@ def find_pinned(observed: Sequence[Observed]) -> Observed | None:
                 and o.raw.title == STALLED_LIST_TITLE):
             return o
     return None
+
+
+def last_complete_run(board=sources) -> date:
+    """The day of the daily sweep's last complete run, from the `Last complete
+    run:` line of the pinned issue's body: the one read `board-practices.py`
+    judges the activity `board-flow` by. Raises `Unavailable` where GitHub
+    cannot be read, the issue is missing, or it holds no such line."""
+    repo = programme_repository()
+    issue = board.open_issue_titled(repo, STALLED_LIST_TITLE)
+    if issue is None:
+        raise Unavailable(f"there is no open issue titled {STALLED_LIST_TITLE!r} in {repo}")
+    found = _LAST_RUN_STAMP.search(issue.get("body") or "")
+    if found is None:
+        raise Unavailable(f"{repo}#{issue.get('number')} has no `Last complete run:` line")
+    return date.fromisoformat(found.group(1))
 
 
 def field_ids(observed: Sequence[Observed]) -> dict[str, int]:
