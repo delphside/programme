@@ -446,10 +446,11 @@ the `positions` it filled:
   presentation state. When a state arrives with more moves, `shown_moves`
   steps forward one move at a time, holding each for the playback interval.
 - The board drawn is the server's board with the cells of every move after
-  `shown_moves` left empty. Each seat's score is the sum of its `score_delta`
-  up to `shown_moves`; once caught up, the server's scores are shown, which
-  carry the end-of-game rack adjustment that no move records. Both are derived
-  on render, so a state that arrives mid-playback only lengthens the queue.
+  `shown_moves` left empty, and each seat's score is the sum of its
+  `score_delta` up to `shown_moves`, which holds because
+  [every score change is a move record](71-05b-wire-types.md#every-score-change-is-a-move-record).
+  Both are derived on render, so a state that arrives mid-playback only
+  lengthens the queue.
 - **just played** marks the cells of move `shown_moves`, not of `moves.last()`.
 - While the queue is behind, the viewer cannot stage, so a player never stages
   against a past board. A viewer's own move is drawn at once.
