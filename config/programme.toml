@@ -31,6 +31,17 @@ bot = "github-actions"
 # How the hook messages name the owner.
 owner_name = "Steve"
 
+[comments]
+# Comments made before this date are never a to-do: Claude's account began on
+# 2026-08-25, so an earlier comment was never Claude's to answer (owner,
+# 2026-11-13). Read by `board/inbox.py`.
+to_do_floor = "2026-08-25"
+# How long after a denied comment the same post to the same issue is allowed, in
+# minutes: ample to read the reason and rewrite the comment within a turn (owner,
+# 2026-11-13). No measurement behind it; revisit if a retry is ever denied for
+# being late. Read by `.claude/hooks/comment-check.sh`.
+retry_minutes = 10
+
 [programme]
 # The programme repository, the default place of its live checkout relative to
 # an application's main worktree, and the submodule path in an application.

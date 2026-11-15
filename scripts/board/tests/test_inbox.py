@@ -9,7 +9,11 @@ import unittest
 
 from .cases import Cases
 
-from board.inbox import build, render, render_waiting, unanswered, waiting_for_claude
+from unittest import mock
+
+from board import inbox as inbox_module
+from board import sources
+from board.inbox import build, read_waiting, render, render_waiting, unanswered, waiting_for_claude
 from board.model import RawIssue
 from board.sources import Remark, Report
 
@@ -111,9 +115,10 @@ class WaitingForClaude(Cases):
             self.expect(f"{who} after a question", 1, len(unanswered((
                 say(7, "2026-10-01T09:00", "owner"), say(7, "2026-10-01T10:00", who)))))
 
-    def test_there_is_no_time_limit(self):
-        self.expect("a year-old question is still open", 1,
-                    len(unanswered((say(7, "2025-10-01T09:00", "owner"),))))
+    def test_there_is_no_time_limit_after_the_floor(self):
+        # The floor, 2026-08-25, is the only limit: a to-do is not forgotten by age.
+        self.expect("a question from the first day after the floor is still open", 1,
+                    len(unanswered((say(7, "2026-08-26T09:00", "owner"),))))
 
     def test_an_edit_does_not_reopen_an_answered_comment(self):
         # `when` is the updated time; the order is by when each was first written.
@@ -127,16 +132,6 @@ class WaitingForClaude(Cases):
         issues = [issue(7, state="OPEN"), issue(8, state="CLOSED"), issue(9, state="MERGED")]
         self.expect("only the open one", [7], [t.number for t in waiting_for_claude(issues, r)])
 
-    def test_newest_last_and_capped_with_a_count(self):
-        threads = waiting_for_claude(
-            [issue(n) for n in range(1, 16)],
-            tuple(say(n, f"2026-10-01T{n:02d}:00", "owner", f"q{n}") for n in range(1, 16)))
-        self.expect("oldest first, newest last", [1, 15], [threads[0].number, threads[-1].number])
-        text = render_waiting(threads, colour=False)
-        self.expect("twelve shown", 12, text.count("\n  > ") + (1 if text.startswith("  > ") else 0))
-        self.expect("the count of the rest is said", True, "...3 earlier" in text)
-        self.expect("uncapped on request", False, "earlier" in render_waiting(threads, colour=False, limit=99))
-
     def test_each_shows_the_first_words(self):
         text = render_waiting(waiting_for_claude(
             [issue(7, "seven")], (say(7, "2026-10-01T09:00", "owner", "x" * 400),)), colour=False)
@@ -145,6 +140,186 @@ class WaitingForClaude(Cases):
     def test_nothing_waiting_says_so(self):
         self.expect("a sentence, not an empty list", "nothing from the owner is waiting for an answer",
                     render_waiting((), colour=False))
+
+
+def comment_world(rows):
+    """Remarks and open issues for `rows` of (issue, minutes after 2026-10-01T00:00, text)."""
+    remarks = tuple(say(n, f"2026-10-01T{m // 60:02d}:{m % 60:02d}", "owner", text)
+                    for n, m, text in rows)
+    return [issue(n, f"title {n}") for n in sorted({r[0] for r in rows})], remarks
+
+
+def shown(text):
+    return [l for l in text.splitlines() if l.startswith("  > ")]
+
+
+class TheTodoList(Cases):
+    """#455-R1, R4, R10: the floor, the cap and what a line says (R15 of
+    delphside/programme#176; the owner's answers of 2026-11-13)."""
+
+    def test_comments_before_claudes_account_are_not_to_dos(self):
+        """S44: the floor is 2026-08-25, to the second, and a setting."""
+        remarks = (say(7, "2026-08-24T23:59", "owner", "before"),
+                   say(7, "2026-08-25T00:00", "owner", "at the floor"),
+                   say(7, "2026-08-25T00:01", "owner", "after"))
+        threads = waiting_for_claude([issue(7)], remarks)
+        self.expect("the floor comment and the one after, not the one before",
+                    ["at the floor", "after"], [r.text for r in threads[0].remarks])
+
+        import tempfile, pathlib
+        from board.tests.profiles import CONFIG, using
+        with tempfile.TemporaryDirectory() as d:
+            moved = pathlib.Path(d) / "programme.toml"
+            moved.write_text(CONFIG.read_text().replace('to_do_floor = "2026-08-25"',
+                                                        'to_do_floor = "2026-08-25T00:01"'))
+            with using(config=moved):
+                threads = waiting_for_claude([issue(7)], remarks)
+        self.expect("the floor is the setting's, not a built-in date", ["after"],
+                    [r.text for r in threads[0].remarks])
+
+    def test_an_edit_does_not_bring_back_a_comment_from_before_the_floor(self):
+        edited = Remark(7, "2026-10-01T09:00", "owner", "old", False, "2026-08-01T09:00:00")
+        self.expect("it was made before the floor", (), unanswered((edited,)))
+
+    def test_cap_bounds_lines_and_counts_the_rest(self):
+        """S47: the cap counts comments; the oldest show, oldest first."""
+        rows = [(1, m, f"c{m}") for m in range(1, 25)]           # 24 on issue 1, minutes 1..24
+        rows += [(n, 24 + k, f"c{24 + k}") for k, n in enumerate((2, 2, 3, 4, 5, 6), 1)]
+        issues, remarks = comment_world(rows)
+        text = render_waiting(waiting_for_claude(issues, remarks), colour=False)
+        lines = shown(text)
+        self.expect("twelve lines, not twelve issues", 12, len(lines))
+        self.expect("the oldest twelve, oldest first", [f"c{m}" for m in range(1, 13)],
+                    [l.split("  ")[-1] for l in lines])
+        left = rows[12:]
+        self.expect("the rest, counted from the world", f"...{len(left)} more on "
+                    f"{len({r[0] for r in left})} issues (board-inbox.py --open --all)",
+                    text.splitlines()[-1])
+        self.expect("uncapped on request", 30,
+                    len(shown(render_waiting(waiting_for_claude(issues, remarks), colour=False, limit=99))))
+
+        issues, remarks = comment_world([(1, m, f"c{m}") for m in range(1, 13)])
+        text = render_waiting(waiting_for_claude(issues, remarks), colour=False)
+        self.expect("exactly twelve: twelve lines and no further line", (12, 12),
+                    (len(shown(text)), len(text.splitlines())))
+        issues, remarks = comment_world([(1, m, f"c{m}") for m in range(1, 13)] + [(2, 13, "c13")])
+        text = render_waiting(waiting_for_claude(issues, remarks), colour=False)
+        self.expect("thirteen: twelve lines and the count", (12, "...1 more on 1 issue (board-inbox.py --open --all)"),
+                    (len(shown(text)), text.splitlines()[-1]))
+
+    def test_to_do_line_shows_when_the_comment_was_made(self):
+        """S52: not when it was edited."""
+        edited = Remark(7, "2026-10-09T17:30", "owner", "asked", False, "2026-10-01T09:15:42")
+        text = render_waiting(waiting_for_claude([issue(7, "seven")], (edited,)), colour=False)
+        self.expect("the creation time, to the minute", True, "2026-10-01T09:15  " in text)
+        self.expect("not the edit's", False, "2026-10-09" in text)
+
+    def test_a_line_names_its_issue_title_and_diff(self):
+        diff = Remark(8, "2026-10-01T09:00", "owner", "rename this", True, "2026-10-01T09:00:00")
+        text = render_waiting(waiting_for_claude([issue(8, "the pull request")], (diff,)), colour=False)
+        self.expect("number, title, diff mark and words", True,
+                    "#8  the pull request  (review) rename this" in text)
+
+
+class FakeGitHub:
+    """`gh api` as the board reads it: canned rows in place of jq's output."""
+
+    def __init__(self, issues, comments, diff_comments, pull_requests=()):
+        self.issues, self.comments, self.diff_comments = issues, comments, diff_comments
+        self.pull_requests = set(pull_requests)
+        self.calls = []
+        self.real = __import__("subprocess").run
+
+    def id_of(self, row):
+        return 1000 + (self.comments + self.diff_comments).index(row)
+
+    def run(self, args, **kwargs):
+        if args[0] != "gh":
+            return self.real(args, **kwargs)
+        path = args[2].split("?")[0]
+        self.calls.append(path)
+        rows, import_json = [], False
+        tail = path.split("repos/fakeorg/widget/")[-1]
+        if tail == "issues/comments":
+            rows = self.comments
+        elif tail == "pulls/comments":
+            rows = self.diff_comments
+        elif tail.endswith("/comments") and tail.startswith("issues/"):
+            rows = [r for r in self.comments if r[0] == int(tail.split("/")[1])]
+        elif tail.endswith("/comments") and tail.startswith("pulls/"):
+            rows = [r for r in self.diff_comments if r[0] == int(tail.split("/")[1])]
+        elif tail.startswith("issues/"):
+            n = int(tail.split("/")[1])
+            node = {"number": n, "title": self.issues[n][0], "state": self.issues[n][1]}
+            if n in self.pull_requests:
+                node["pull_request"] = {}
+            return mock.Mock(returncode=0, stdout=__import__("json").dumps(node), stderr="")
+        out = "".join("\t".join([str(r[0]), r[1][:16], "owner", r[2], r[1], str(self.id_of(r))]) + "\n"
+                      for r in rows)
+        return mock.Mock(returncode=0, stdout=out, stderr="")
+
+
+class OneIssueFollowsTheBoard(Cases):
+
+    def read(self, world, issue_number=None):
+        snapshot = lambda issues: mock.Mock(issues=tuple(
+            inbox_module.RawIssue(n, t, st, "", "Requirement", {}, (), None, None, frozenset())
+            for n, (t, st) in issues.items()))
+        with mock.patch.object(sources.subprocess, "run", world.run), \
+             mock.patch.object(inbox_module, "fetch",
+                               lambda states, **kw: snapshot({n: v for n, v in world.issues.items()
+                                                              if v[1] == states})):
+            return render_waiting(read_waiting(issue_number), colour=False, ids=True)
+
+    def test_one_issue_follows_the_same_rules_and_reads_as_the_board(self):
+        """S46: the open-issues rule and the diff comments, on both paths."""
+        world = FakeGitHub(
+            issues={5: ("an open issue", "OPEN"), 6: ("a closed issue", "CLOSED"),
+                    8: ("a pull request", "OPEN")},
+            comments=[(5, "2026-10-01T09:00:00", "plain ask"), (6, "2026-10-01T09:00:00", "closed ask"),
+                      (8, "2026-10-01T10:00:00", "conversation ask")],
+            diff_comments=[(8, "2026-10-01T11:00:00", "diff ask")],
+            pull_requests=[8])
+        self.expect("a closed issue gives nothing", "nothing from the owner is waiting for an answer",
+                    self.read(world, 6))
+        one = self.read(world, 8)
+        board = self.read(world)
+        self.expect("the diff comment is listed, with the title", True,
+                    "#8  a pull request  (review) diff ask" in one)
+        self.expect("and so is the conversation", True, "conversation ask" in one)
+        self.expect("every line of the one-issue read is on the board-wide read", [],
+                    [l for l in shown(one) if l not in shown(board)])
+        self.expect("the board-wide read has no closed issue's comment", False, "closed ask" in board)
+
+    def test_a_plain_issue_is_not_asked_for_diff_comments(self):
+        world = FakeGitHub({5: ("an issue", "OPEN")}, [(5, "2026-10-01T09:00:00", "ask")], [])
+        self.read(world, 5)
+        self.expect("pulls/5/comments does not exist for an issue", False,
+                    any("pulls/5/comments" in c for c in world.calls))
+
+
+class FlagsThatQualifyOpen(Cases):
+
+    def board_inbox(self, *args):
+        import os, pathlib, stat, subprocess, tempfile
+        script = pathlib.Path(__file__).resolve().parents[1] / "board-inbox.py"
+        with tempfile.TemporaryDirectory() as d:
+            gh = pathlib.Path(d) / "gh"
+            gh.write_text("#!/bin/sh\necho 'no network in tests' >&2\nexit 1\n")
+            gh.chmod(gh.stat().st_mode | stat.S_IEXEC)
+            return subprocess.run([str(script), *args], capture_output=True, text=True,
+                                  env={**os.environ, "PATH": f"{d}:{os.environ['PATH']}"})
+
+    def test_issue_or_all_without_open_is_refused(self):
+        """S51: refused naming the flag, not ignored; then accepted with --open."""
+        for args, flag in ((("--issue", "5"), "--issue"), (("--all",), "--all"), (("--ids",), "--ids")):
+            run = self.board_inbox(*args)
+            self.expect(f"{flag} alone: usage error", 2, run.returncode)
+            self.expect(f"{flag} alone: names the missing flag", True, f"{flag} needs --open" in run.stderr)
+        for args in (("--open", "--issue", "5"), ("--open", "--all")):
+            run = self.board_inbox(*args)
+            self.expect(f"{' '.join(args)}: accepted, and failing on the read it was refused", 1, run.returncode)
+            self.expect("with the read's message", True, "board-inbox:" in run.stderr)
 
 
 class WhoTypedIt(Cases):

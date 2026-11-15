@@ -20,7 +20,11 @@ from typing import Sequence
 
 from . import profile
 from .model import Issue, RawIssue, classify
-from .sources import Remark, Report
+from .sources import Remark, Report, comments_on, comments_since, fetch, one_item
+
+# How many comments the to-do list shows. The cap counts comments, so it bounds
+# the lines shown; the rest are counted in one line (owner, 2026-11-13).
+CAP = 12
 
 
 @dataclass(frozen=True)
@@ -109,8 +113,15 @@ def _at(r: Remark) -> str:
     return r.created or r.when
 
 
-def unanswered(remarks: Sequence[Remark]) -> tuple[Remark, ...]:
-    """The owner's comments that Claude has not answered, however old.
+def to_do_floor() -> str:
+    """The date before which no comment is a to-do: the programme file's
+    `comments.to_do_floor`. Claude's account began on 2026-08-25, so an earlier
+    comment was never Claude's to answer (owner, 2026-11-13)."""
+    return profile.programme_file().string("comments.to_do_floor")
+
+
+def unanswered(remarks: Sequence[Remark], floor: str | None = None) -> tuple[Remark, ...]:
+    """The owner's comments that Claude has not answered, from the floor on.
 
     **Answered means a later comment from Claude on the same issue.** An
     automatic comment is not an answer -- `deploy.sh`'s announcement is read as
@@ -118,21 +129,30 @@ def unanswered(remarks: Sequence[Remark]) -> tuple[Remark, ...]:
     cannot hide a question. Owner, 2026-10-01 (#454). Ordered by when it was
     first written, not edited, so correcting a comment does not reopen it. A
     reply at the same second counts as an answer: nothing can order them.
+
+    **A comment made before the floor is never a to-do** (`to_do_floor`), by
+    the time it was first written, so an edit does not bring it back.
     """
+    floor = floor or to_do_floor()
     last_answer: dict[int, str] = {}
     for r in remarks:
         if r.who == "claude":
             last_answer[r.number] = max(last_answer.get(r.number, ""), _at(r))
     return tuple(r for r in remarks
-                 if r.who == "owner" and _at(r) > last_answer.get(r.number, ""))
+                 if r.who == "owner" and _at(r) >= floor
+                 and _at(r) > last_answer.get(r.number, ""))
 
 
-def waiting_for_claude(issues: Sequence[RawIssue], remarks: Sequence[Remark]) -> tuple[Thread, ...]:
-    """One thread per open issue holding unanswered comments, the one most
-    recently asked on last, so a cap that drops the front drops the oldest."""
+def waiting_for_claude(issues: Sequence[RawIssue], remarks: Sequence[Remark],
+                       floor: str | None = None) -> tuple[Thread, ...]:
+    """One thread per open issue holding unanswered comments, the one waiting
+    longest first.
+
+    **The open-issues rule lives here, for both callers**: the board-wide read
+    and the read of one issue (`read_waiting`) both end in this function."""
     by_number: dict[int, RawIssue] = {i.number: i for i in issues}
     grouped: dict[int, list[Remark]] = {}
-    for r in unanswered(remarks):
+    for r in unanswered(remarks, floor):
         grouped.setdefault(r.number, []).append(r)
     threads = []
     for number, rs in grouped.items():
@@ -145,35 +165,67 @@ def waiting_for_claude(issues: Sequence[RawIssue], remarks: Sequence[Remark]) ->
         typed: Issue | None = classify(raw) if raw else None
         threads.append(Thread(number, raw.title if raw else "",
                               type(typed).__name__ if typed else None,
-                              typed.step if typed else None, tuple(rs)))
-    return tuple(sorted(threads, key=lambda t: _at(t.remarks[-1])))
+                              typed.step if typed else None,
+                              tuple(sorted(rs, key=_at))))
+    return tuple(sorted(threads, key=lambda t: (_at(t.remarks[0]), t.number)))
+
+
+def read_waiting(issue: int | None = None) -> tuple[Thread, ...]:
+    """What the owner is waiting on, from GitHub: the whole board, or one issue.
+
+    One function, two callers (#455-R3): both read comments through
+    `sources._read_remarks`, pull request diff comments included, and both end
+    in `waiting_for_claude`, so `--issue N` cannot follow other rules than the
+    list. Raises `Unavailable` when a read fails.
+    """
+    floor = to_do_floor()
+    if issue is None:
+        opened = fetch("OPEN", with_bodies=False, with_pull_requests=True,
+                       pr_states="[OPEN, CLOSED, MERGED]")
+        closed = fetch("CLOSED", with_bodies=False, with_pull_requests=False)
+        # `since` is on updated, and a comment is updated no earlier than it
+        # was made, so every comment made on or after the floor is read.
+        remarks = comments_since(f"{floor}T00:00:00Z")
+        issues: Sequence[RawIssue] = opened.issues + closed.issues
+    else:
+        raw, pull_request = one_item(issue)
+        remarks, issues = comments_on(issue, pull_request), [raw]
+    return waiting_for_claude(issues, remarks, floor)
 
 
 FIRST_LINE = 120
+TITLE = 50
 
 
-def render_waiting(threads: Sequence[Thread], colour: bool = True, limit: int = 12) -> str:
-    """Each issue with the first words of what the owner asked, newest last.
+def render_waiting(threads: Sequence[Thread], colour: bool = True, limit: int = CAP,
+                   ids: bool = False) -> str:
+    """The comments, one line each, the one waiting longest first.
 
-    Capped, because a to-do list that grows without a time limit must not make
-    the session-start summary the wall of text it replaced. Says how many it
-    left out and where the rest are."""
+    **Capped by comments, not issues**, because a to-do list that grows without
+    a limit must not make the session-start summary the wall of text it
+    replaced, and one issue can hold twenty. The `limit` oldest show; one line
+    then says how many more, on how many issues. Each line says when the
+    comment was *made* (not when it was edited), on which issue, and what it
+    begins with. `ids` adds GitHub's id for the comment."""
     bold = (lambda s: f"\033[1m{s}\033[0m") if colour else (lambda s: s)
     dim = (lambda s: f"\033[2m{s}\033[0m") if colour else (lambda s: s)
     if not threads:
         return dim("nothing from the owner is waiting for an answer")
+    every = sorted(((r, t) for t in threads for r in t.remarks),
+                   key=lambda pair: (_at(pair[0]), pair[1].number))
     out: list[str] = []
-    shown = threads[-limit:]
-    if len(threads) > len(shown):
-        out.append(dim(f"...{len(threads) - len(shown)} earlier (board-inbox.py --open --all)"))
-    for t in shown:
-        context = " · ".join(x for x in (t.kind, t.step) if x)
-        head = f"{bold(f'#{t.number}')}  {t.title[:60]}"
-        if context:
-            head += f"  [{context}]"
-        out.append(head)
-        for r in t.remarks:
-            out.append(f"  > {r.when}  {r.text[:FIRST_LINE]}")
+    for r, t in every[:limit]:
+        prefix = "(review) " if r.on_diff else ""
+        line = (f"  > {_at(r)[:16]}  {bold(f'#{t.number}')}  {t.title[:TITLE]}  "
+                f"{prefix}{r.text[:FIRST_LINE]}")
+        if ids and r.id:
+            line += f"  (comment {r.id})"
+        out.append(line)
+    rest = every[limit:]
+    if rest:
+        issues = len({t.number for _, t in rest})
+        out.append(dim(f"...{len(rest)} more on {issues} issue{'s' if issues != 1 else ''} "
+                       "(board-inbox.py --open --all)"))
     return "\n".join(out)
 
 

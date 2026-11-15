@@ -12,6 +12,10 @@ machine_user = "fake-owner-claude"
 bot = "fake-bot"
 owner_name = "Pat"
 
+[comments]
+to_do_floor = "2026-08-25"
+retry_minutes = 10
+
 [programme]
 repository = "fakeorg/fake-programme"
 live_default = "../fake-programme"
