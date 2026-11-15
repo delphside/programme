@@ -190,7 +190,7 @@ flowchart TB
   GH -->|"fetch the commit (git)"| BLD
   CAND -->|"read: digests, tags"| CTL
   REL -->|"read: digests, records"| CTL
-  CTL -->|"remove request (JSON)"| BLD
+  CTL -->|"remove request (JSON):<br>commit, image, digest; keep"| BLD
   BLD -->|"remove candidates (Artifacts API)"| CAND
   CTL -->|"promote request (JSON)"| COPY
   CAND -->|"image set, by digest"| COPY
@@ -261,7 +261,7 @@ flowchart LR
   RB -->|"role, repo, lock, project"| HRB
   READ -->|"APP ENV --json"| HST
   PR -->|"APP ENV --json"| HST
-  PR -->|"tags with digests"| BDEL
+  PR -->|"commit, image, digest; keep"| BDEL
   LG -->|"user, token on standard input"| HLG
   HI -->|"installs turpin-host, then host files, user prefix"| AL
   ENV --> HENV
@@ -618,6 +618,7 @@ tool, protocol or tag form:
 | Operation | Takes | Gives | Used for |
 | --- | --- | --- | --- |
 | ensure a component's credentials | a `Component` | its credentials in place ([logins](#logins)) | every other operation, under that component's credentials |
+| make a login | a `Component`, a user and a token | the component's registry login, made | `turpin login`, on the component's machine; the token is not kept |
 | find an image by digest or tag | a `Repository`, and a `Build`'s or a release's image or a `Digest` | the `Image`, or *absent* | digest and labels; only *absent* allows a build |
 | list versions | a `Repository` | the commits built in candidates, or the `Version`s in releases | resolving a short SHA; the candidates `prune` considers (`list` reads git tags) |
 | store a build | a commit and the profile's image names | the `Build` | `turpin build`: the `build` hook writes each image as an OCI image layout ([§8](#8-profile-and-hooks)), and each layout is pushed as `SHA-IMAGE`; the image digest is the layout's index or manifest digest, the one the registry stores |
@@ -1302,7 +1303,7 @@ on needs `flock`. Common tools are named only; the others are described under
 `scripts/deliver/turpin` calls `turpinlib`'s front end, which reads the
 subcommand and calls that command's module. It uses the standard library only
 ([docs/1.10](../../../../docs/1.10-development-standards.md#each-languages-standard-and-checks)),
-reading the profile with `tomllib` (hence Python 3.11 or later) and JSON with
+reading the profile with `tomllib` (hence Python 3.11 or later; 3.11.4 for the tar extraction filter the payload uses) and JSON with
 `json`, and calls GitHub through the board model, in-process.
 
 | Module, in `scripts/deliver/turpinlib/` | Holds |
@@ -1315,11 +1316,13 @@ reading the profile with `tomllib` (hence Python 3.11 or later) and JSON with
 | `hooks.py` | running the application's hooks, with their environment and exit 75 |
 | `gitrepo.py` | fetching, tags, the bump of `main`; `record_of_tag`, which calls the board model's `repo.tag_record`, the one parser of a record ([§10](#10-the-release-and-its-record)) |
 | `hosts.py` | `turpin-host`, on this machine or by `ssh`: the requests, and `Deployed` from `status`; it logs each call's duration, maps `ssh`'s 255 for itself and for `remote.py`, and retries `ssh`'s blips where a retry is safe ([interruption](#interruption)) |
-| `remote.py` | a `turpin` command on another component's machine, by `ssh`: `build`, `promote`, `remove` and `login` passed on |
-| `settings.py` | the client's product settings: the retry limit and backoff, shared by registry calls and `ssh` calls, and the timeout of each ([§13](#13-non-functional-design)) |
+| `remote.py` | a `turpin` command on another component's machine, by `ssh`: `build`, `promote`, `remove` and `login` passed on (the calling side); and, on the called side, reading its request, the end of its input as the caller's interruption, and the data a login reads |
+| `layout.py` | the labels of each platform image in an OCI layout the `build` hook wrote, read before any push |
+| `oci.py` | what the OCI image format fixes (the label keys, an attestation manifest, a layout's first entry), shared by `layout.py` and the registry adapter's translators |
+| `settings.py` | the client's product settings: the retry limit and backoff, shared by registry calls and `ssh` calls, and the timeout of each ([§13](#13-non-functional-design)); and the names of the environment variables `turpin` reads between its own calls: `TURPIN_CALLED`, `TURPIN_ON_BUILD_HOST`, and `TURPIN_BIN`, the program a call to `turpin` runs (default: the entry script beside `turpinlib`) |
 | `payload.py` | assembling the payload and its `profile.json` |
 | `board.py` | the board model's `release` module, imported from `scripts/board/`; before calling it, sets what `board-release.py`'s `_environment()` sets: `BOARD_REPOSITORY` from `TURPIN_GH_REPO` or the origin URL, and `PROGRAMME_CONFIG` where it is unset |
-| `registry/` | the registry port and the `OCIR` adapter ([the registry adapter](#the-registry-adapter)) |
+| `registry/` | the registry port and the `OCIR` adapter ([the registry adapter](#the-registry-adapter)); `connect.py`, the one place a command makes the port for a component's credentials |
 | `commands/` | one module per command: `build`, `deploy` (and `rollback`), `release`, `settle`, `status` (and `list`), `prune`, `promote`, `remove`, `login`, `host_install`, `env` |
 
 `turpin-host` is one Bash script whose front end calls each subcommand's
@@ -1402,7 +1405,7 @@ Where each runs is in the two deployment views.
 
 | Technology | What it is | Used for |
 | --- | --- | --- |
-| [Python 3](https://www.python.org/), 3.11 or later | the language of the client and of the reused board model; its standard library reads TOML (`tomllib`) and JSON | `turpin`, on the controller, the builder, the copier and any host where `turpin env` runs; the board model's gates, checks, next, settle and publish ([§4](#the-board-model)) |
+| [Python 3](https://www.python.org/), 3.11.4 or later | the language of the client and of the reused board model; its standard library reads TOML (`tomllib`) and JSON | `turpin`, on the controller, the builder, the copier and any host where `turpin env` runs; the board model's gates, checks, next, settle and publish ([§4](#the-board-model)) |
 | [bash](https://www.gnu.org/software/bash/), [jq](https://jqlang.org/), [awk](https://www.gnu.org/software/gawk/manual/) | the shell `turpin-host` and the payload are written in; a command-line JSON processor; a text-processing language | `turpin-host` and the payload; their requests, state and records; a TOML profile given to `turpin-host env` (`toml.awk`) |
 | [skopeo](https://github.com/containers/skopeo) | a command-line tool that inspects and copies images in a registry without pulling them or running a Docker daemon | registry API reads, the release copy, the record ([§3](#3-oci-registry-integration)) |
 | [Docker](https://docs.docker.com/), [Compose](https://docs.docker.com/compose/), [Buildx](https://docs.docker.com/build/) | the container engine; its multi-container runner; its builder, which can build several architectures in one run | pull by digest and run; the default `build` hook |
@@ -1606,12 +1609,25 @@ JSON request on standard input.
 | `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `request_id`, `repeat`, `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `lock_wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
 | `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | [§11](#11-on-the-host)'s rollback. The request: `request_id`, `repeat`, `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait`, `lock_wait`, `fallback` | as for `deploy` |
 | `turpin-host status APP ENV --json` | deployer | `status`, `list`, `prune`, release, the rehearsal-level gate, production's version read | what runs, its record, state, as a [result object](#errors-results-and-the-pivot) | the deploy user (reads its state) |
-| `turpin promote APP < request` | release copier | `turpin release` and `turpin deploy --unrecorded`, on `[turpin.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request: `login`, `candidates`, `releases`, `copies` (`digest`, `dest` name), `record` (`tag`, `body`) or null | its `skopeo` login (read candidates, write releases) |
-| `turpin remove APP < request` | builder | `turpin prune`, on `[turpin.build].on` with the build login | remove each candidate the controller chose, through the Artifacts API ([the registry adapter](#the-registry-adapter)), only while the tag still has that digest, and never a digest in `keep`; an absent tag is done. The request: `login`, `candidates`, `removes` (`tag`, `digest`) and `keep` (the digests releases holds) | its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates) |
+| `turpin promote APP < request` | release copier | `turpin release` and `turpin deploy --unrecorded`, on `[turpin.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request, in the registry port's terms: `login`, `candidates`, `releases`, `commit`, `images` (name to digest), `version` and `record` (the release record), the last two null for `--unrecorded`. It prints `copied TAG` or `kept TAG` for each tag | its `skopeo` login (read candidates, write releases) |
+| `turpin remove APP < request` | builder | `turpin prune`, on `[turpin.build].on` with the build login | remove each candidate the controller chose, through the Artifacts API ([the registry adapter](#the-registry-adapter)), only while the tag still has that digest, and never a digest in `keep`; an absent tag is done. The request: `login`, `candidates`, `removes` (`commit`, `image`, `digest`) and `keep` (the digests releases holds); the set of tags this prune removes is derived from `removes`. It prints `removed`, `tag-moved`, `already-gone` or `shared` and the tag for each | its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates) |
 | `turpin-host login APP deployer ENV` | deployer | `turpin login ENV`, on the environment's host | `docker login --password-stdin` for the machine user, user and token on standard input | writes only that deployer's login |
 | `turpin-host allowlist APP < lines` | deployer | `host-install`, as root | the root-owned allowlist | root, through `host-install`'s `sudo` |
 | `turpin-host env create\|destroy NAME` | deployer | `turpin env` | an ephemeral environment | the deploy user and *root-ops* |
 | `turpin-host root-ops ...` | deployer | payload steps and `env`, by one `sudo` rule | the deploy user's root operations ([privileges](#privileges)) | root, by the one `sudo` rule |
+
+A `turpin` another `turpin` calls (`build`, `promote`, `remove`, `login`) is given
+`TURPIN_CALLED=1` on the `ssh` command line, since `ssh` carries no
+environment, and writes its gates and result on standard error as the host
+does: `@gate` lines ([§6](#6-commands)) and a last `@result` line
+([§11](#11-on-the-host)). A build passed to the builder carries
+`TURPIN_ON_BUILD_HOST=1` and is not retried; `promote`, `remove` and `login`
+are safe to repeat and are. A `--local` image is tagged
+`turpin-local/APP-IMAGE:SHA`, a name the build hook is given in
+`TURPIN_BUILD_TAG_IMAGE`. A build's failed store query stops it, exit 75 for a
+blip and 2 for a fundamental error; a `login` for an unknown component, or for
+an environment that shares the builder's login ([Logins](#logins)), is refused,
+exit 1, before anything is asked.
 
 `prune` removes a candidate only if built before the newest release was made,
 not released, and not run by any current or previous deploy. "Built" is the
@@ -2082,7 +2098,7 @@ production deploy, an error after the deploy's
 | Where | For | Criterion | Kind | Set aside by |
 | --- | --- | --- | --- | --- |
 | build | nothing local | clean worktree of a remote commit | gate | `--local` (preview) |
-| build | no overwrite | existing `SHA-IMAGE` not rebuilt; failed registry query refuses; releases tags never overwritten | gate | — |
+| build | no overwrite | existing `SHA-IMAGE` not rebuilt; failed registry query stops the build, exit by type (75 or 2); releases tags never overwritten | gate | — |
 | every deploy | exact bytes | pulled by digest; revision label is the SHA; running `RepoDigests` match (`--local`: image id and label) | gate | — |
 | every deploy | no overlap | lock free, held to the end | gate | nothing (`--wait` waits) |
 | every deploy | *state gate* | the state admits a new deploy, by [§11](#11-on-the-host)'s state table: none, `preparing`, `finished`, `restored` or `failed, no previous deploy`; `changing` and a failed restore refuse, naming the step reached and `turpin rollback ENV` | gate | nothing: `turpin rollback` |

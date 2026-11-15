@@ -16,11 +16,11 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from . import gitrepo, settings
-from .model import (CONTROLLER, CredentialKind, Environment, Ephemeral, HostFile,
-                    Profile, ProfileError, Reason, Role, TechnicalError)
+from .model import (CONTROLLER, BusinessError, CredentialKind, Environment, Ephemeral, HostFile,
+                    Profile, ProfileError, Reason, Role, TechnicalError, Version, read_input)
 
 __all__ = ["ProfileError", "parse", "read_working_tree", "read_at_commit",
-           "read_app_env", "require", "repo_dir", "profile_path"]
+           "read_app_env", "require", "repo_dir", "profile_path", "version_in_tree"]
 
 _ASSIGNMENT = re.compile(r"(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)")
 
@@ -227,3 +227,40 @@ class _Reader:
             host_files=self.get(table, f"{where}.host_files", bool, "true or false",
                                 default=role in (Role.REHEARSAL, Role.PRODUCTION)),
             join=self.strings(table, f"{where}.join"))
+
+
+# ----------------------------------------------------------------- the version file
+
+def version_in_tree(tree: Path) -> Version:
+    """The application's version in a checked-out tree: the first line of the profile's
+    `versions.app.file` that matches `versions.app.pattern`, whose one group is the version
+    (design §8; the version file is the one a person edits). A key missing is a profile
+    error; a file with no match, or a value that is not semver, is a business error naming
+    the version file (R48)."""
+    source = str(tree / settings.PROFILE_FILE)
+    try:
+        data = tomllib.loads((tree / settings.PROFILE_FILE).read_text())
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ProfileError.at(Reason.PROFILE_UNREADABLE, f"cannot read the profile at {source}",
+                              source=source) from exc
+    section = (data.get("versions") or {}).get("app") or {}
+    reader = _Reader(data, source)
+    file = reader.get(section, "versions.app.file", str, "a string", required=True)
+    pattern = reader.get(section, "versions.app.pattern", str, "a string", required=True)
+    try:
+        wanted = re.compile(pattern, re.MULTILINE)
+    except re.error as exc:
+        raise reader.bad("versions.app.pattern", "a regular expression") from exc
+    if wanted.groups < 1:
+        raise reader.bad("versions.app.pattern", "a regular expression with one group, the version")
+    try:
+        text = (tree / file).read_text()
+    except OSError as exc:
+        raise BusinessError.make(Reason.VERSION_FILE_UNREADABLE, f"cannot read the version file {file}: "
+                                 f"fix versions.app.file or the file", metadata={"file": file}) from exc
+    found = wanted.search(text)
+    if not found:
+        raise BusinessError.make(Reason.VERSION_FILE_UNREADABLE,
+                                 f"the version file {file} has no line the pattern versions.app.pattern matches",
+                                 metadata={"file": file})
+    return read_input(f"the version file {file}", Version.parse, found.group(1))

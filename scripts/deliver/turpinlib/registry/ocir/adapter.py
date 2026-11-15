@@ -186,6 +186,17 @@ class OcirAdapter:
                 calls.check_removal_credential(gw)
             self._gw = gw
 
+    def make_login(self, component: Component, user: str, token: str) -> None:
+        with self._operation("make login", component=component.kind.value):
+            if component.kind is ComponentKind.DEPLOYER:
+                raise UnexpectedError.make(Reason.REQUEST_INVALID,
+                                           "a deployer logs in with docker, outside the registry port: "
+                                           "raise it as an issue")
+            authfile = self.config.authfile(component.kind)
+            gw = calls.gateway(component.kind.value, self.config.registry, self.log, authfile, None,
+                               self.config.oci_config_file, **self._options)
+            calls.make_login(gw, user, token)
+
     def find_image(self, repository: Repository, what: BuildImage | ReleaseImage | Digest) -> Image | None:
         with self._operation("find image") as ctx:
             name, tag, digest = "", None, None

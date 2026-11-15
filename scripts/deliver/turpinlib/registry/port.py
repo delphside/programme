@@ -63,6 +63,10 @@ class RegistryPort(Protocol):
     def ensure_credentials(self, component: Component) -> None:
         """Put the component's credentials in place (design §3 *Logins*)."""
 
+    def make_login(self, component: Component, user: str, token: str) -> None:
+        """Make the component's `docker-config` login, from the user and the token the
+        owner typed (`turpin login`); it names the component's auth file and nothing else."""
+
     def find_image(self, repository: Repository, what: BuildImage | ReleaseImage | Digest) -> Image | None:
         """The image, or *absent*. Found by a digest, `Image.name` is ''."""
 

@@ -12,6 +12,7 @@ with the original arguments.
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import signal
 import sys
@@ -20,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Sequence
 
-from . import commands
+from . import commands, settings
 from .model import (EXIT_INTERRUPTED, FormError, EXIT_OK, EXIT_USAGE, Outcome, ProgrammeError, Reason,
                     Result, TechnicalError, UnexpectedError, exit_status)
 from .runlog import RunLog
@@ -37,6 +38,8 @@ usage: turpin build [REF] [--local]
        turpin list ENV             turpin prune [--dry-run]
        turpin login COMPONENT      (controller, builder, copier, or an ENV)
        turpin env create|destroy NAME      turpin host-install ENV
+       turpin promote APP      turpin remove APP
+                       (called by release and prune: a request on standard input)
 
 exit: 0 done; 1 refused or failed; 2 fundamental technical error; 3 done with
 errors; 64 usage; 70 unexpected; 75 try again later; 130 interrupted
@@ -45,7 +48,7 @@ errors; 64 usage; 70 unexpected; 75 try again later; 130 interrupted
 # Every subcommand, so a misspelt one is a usage error and a real one not yet
 # ported is passed to `turpin-legacy`.
 KNOWN_COMMANDS = ("build", "deploy", "release", "settle", "rollback", "status", "list",
-                  "prune", "login", "host-install", "env")
+                  "prune", "login", "host-install", "env", "promote", "remove")
 
 # The flags that set a gate aside (design §6): each takes a reason, and
 # `--set-aside` a gate and then a reason.
@@ -130,6 +133,9 @@ def report(result: Result, ctx: Context | None = None) -> int:
     code = exit_status(result)
     if result.outcome is not Outcome.OK and result.message:
         print(f"turpin: {result.message}", file=sys.stderr)
+    if os.environ.get(settings.ENV_CALLED) == "1" and result.outcome is not Outcome.OK:
+        # called by another `turpin`: its result object, the last line on standard error
+        print("@result " + json.dumps(result.to_json(), separators=(",", ":")), file=sys.stderr)
     if ctx is not None:
         ctx.log.event("result", exit=code, result=result.to_json())
     return code

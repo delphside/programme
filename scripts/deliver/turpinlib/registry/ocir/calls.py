@@ -79,6 +79,14 @@ def log_in(gw: Gateway, kind: CredentialKind, user: str | None, token_cmd: str |
         api.skopeo_login(gw, user, api.token_command(gw, token_cmd))
 
 
+def make_login(gw: Gateway, user: str, token: str) -> None:
+    """Make the component's login: `skopeo login --authfile`, the token on standard input
+    only, the auth file then private (design §3 *Logins*)."""
+    assert gw.authfile is not None
+    with _translated(gw, "log in"):
+        api.skopeo_login(gw, user, token)
+
+
 def check_removal_credential(gw: Gateway) -> None:
     """The API key's configuration or the instance principal is there."""
     if not api.artifacts_auth_present(gw):
