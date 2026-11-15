@@ -324,6 +324,7 @@ is judged on.
 | pull requests cannot carry `Turn` or `Claimed by` ([design.md](design.md#pull-request) gives why) | derived from `PR State` and the branch's thread | `board-actions.py` |
 | organisation paths are refused from the cloud | the owner creates fields and options by hand | owner, once |
 | the context header needs GraphQL | `context.yml` regenerates it daily in Actions, in the programme, Tile Lite Elite and Dark Portal | `context.yml` |
+| the ledger lives in one issue body, which GitHub caps at 65,536 characters, so it holds about 500 items at most (measured 2026-11-15, when the board held 88) | the sweep drops the tail of the stalled list before the ledger, and lists a body near the limit under *needs a look*; past about 500 open items the ledger needs a second home | `flow.py` |
 | `board-check.py` does not read the flow table: it reports obligations, not holders or bounds, so it reports neither | `board-flow.py` and `board-actions.py --role` are where a holder and a bound are read | `flow.py` |
 
 ## Questions for the owner
