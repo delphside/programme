@@ -2200,9 +2200,10 @@ runs `restore-state`, switches to `previous` and reinstalls its host files. A
 host's first `turpin` deploy has no `previous`: failure runs `restore-state`,
 stops the new containers, removes `current`, marks the state
 `failed, no previous deploy` and names the fallback (`[turpin].fallback`). A
-restore to `previous` marks the state `restored`; a deploy stopped before `save-state`, which
-has changed nothing that runs, writes back the state it found. A failed prune
-after the pivot is an error, exit 3, and the deploy stands.
+restore to `previous` marks the state `restored`; a deploy stopped before
+`save-state`, which has changed nothing that runs, writes back the state it
+found. A failed prune after the pivot is an error, exit 3, and the deploy
+stands.
 
 **The last request.** `turpin-host deploy` and `rollback` read and write
 `last_request` only while they hold the lock, so one request at a time uses it.
