@@ -451,7 +451,8 @@ the `positions` it filled:
   [every score change is a move record](71-05b-wire-types.md#every-score-change-is-a-move-record).
   Both are derived on render, so a state that arrives mid-playback only
   lengthens the queue.
-- **just played** marks the cells of move `shown_moves`, not of `moves.last()`.
+- **just played** marks the cells of the last turn up to `shown_moves`, not of
+  `moves.last()`; a `rack_adjustment` is not a turn.
 - While the queue is behind, the viewer cannot stage, so a player never stages
   against a past board. A viewer's own move is drawn at once.
 - Selecting a game, or reconnecting, sets `shown_moves` to the full count: a
