@@ -433,15 +433,14 @@ rather than a comment.
 **Requirement** (owner, 2026-11-15): every move is displayed, slowly enough for
 the browser to draw it and for a person to register it. Today a client that
 receives an update before it has drawn the last one skips the last one, so a
-bot-against-bot game can show only its final position. The 120 ms pause in the
-server ([the engine's as-is](71-06-engine.md#worth-keeping)) goes when a bot
-becomes a client, so nothing in the server paces moves after #268.
+bot-against-bot game can show only its final position. The server's 120 ms pause
+([the engine's as-is](71-06-engine.md#worth-keeping)) goes when a bot becomes
+a client.
 
 **The client paces what it shows, as a playback queue** (owner, 2026-11-15).
-The game runs at the speed its seats play; only the client knows what it has
-drawn and whether anybody is watching. No wire change is needed, because every
-state already carries the whole move list (`moves: Vec<MoveRecordDto>`), and
-each record has the `positions` it filled:
+The game runs at the speed its seats play. No wire change is needed: every state
+carries the whole move list (`moves: Vec<MoveRecordDto>`), and each record has
+the `positions` it filled:
 
 - The client keeps `shown_moves`, the number of moves drawn so far, in
   presentation state. When a state arrives with more moves, `shown_moves`
@@ -456,10 +455,19 @@ each record has the `positions` it filled:
 - Selecting a game, or reconnecting, sets `shown_moves` to the full count: a
   game opened after the fact shows where it stands rather than replaying it.
 
-The interval is a client product setting, listed with the others in
-[4.4.1](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md);
-its value is set when #269 is built, starting from 600 ms. It ships in #269, which goes out with
-#268, so moves are never left unpaced.
+**The queue is a count, not a store, and it is capped** (owner, 2026-11-15).
+Nothing is queued but the number `shown_moves`; the moves are in the latest
+state. An update that adds no move, such as a chat message, replaces the state
+and is drawn at once, and an update that arrives before the last is drawn is
+still skipped: only moves are played back. When more than the cap of moves is
+unshown, `shown_moves` jumps to that many behind the latest, so a slow or
+hidden tab never falls further behind than the cap.
+
+The interval and the cap are client product settings, listed with the others in
+[4.4.1](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md).
+Their values are set when Core Client UI is built, starting from 600 ms and ten
+moves. Playback ships in Core Client UI, which goes out with Core Game
+Lifecycle, so moves are never left unpaced.
 
 ## This is delivered in Core Client UI
 
