@@ -39,7 +39,8 @@ class BoardPractices(Cases):
         self.register, self.log = d / "register.md", d / "log.csv"
 
     def practices(self, *args, register=None):
-        env = {**os.environ, "REGISTER_OVERRIDE": str(register or self.register), "LOG_OVERRIDE": str(self.log)}
+        env = {**os.environ, "REGISTER_OVERRIDE": str(register or self.register), "LOG_OVERRIDE": str(self.log),
+               "PINNED_RUN_OVERRIDE": "unreadable"}
         return run("board/board-practices.py", *args, env=env)
 
     def test_the_overdue_case(self):
@@ -51,17 +52,56 @@ class BoardPractices(Cases):
         self.expect("an activity with no log row reads never logged, not overdue", 1,
                     sum("never-done" in l and "never logged" in l for l in out))
 
-    def test_the_daily_sweep_is_recorded_in_its_pinned_issue_not_the_log(self):
-        out = self.practices().stdout.splitlines()
-        self.expect("board-flow is not read as never logged", 0,
-                    sum("board-flow" in l and "never logged" in l for l in out))
-        self.expect("it says where it is recorded", 1,
-                    sum("board-flow" in l and "pinned issue" in l for l in out))
-        data = json.loads(self.practices("--json").stdout)
-        self.expect("and its overdue_by is none", [None],
-                    [a["overdue_by"] for a in data if a["id"] == "board-flow"])
-        self.expect("an overdue --exit-code still counts only the others", 1,
-                    self.practices("--exit-code").returncode)
+    def flow_line(self, last_run, *args):
+        """The practices with the pinned issue's last run standing at `last_run`."""
+        env = {**os.environ, "REGISTER_OVERRIDE": str(self.register), "LOG_OVERRIDE": str(self.log),
+               "PINNED_RUN_OVERRIDE": last_run}
+        return run("board/board-practices.py", *args, env=env)
+
+    def flow_status(self, last_run):
+        out = self.flow_line(last_run).stdout.splitlines()
+        return [l for l in out if "board-flow" in l]
+
+    def test_the_daily_sweep_is_judged_from_the_pinned_issue_not_the_log(self):
+        day = lambda n: (date.today() - timedelta(days=n)).isoformat()
+        self.expect("a run two days ago against a daily cadence is overdue", True,
+                    "OVERDUE by 1d" in self.flow_status(day(2))[0])
+        self.expect("yesterday's run is not", True, "due in 0d" in self.flow_status(day(1))[0])
+        self.expect("today's run is not", True, "due in 1d" in self.flow_status(day(0))[0])
+        self.expect("and never reads as never logged", 0,
+                    sum("never logged" in l for l in self.flow_status(day(0))))
+
+    def test_an_unreadable_pinned_issue_is_said_and_is_not_overdue(self):
+        line = self.flow_status("unreadable")
+        self.expect("it says it could not read", True, "could not read" in line[0])
+        data = json.loads(self.flow_line("unreadable", "--json").stdout)
+        self.expect("and records why", True,
+                    any(a["id"] == "board-flow" and a["unread"] for a in data))
+        self.expect("but is not counted overdue: only benchmark-run and never-done are", True,
+                    "2 overdue or never logged" in self.flow_line("unreadable").stdout)
+
+    def test_the_exit_code_counts_the_daily_sweep_only_when_it_is_overdue(self):
+        stale = (date.today() - timedelta(days=5)).isoformat()
+        fresh = date.today().isoformat()
+        self.expect("a stale sweep adds one to the count", True,
+                    "3 overdue or never logged" in self.flow_line(stale).stdout)
+        self.expect("a fresh one does not", True,
+                    "2 overdue or never logged" in self.flow_line(fresh).stdout)
+
+    def test_the_exit_status_follows_the_daily_sweep_alone(self):
+        only = Path(self._dir.name) / "only.md"
+        only.write_text("\n".join(l for l in REGISTER.splitlines()
+                                  if "board-flow" in l or not l.startswith("| `")) + "\n")
+
+        def status(last_run):
+            env = {**os.environ, "REGISTER_OVERRIDE": str(only), "LOG_OVERRIDE": str(self.log),
+                   "PINNED_RUN_OVERRIDE": last_run}
+            return run("board/board-practices.py", "--exit-code", env=env).returncode
+
+        self.expect("a stale sweep alone exits 1", 1,
+                    status((date.today() - timedelta(days=5)).isoformat()))
+        self.expect("a fresh one exits 0", 0, status(date.today().isoformat()))
+        self.expect("an unreadable one exits 0: it is said, not counted", 0, status("unreadable"))
 
     def test_exit_code(self):
         self.expect("--exit-code is non-zero when something is overdue", 1, self.practices("--exit-code").returncode)

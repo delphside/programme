@@ -179,7 +179,7 @@ The check covers each way marked *yes*.
 | the GitHub MCP tools `add_issue_comment` and `add_reply_to_pull_request_comment`, with a body | yes, once wired: in WSL by delivery 2's pin moves and wiring, in a cloud thread by the setup script pasted in delivery 3 |
 | `pull_request_review_write` with `submit_pending`, or with `create` and an `event` | yes, whatever the body, because it posts the pending comments. Wired as above |
 | `gh pr comment` and `gh pr review` with no number, or a branch name | yes: the pull request, found with `gh pr view` in the hook input's `cwd`; if that fails, or the hook's 25 seconds run out, the post is allowed with a note |
-| a `cd` inside the same command before the post | no, a known gap: `gh pr view` runs in the input's `cwd` and does not follow the `cd` |
+| a `cd` inside the same command before the post, including one into another repository | no, a known gap: `gh pr view` runs in the input's `cwd` and does not follow the `cd`, and in the cloud `GH_REPO` names the repository the `cwd` is in, so a post after a `cd` into another repository passes unchecked |
 | a post to another repository than the application's (`-R`, `GH_REPO`, a URL, an MCP owner and repo) | no, a known gap: the board reads one repository, so the post is let through unchecked |
 | a reaction, through a tool's `reaction` parameter | no: it posts no comment, so it is let through |
 | `add_comment_to_pending_review` | no: nothing is posted until the review is submitted, which is covered |
