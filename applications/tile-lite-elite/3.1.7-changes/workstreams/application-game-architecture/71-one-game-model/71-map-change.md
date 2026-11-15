@@ -178,7 +178,7 @@ workspace extends model.dsl {
             tags "removed" "wp:268"
         }
 
-        // Replaced: every caller sends the one handler a GameMessage instead
+        // Replaced: every caller sends the one handler a GameCommand instead
         // of changing the game itself. 71-03-version.md, "One version, moved in
         // one place". A relationship entry cannot set a description (the
         // export fails), so each old line is removed and a new one added.
