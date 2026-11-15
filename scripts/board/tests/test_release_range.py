@@ -133,6 +133,8 @@ class TheTags(Cases):
             self.expect("a text tag has none: history only", None, repo.tag_record("v0.10.1"))
             with self.assertRaises(Unavailable):
                 repo.tag_record("v9")
+            with self.assertRaises(repo.RecordVersionUnknown):
+                repo.tag_record("v9")
 
     def test_the_origin_is_a_slug(self):
         """the origin URL is owner/name"""

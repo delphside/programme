@@ -600,10 +600,15 @@ def tag_version(tag: str, prefixes: list[str]) -> str:
     return tag
 
 
+class RecordVersionUnknown(Unavailable):
+    """A release record of a version this tool does not read."""
+
+
 def tag_record(tag: str) -> dict | None:
     """The record an annotated release tag carries as its message, or None for a
     release made before the tool (no JSON message: history only). A record of a
-    version this tool does not know raises `Unavailable`: a reader refuses it."""
+    version this tool does not know raises `RecordVersionUnknown` (an `Unavailable`):
+    a reader refuses it."""
     message = _git_must("tag", "--list", tag, "--format=%(contents)")
     try:
         record = json.loads(message)
@@ -612,8 +617,8 @@ def tag_record(tag: str) -> dict | None:
     if not isinstance(record, dict) or "record" not in record:
         return None
     if record["record"] != 1:
-        raise Unavailable(f"tag {tag} holds record version {record['record']}, "
-                          f"which this tool does not read")
+        raise RecordVersionUnknown(f"tag {tag} holds record version {record['record']}, "
+                                   f"which this tool does not read")
     return record
 
 

@@ -1939,6 +1939,7 @@ missing hook is a no-op. Only `build` has a default.
 | 0 | passed |
 | 75 | not yet: `--wait` retries; else the run stops as a blip, exit 75 |
 | other | refused, or the step failed: a business error naming the hook, exit 1 |
+| killed by a signal | an unexpected error naming the hook and the signal, exit 70 ([docs/1.10](../../../../docs/1.10-development-standards.md#what-a-scripts-exit-status-means)) |
 
 **The `build` hook writes OCI image layouts.** It builds each image of the set
 and writes it as an OCI image layout, a directory holding that one image,
