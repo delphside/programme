@@ -242,7 +242,7 @@ fi
 # previous one. Its stderr is the reason when it cannot judge (the live checkout
 # missing), so it reaches the session rather than being thrown away.
 H_PRACTICE="Programme activities overdue, whose move is the activity's owner in the programme's docs/1.4 (programme/scripts/board/board-practices.py)"
-if FAIL="$(failure practice "For the activity's owner: programme activities overdue (programme/scripts/board/board-practices.py)")"; then
+if FAIL="$(failure practice "$H_PRACTICE")"; then
   PRACTICE_SECTION="$FAIL"
 else
   PRACTICE="$(grep -E 'OVERDUE|never logged' "$TMP/practice" 2>/dev/null || true)"
