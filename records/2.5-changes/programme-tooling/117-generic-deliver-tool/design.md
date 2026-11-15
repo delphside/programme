@@ -1977,7 +1977,7 @@ production deploy, an error after the deploy's
 | build | no overwrite | existing `SHA-IMAGE` not rebuilt; failed registry query refuses; releases tags never overwritten | gate | — |
 | every deploy | exact bytes | pulled by digest; revision label is the SHA; running `RepoDigests` match (`--local`: image id and label) | gate | — |
 | every deploy | no overlap | lock free, held to the end | gate | nothing (`--wait` waits) |
-| every deploy | *state gate* | state is none (a first deploy), finished, restored, `failed, no previous deploy`, or a step before `save-state`, where nothing that runs had changed; else refuses, naming the step reached and `turpin rollback ENV`. A failed restore leaves `failed: the restore did not complete`, which refuses alike | gate | nothing: `turpin rollback` |
+| every deploy | *state gate* | state is none (a first deploy), finished, restored, `failed, no previous deploy` or a step before `save-state`, which has changed nothing that runs; else refuses, naming the step reached and `turpin rollback ENV`. A failed restore leaves `failed: the restore did not complete`, which refuses alike | gate | nothing: `turpin rollback` |
 | deploy, release | application's hooks | every `required_hooks` hook present and executable; `pre-deploy` (deploy) and `release-check` (release) pass | gate | the two hooks by `--set-aside`, where overridable |
 | every deploy | allowed host files | destination off the allowlist refuses ([§11](#11-on-the-host)) | gate | nothing: rerun `turpin host-install` |
 | deploy, host-install | no mutual removal | two environments of one application on one host both installing host files refuse | gate | nothing: `host_files = false` on all but one |
@@ -2172,12 +2172,13 @@ builder uses it with its `build:` blocks.
 **A deploy's steps** (gates in [§9](#9-gates-and-checks)):
 
 1. take the lock;
-2. check the state; `failed, no previous deploy` does not refuse, because the
-   next deploy is the way forward;
+2. check the state against [§9](#9-gates-and-checks)'s state gate; the state
+   file is first written once this step passes;
 3. pull every image by digest, within `pull_timeout`;
 4. take the payload out of `payload_image`;
 5. run `pre-deploy`;
-6. write the new deploy folder;
+6. write the new deploy folder, first removing any folder a deploy stopped
+   before `save-state` left part-written;
 7. run `save-state`, then `migrate`;
 8. install host files where `host_files` is true (default only for rehearsal and
    production, so environments sharing a host never overwrite each other's; an
@@ -2216,18 +2217,18 @@ whose `request_id` is the last one's, the host acts on its outcome:
 | `failed` | the request stopped on an error, or its restore failed | answered with the recorded result, running nothing |
 | `refused` | a gate refused it after the lock was taken, `smoke` included, and any restore succeeded | answered with the recorded result, running nothing |
 | `interrupted` | an interruption or a dropped connection stopped a deploy before its pivot, and what it changed was undone | run again |
-| `running` | the request took the lock; found by its repeat, it died part-way, as in a reboot | refused, exit 1, running nothing and leaving `last_request` as found, naming `turpin status ENV` for the owner to judge what the host holds |
+| `running` | on taking the lock, before the next step | refused, since the request died part-way (a reboot, a kill), exit 1, running nothing and leaving `last_request` as found, naming `turpin status ENV` for the owner to judge what the host holds |
 
-- Any other request runs as a new one, and writes its own `request_id` with the
-  outcome `running` before its next step.
-- A rollback is never `interrupted`, since one holding the lock runs to its end.
-  A rollback that finishes leaves the state `restored`.
+- Any other request runs as a new one.
+- A rollback's outcome is `finished`, `failed`, `refused` or `running`, since
+  one holding the lock runs to its end; one that finishes leaves the state
+  `restored`.
 - A request refused because the lock is held, and any request under `--check`,
   write nothing.
 - `turpin` marks each repeat with `repeat` set, which makes the host wait for
-  the lock, up to the command's `--wait` limit or else 60 minutes, and at the
-  limit exit 75; the repeat waits for a hook's *not yet* only where the
-  command's own `wait` says so.
+  the lock, up to the `--wait` limit where the command sets one, else 60
+  minutes, and at the limit exit 75; the repeat waits for a hook's *not yet*
+  only where the command's own `wait` says so.
 - A `request_id` is a version 4 UUID, which `turpin` generates once per command
   and the host validates, so each command has its own.
 
