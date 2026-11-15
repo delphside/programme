@@ -139,7 +139,7 @@ the Artifacts API makes no registry login and has no kind: the builder's
 | `Credential` | one way a component proves who it is to Oracle | `form` (an auth token, an API key or an instance principal), `api` (the registry API or the Artifacts API, [§3](#the-protocol)) |
 | `Component` | whose credentials an operation uses | `kind` (an enumeration: controller, builder, copier, deployer), `environment` (a deployer's `Environment`, else none), `login` (its credential kind), `credentials` (each `Credential` it holds: Tile Lite Elite's builder holds an auth token and an API key) |
 | `Repository` | one of the application's two repositories | `kind` (candidates or releases), `name` (`APP/candidates`) |
-| `Deployed` | what an environment runs, as `turpin-host status` reports it | `state`, with the last request's `request_id` and outcome; for `current` and `previous`, the `Build`, the `ReleaseRecord` where there is one and when it was deployed |
+| `Deployed` | what an environment runs, as `turpin-host status` reports it | `state`; the last request's `request_id` and outcome, from `last_request`; for `current` and `previous`, the `Build`, the `ReleaseRecord` where there is one and when it was deployed |
 | `Profile` | the application's profile at a commit or in the working tree | the keys of [§8](#8-profile-and-hooks), with `environments` as `Environment`s |
 | `GateRequest` | what the release gate needs that the board does not hold; the [board model](#the-board-model)'s own type | `version`, `sha`, `range`, `main_range`, `carry_from`, `prefixes`, `emergency`, `milestone_set_aside` |
 | `GateResult` | the release gate's answer; the board model's own type | `gates` (each a verdict: `name`, `passed`, `message`, `reported`), `notes`, `carries`, `left_out` |
@@ -1435,11 +1435,13 @@ Then, on a Ctrl+C:
 1. A tool, a hook or a data-reading call already running runs to its end.
 2. `turpin` closes the input of each call that has one held open.
 3. The called side reads the end of its input as the interruption at its next
-   step or while it waits (the lock, a hook's *not yet*). `turpin-host rollback`
-   reads it only until it holds the lock. Once it holds the lock, it runs to
-   its end, since a rollback stopped part-way has no rerun: it exits as it
-   would have, and `turpin` exits by its result, its message saying the
-   interruption came after the rollback began.
+   step or while it waits (the lock, a hook's *not yet*). `turpin-host` ignores
+   SIGPIPE and SIGHUP, and takes a failed write to `turpin` as the end of its
+   input too, so a dropped connection never kills it part-way.
+   `turpin-host rollback` reads the interruption only until it holds the lock.
+   Once it holds the lock, it runs to its end, since a rollback stopped part-way
+   has no rerun: it exits as it would have, and `turpin` exits by its result,
+   its message saying the interruption came after the rollback began.
 4. `turpin`, and each called side that read the interruption, starts no further
    step of the command's work. Each one:
    - before the command's pivot, undoes what changed, as for an error;
@@ -1477,11 +1479,11 @@ requires every child's status to be mapped:
 dropped after the call changed something, so each call is made safe to repeat or
 is not retried:
 
-- **`turpin-host deploy` and `rollback` are *idempotent receivers*** (the
-  Enterprise Integration Patterns pattern). Each request carries a `request_id`,
-  which `turpin` sets once per command and keeps across its retries, and the
-  host answers a repeat from its record of the last request, so a request takes
-  effect at most once ([§11](#11-on-the-host), *the last request*).
+- **`turpin-host deploy` and `rollback` are *idempotent receivers*** (Enterprise
+  Integration Patterns). Each request carries a `request_id`, which `turpin`
+  sets once per command and keeps across its retries, and the host answers a
+  repeat from its record of the last request, so a request takes effect at most
+  once ([§11](#11-on-the-host), *the last request*).
 - **A call that changes nothing, or is safe to repeat as it is, is retried**:
   `turpin-host status --json`; a login, which overwrites; `allowlist`, which
   merges; `host-install`'s install, which installs or updates; and
@@ -2149,7 +2151,7 @@ passed is step 1's confirmation; the tool reads no test report.
   .env                  the host's own settings: registry address, login settings, keys, limits
   lock                  flock, held to the end of a deploy or rollback; `lock` may share a path across environments
   state                 the step reached, written at each step; "finished" at the end
-  last_request          the last deploy's or rollback's `request_id` and outcome, below
+  last_request          the last deploy's or rollback's `request_id` and outcome (the last request)
   host_files.installed  the host files the current deploy installed
   deploys/<n>/          per deploy:
     turpin.env           images by digest
@@ -2198,30 +2200,30 @@ runs `restore-state`, switches to `previous` and reinstalls its host files. A
 host's first `turpin` deploy has no `previous`: failure runs `restore-state`,
 stops the new containers, removes `current`, marks the state
 `failed, no previous deploy` and names the fallback (`[turpin].fallback`). A
-failed prune after the pivot is an error, exit 3, and the deploy stands.
+restore marks the state `restored`; a deploy stopped before `save-state`, which
+has changed nothing that runs, writes back the state it found. A failed prune
+after the pivot is an error, exit 3, and the deploy stands.
 
-**The last request.** `turpin-host deploy` and `rollback` write `last_request`
-only while they hold the lock: on taking it, before any other step, the
-request's `request_id` with the outcome `running`; at the end, `finished`,
-`failed` or `refused`, with the result, or `interrupted` where an interruption
-or a dropped connection stopped it and what changed was undone. A request
-refused because the lock is held writes nothing. A rollback, which runs to its
-end once it holds the lock, is never `interrupted`.
+**The last request.** `turpin-host deploy` and `rollback` read and write
+`last_request` only while they hold the lock, so two requests never race on it.
+On taking the lock, before any other step, the host reads it. Given a request
+whose `request_id` is the last one's, the host acts on its outcome:
 
-Before it tries the lock, the host reads `last_request`. Given a request whose
-`request_id` is the last one's, it:
+| Outcome | Written when | The repeat |
+| --- | --- | --- |
+| `finished` | the request passed its pivot (a deploy) or ran to its end (a rollback); the result's exit is kept, 3 where a step after the pivot failed, 0 where a dropped connection stopped the prune | answered with the recorded result, running nothing |
+| `failed` | the request stopped on an error, or its restore failed | answered with the recorded result, running nothing |
+| `refused` | a gate refused it after the lock was taken | answered with the recorded result, running nothing |
+| `interrupted` | an interruption or a dropped connection stopped a deploy before its pivot, and what it changed was undone | run again |
+| `running` | the request took the lock; found by its repeat, it means the request died part-way, such as by a reboot | run again, and step 2's state gate decides: a state part-way through refuses, naming `turpin rollback ENV` |
 
-- waits for the lock where the outcome is `running`, since that request still
-  holds it, up to `--wait`'s default limit, then reads again;
-- answers with the recorded result, running nothing, where the outcome is
-  `finished`, `failed` or `refused`;
-- runs the request where the outcome is `interrupted`.
-
-Any other request runs as a new one. A `request_id` is a version 4 UUID, which
-`turpin` generates and the host validates, so two commands never share one.
-Where a dropped connection came after the deploy's pivot, the outcome is
-`finished`, and the host's prune it stopped is left for the next deploy, which
-repeats it, rather than named as a rerun.
+Any other request runs as a new one, and writes its own `request_id` with the
+outcome `running` before its next step. A rollback holding the lock runs to its
+end, so it is never `interrupted`. A request refused because the lock is held,
+and any request under `--check`, writes nothing. A repeat waits for the lock as
+`--wait` does, and at the limit exits 75. A `request_id` is a version 4 UUID,
+which `turpin` generates once per command and the host validates, so each
+command has its own.
 
 **Rollback** is the same switch to `previous` on demand, with `restore-state`
 and host files restored alike. It removes `previous`, so a second refuses, as
@@ -2319,9 +2321,10 @@ exits 3, the message naming `turpin settle VERSION`.
   Elite's unmeasured `pull_timeout`. Over `ssh`, `turpin-host status --json`, a
   login and `allowlist` time out after 60 seconds, and `host-install`'s install
   after 300, both guesses; `turpin-host deploy` and `rollback` are bounded by
-  `pull_timeout` and the hooks' limits, and `turpin build`, `promote` and
-  `remove` by their registry calls' timeout. The attempts, the waits and the
-  three timeouts are starting values, product settings in `settings.py`
+  `pull_timeout`, the hooks' limits and `--wait`'s, `turpin build` by the
+  `build` hook's and its registry calls', and `promote` and `remove` by their
+  registry calls' timeout. The attempts, the waits and the three timeouts are
+  starting values, product settings in `settings.py`
   ([§5](#scripts-and-their-dependencies)), set from the first runs' call times
   ([§14](#14-moving-tile-lite-elite-to-it)) and then revisited from the run log.
 - **Secrets and access.** The tool holds no credential of its own: each
