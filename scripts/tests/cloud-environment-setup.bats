@@ -15,6 +15,8 @@ setup() {
   export CLAUDE_SETUP_NO_PACKAGES=1
   WS="$BATS_TEST_TMPDIR/ws"
   mkdir -p "$WS"
+  # The submodule loop reads this workspace, never the folder bats starts in.
+  export CLAUDE_SETUP_WORKSPACE="$WS"
 }
 
 hooks() {   # hooks <python expression over the settings s>
@@ -248,9 +250,16 @@ hook_run() {
   git clone -q "$src" "$WS/tile-lite-elite"
   mkdir -p "$WS/notes"
   [ ! -e "$WS/tile-lite-elite/programme/.claude/hooks/inbox-hook.sh" ]
-  CLAUDE_SETUP_WORKSPACE="$WS" run "$SETUP"
+  unset CLAUDE_SETUP_WORKSPACE
+  run bash -c 'cd "$1" && "$2"' _ "$WS" "$SETUP"
   assert_success
   [ -x "$WS/tile-lite-elite/programme/.claude/hooks/inbox-hook.sh" ]
   hook_run '{}' inbox-hook.sh
   assert_output "pinned"
+}
+
+@test "with no repository holding a programme/ submodule the script says so and exits 0" {
+  run "$SETUP"
+  assert_success
+  assert_output --partial "no repository with a programme/ submodule"
 }
