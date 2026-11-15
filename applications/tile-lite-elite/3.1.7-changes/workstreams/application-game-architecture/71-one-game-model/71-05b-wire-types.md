@@ -75,10 +75,13 @@ moves do not sum to its score once a game is over.
 
 At the end of a game the server adds one move record per seat whose score the
 adjustment changes, with `move_type` `rack_adjustment` and the change as its
-`score_delta`. They come from the game's one event: `Finished` carries the
-`adjustments` ([*Structured descriptions*](#structured-descriptions)), so the
-log holds them and its category is `Game`. A seat's score is then always the
-sum of its records' `score_delta`. These records are not turns, so the scoreless count
+`score_delta`. They come from the event of the turn that ends the game: a
+placement that goes out, or the pass or exchange that reaches the scoreless
+limit, carries them in `ended`
+([*Structured descriptions*](#structured-descriptions)). That turn is one
+`Applied` and one logged event, so the log holds them. A seat's score is then
+always the sum of its records' `score_delta`. These records are not turns, so
+the scoreless count
 ([*Deriving beats accumulating*](71-07-client.md#deriving-beats-accumulating-and-the-scoreless-rule-is-the-case))
 skips them, and so does any lookup of the last move, such as the "just played"
 cells and the score change beside a seat. Playback steps through them like any
@@ -91,9 +94,9 @@ other record, so the final step shows the adjustment.
 ```rust
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum GameEventDto {
-    Placed        { seat: u8, main_word: String, score: i32 },
-    Passed        { seat: u8 },
-    Exchanged     { seat: u8, count: u8 },
+    Placed    { seat: u8, main_word: String, score: i32, ended: Option<GameEnd> },
+    Passed    { seat: u8, ended: Option<GameEnd> },
+    Exchanged { seat: u8, count: u8, ended: Option<GameEnd> },
     Resigned      { seat: u8 },
     ForceResigned { seat: u8 },
     TimedOut      { seat: u8 },
@@ -106,8 +109,7 @@ pub enum GameEventDto {
     SeatsSwapped  { a: u8, b: u8 },
     SeatHidden    { seat: u8 },
     ReminderSent  { seat: u8 },
-    Started, Aborted,
-    Finished { winner: Option<u8>, adjustments: Vec<RackAdjustment> },
+    Started, Aborted, Finished { winner: Option<u8> },
     UserDetailsUpdated { player: String },
     ChatPosted    { seat: Option<u8>, player: String },
 }
@@ -127,6 +129,8 @@ impl GameEventDto {
 
 pub enum ChangeCategory { Board, Game, Periphery }
 
+/// The end a turn caused: going out, or reaching the scoreless limit.
+pub struct GameEnd { pub winner: Option<u8>, pub adjustments: Vec<RackAdjustment> }
 pub struct RackAdjustment { pub seat: u8, pub score_delta: i32 }
 ```
 
