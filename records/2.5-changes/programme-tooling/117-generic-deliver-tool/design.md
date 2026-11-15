@@ -1952,10 +1952,12 @@ the release step, `ephemeral` for create and destroy), `TURPIN_SHA`,
 ([§11](#11-on-the-host)), so neither needs to know how far a deploy got:
 
 - `save-state` gets `TURPIN_DEPLOY`, `pending`'s number, and `TURPIN_CURRENT`,
-  `current`'s, absent on a first deploy. It removes any snapshot under its own
-  number, takes the snapshot keyed to it, marks it complete last, and then
-  removes every snapshot but these two. A rollback needs only `current`'s and a
-  restore only `pending`'s.
+  `current`'s, absent where there is no `current`. It:
+  1. removes any snapshot under `TURPIN_DEPLOY`;
+  2. takes the snapshot keyed to `TURPIN_DEPLOY`;
+  3. marks it complete;
+  4. removes every snapshot but `TURPIN_DEPLOY`'s and `TURPIN_CURRENT`'s,
+     since a rollback needs only `current`'s and a restore only `pending`'s.
 - `restore-state` gets `TURPIN_DEPLOY`, the number of the deploy being undone:
   `pending`'s for a restore and `current`'s for a rollback. It restores that
   deploy's snapshot, and does nothing where it has no complete one, since then
