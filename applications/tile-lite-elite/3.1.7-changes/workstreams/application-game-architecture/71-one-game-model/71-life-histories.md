@@ -234,7 +234,7 @@ authority, recorded here for review.
 | G4 | A listed bot with no account, or an unknown engine | E1, E28 × Bot task | owner |
 | G5 | Log rows are keyed by a version two messages leave alone | E19, E20 × Log row | Claude |
 | G6 | A bot whose move is not saved is never woken again | E23 × Bot object | Claude |
-| G7 | A suggestion changes the game with no `GameMessage` | E12 × Log row | Claude |
+| G7 | A suggestion changes the game with no `GameCommand` | E12 × Log row | Claude |
 
 **G1.** `SeatRef` is a game and a seat number. A swap (E9) happens only before
 the start, when no object acts, so there the drop and remake does no harm. The
@@ -299,7 +299,7 @@ move time limit although nothing was wrong with the move. Proposed: on a 503 the
 object retries once after `Retry-After`, then waits.
 
 **G7.** U4.2 makes the game unrated and moves the version, which the design
-says only a `GameMessage` may do, but no variant exists for it. Proposed:
+says only a `GameCommand` may do, but no variant exists for it. Proposed:
 `SuggestionTaken { seat }`, applied before the hint is returned, logged like
 any other change.
 

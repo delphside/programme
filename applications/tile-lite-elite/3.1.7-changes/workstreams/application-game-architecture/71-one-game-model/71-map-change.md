@@ -104,7 +104,7 @@ workspace extends model.dsl {
             tags "changed" "wp:268"
         }
         // 71-09-open-questions.md, "Open questions" (a change to user details is a
-        // GameMessage): update_player_details sends one to each of the
+        // SystemMessage): update_player_details sends one to each of the
         // player's games.
         !element tle.server.auth {
             tags "changed" "wp:268"
@@ -286,7 +286,7 @@ workspace extends model.dsl {
         }
 
         // 71-09-open-questions.md, "Open questions" (a change to user details is a
-        // GameMessage).
+        // SystemMessage).
         tle.server.auth -> tle.server.session "sends UpdateUserDetails to each game the player is in" {
             tags "new" "wp:268"
         }

@@ -43,7 +43,7 @@ Inside `server-game`, the parts this change touches:
 
 ### One version, moved in one place
 
-**The design**: every change goes through one handler taking a `GameMessage`,
+**The design**: every change goes through one handler taking a `GameCommand`,
 which applies, advances the version, records and publishes.
 
 **Measured**: `game_state.rs` has **33 `pub fn`**, of which **17 call
@@ -229,7 +229,7 @@ wire change. Testable by the existing suite passing unchanged. Nothing depends
 on it being done first except the engine change, and everything is easier
 after it.
 
-**2 — one version, moved in one place.** The `GameMessage` handler, with seat
+**2 — one version, moved in one place.** The `GameCommand` handler, with seat
 state still where it is. Removes the three rides-along coincidences. No wire
 change. Testable by a second client seeing every invitation change — the
 capability exists now (`startTwoPlayerGame`, `e2e/tests/helpers.ts`), and the
