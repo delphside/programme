@@ -21,6 +21,7 @@ REGISTER = """\
 | --- | --- | --- | --- | --- | --- |
 | `capacity-plan` | Produce and review the capacity plan | 30 | Claude produces, owner reviews | a report | Capacity and performance management |
 | `benchmark-run` | Run the engine timing benchmark | 30 | Claude | a row | Capacity and performance management |
+| `board-flow` | The daily sweep | 1 | Claude | the pinned issue | test only |
 | `never-done` | Something with no log row | 7 | Claude | nothing | test only |
 """
 
@@ -49,6 +50,18 @@ class BoardPractices(Cases):
                     sum("capacity-plan" in l and "OVERDUE" in l for l in out))
         self.expect("an activity with no log row reads never logged, not overdue", 1,
                     sum("never-done" in l and "never logged" in l for l in out))
+
+    def test_the_daily_sweep_is_recorded_in_its_pinned_issue_not_the_log(self):
+        out = self.practices().stdout.splitlines()
+        self.expect("board-flow is not read as never logged", 0,
+                    sum("board-flow" in l and "never logged" in l for l in out))
+        self.expect("it says where it is recorded", 1,
+                    sum("board-flow" in l and "pinned issue" in l for l in out))
+        data = json.loads(self.practices("--json").stdout)
+        self.expect("and its overdue_by is none", [None],
+                    [a["overdue_by"] for a in data if a["id"] == "board-flow"])
+        self.expect("an overdue --exit-code still counts only the others", 1,
+                    self.practices("--exit-code").returncode)
 
     def test_exit_code(self):
         self.expect("--exit-code is non-zero when something is overdue", 1, self.practices("--exit-code").returncode)

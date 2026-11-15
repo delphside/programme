@@ -8,8 +8,9 @@
 `--role` reads every repository over REST and judges each open item against
 the flow table (`model.FLOW`, the daily sweep's own judgement): the role's
 items are those it holds and those where it has a part in the state, each with
-its age and its bound. The roles are `model.ROLES`; `--workstream` narrows a
-design authority's list to one workstream. An unknown role is refused (exit 2).
+its age and its bound. The roles are `model.ROLES`, and `author` lists the pull
+requests a thread opened; `--workstream` narrows a design authority's list to
+one workstream. An unknown role is refused (exit 2).
 
 Built beside `actions.py`, not in place of it, and the two answer different
 questions: `actions.py` lists every outstanding action on the board, this lists
@@ -30,14 +31,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from board import flow                         # noqa: E402
-from board.model import ROLES                  # noqa: E402
+from board.model import HOLDERS                # noqa: E402
 from board.sources import Unavailable, fetch  # noqa: E402
 from board.turn import render                 # noqa: E402
 
 
 def role_list(role: str, workstream: str | None, now: datetime) -> int:
-    if role not in ROLES:
-        print(f"unknown role {role!r}: the roles are {', '.join(ROLES)}", file=sys.stderr)
+    if role not in HOLDERS:
+        print(f"unknown role {role!r}: the roles are {', '.join(HOLDERS)}", file=sys.stderr)
         return 2
     try:
         sweep = flow.survey(now)
@@ -64,7 +65,7 @@ def main(argv=None) -> int:
                     help="skip the timeline and token reads, which cost a "
                          "query each; ages fall back to last activity")
     ap.add_argument("--role", help="one role's list from the flow table, oldest first: "
-                                   + ", ".join(ROLES))
+                                   + ", ".join(HOLDERS))
     ap.add_argument("--workstream", help="with --role, only this workstream's items")
     ap.add_argument("--now", help="with --role, judge as of this ISO time (for a test)")
     args = ap.parse_args(argv)

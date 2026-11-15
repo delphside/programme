@@ -21,7 +21,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from board import flow, merge, model, sources
-from board.model import FLOW, ROLES
+from board.model import FLOW, HOLDERS, ROLES
 
 from .cases import Cases
 from .profiles import FIXTURES
@@ -308,12 +308,12 @@ class Bounds(Flow):
         self.expect("none", set(), self.stalled())
         self.expect("no bound", None, self.verdict(TLE, 1).bound)
 
-    def test_candidate_project_one_stalls_past_seven_days_under_the_coordinator(self):
+    def test_candidate_project_one_stalls_past_seven_days_under_the_demand_manager(self):
         """S6, S-G8: Candidate Project 1 is a move owed (raise its project)."""
         self.req(1, "Candidate Project 1", D(days=2), turn="Claude")
         self.req(2, "Candidate Project 1", D(days=8), turn="Claude")
         self.expect("only the older", {name(TLE, 2)}, self.stalled())
-        self.expect("the coordinator's", "coordinator", self.verdict(TLE, 2).role)
+        self.expect("the demand manager's", "demand-manager", self.verdict(TLE, 2).role)
 
     def test_project_phases_stall_past_seven_days(self):
         """S7: Scope, Design and Test Approach, User testing and Project Closedown,
@@ -807,7 +807,7 @@ class Claims(Flow):
         out = self.go().out
         self.expect("grouped by role and workstream", True,
                     "### design-authority (Process Definition)" in out
-                    and "### coordinator (Tooling)" in out)
+                    and "### demand-manager (Tooling)" in out)
         self.expect("naming no thread", False, "claude.ai" in out)
 
 
@@ -1103,7 +1103,23 @@ class Lists(Flow):
         run = self.actions("--role", "janitor")
         self.expect("refused", 2, run.code)
         self.expect("naming it", True, "janitor" in run.err)
-        self.expect("then a known role lists", 0, self.actions("--role", "coordinator").code)
+        self.expect("then a known role lists", 0, self.actions("--role", "demand-manager").code)
+
+    def test_every_role_of_the_roles_document_is_accepted_and_author_is_no_role(self):
+        """docs/1.7's nine roles are lower-case hyphenated slugs the list accepts,
+        even where the flow table gives one nothing; `author` lists, but is no role."""
+        self.expect("the nine", ("owner", "design-authority", "technical-lead",
+                                 "demand-manager", "release-manager",
+                                 "environments-manager", "test-manager", "librarian",
+                                 "security"), ROLES)
+        for role in ("environments-manager", "librarian", "security"):
+            run = self.actions("--role", role)
+            self.expect(f"{role} accepted", 0, run.code)
+            self.expect(f"{role} has nothing", True, f"Nothing is waiting on the {role}." in run.out)
+        self.expect("author is not a role", False, "author" in ROLES)
+        self.expect("but lists the pull requests a thread opened", 0,
+                    self.actions("--role", "author").code)
+        self.expect("coordinator is refused", 2, self.actions("--role", "coordinator").code)
 
     def test_owners_list_adds_turn_owner_items_and_keeps_its_five_sources(self):
         """S33, O13: the owner's list holds a Turn = Owner requirement, a Decision at
@@ -1134,7 +1150,7 @@ class Lists(Flow):
         self.proj(5, "Design and Test Approach", D(days=1), turn="Claude")
         sweep = self.survey()
         for v in sweep.verdicts:
-            holders = [r for r in ROLES if any(x is v and what == v.owes
+            holders = [r for r in HOLDERS if any(x is v and what == v.owes
                                                for x, what in flow.role_list(sweep, r))]
             self.expect(f"{v.name} has one holder", [v.role], holders)
 
@@ -1158,7 +1174,7 @@ class Lists(Flow):
         self.decision(4, "Asked", D(days=10), turn="Owner")
         sweep = self.survey()
         listed = set()
-        for role in ROLES:
+        for role in HOLDERS:
             text = flow.render_role(sweep, role)
             listed |= {ln.split()[0] for ln in text.splitlines() if "STALLED" in ln}
         self.expect("the same set", {v.name for v in sweep.stalled}, listed)
@@ -1174,7 +1190,7 @@ class Lists(Flow):
                 row = FLOW[kind].get(state)
                 self.expect(f"{kind} {state} has a row", True, row is not None)
                 if row:
-                    self.expect(f"{kind} {state} has a mover", True, row.role in ROLES)
+                    self.expect(f"{kind} {state} has a mover", True, row.role in HOLDERS)
                     self.expect(f"{kind} {state} says what it owes", True, bool(row.owes))
                     self.expect(f"{kind} {state} has a Turn", True, row.turn in model.TURNS)
         self.expect("a closed Ticket has no holder", None, FLOW["Ticket"]["Closed"].role)

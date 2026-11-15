@@ -530,5 +530,52 @@ class TheOpenPullRequestsOfAnotherRepository(Cases):
                 sources.open_pull_requests("fakeorg/fake-programme")
 
 
+class TheCommentReadPagesByHand(Cases):
+    """A cloud proxy refuses the `repositories/<numeric id>/...` path that GitHub's
+    `Link` header names, so `--paginate` cannot be used: every page is asked for
+    on the `repos/<owner>/<repo>/...` path with `&page=N`."""
+
+    @staticmethod
+    def row(n):
+        return f"{n}\t2026-11-15T10:00\towner\ttext {n}\t2026-11-15T10:00:00\t{n}"
+
+    def read(self, pages, timeout=30):
+        calls = []
+
+        def fake(args, **kw):
+            calls.append((args, kw))
+            n = int(args[2].rsplit("page=", 1)[1])
+            return subprocess.CompletedProcess([], 0, "\n".join(pages.get(n, [])) + "\n", "")
+
+        with mock.patch.object(sources.subprocess, "run", fake), \
+                mock.patch.object(sources, "_repository", lambda: ("fakeorg", "widget")):
+            got = sources._read_remarks("issues/comments?since=x&per_page=100", "comments",
+                                        "issue_url", False, timeout)
+        return got, calls
+
+    def test_page_two_is_read_by_the_repos_path_and_never_paginated(self):
+        full = [self.row(i) for i in range(100)]
+        got, calls = self.read({1: full, 2: [self.row(100), self.row(101)]})
+        self.expect("both pages' rows", 102, len(got))
+        self.expect("page 1, then page 2 on the owner/repo path",
+                    ["repos/fakeorg/widget/issues/comments?since=x&per_page=100&page=1",
+                     "repos/fakeorg/widget/issues/comments?since=x&per_page=100&page=2"],
+                    [c[0][2] for c in calls])
+        self.expect("no --paginate", [], [c for c in calls if "--paginate" in c[0]])
+
+    def test_a_short_first_page_is_the_only_read(self):
+        got, calls = self.read({1: [self.row(1)]})
+        self.expect("one row", 1, len(got))
+        self.expect("one call", 1, len(calls))
+
+    def test_the_timeout_is_for_the_whole_read(self):
+        full = [self.row(i) for i in range(100)]
+        _, calls = self.read({1: full, 2: full, 3: []}, timeout=30)
+        self.expect("a page gets what is left, never more than the whole",
+                    True, all(0 < c[1]["timeout"] <= 30 for c in calls))
+        self.expect("and it shrinks", True,
+                    calls[0][1]["timeout"] >= calls[2][1]["timeout"])
+
+
 if __name__ == "__main__":
     unittest.main()

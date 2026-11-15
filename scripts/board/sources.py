@@ -428,25 +428,47 @@ def comment_jq(url_key: str) -> str:
             '.created_at[0:19], (.id | tostring)] | @tsv')
 
 
+PAGE_SIZE = 100
+# A page limit no board comes near: a read that reaches it has lost count.
+MAX_PAGES = 500
+
+
 def _read_remarks(path: str, what: str, url_key: str, on_diff: bool,
                   timeout: int) -> list[Remark]:
     """The one comment read: `path` under this repository, through `comment_jq`,
     parsed into remarks. `comments_since` (the board) and `comments_on` (one
     issue) both read through it, so they cannot disagree about who typed what
-    or about which comments exist."""
-    try:
-        run = subprocess.run(
-            ["gh", "api", f"repos/{'/'.join(_repository())}/{path}",
-             "--paginate", "--jq", comment_jq(url_key)],
-            capture_output=True, text=True, timeout=timeout)
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Unavailable(f"could not read {what}: {exc}") from exc
-    if run.returncode != 0:
-        raise Unavailable(f"could not read {what}: {run.stderr.strip()[:200]}")
+    or about which comments exist.
+
+    **It pages by hand, with `&page=N`, on the `repos/<owner>/<repo>/...` path**
+    until a page returns fewer rows than `PAGE_SIZE`. `gh api --paginate`
+    follows GitHub's `Link` header, which names the next page as
+    `repositories/<numeric id>/...`, and the cloud proxy refuses that path. The
+    `timeout` is for the whole read, not for a page."""
+    deadline = time.monotonic() + timeout
+    lines: list[str] = []
+    for page in range(1, MAX_PAGES + 1):
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise Unavailable(f"could not read {what}: timed out after {timeout}s")
+        sep = "&" if "?" in path else "?"
+        try:
+            run = subprocess.run(
+                ["gh", "api", f"repos/{'/'.join(_repository())}/{path}{sep}page={page}",
+                 "--jq", comment_jq(url_key)],
+                capture_output=True, text=True, timeout=left)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise Unavailable(f"could not read {what}: {exc}") from exc
+        if run.returncode != 0:
+            raise Unavailable(f"could not read {what}: {run.stderr.strip()[:200]}")
+        rows = [ln for ln in run.stdout.splitlines() if ln.strip()]
+        lines += rows
+        if len(rows) < PAGE_SIZE:
+            break
+    else:
+        raise Unavailable(f"could not read {what}: more than {MAX_PAGES} pages")
     out = []
-    for line in run.stdout.splitlines():
-        if not line.strip():
-            continue
+    for line in lines:
         parts = line.split("\t")
         if len(parts) not in (5, 6):
             continue
