@@ -38,6 +38,7 @@ ENV_PROFILE = "TURPIN_PROFILE"        # the profile, where not APP/app-profile.t
 ENV_CONFIG_DIR = "TURPIN_CONFIG_DIR"  # where APP.env is, else ~/.config/turpin
 ENV_LOG_DIR = "TURPIN_LOG_DIR"        # where run logs go, else the XDG state folder
 ENV_GH_REPO = "TURPIN_GH_REPO"        # the GitHub repository, else the origin URL's
+ENV_HOST_BIN = "TURPIN_HOST_BIN"      # `turpin-host` on this machine, else the one beside `turpin`
 
 PROFILE_FILE = "app-profile.toml"
 

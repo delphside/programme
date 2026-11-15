@@ -51,7 +51,10 @@ state_text() { state_field "$1" state; }
 
 # State written before the payload takes over (steps 3 and 4) is written back, as found,
 # when the deploy stops before step 7: the host never leaves `preparing` of its own accord.
+# The record is read after the request is claimed, so what is found holds this request's
+# `last_request`, and writing it back keeps that.
 UNWIND_ENV=""; UNWIND_FOUND=""
+
 state_unwind() {
   [[ -n "$UNWIND_ENV" ]] || return 0
   case "$(state_text "$UNWIND_ENV")" in "preparing: "*) state_save "$UNWIND_ENV" "$UNWIND_FOUND" ;; esac
@@ -75,98 +78,250 @@ host_registry() {
   fi
 }
 
-# take_lock ENVDIR LOCKFILE WAIT: the lock is descriptor 9, held to the end.
+# ------------------------------------------------------------------ the request protocol
+
+# What `turpin-host deploy` and `rollback` share (design section 6 *Interruption*, section 11
+# *The last request*): the request is one line on standard input, which the controller holds
+# open; a watcher reads on to the end of input and there writes `interrupted.PID`; the request's
+# id and `repeat` are validated before the lock; the outcome is recorded in `last_request`.
+HOST_TMP=()            # files and folders this run made, removed however it ends
+WATCHER_PID=""
+REQ=""; REQ_ID=""; REQ_REPEAT=false; REQ_CHECK=false; REQ_KIND=""
+REQ_OWNED=0            # this request wrote `running` into last_request, so it owes an outcome
+REPLAYED=0
+PAYLOAD_RAW=0          # the payload step's own exit status, before host_exit
+CUR_ENVDIR=""
+
+request_trap() {   # ENVDIR: the first thing a request does: nothing it makes outlives it
+  trap 'host_cleanup $?' EXIT
+  trap '' PIPE HUP   # a dropped connection is the end of the input, not a death (design section 6)
+  # the notes are a file in the state folder, so that sweep_stale finds what a kill leaves
+  mkdir -p "$1"
+  TURPIN_NOTE="$1/note.$$"; : > "$TURPIN_NOTE"; HOST_TMP+=("$TURPIN_NOTE")
+  export TURPIN_NOTE
+}
+
+# request_open KIND ENVDIR: read the request, watch the input, validate (before any lock).
+request_open() {
+  local kind="$1" envdir="$2" line
+  REQ_KIND="$kind"; CUR_ENVDIR="$envdir"
+  mkdir -p "$envdir"
+  TURPIN_HOST_PID=$$; TURPIN_INTERRUPT_FILE="$envdir/interrupted.$$"
+  export TURPIN_HOST_PID TURPIN_INTERRUPT_FILE
+  HOST_TMP+=("$TURPIN_INTERRUPT_FILE")
+  IFS= read -r line || true
+  rm -f -- "$TURPIN_INTERRUPT_FILE"
+  # the watcher: the input ending is written as the file; the shell's own input is /dev/null,
+  # as every hook's is
+  # (it holds none of the host's output, and it ends if the host did: a watcher left behind would
+  # keep the caller's pipes open)
+  {
+    local rc
+    while :; do
+      kill -0 "$TURPIN_HOST_PID" 2>/dev/null || exit 0
+      rc=0; IFS= read -r -t 2 _ || rc=$?
+      (( rc == 0 || rc > 128 )) || break
+    done
+    : > "$TURPIN_INTERRUPT_FILE"
+  } <&0 >/dev/null 2>&1 &
+  WATCHER_PID=$!
+  exec </dev/null
+  REQ="$envdir/request.$$"; HOST_TMP+=("$REQ")
+  printf '%s\n' "$line" > "$REQ"
+  jq -e 'type == "object"' "$REQ" >/dev/null 2>&1 \
+    || REASON=HOST_REQUEST_UNREADABLE unexpected_stop "the request is not one JSON object: this was not expected; raise it as an issue"
+  REQ_ID="$(jq -r '.request_id // empty' "$REQ")"
+  [[ "$REQ_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] \
+    || REASON=HOST_REQUEST_ID_INVALID unexpected_stop "the request's request_id is not a version 4 UUID: this was not expected; raise it as an issue"
+  jq -e '(.repeat | type) == "boolean"' "$REQ" >/dev/null 2>&1 \
+    || REASON=HOST_REQUEST_UNREADABLE unexpected_stop "the request's repeat is not true or false: this was not expected; raise it as an issue"
+  REQ_REPEAT="$(jq -r '.repeat' "$REQ")"
+  REQ_CHECK="$(jq -r '.check // false' "$REQ")"
+}
+
+# request_wait: the minutes to wait for the lock, as the controller set them in `lock_wait`
+# (the limit is the controller's: settings.py has the repeat's default). `wait` is the hooks'.
+request_wait() { jq -r '.lock_wait // empty' "$REQ"; }
+
+# request_claim ENVDIR: with the lock held and before any other step, read the last request. A
+# repeat of one answered is answered from the record; of one still `running`, refused; of one
+# `interrupted`, run again. Any other request writes its id with `running`. A request under
+# --check writes nothing, and a rollback on a host that has no record has nothing to record.
+request_claim() {
+  local envdir="$1" lr
+  [[ "$REQ_CHECK" != true ]] || return 0
+  lr="$(state_get "$envdir" | jq -c '.last_request // null')"
+  if [[ "$(jq -r '.request_id // empty' <<< "$lr")" == "$REQ_ID" ]]; then
+    case "$(jq -r '.outcome // empty' <<< "$lr")" in
+      finished|failed|refused) request_replay "$lr" ;;
+      running) REASON=HOST_REQUEST_RUNNING die "request $REQ_ID was left running and the host may be part-way through it: run turpin status ENV to see what it holds, then decide" ;;
+    esac
+  fi
+  if [[ "$REQ_KIND" == rollback && ! -f "$(state_file "$envdir")" ]]; then return 0; fi
+  state_put "$envdir" '.last_request = {request_id: $id, outcome: "running"}' --arg id "$REQ_ID"
+  REQ_OWNED=1
+}
+
+# request_replay LAST_REQUEST: answer a repeat with the recorded result, running nothing.
+request_replay() {
+  local lr="$1" code name res msg
+  REPLAYED=1
+  while IFS=' ' read -r name res; do
+    [[ -n "$name" ]] || continue
+    printf '@gate %s %s\n' "$name" "$res" >&2 || true
+  done < <(jq -r '(.gates // [])[] | "\(.name) \(.result)"' <<< "$lr")
+  code="$(jq -r '.exit // 1' <<< "$lr")"
+  msg="$(jq -r '.result.message // ""' <<< "$lr")"
+  if [[ "$code" -eq 0 ]]; then
+    [[ -z "$msg" ]] || printf '%s\n' "$msg"
+  else
+    warn "$msg"
+    printf '@result %s\n' "$(jq -c '.result' <<< "$lr")" >&2 || true
+  fi
+  exit "$code"
+}
+
+# request_finalize CODE: the outcome of the request, once, in one write. A pivot has written its
+# own `finished` already, which only an exit 3 rewrites. A request that died with its payload
+# (a signal) is left `running`, as a reboot would leave it.
+request_finalize() {
+  local code="$1" lr outcome kind
+  [[ $REQ_OWNED -eq 1 ]] || return 0
+  lr="$(state_get "$CUR_ENVDIR" | jq -c '.last_request // null')"
+  [[ "$(jq -r '.request_id // empty' <<< "$lr")" == "$REQ_ID" ]] || return 0
+  if (( PAYLOAD_RAW > 128 && PAYLOAD_RAW != 130 )); then return 0; fi
+  outcome="$(jq -r '.outcome' <<< "$lr")"
+  case "$outcome" in
+    running)
+      case "$code" in
+        0|3) kind=finished ;;
+        75|130) kind=interrupted ;;
+        1) kind="$(notes_refusal_kind)" ;;
+        *) kind=failed ;;
+      esac ;;
+    finished) [[ "$code" -eq 3 ]] || return 0; kind=finished ;;
+    *) return 0 ;;
+  esac
+  state_put "$CUR_ENVDIR" '.last_request = {request_id: $id, outcome: $o, exit: $e, result: $r, gates: $g}' \
+    --arg id "$REQ_ID" --arg o "$kind" --argjson e "$code" \
+    --argjson r "$(result_from_notes "$code")" --argjson g "$(gates_from_notes)"
+}
+
+# sweep_stale ENVDIR: what a killed request left in the state folder (it cannot clean up after
+# itself), recognised by a process id that is no longer alive.
+sweep_stale() {
+  local f pid
+  for f in "$1"/request.* "$1"/payload.* "$1"/interrupted.* "$1"/note.*; do
+    [[ -e "$f" ]] || continue
+    pid="${f##*.}"
+    [[ "$pid" =~ ^[0-9]+$ ]] || continue
+    kill -0 "$pid" 2>/dev/null && continue
+    rm -rf -- "$f"
+  done
+  return 0
+}
+
+# take_lock ENVDIR LOCKFILE WAIT: the lock is descriptor 9, held to the end. It is taken in
+# waits of one second, with a look at the input's end between (design section 6).
 take_lock() {
-  local lock="$2" wait="$3" waited=0 unit="${TURPIN_WAIT_UNIT:-60}"
+  local lock="$2" wait="$3" waited=0 unit="${TURPIN_WAIT_UNIT:-60}" limit
   mkdir -p "$(dirname "$lock")"
   exec 9>>"$lock"
   TURPIN_WAIT_USED=0; export TURPIN_WAIT_USED
+  look_for_interruption "before taking the lock"
   if flock -n 9; then gate_ok lock "free"; return 0; fi
-  if [[ -z "$wait" ]]; then gate_fail lock "the lock $lock is held by another deploy or run"; fi
-  while ! flock -w "$unit" 9; do
-    waited=$((waited + 1)); TURPIN_WAIT_USED=$waited
-    if (( waited >= wait )); then gate_fail lock "still held after waiting $wait minute(s) for the lock $lock"; fi
+  if [[ -z "$wait" ]]; then REASON=HOST_LOCK_HELD gate_fail lock "the lock $lock is held by another deploy or run"; fi
+  limit=$(( wait * unit ))
+  while ! flock -w 1 9; do
+    waited=$((waited + 1))
+    look_for_interruption "while waiting for the lock"
+    if (( waited >= limit )); then
+      REASON=HOST_LOCK_WAIT_LIMIT gate_blip lock "still held after waiting $wait minute(s) for the lock $lock"
+    fi
   done
-  gate_ok lock "free after waiting $waited minute(s)"
+  TURPIN_WAIT_USED=$(( waited / unit ))
+  gate_ok lock "free after waiting $TURPIN_WAIT_USED minute(s)"
 }
 
 cmd_deploy() {
-  local app="$1" env="$2" req envdir lock
+  local app="$1" env="$2" envdir lock
   envdir="$(env_dir "$app" "$env")"
+  request_trap "$envdir"
   state_layout_check "$envdir"
   state_layout_check_all "$STATE_ROOT/$app"/*/   # every environment of the application, before anything is pulled or written
-  mkdir -p "$envdir"
-  req="$(mktemp "$envdir/request.XXXXXX")"
-  HOST_TMP+=("$req"); trap 'host_cleanup $?' EXIT
-  cat > "$req"
-  jq -e . "$req" >/dev/null 2>&1 || die "the request is not JSON"
+  request_open deploy "$envdir"
   TURPIN_LOG_DIR="$envdir/log"; run_log_start "." deploy "$app" "$env" 2>/dev/null || true
   trap 'host_cleanup $?' EXIT
   RUN_LOG="${RUN_LOG:-}"
   GATE_EMIT=1
   host_registry "$envdir"
-  local wait local_build sha repo payload timeout login
-  wait="$(jq -r '.wait // empty' "$req")"; local_build="$(jq -r '.local' "$req")"
-  sha="$(jq -r .sha "$req")"; repo="$(jq -r .repo "$req")"; payload="$(jq -r .payload_image "$req")"
-  timeout="$(jq -r '.pull_timeout // 300' "$req")"; login="$(jq -r '.login // empty' "$req")"
-  lock="$(jq -r '.lock // empty' "$req")"; lock="${lock:+$ROOT$lock}"; lock="${lock:-$envdir/lock}"
+  local local_build sha repo payload timeout login
+  local_build="$(jq -r '.local' "$REQ")"
+  sha="$(jq -r .sha "$REQ")"; repo="$(jq -r .repo "$REQ")"; payload="$(jq -r .payload_image "$REQ")"
+  timeout="$(jq -r '.pull_timeout // 300' "$REQ")"; login="$(jq -r '.login // empty' "$REQ")"
+  lock="$(jq -r '.lock // empty' "$REQ")"; lock="${lock:+$ROOT$lock}"; lock="${lock:-$envdir/lock}"
 
-  take_lock "$envdir" "$lock" "$wait"
+  take_lock "$envdir" "$lock" "$(request_wait)"
+  request_claim "$envdir"
+  sweep_stale "$envdir"
 
-  local found check
-  found="$(state_text "$envdir")"; check="$(jq -r '.check' "$req")"
+  local found check="$REQ_CHECK"
+  found="$(state_text "$envdir")"
   if ! state_admits_deploy "$found"; then
     case "$found" in
-      "changing: "*) gate_fail state "the host is mid-change (state: $found); run turpin rollback ENV to finish or undo it (a redeploy is refused until then)" ;;
-      *) gate_fail state "the last deploy did not finish (state: $found); run turpin rollback ENV to put the last good deploy back (a redeploy is refused until then)" ;;
+      "changing: "*) REASON=HOST_STATE_REFUSED gate_fail state "the host is mid-change (state: $found); run turpin rollback ENV to finish or undo it (a redeploy is refused until then)" ;;
+      *) REASON=HOST_STATE_REFUSED gate_fail state "the last deploy did not finish (state: $found); run turpin rollback ENV to put the last good deploy back (a redeploy is refused until then)" ;;
     esac
   fi
   gate_ok state "${found:-none}"
   if [[ "$check" != true ]]; then
-    UNWIND_ENV="$envdir"; UNWIND_FOUND=""
+    UNWIND_ENV="$envdir"
     UNWIND_FOUND="$(state_get_raw "$envdir")"
   fi
 
   # every image by digest; the label must be the commit; then the payload
   # the machine user's own docker login (design §3)
-  REG_COMPONENT="$(jq -r '.login_component // empty' "$req")"; REG_COMPONENT="${REG_COMPONENT:-$env}"
-  [[ -z "$login" ]] || login_run "$login" || gate_fail digests "registry login ($login) failed: $REG_ERR"
+  REG_COMPONENT="$(jq -r '.login_component // empty' "$REQ")"; REG_COMPONENT="${REG_COMPONENT:-$env}"
+  [[ -z "$login" ]] || login_run "$login" || REASON=HOST_DIGEST_REFUSED gate_fail digests "registry login ($login) failed: $REG_ERR"
   local name digest ref labels rev
   [[ "$check" == true ]] || state_put "$envdir" '.state = "preparing: pull"'
   while IFS=$'\t' read -r name digest; do
     [[ -n "$name" ]] || continue
+    look_for_interruption "before pulling $name"
     if [[ "$local_build" == true ]]; then
       ref="$digest"
       rev="$(docker image inspect "$ref" --format '{{json .Config.Labels}}' 2>/dev/null | jq -r '.["org.opencontainers.image.revision"] // empty')" \
-        || gate_fail digests "local image $name ($ref) is not there"
+        || REASON=HOST_DIGEST_REFUSED gate_fail digests "local image $name ($ref) is not there"
     else
       ref="$TURPIN_REGISTRY/$repo@$digest"
       local pcode=0 perr
       perr="$(timeout "$timeout" docker pull -q "$ref" 2>&1 >/dev/null)" || pcode=$?
-      if [[ $pcode -eq 124 ]]; then gate_fail digests "pulling $name took longer than pull_timeout ($timeout s)"; fi
-      [[ $pcode -eq 0 ]] || gate_fail digests "cannot pull $name by digest $digest: $(reg_summarise "$perr")"
-      labels="$(docker image inspect "$ref" --format '{{json .Config.Labels}}' 2>/dev/null)" || gate_fail digests "cannot inspect $name"
+      if [[ $pcode -eq 124 ]]; then REASON=HOST_PULL_TIMED_OUT gate_fail digests "pulling $name took longer than pull_timeout ($timeout s)"; fi
+      [[ $pcode -eq 0 ]] || REASON=HOST_DIGEST_REFUSED gate_fail digests "cannot pull $name by digest $digest: $(reg_summarise "$perr")"
+      labels="$(docker image inspect "$ref" --format '{{json .Config.Labels}}' 2>/dev/null)" || REASON=HOST_DIGEST_REFUSED gate_fail digests "cannot inspect $name"
       rev="$(jq -r '.["org.opencontainers.image.revision"] // empty' <<< "$labels")"
     fi
-    [[ "$rev" == "$sha" ]] || gate_fail digests "image $name carries revision ${rev:-none}, not $sha: it is not this commit's build"
-  done < <(jq -r '.images | to_entries[] | [.key, .value] | @tsv' "$req")
+    [[ "$rev" == "$sha" ]] || REASON=HOST_DIGEST_REFUSED gate_fail digests "image $name carries revision ${rev:-none}, not $sha: it is not this commit's build"
+  done < <(jq -r '.images | to_entries[] | [.key, .value] | @tsv' "$REQ")
   gate_ok digests "every image pulled by digest and labelled ${sha:0:12}"
 
   # the payload, taken out of the image that carries it
   local pimg pref tmp cid
+  look_for_interruption "before taking the payload out of the image"
   [[ "$check" == true ]] || state_put "$envdir" '.state = "preparing: payload"'
-  pimg="$(jq -r --arg n "$payload" '.images[$n] // empty' "$req")"
-  [[ -n "$pimg" ]] || die "the request names no image $payload to take the payload from"
+  pimg="$(jq -r --arg n "$payload" '.images[$n] // empty' "$REQ")"
+  [[ -n "$pimg" ]] || REASON=HOST_PAYLOAD_UNREADABLE die "the request names no image $payload to take the payload from"
   if [[ "$local_build" == true ]]; then pref="$pimg"; else pref="$TURPIN_REGISTRY/$repo@$pimg"; fi
-  tmp="$(mktemp -d "$envdir/payload.XXXXXX")"; HOST_TMP+=("$tmp")
-  cid="$(docker create "$pref")" || die "cannot create a container from $payload to read /turpin/"
-  docker cp "$cid:/turpin/." "$tmp" >/dev/null || { docker rm "$cid" >/dev/null 2>&1; die "the image $payload has no /turpin/"; }
+  tmp="$envdir/payload.$$"; rm -rf -- "$tmp"; mkdir -p "$tmp"; HOST_TMP+=("$tmp")
+  cid="$(docker create "$pref")" || REASON=HOST_PAYLOAD_UNREADABLE die "cannot create a container from $payload to read /turpin/"
+  docker cp "$cid:/turpin/." "$tmp" >/dev/null || { docker rm "$cid" >/dev/null 2>&1; REASON=HOST_PAYLOAD_UNREADABLE die "the image $payload has no /turpin/"; }
   docker rm "$cid" >/dev/null 2>&1
-  [[ -x "$tmp/deploy" ]] || die "the payload has no deploy step"
+  [[ -x "$tmp/deploy" ]] || REASON=HOST_PAYLOAD_UNREADABLE die "the payload has no deploy step"
 
-  export PAYLOAD_DIR="$tmp" TURPIN_REQUEST="$req" ENVDIR="$envdir" RUN_LOG GATE_EMIT
+  export PAYLOAD_DIR="$tmp" TURPIN_REQUEST="$REQ" ENVDIR="$envdir" RUN_LOG GATE_EMIT
   local code=0
   "$tmp/deploy" || code=$?
+  PAYLOAD_RAW="$code"
   code="$(host_exit "$code")"
   exit "$code"
 }
@@ -180,11 +335,17 @@ host_exit() {
 
 drop_tmp() { local d="${1:?}"; [[ -d "$d" ]] && rm -rf -- "$d"; return 0; }
 
-# Files this run made in the state folder, removed however it ends.
-HOST_TMP=()
+# However the request ends: its watcher stopped, the state found written back where the deploy
+# stopped before step 7, the outcome recorded, what it made removed, and the result sent to
+# the controller as the last line of standard error.
 host_cleanup() {
   local code="$1" t
+  [[ -z "$WATCHER_PID" ]] || { kill "$WATCHER_PID" 2>/dev/null || true; wait "$WATCHER_PID" 2>/dev/null || true; }
   state_unwind
+  request_finalize "$code"
+  if [[ "$code" -ne 0 && $REPLAYED -eq 0 ]]; then
+    printf '@result %s\n' "$(result_from_notes "$code")" >&2 || true
+  fi
   for t in "${HOST_TMP[@]}"; do
     if [[ -d "$t" ]]; then drop_tmp "$t"; elif [[ -n "$t" ]]; then rm -f -- "$t"; fi
   done
@@ -208,29 +369,44 @@ rollback_payload() {
 }
 
 cmd_rollback() {
-  local app="$1" env="$2" req envdir lock wait payload
+  local app="$1" env="$2" envdir lock payload
   envdir="$(env_dir "$app" "$env")"
+  request_trap "$envdir"
   state_layout_check "$envdir"
-  mkdir -p "$envdir"
-  req="$(mktemp "$envdir/request.XXXXXX")"; HOST_TMP+=("$req"); trap 'host_cleanup $?' EXIT
-  cat > "$req"
+  request_open rollback "$envdir"
   TURPIN_LOG_DIR="$envdir/log"; run_log_start "." rollback "$app" "$env" 2>/dev/null || true
   trap 'host_cleanup $?' EXIT
   GATE_EMIT=1
   host_registry "$envdir"
-  wait="$(jq -r '.wait // empty' "$req")"
-  lock="$(jq -r '.lock // empty' "$req")"; lock="${lock:+$ROOT$lock}"; lock="${lock:-$envdir/lock}"
-  take_lock "$envdir" "$lock" "$wait"
+  lock="$(jq -r '.lock // empty' "$REQ")"; lock="${lock:+$ROOT$lock}"; lock="${lock:-$envdir/lock}"
+  take_lock "$envdir" "$lock" "$(request_wait)"
+  request_claim "$envdir"
+  sweep_stale "$envdir"
   # the steps come from the deploy the state table names
   payload="$(rollback_payload "$envdir")"
   if [[ -z "$payload" ]]; then
-    gate_fail rollback-target "nothing is deployed here to roll back (no payload on disk, so no fallback to name); use the application's [turpin].fallback"
+    # a bare host has no payload on disk to name the fallback, so the request carries it
+    REASON=ROLLBACK_NOTHING_DEPLOYED gate_fail rollback-target "nothing is deployed here to roll back. Fallback: $(jq -r '.fallback' "$REQ")"
   fi
-  export TURPIN_REQUEST="$req" ENVDIR="$envdir" RUN_LOG GATE_EMIT
+  export TURPIN_REQUEST="$REQ" ENVDIR="$envdir" RUN_LOG GATE_EMIT
   local code=0
   "$payload/rollback" || code=$?
+  PAYLOAD_RAW="$code"
   code="$(host_exit "$code")"
   exit "$code"
+}
+
+# read_data: the data a call reads (login, allowlist), up to the closing line `# turpin: end`,
+# which the call removes before use (design section 6, Interruption). Input that ends without
+# it was cut off, so the call changes nothing and exits 75.
+CLOSING_LINE="# turpin: end"
+read_data() {
+  local line; DATA=""
+  while IFS= read -r line; do
+    if [[ "$line" == "$CLOSING_LINE" ]]; then return 0; fi
+    DATA+="$line"$'\n'
+  done
+  REASON=HOST_INPUT_CUT_OFF blip_stop "the input ended without its closing line ($CLOSING_LINE): nothing was changed; run the command again"
 }
 
 # allowlist APP < lines: run by `turpin host-install` as root. It writes the application's
@@ -242,7 +418,7 @@ cmd_rollback() {
 cmd_allowlist() {
   local app="$1" new old out line dest src mode enable pj meta used dropped=() d st envd n
   state_layout_check_all "$STATE_ROOT/$app"/*/
-  new="$(cat)"
+  read_data; new="${DATA%$'\n'}"
   old="$ALLOW_ROOT/$app/host_files.allow"
   mkdir -p "$ALLOW_ROOT/$app"
   out="$(mktemp "$ALLOW_ROOT/$app/.allow.XXXXXX")"
@@ -377,9 +553,9 @@ cmd_login() {
       REG_COMPONENT="$env" ;;
     *) die "unknown component $comp (controller, builder, copier or deployer)" ;;
   esac
-  IFS= read -r user || true
-  IFS= read -r token || true
-  [[ -n "$user" && -n "$token" ]] || die "login needs a user and a token"
+  read_data
+  { IFS= read -r user; IFS= read -r token; } <<< "$DATA" || true
+  [[ -n "$user" && -n "$token" ]] || REASON=HOST_LOGIN_INCOMPLETE die "login needs a user and a token"
   case "$comp" in
     controller|copier) printf '%s' "$token" | login_skopeo "$user" || die "$REG_ERR" ;;
     builder)
@@ -400,7 +576,12 @@ cmd_status() {
   state_layout_check "$envdir"
   rec="$(state_get "$envdir")"
   cur="$(jq -r '.current // empty' <<< "$rec")"; prev="$(jq -r '.previous // empty' <<< "$rec")"
-  local curj="null" prevj="null" deploys="[]" d
+  local curj="null" prevj="null" pendj="null" pend deploys="[]" d
+  pend="$(jq -r '.pending // empty' <<< "$rec")"
+  if [[ -n "$pend" ]]; then
+    pendj="$(jq -nc --argjson n "$pend" '{n: $n}')"
+    [[ -f "$envdir/deploys/$pend/meta.json" ]] && pendj="$(jq -c . "$envdir/deploys/$pend/meta.json")"
+  fi
   [[ -n "$cur" && -f "$envdir/deploys/$cur/meta.json" ]] && curj="$(jq -c . "$envdir/deploys/$cur/meta.json")"
   [[ -n "$prev" && -f "$envdir/deploys/$prev/meta.json" ]] && prevj="$(jq -c . "$envdir/deploys/$prev/meta.json")"
   if [[ -d "$envdir/deploys" ]]; then
@@ -425,10 +606,10 @@ cmd_status() {
       jq -nc --arg d "$dest" --arg s "$have" '{dest:$d,status:$s}'
     done < <(jq -r '(.turpin.host_files // [])[] | [.src, .dest, (.mode // "0644")] | @tsv' "$p/profile.json") | jq -sc '.')"
   fi
-  jq -nc --argjson rec "$rec" --argjson cur "$curj" --argjson prev "$prevj" --argjson deploys "$deploys" \
+  jq -nc --argjson rec "$rec" --argjson cur "$curj" --argjson prev "$prevj" --argjson pend "$pendj" --argjson deploys "$deploys" \
     --argjson running "$running" --argjson files "$files" \
     '{outcome: "ok", reason: "HOST_STATUS", domain: "turpin", message: "the host\u0027s state was read",
-      metadata: {state: ($rec.state // null), pending: ($rec.pending // null),
+      metadata: {state: ($rec.state // null), pending: $pend,
         last_request: (if $rec.last_request == null then null else {request_id: $rec.last_request.request_id, outcome: $rec.last_request.outcome} end),
         current: $cur, previous: $prev, deploys: $deploys, running: $running, host_files: $files}}'
 }

@@ -219,6 +219,15 @@ run_turpin_host() {
   fi
 }
 
+# T4 shim: removed at T8. The host protocol of the Python controller (design section 6): a
+# request line carrying a request_id and `repeat`, held open for the call's life, as
+# turpin-host's watcher reads the end of the input as an interruption.
+host_request_input() {   # REQUEST: the line, then a blank line a second until the reader is gone
+  printf '%s\n' "$1"
+  while :; do sleep 1; printf '\n' || exit 0; done
+}
+host_request_id() { python3 -c 'import uuid; print(uuid.uuid4())'; }   # T4 shim: removed at T8
+
 # host_files_conflict ENV: refuse when another environment of this application on the same
 # machine also installs host files: each deploy removes the files the other installed.
 host_files_conflict() {
@@ -619,23 +628,25 @@ cmd_deploy() {
 
   local source_repo="$CANDIDATES"; [[ "$role" == production ]] && source_repo="$RELEASES"
   local request
+  # T4 shim: removed at T8 (the request's request_id, repeat and lock_wait are the Python controller's to set)
   request="$(jq -nc --arg app "$APP" --arg env "$env" --arg role "$role" --arg sha "$SHA" --arg version "$VERSION" \
     --argjson images "$IMAGES_JSON" --arg repo "$source_repo" --arg login "$(env_q "$env" login)" --arg lc "$(login_component "$env")" \
     --arg timeout "$(env_q "$env" pull_timeout)" --arg lock "$(env_q "$env" lock)" --arg payload "$PAYLOAD_IMAGE" \
     --arg project "$(env_q "$env" project)" --arg wait "$OPT_WAIT" --argjson check "$OPT_CHECK" \
-    --argjson local "$local_build" --argjson record "${RECORD_JSON:-null}" \
+    --argjson local "$local_build" --argjson record "${RECORD_JSON:-null}" --arg rid "$(host_request_id)" \
     --argjson set_aside "$(printf '%s\n' "${SET_ASIDE[@]}" | jq -Rn '[inputs | select(length>0) | split("\t") | {gate: .[0], reason: .[1]}]')" \
     --argjson host_files "$(case "$(env_q "$env" host_files)" in true) echo true ;; false) echo false ;; *) echo null ;; esac)" \
     --argjson join "$(env_qa "$env" join | jq -Rn '[inputs]')" \
-    '{app:$app,env:$env,role:$role,sha:$sha,version:$version,images:$images,repo:$repo,login:$login,login_component:$lc,
+    '{request_id:$rid,repeat:false,app:$app,env:$env,role:$role,sha:$sha,version:$version,images:$images,repo:$repo,login:$login,login_component:$lc,
       pull_timeout:($timeout|if .=="" then null else tonumber end),lock:$lock,payload_image:$payload,project:$project,
-      wait:($wait|if .=="" then null else tonumber end),check:($check==1),local:($local==1),record:$record,
+      wait:($wait|if .=="" then null else tonumber end),lock_wait:($wait|if .=="" then null else tonumber end),check:($check==1),local:($local==1),record:$record,
       set_aside:$set_aside,host_files:$host_files,env_join:$join}')"
 
   # the hooks that run on the controller come from the commit, never the tree
   local errfile code=0
   errfile="$(mktemp)"
-  run_on_host "$env" deploy "$APP" "$env" <<< "$request" 2>"$errfile" || code=$?
+  # T4 shim: removed at T8 (the held-open input)
+  run_on_host "$env" deploy "$APP" "$env" < <(host_request_input "$request") 2>"$errfile" || code=$?
   replay_host_stderr "$errfile"; rm -f "$errfile"
   if [[ $code -ne 0 ]]; then
     run_log_event deploy-failed "code=$code"
@@ -659,6 +670,8 @@ replay_host_stderr() {
     if [[ "$line" == "@gate "* ]]; then
       read -r _ name res _ <<< "$line"
       GATES_RAN+=("$name"); run_log_event gate "name=$name" "result=$res" "where=host"
+    elif [[ "$line" == "@result "* ]]; then
+      :   # T4 shim: the host's result object is the Python controller's to read
     else
       printf '%s\n' "$line" >&2
     fi
@@ -706,51 +719,7 @@ rehearsal_level_gate() {
   fi
 }
 
-# ------------------------------------------------------------------ rollback, status, list
-
-cmd_rollback() {
-  [[ $# -eq 1 ]] || die "usage: turpin rollback ENV"
-  local env="$1"; TURPIN_SUBCOMMAND=rollback; load_profile
-  registry_require
-  env_exists "$env" || die "the profile has no environment $env"
-  local role; role="$(env_role "$env")"
-  gates_expect lock rollback-target
-  local request errfile code=0
-  request="$(jq -nc --arg app "$APP" --arg env "$env" --arg role "$role" --arg login "$(env_q "$env" login)" \
-    --arg repo "$([[ $role == production ]] && echo "$RELEASES" || echo "$CANDIDATES")" --arg lock "$(env_q "$env" lock)" \
-    --arg timeout "$(env_q "$env" pull_timeout)" --arg project "$(env_q "$env" project)" --arg wait "$OPT_WAIT" \
-    '{app:$app,env:$env,role:$role,login:$login,repo:$repo,lock:$lock,project:$project,pull_timeout:($timeout|if .=="" then null else tonumber end),wait:($wait|if .=="" then null else tonumber end)}')"
-  errfile="$(mktemp)"
-  run_on_host "$env" rollback "$APP" "$env" <<< "$request" 2>"$errfile" || code=$?
-  replay_host_stderr "$errfile"; rm -f "$errfile"
-  [[ $code -eq 0 ]] || exit 1
-  gates_finish
-}
-
-cmd_status() {
-  [[ $# -eq 1 ]] || die "usage: turpin status ENV"
-  local env="$1"; TURPIN_SUBCOMMAND=status; load_profile
-  env_exists "$env" || die "the profile has no environment $env"
-  gates_expect
-  g fetch -q --tags origin 2>/dev/null || true
-  local st; st="$(host_status "$env")"
-  say "environment: $env ($(env_role "$env"))"
-  say "state: $(jq -r '.state // "none (no turpin deploy yet)"' <<< "$st")"
-  if [[ "$(jq -r '.current // empty' <<< "$st")" == "" ]]; then say "current: none"; return 0; fi
-  say "current: deploy $(jq -r .current.n <<< "$st") commit $(jq -r .current.sha <<< "$st") version $(jq -r '.current.version // "-"' <<< "$st")"
-  jq -r '.current.images | to_entries[] | "image \(.key) \(.value)"' <<< "$st"
-  local running; running="$(jq -r '(.running // []) | join(" ")' <<< "$st")"
-  local want; want="$(jq -r '.current.images | [.[]] | sort | join(" ")' <<< "$st")"
-  if [[ "$(printf '%s\n' $running | sort | tr '\n' ' ' | sed 's/ $//')" == "$want" ]]; then say "running: the current digests"; else say "running: DIFFERS from the current digests ($running)"; fi
-  local rec t match=""
-  while read -r t; do
-    [[ -n "$t" ]] || continue
-    rec="$(record_of_tag "$t" 2>/dev/null)" || continue
-    if jq -e --argjson cur "$(jq -c .current.images <<< "$st")" '.images == $cur' >/dev/null <<< "$rec"; then match="$(jq -r .version <<< "$rec")"; fi
-  done < <(release_tags)
-  say "record: ${match:-none matches}"
-  jq -r '(.host_files // [])[] | "host file \(.dest): \(.status)"' <<< "$st"
-}
+# ------------------------------------------------------------------ list
 
 cmd_list() {
   [[ $# -eq 1 ]] || die "usage: turpin list ENV"
@@ -1211,7 +1180,8 @@ cmd_host_install() {
     prefix="$(pq .turpin.ephemeral.user_prefix)"
     script+="sudo install -d -m 0755 \"\$R/etc/turpin\" \"\$R$allow_dir\""$'\n'
     # merged with what is still in use, never replaced (see turpin-host allowlist)
-    script+="printf '%s' '$(printf '%s' "$lines" | base64 -w0)' | base64 -d | sudo env TURPIN_LIB=\"\$R/usr/local/lib/turpin\" \"\$R/usr/local/bin/turpin-host\" allowlist $APP"$'\n'
+    # T4 shim: removed at T8 (the closing line the host's allowlist now requires)
+    script+="{ printf '%s' '$(printf '%s' "$lines" | base64 -w0)' | base64 -d; printf '\\n# turpin: end\\n'; } | sudo env TURPIN_LIB=\"\$R/usr/local/lib/turpin\" \"\$R/usr/local/bin/turpin-host\" allowlist $APP"$'\n'
     script+="printf '%s\\n' '$(printf '%s' "$prefix" | base64 -w0)' | base64 -d | { cat; echo; } | sed '/^\$/d' | sudo install -m 0644 /dev/stdin \"\$R$allow_dir/ephemeral.prefix\""$'\n'
     script+='U="$(id -un)"'$'\n'
     script+='printf "%s ALL=(root) NOPASSWD: /usr/local/bin/turpin-host root-ops *\n" "$U" | sudo install -D -m 0440 /dev/stdin "$R/etc/sudoers.d/turpin-host"'$'\n'
@@ -1245,8 +1215,8 @@ cmd_login() {
   run_log_event step "name=login" "component=$comp"
   case "$comp" in
     controller|builder|copier)
-      printf '%s\n%s\n' "$user" "$token" | run_turpin_host "$place" login "$APP" "$comp" ;;
-    *) printf '%s\n%s\n' "$user" "$token" | run_on_host "$comp" login "$APP" deployer "$comp" ;;
+      printf '%s\n%s\n# turpin: end\n' "$user" "$token" | run_turpin_host "$place" login "$APP" "$comp" ;;   # T4 shim: the closing line, removed at T8
+    *) printf '%s\n%s\n# turpin: end\n' "$user" "$token" | run_on_host "$comp" login "$APP" deployer "$comp" ;;   # T4 shim: the closing line, removed at T8
   esac
 }
 
@@ -1266,8 +1236,6 @@ main() {
     deploy) cmd_deploy "$@" ;;
     release) cmd_release "$@" ;;
     settle) cmd_settle "$@" ;;
-    rollback) cmd_rollback "$@" ;;
-    status) cmd_status "$@" ;;
     list) cmd_list "$@" ;;
     prune) cmd_prune "$@" ;;
     login) cmd_login "$@" ;;

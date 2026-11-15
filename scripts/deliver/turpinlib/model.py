@@ -99,6 +99,45 @@ class Reason(enum.Enum):
     REGISTRY_CALL_UNEXPECTED = "REGISTRY_CALL_UNEXPECTED"
     REGISTRY_DIGEST_CHANGED = "REGISTRY_DIGEST_CHANGED"
     REGISTRY_NOT_BOUND = "REGISTRY_NOT_BOUND"
+    # a call to a host (§6 *Interruption*): `ssh`'s 255 mapped by its error text
+    SSH_PERMISSION_DENIED = "SSH_PERMISSION_DENIED"
+    SSH_HOST_KEY_REFUSED = "SSH_HOST_KEY_REFUSED"
+    SSH_HOST_UNRESOLVED = "SSH_HOST_UNRESOLVED"
+    SSH_CONNECTION_LOST = "SSH_CONNECTION_LOST"
+    SSH_UNEXPECTED = "SSH_UNEXPECTED"
+    HOST_CALL_TIMED_OUT = "HOST_CALL_TIMED_OUT"
+    HOST_COMMAND_MISSING = "HOST_COMMAND_MISSING"
+    HOST_STATUS_UNREADABLE = "HOST_STATUS_UNREADABLE"
+    ENVIRONMENT_UNKNOWN = "ENVIRONMENT_UNKNOWN"
+    INTERRUPTED_AFTER_ROLLBACK_BEGAN = "INTERRUPTED_AFTER_ROLLBACK_BEGAN"
+    # what `turpin-host` stops for (§11), named in its result objects; the Bash files
+    # `turpin-host`, `lib/common.sh` and `payload/` use exactly these (a test holds them to it)
+    HOST_STATUS = "HOST_STATUS"
+    HOST_REFUSED = "HOST_REFUSED"
+    HOST_GATE_REFUSED = "HOST_GATE_REFUSED"
+    HOST_FUNDAMENTAL = "HOST_FUNDAMENTAL"
+    HOST_BLIP = "HOST_BLIP"
+    HOST_UNEXPECTED = "HOST_UNEXPECTED"
+    HOST_LOCK_HELD = "HOST_LOCK_HELD"
+    HOST_LOCK_WAIT_LIMIT = "HOST_LOCK_WAIT_LIMIT"
+    HOST_STATE_REFUSED = "HOST_STATE_REFUSED"
+    HOST_DIGEST_REFUSED = "HOST_DIGEST_REFUSED"
+    HOST_PULL_TIMED_OUT = "HOST_PULL_TIMED_OUT"
+    HOST_PAYLOAD_UNREADABLE = "HOST_PAYLOAD_UNREADABLE"
+    HOST_STEP_FAILED = "HOST_STEP_FAILED"
+    HOST_RESTORE_FAILED = "HOST_RESTORE_FAILED"
+    HOST_PRUNE_FAILED = "HOST_PRUNE_FAILED"
+    HOST_INTERRUPTED = "HOST_INTERRUPTED"
+    HOST_REQUEST_UNREADABLE = "HOST_REQUEST_UNREADABLE"
+    HOST_REQUEST_ID_INVALID = "HOST_REQUEST_ID_INVALID"
+    HOST_REQUEST_RUNNING = "HOST_REQUEST_RUNNING"
+    HOST_INPUT_CUT_OFF = "HOST_INPUT_CUT_OFF"
+    HOST_LOGIN_INCOMPLETE = "HOST_LOGIN_INCOMPLETE"
+    HOST_DEPLOY_GONE = "HOST_DEPLOY_GONE"
+    ROLLBACK_NO_PREVIOUS = "ROLLBACK_NO_PREVIOUS"
+    ROLLBACK_NOTHING_DEPLOYED = "ROLLBACK_NOTHING_DEPLOYED"
+    ROLLBACK_FIRST_DEPLOY_FAILED = "ROLLBACK_FIRST_DEPLOY_FAILED"
+    STATE_LAYOUT_BASH = "STATE_LAYOUT_BASH"
 
 
 @dataclass(frozen=True)
@@ -440,10 +479,14 @@ class Repository:
 
 @dataclass(frozen=True)
 class DeployedBuild:
-    """What a host ran: the build, its record where there is one, and when."""
+    """What a host ran: the build, its record where there is one, and when. `number`
+    is the host's deploy number and `version` the version the request named (empty for
+    a commit with none)."""
     build: Build
     record: ReleaseRecord | None
     deployed: str | None
+    number: int | None = None
+    version: str = ""
 
 
 @dataclass(frozen=True)

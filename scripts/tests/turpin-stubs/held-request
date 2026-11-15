@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# The input the controller holds open for a turpin-host call (design section 6, Interruption):
+# the request file, then a blank line a second until the reader is gone (the next write fails).
+cat "$1"
+while :; do sleep 1; printf '\n' || exit 0; done

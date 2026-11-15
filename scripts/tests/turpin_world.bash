@@ -173,13 +173,19 @@ EOF
 # A stub hook: logs its name, its TURPIN_* environment and its arguments, then
 # exits as $HOOKCTL/<name> says: empty or absent = 0; "N" = exit N; "N COUNT" =
 # exit N for the first COUNT calls, then 0; "kill" = kill the parent (a deploy
-# interrupted at this step).
+# interrupted at this step); "hold" = say so in "$ctl.reached" and wait for "$ctl.release"
+# (a test acts, such as closing the host's input, while this step runs).
 name="$(basename "$0")"
 { echo "== $name $*"; env | grep '^TURPIN_' | grep -v '^TURPIN_REQUEST' | sort; } >> "${HOOKLOG:-/dev/null}"
 ctl="${HOOKCTL:-/nonexistent}/$name"
 [[ -s "$ctl" ]] || exit 0
 read -r mode count < "$ctl"
 if [[ "$mode" == kill ]]; then kill -9 "$PPID"; sleep 1; exit 137; fi
+if [[ "$mode" == hold ]]; then
+  : > "$ctl.reached"
+  for _ in $(seq 1 300); do [[ -e "$ctl.release" ]] && exit 0; sleep 0.1; done
+  exit 1
+fi
 if [[ -n "$count" ]]; then
   seen="$ctl.seen"; n=0; [[ -f "$seen" ]] && n="$(cat "$seen")"
   if (( n >= count )); then exit 0; fi
@@ -208,7 +214,9 @@ set_version() {   # VERSION: in app.toml (the work tree; not committed)
 }
 
 hook_exit() { printf '%s\n' "$2" > "$HOOKCTL/$1"; rm -f "$HOOKCTL/$1.seen"; }   # NAME "N [COUNT]" | kill
-hook_clear() { rm -f "$HOOKCTL/$1" "$HOOKCTL/$1.seen"; }
+hook_clear() { rm -f "${HOOKCTL:?}/$1" "${HOOKCTL:?}/$1.seen" "${HOOKCTL:?}/$1.reached" "${HOOKCTL:?}/$1.release"; }
+hook_hold() { hook_clear "$1"; printf 'hold\n' > "$HOOKCTL/$1"; }   # NAME: the step waits until hook_release
+hook_release() { : > "$HOOKCTL/$1.release"; }
 
 # ---- running the tool
 
@@ -252,7 +260,16 @@ run_log_gates() { jq -r 'select(.event=="gate") | .name' "$(run_log_latest "$1")
 snapshot() {
   {
     (cd "$W/registry" && find . -type f | sort | xargs -r sha256sum)
-    (cd "$W/hosts" && find . -path '*/.docker' -prune -o -path '*/log' -prune -o -type f -not -name '.systemctl.log' -not -name '.systemctl.failed' -not -name lock -print | sort | xargs -r sha256sum 2>/dev/null)
+    (cd "$W/hosts" && find . -path '*/.docker' -prune -o -path '*/log' -prune -o -type f -not -name '.systemctl.log' -not -name '.systemctl.failed' -not -name lock -not -name state.json -print | sort | xargs -r sha256sum 2>/dev/null)
+    # a request's temp files (payload.PID, request.PID, note.PID, interrupted.PID) are in the snapshot: a request that
+    # ends leaves none, so a leftover is a change
+    # the host's record, without `last_request` (a refusal after the lock records itself there,
+    # design section 11); a record that is nothing else is no record
+    local f norm
+    for f in $(cd "$W/hosts" && find . -name state.json | sort); do
+      norm="$(jq -cS 'del(.last_request)' "$W/hosts/$f")"
+      [[ "$norm" == "{}" ]] || printf '%s %s\n' "$f" "$norm"
+    done
     (cd "$W/hosts" && find . -path '*/.docker/compose/*' -type f | sort | xargs -r sha256sum 2>/dev/null)
     git -C "$W/work" for-each-ref
     git -C "$W/remote.git" for-each-ref

@@ -18,12 +18,87 @@ GATES_RAN=()
 SET_ASIDE=()        # "gate<TAB>reason"
 OVERRIDES=()        # "flag<TAB>reason", for the run log
 
-say()  { printf '%s\n' "$*"; }
-warn() { printf '%s: %s\n' "$TURPIN_CMD" "$*" >&2; }
-die()  { warn "$*"; exit "$EXIT_REFUSED"; }
+EXIT_BLIP=75
+EXIT_INTERRUPTED=130
+
+# The request's notes (design section 11, the last request): on a host, turpin-host sets
+# TURPIN_NOTE to a file of the running request's, and the payload's steps inherit it. One
+# line each, tab separated: what the person was told (O), the gates run (G NAME RESULT) and
+# the reason of the latest stop (R KIND REASON MESSAGE, KIND `gate` or `error`; F marks a
+# restore that failed). turpin-host reads them once, at the end, to record the outcome and to
+# send the controller the result object. Without TURPIN_NOTE nothing is noted.
+note() { [[ -n "${TURPIN_NOTE:-}" ]] || return 0; local IFS=$'\t'; printf '%s\n' "$*" >> "$TURPIN_NOTE" 2>/dev/null || true; }
+note_result() { note R "$1" "$2" "$(printf '%s' "$3" | tr '\t\n' '  ')"; }   # KIND REASON MESSAGE
+
+# A write that fails (the connection dropped) is the end of the request's input, taken as an
+# interruption at the next look, not as an error (design section 6).
+input_ended() { if on_host; then : > "$TURPIN_INTERRUPT_FILE" 2>/dev/null || true; fi; return 0; }
+say()  { printf '%s\n' "$*" || input_ended; note O "$(printf '%s' "$*" | tr '\t\n' '  ')"; }
+warn() { printf '%s: %s\n' "$TURPIN_CMD" "$*" >&2 || input_ended; }
+# A stop's reason is a member of the `Reason` enumeration in turpinlib/model.py, named for
+# one call by a `REASON=` before `die`, `gate_fail` or `fundamental`; without one, the stop has the type's general reason.
+die()  { warn "$*"; note_result error "${REASON:-HOST_REFUSED}" "$*"; exit "$EXIT_REFUSED"; }
 
 # fundamental MESSAGE: stopped by a technical error that only a person can put right (exit 2).
-fundamental() { warn "$*"; exit "$EXIT_FUNDAMENTAL"; }
+fundamental() { warn "$*"; note_result error "${REASON:-HOST_FUNDAMENTAL}" "$*"; exit "$EXIT_FUNDAMENTAL"; }
+
+# blip_stop MESSAGE: stopped by a blip, to try again later (exit 75).
+blip_stop() { warn "$*"; note_result error "${REASON:-HOST_BLIP}" "$*"; exit "$EXIT_BLIP"; }
+
+# unexpected_stop MESSAGE: stopped by something that was not expected, to raise as an issue (exit 70).
+unexpected_stop() { warn "$*"; note_result error "${REASON:-HOST_UNEXPECTED}" "$*"; exit 70; }
+
+# The notes, read at the end of a request (design section 11, the last request).
+# result_from_notes CODE: the request's result object, docs/1.10's, from the exit status and
+# the latest stop's reason noted.
+result_from_notes() {
+  [[ -f "${TURPIN_NOTE:-}" ]] || { printf '{}'; return 0; }
+  jq -Rnc --argjson code "$1" '
+    [inputs | split("\t")] as $n
+    | ([$n[] | select(.[0] == "R")] | last) as $r
+    | ([$n[] | select(.[0] == "O")] | last) as $o
+    | (if $code == 0 then {outcome: "ok", type: null, blip: null, reason: "", message: ($o[1] // "")}
+       else ({"1": "business", "2": "technical", "3": "technical", "75": "technical", "130": "technical"}[($code | tostring)] // "unexpected") as $t
+         | {outcome: (if $code == 3 then "error" else "fatal" end), type: $t,
+            blip: (if $t == "technical" then ($code == 75 or $code == 130) else null end),
+            reason: ($r[2] // ({"1": "HOST_REFUSED", "2": "HOST_FUNDAMENTAL", "3": "HOST_PRUNE_FAILED", "75": "HOST_BLIP", "130": "HOST_INTERRUPTED"}[($code | tostring)] // "HOST_UNEXPECTED")),
+            message: ($r[3] // "the host stopped with exit \($code)")}
+       end)
+    + {domain: "turpin", metadata: {}, violations: []}' < "$TURPIN_NOTE"
+}
+# gates_from_notes: the gates the request ran, as [{name, result}].
+gates_from_notes() {
+  [[ -f "${TURPIN_NOTE:-}" ]] || { printf '[]'; return 0; }
+  jq -Rnc '[inputs | split("\t") | select(.[0] == "G") | {name: .[1], result: .[2]}]' < "$TURPIN_NOTE"
+}
+# notes_refusal_kind: `refused` where the latest stop was a gate's and no restore failed, else `failed`.
+notes_refusal_kind() {
+  [[ -f "${TURPIN_NOTE:-}" ]] || { printf failed; return 0; }
+  jq -Rnr '[inputs | split("\t")] as $n
+    | if any($n[]; .[0] == "F") then "failed"
+      elif ([$n[] | select(.[0] == "R")] | last | .[1]) == "gate" then "refused" else "failed" end' < "$TURPIN_NOTE"
+}
+
+# on_host: running as turpin-host or its payload, which look for an interruption.
+on_host() { [[ -n "${TURPIN_INTERRUPT_FILE:-}" ]]; }
+# interrupted_now: the request's input has ended (design section 6, Interruption): the
+# watcher wrote the request's own file, keyed by turpin-host's process id.
+interrupted_now() { on_host && [[ -e "$TURPIN_INTERRUPT_FILE" ]]; }
+# interrupt_stop WHERE: starts no further step; exit 130.
+interrupt_stop() {
+  warn "interrupted $1: no further step is started"
+  note_result error HOST_INTERRUPTED "interrupted $1: no further step is started"
+  exit "$EXIT_INTERRUPTED"
+}
+# look_for_interruption WHERE: stops if the input has ended.
+look_for_interruption() { ! interrupted_now || interrupt_stop "$1"; }
+# wait_unit: one wait of the `--wait` clock (TURPIN_WAIT_UNIT seconds, 60 by default), in
+# slices of one second with a look at each.
+wait_unit() {
+  local unit="${TURPIN_WAIT_UNIT:-60}" i
+  for (( i = 0; i < unit; i++ )); do sleep 1; if interrupted_now; then return 1; fi; done
+  return 0
+}
 
 need_jq() { command -v jq >/dev/null 2>&1 || die "jq is required"; }
 
@@ -70,7 +145,10 @@ run_log_event() {   # EVENT [key=value...]
 gates_expect() { GATES_EXPECTED=("$@"); }
 
 # On a host the controller reads the gate lines from stderr (GATE_EMIT=1).
-gate_emit() { [[ "${GATE_EMIT:-0}" != 1 ]] || printf '@gate %s %s\n' "$1" "$2" >&2; }
+gate_emit() {
+  note G "$1" "$2"
+  [[ "${GATE_EMIT:-0}" != 1 ]] || printf '@gate %s %s\n' "$1" "$2" >&2 || input_ended
+}
 
 gate_ok() {        # NAME [detail]
   GATES_RAN+=("$1")
@@ -92,7 +170,18 @@ gate_fail() {      # NAME message
   run_log_event gate "name=$1" "result=refused" "detail=$2"
   gate_emit "$1" refused
   warn "refused at gate $1: $2"
+  note_result gate "${REASON:-HOST_GATE_REFUSED}" "refused at gate $1: $2"
   exit "$EXIT_REFUSED"
+}
+
+# gate_blip NAME message: a gate that could not be passed for now: refused as a blip (exit 75).
+gate_blip() {
+  GATES_RAN+=("$1")
+  run_log_event gate "name=$1" "result=refused" "detail=$2"
+  gate_emit "$1" refused
+  warn "refused at gate $1: $2"
+  note_result gate "${REASON:-HOST_BLIP}" "refused at gate $1: $2"
+  exit "$EXIT_BLIP"
 }
 
 # gate_set_aside NAME: true when --set-aside named this gate and the profile
@@ -197,49 +286,57 @@ hook_run() {
   if [[ ! -e "$path" ]]; then
     [[ $required -eq 0 ]] && { run_log_event hook "name=$name" "result=absent"; return 0; }
     run_log_event hook "name=$name" "result=missing-required"
-    HOOK_REFUSAL="required hook $name is missing"; return 1
+    HOOK_REFUSAL="required hook $name is missing"; HOOK_REFUSAL_REASON=HOOK_MISSING; return 1
   fi
   if [[ ! -x "$path" ]]; then
     if [[ $required -eq 1 ]]; then
       run_log_event hook "name=$name" "result=not-executable"
-      HOOK_REFUSAL="required hook $name is not executable"; return 1
+      HOOK_REFUSAL="required hook $name is not executable"; HOOK_REFUSAL_REASON=HOOK_NOT_EXECUTABLE; return 1
     fi
     run_log_event hook "name=$name" "result=not-executable-optional"
     return 0
   fi
   hook_env_export
   local code=0
-  "$path" || code=$?
+  "$path" </dev/null || code=$?
   run_log_event hook "name=$name" "result=exit-$code"
   return "$code"
 }
 HOOK_REFUSAL=""
+HOOK_REFUSAL_REASON=""
 
 # hook_gate NAME: a hook that is a gate. With --wait, 75 retries each minute.
 # A set-aside hook (profile-overridable, named by --set-aside) is passed on.
 hook_gate() {
   # one --wait budget covers the lock and this hook: what the lock used is spent
   local name="$1" code=0 waited="${TURPIN_WAIT_USED:-0}" limit="${OPT_WAIT:-}"
-  local unit="${TURPIN_WAIT_UNIT:-60}"
   while :; do
+    look_for_interruption "before hook $name"
     code=0; hook_run "$name" || code=$?
     [[ $code -eq 0 ]] && { gate_ok "$name"; return 0; }
     if [[ -n "$HOOK_REFUSAL" ]]; then
-      gate_fail "$name" "$HOOK_REFUSAL"
+      REASON="$HOOK_REFUSAL_REASON" gate_fail "$name" "$HOOK_REFUSAL"
     fi
     if [[ $code -eq $HOOK_NOT_YET && -n "$limit" ]]; then
       if (( waited >= limit )); then
-        gate_fail "$name" "still not yet after waiting $limit minute(s) for hook $name"
+        hook_not_yet "$name" "still not yet after waiting $limit minute(s) for hook $name"
       fi
-      sleep "$unit"; waited=$((waited + 1)); continue
+      if ! wait_unit; then interrupt_stop "while waiting for hook $name"; fi
+      waited=$((waited + 1)); continue
     fi
     if gate_set_aside "$name"; then return 0; fi
     if set_aside_requested "$name"; then
-      gate_fail "$name" "hook $name refused (exit $code) and the profile does not list it in overridable"
+      REASON=HOOK_REFUSED gate_fail "$name" "hook $name refused (exit $code) and the profile does not list it in overridable"
     fi
-    if [[ $code -eq $HOOK_NOT_YET ]]; then gate_fail "$name" "hook $name says not yet (exit 75); use --wait to wait"; fi
-    gate_fail "$name" "hook $name refused (exit $code)"
+    if [[ $code -eq $HOOK_NOT_YET ]]; then hook_not_yet "$name" "hook $name says not yet (exit 75); use --wait to wait"; fi
+    REASON=HOOK_REFUSED gate_fail "$name" "hook $name refused (exit $code)"
   done
+}
+
+# hook_not_yet NAME MESSAGE: on a host a hook's `not yet` that is not waited for any further is a
+# blip (exit 75, the request recorded interrupted, to be run again); elsewhere it refuses.
+hook_not_yet() {
+  if on_host; then REASON=HOOK_NOT_YET gate_blip "$1" "$2"; else gate_fail "$1" "$2"; fi
 }
 
 # hook_step NAME: a step; any non-zero exit is a failure the caller handles.
@@ -311,7 +408,7 @@ state_layout_what() {
 state_layout_check() {
   local envdir="$1" what
   what="$(state_layout_what "$envdir")"
-  [[ -z "$what" ]] || fundamental "$what is the Bash turpin's layout and there is no state.json: nothing says what it ran, so clear $envdir's state by hand"
+  [[ -z "$what" ]] || REASON=STATE_LAYOUT_BASH fundamental "$what is the Bash turpin's layout and there is no state.json: nothing says what it ran, so clear $envdir's state by hand"
 }
 
 # state_layout_check_all DIR...: the same for each environment folder given.

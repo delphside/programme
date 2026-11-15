@@ -12,11 +12,26 @@ while [[ $# -gt 0 ]]; do
 done
 host="$1"; shift
 echo "ssh $host: $*" >> "${STUB_LOG_DIR:?}/ssh.log"
-[[ "${STUB_SSH_FAIL:-}" != "$host" ]] || { echo "ssh: connect to host $host: refused" >&2; exit 255; }
+[[ "${STUB_SSH_FAIL:-}" != "$host" ]] || { echo "${STUB_SSH_FAIL_TEXT:-ssh: connect to host $host: refused}" >&2; exit 255; }
+# STUB_SSH_DROP_FIRST=N: the first N calls (of any host, counted in ssh.count) lose the connection before the command runs
+if [[ -n "${STUB_SSH_DROP_FIRST:-}" ]]; then
+  n="$(cat "$STUB_LOG_DIR/ssh.count" 2>/dev/null || echo 0)"; echo $((n + 1)) > "$STUB_LOG_DIR/ssh.count"
+  if (( n < STUB_SSH_DROP_FIRST )); then echo "client_loop: send disconnect: Connection reset by peer" >&2; exit 255; fi
+fi
 root="${STUB_HOSTS:?}/$host"; mkdir -p "$root"
 # real ssh carries no environment, so neither the controller's auth file nor docker config reaches the machine
 # a machine with its own home folder has its own HOME
 # STUB_SSH_TEE=FILE keeps the request a turpin-host deploy is sent, for a test to send again
-if [[ -n "${STUB_SSH_TEE:-}" && "$*" == *"turpin-host deploy"* ]]; then cat > "$STUB_SSH_TEE"; exec < "$STUB_SSH_TEE"; fi
+# (the controller holds its input open, so the request is its first line, not all of the input)
+if [[ -n "${STUB_SSH_TEE:-}" && "$*" == *"turpin-host deploy"* ]]; then
+  IFS= read -r tee_line; printf '%s\n' "$tee_line" > "$STUB_SSH_TEE"
+  exec < <(printf '%s\n' "$tee_line"; exec cat)
+fi
 home="$HOME"; [[ -d "$root/home" ]] && home="$root/home"
+if [[ -n "${STUB_SSH_DROP_AFTER:-}" && "$*" == *"$STUB_SSH_DROP_AFTER"* && ! -e "$STUB_LOG_DIR/ssh.dropped" ]]; then
+  # STUB_SSH_DROP_AFTER=TEXT: the first call whose command holds TEXT runs to its end and then loses the connection
+  : > "$STUB_LOG_DIR/ssh.dropped"
+  env -u DOCKER_CONFIG -u REGISTRY_AUTH_FILE HOME="$home" TURPIN_HOST_ROOT="$root" bash -c "$*" > /dev/null 2>&1
+  echo "client_loop: send disconnect: Broken pipe" >&2; exit 255
+fi
 exec env -u DOCKER_CONFIG -u REGISTRY_AUTH_FILE HOME="$home" TURPIN_HOST_ROOT="$root" bash -c "$*"
