@@ -1104,8 +1104,8 @@ never read as refused or as empty:
 | a crash, or anything else unexpected | 70 |
 
 `turpin` catches the board model's `ProfileError`, otherwise unexpected (70),
-and exits 2; it redirects the board model's standard error to the run log
-around the call, so the operator sees one message.
+and exits 2. Around the call, it redirects the board model's standard error to
+the run log, so the operator sees one message.
 
 **The revert rule** ([the milestone gate](#the-milestone-gate)) is in
 `repo.py`, so `board-check.py`'s pre-flight counts reverts as the gate does.
@@ -1384,7 +1384,7 @@ is Turpin's own is below.
 | 0 | done; a warning, such as a check's failure, is in the log |
 | 1 | stopped: a gate refused, or a business error ([§3](#operations)) |
 | 2 | stopped: a fundamental technical error, naming its next step |
-| 75 | stopped: a blip whose retries ran out, or `--wait` at its limit; try again later |
+| 75 | stopped: a blip whose retries ran out, a lost connection in a call that changes something ([interruption](#interruption)), or `--wait` at its limit; try again later |
 | 70 | stopped: an unexpected error, to raise as an issue; never read as refused |
 | 3 | done with errors: a step after the command's pivot failed, named with the command that reruns it |
 | 64 | stopped: a usage error, the message naming the bad flag or missing argument; `cli.py` replaces `argparse`'s own exit 2 |
@@ -1422,8 +1422,11 @@ whichever machine. How `turpin` sets up each child:
 
 - it starts each child (an `ssh`, a tool, a hook) in a process group of its
   own, so a SIGINT reaches `turpin` alone;
-- a call that reads data to the end of its input (`turpin-host login`,
-  `allowlist` and `env`, and `turpin login` passed on) gets that data;
+- a call that reads data (`turpin-host login`, `allowlist` and `env`, and
+  `turpin login` passed on) gets that data and then a *closing line*,
+  `# turpin: end`, which the call checks for and removes before it uses the
+  data; data without it is incomplete, and the call changes nothing and exits
+  75;
 - every other call it makes to `turpin-host`, or to `turpin` on any machine (the
   *called side*), gets its request, or an empty line where it has none, as one
   line on standard input, which `turpin` holds open for the call's life.
@@ -1434,9 +1437,10 @@ Then, on a Ctrl+C:
 2. `turpin` closes the input of each call that has one held open.
 3. The called side reads the end of its input as the interruption at its next
    step or while it waits (the lock, a hook's *not yet*). `turpin-host rollback`
-   reads it only before its first step, which includes its wait on the lock:
-   once begun, it runs to its end, since a rollback stopped part-way has no
-   rerun, and its message says the rollback finished.
+   reads it only before its first step and while it waits on the lock. Once
+   begun, a rollback runs to its end, since one stopped part-way has no rerun:
+   it exits as it would have, and `turpin` exits by its result, its message
+   saying the interruption came after the rollback began.
 4. `turpin`, and each called side that read the interruption, starts no further
    step of the command's work. Each one:
    - before the command's pivot, undoes what changed, as for an error;
@@ -1444,9 +1448,7 @@ Then, on a Ctrl+C:
    - in `settle` or `prune`, which have no pivot, leaves each action done or
      not done, for a rerun that retries what is not done;
    - in any other command with no pivot, has its message say which steps are
-     done, for a rerun its section says is safe: `build`, for example, never
-     overwrites what it pushed, and `host-install` installs or updates ([the
-     commands](#the-commands)).
+     done and what to run next.
 5. A called side that read the interruption exits 130, which comes back over
    the `ssh` connection, still open. Once every call has returned, `turpin`
    exits 130.
@@ -1455,15 +1457,27 @@ Then, on a Ctrl+C:
 whether its change is live.
 
 **A dropped connection** ends a call's input too, so a called side whose input
-is held open stops as for an interruption. A data-reading call uses its data
-only once it has read the final line that ends it, so a drop never hands it part
-of an allowlist or an environment. `turpin` maps `ssh`'s 255 by `ssh`'s error
-text, as docs/1.10 requires: a refused key or host key is a fundamental
-technical error, exit 2, naming the key or the host to fix; a lost connection is
-a blip, exit 75. `turpin` never retries a call over `ssh` itself, since the call
-may have changed something before the drop. Its message says how to find where
-the call stopped: `turpin status ENV` for a call to an environment's host, and
-the run log on the builder's or copier's machine for a call there.
+is held open stops as for an interruption, and a data-reading call finds its
+closing line missing and changes nothing.
+
+`turpin` maps `ssh`'s 255 by the error text `ssh` prints, as
+[docs/1.10](../../../../docs/1.10-development-standards.md#what-a-scripts-exit-status-means)
+requires every child's status to be mapped:
+
+| `ssh`'s error text | Type | Exit | The message names |
+| --- | --- | --- | --- |
+| `Permission denied` | fundamental | 2 | the `ssh` key to load into the agent |
+| `Host key verification failed` | fundamental | 2 | the host's entry in `known_hosts` to fix |
+| `Connection timed out`, `Connection refused`, `Connection reset`, `Broken pipe`, `Connection closed`, `Could not resolve hostname` | blip | 75 | how to find where the call stopped |
+| anything else | unexpected | 70 | the text, in the run log, to raise as an issue |
+
+A blip in a call that changes nothing, a read such as `turpin-host status
+--json`, is retried under [§3](#operations)'s rule. A blip in a call that
+changes something is not retried, since the call may have changed something
+before the drop; this departs from docs/1.10, which retries every blip, and
+`turpin` exits 75 at once. How to find where the call stopped is `turpin status
+ENV` for a call to an environment's host, and the run log on the builder's or
+copier's machine for a call there.
 
 ### The commands
 
