@@ -182,8 +182,9 @@ def parse_ledger(body: str | None) -> dict[str, Seen]:
 
 def render_ledger(ledger: dict[str, Seen]) -> str:
     """The ledger as compact JSON with short keys (`s` state, `d` since, `t`
-    the `Turn` last written, left out where there is none): 600 items must fit
-    a body GitHub caps at 65,536 characters."""
+    the `Turn` last written, left out where there is none). GitHub caps a body
+    at 65,536 characters, which holds about 500 entries at the longest names
+    and states (measured 2026-11-15); the board held 88 open items then."""
     data = {name: ({"s": e.state, "d": stamp(e.since), "t": e.turn} if e.turn
                    else {"s": e.state, "d": stamp(e.since)})
             for name, e in sorted(ledger.items())}

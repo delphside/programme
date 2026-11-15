@@ -29,8 +29,8 @@ included.
 Exit status (docs/1.10 *What a script's exit status means*): 0 nothing is
 stalled and nothing needs a look; 1 something is (a check reporting, not a
 gate); 2 it could not finish: a read or a write failed, or the pinned issue is
-missing. A failed run never exits 1, and does not rewrite the pinned issue, so it
-still names the last complete run.
+missing. A failed run never exits 1. It keeps the last complete run's list in the
+pinned issue and rewrites only the ledger, with the writes it made.
 
 Design: programme/records/2.5-changes/process-definition/176-project-board-flow/
 """
