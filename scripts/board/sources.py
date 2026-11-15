@@ -700,6 +700,20 @@ def merged_pull_requests(since: str, seen: dict[str, bool | None] | None = None)
     return out
 
 
+def _merged_pulls(rest: "_Rest", repo: str, since: str):
+    """The pull requests of `repo` merged since `since` (a date or a full ISO
+    time: each is compared as far as it goes), newest update first. The listing
+    is by last update, which is never earlier than the merge, so it stops at the
+    first pull request not updated since."""
+    width = len(since)
+    for p in rest.items(f"repos/{repo}/pulls?state=closed&sort=updated&direction=desc"):
+        if (p.get("updated_at") or "")[:width] < since:
+            break
+        merged = p.get("merged_at")
+        if merged and merged[:width] >= since:
+            yield p
+
+
 def _rest_merged_pull_requests(repos: Sequence[str], since: str,
                                refusal: str) -> list[MergedPullRequest]:
     """The merged list over `repos/{r}/pulls?state=closed`, newest update first.
@@ -711,13 +725,10 @@ def _rest_merged_pull_requests(repos: Sequence[str], since: str,
     out = []
     try:
         for full in repos:
-            for p in rest.items(f"repos/{full}/pulls?state=closed&sort=updated&direction=desc"):
-                if (p.get("updated_at") or "")[:10] < since:
-                    break
-                if p.get("merged_at") and p["merged_at"][:10] >= since:
-                    out.append(MergedPullRequest(
-                        full, p["number"], p.get("title") or "", p.get("body") or "",
-                        (p.get("user") or {}).get("type") == "Bot"))
+            for p in _merged_pulls(rest, full, since):
+                out.append(MergedPullRequest(
+                    full, p["number"], p.get("title") or "", p.get("body") or "",
+                    (p.get("user") or {}).get("type") == "Bot"))
     except Unavailable as exc:
         raise Unavailable(f"could not search for merged pull requests ({refusal}), "
                           f"nor list them over REST: {exc}") from None
@@ -1616,14 +1627,9 @@ def merged_since(repo: str, since_iso: str) -> tuple[MergedPull, ...]:
     when it was last touched. The listing is by last update, which is never
     earlier than the merge, so it is read a page at a time and stopped at the
     first one not updated since: the whole history is never read."""
-    out: list[MergedPull] = []
-    for p in _Rest().items(f"repos/{repo}/pulls?state=closed&sort=updated&direction=desc"):
-        if (p.get("updated_at") or "") < since_iso:
-            break
-        merged = p.get("merged_at")
-        if merged and merged >= since_iso and (p.get("base") or {}).get("ref") == DEFAULT_BRANCH:
-            out.append(MergedPull(p["number"], p.get("title") or "", p.get("body") or "", merged))
-    return tuple(out)
+    return tuple(MergedPull(p["number"], p.get("title") or "", p.get("body") or "", p["merged_at"])
+                 for p in _merged_pulls(_Rest(), repo, since_iso)
+                 if (p.get("base") or {}).get("ref") == DEFAULT_BRANCH)
 
 
 def commit_time(repo: str, sha: str) -> str:

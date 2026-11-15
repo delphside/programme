@@ -1333,5 +1333,136 @@ class FieldWrites(Flow):
         self.expect("by DELETE", "DELETE", self.w.log[-1][0])
 
 
+class TheLedger(Flow):
+    """The state-since ledger survives a failed run, a lost block and a large
+    board (delphside/programme#182)."""
+
+    SCOPE = "Scope, Options and Dependencies"
+    LAST = "Last complete run: 2026-11-14T12:00:00Z\n\nNothing is stalled.\n"
+
+    def kept_list(self):
+        self.w.issues[(PRG, 900)]["body"] = self.LAST
+
+    def test_a_failed_run_records_the_writes_made_and_the_next_run_rewrites_a_sweeps_turn(self):
+        """A refused write mid-run: exit 2, the list stays the last complete run's,
+        the ledger records the Turn that was written; then joint triage moves the
+        item on and the next run rewrites the sweep's own Owner."""
+        self.kept_list()
+        self.proj(1, "Development", D(hours=1), repo=DP)
+        self.req(1, "Triage", D(hours=2), ws=None,
+                 comments=(("a-thread", "Joint triage: what is this?", D(hours=1)),))
+        self.w.refuse_writes.add("fakeorg/dark-portal/issues/1")
+        run = self.go()
+        self.expect("exit 2", 2, run.code)
+        body = self.w.pinned_body()
+        ledger = flow.parse_ledger(body)
+        self.expect("the write that was made", flow.Seen("Triage", NOW - D(hours=2), "Owner"),
+                    ledger[name(TLE, 1)])
+        self.expect("the write refused: no Turn recorded",
+                    flow.Seen("Development", NOW - D(hours=1), None), ledger[name(DP, 1)])
+        self.expect("the list is the last complete run's", True, body.startswith(self.LAST.strip()))
+        issue = self.w.issues[(TLE, 1)]
+        issue["_comments"] += [
+            {"user": {"login": OWNER_LOGIN}, "body": "Tooling", "created_at": ago(minutes=30)},
+            {"user": {"login": "a-thread"}, "body": "Scoped.", "created_at": ago(minutes=10)}]
+        issue["_fields"].update({"Requirement State": self.SCOPE, "Workstream": "Tooling"})
+        self.w.refuse_writes.clear()
+        self.w.log.clear()
+        self.expect("rewritten to the derived value",
+                    [(DP, 1, "Claude"), (TLE, 1, "Claude")], self.turns_written_by_go())
+
+    def test_a_refused_state_write_keeps_the_prior_entry(self):
+        """The board still holds the old state, so the ledger does too."""
+        self.req(1, None, D(days=3), turn="Owner")
+        self.w.refuse_writes.add("fakeorg/tile-lite-elite/issues/1")
+        self.expect("exit 2", 2, self.go().code)
+        self.expect("no entry for what was not written", {}, flow.parse_ledger(self.w.pinned_body()))
+
+    def test_an_item_with_no_ledger_entry_has_its_turn_judged_afresh(self):
+        """Nothing says who set a Turn: a Hold is kept only while a Hold reason
+        holds, an Owner only while an approval request is pending."""
+        asked = (("a-thread", "Please approve X", D(hours=1)),)
+        answered = asked + ((OWNER_LOGIN, "Approved", D(minutes=5)),)
+        self.req(1, self.SCOPE, D(days=1), turn="Hold")
+        self.req(2, self.SCOPE, D(days=1), turn="Hold", blocked_by=((TLE, 90, "open"),))
+        self.req(3, self.SCOPE, D(days=1), turn="Owner", comments=answered)
+        self.req(4, self.SCOPE, D(days=1), turn="Owner", comments=asked)
+        self.req(5, self.SCOPE, D(days=1), turn="Owner")
+        self.expect("the Hold with no reason is reported", [name(TLE, 1)],
+                    [n for n, _ in self.attention("invalid hold")])
+        self.expect("rewritten but the held and the asked",
+                    [(TLE, 1, "Claude"), (TLE, 3, "Claude"), (TLE, 5, "Claude")],
+                    self.turns_written_by_go())
+
+    def test_a_pinned_body_without_a_readable_ledger_is_listed_but_not_on_the_first_run(self):
+        """Only a body that an earlier run wrote can have lost its ledger."""
+        self.req(1, self.SCOPE, D(hours=1), turn="Claude")
+        self.expect("first run: none", [], self.attention("no readable ledger"))
+        self.go()
+        self.expect("a readable ledger: none", [], self.attention("no readable ledger"))
+        self.kept_list()
+        self.expect("previous run, no ledger", [(name(PRG, 900), "owner")],
+                    self.attention("no readable ledger"))
+        run = self.go()
+        self.expect("exit 1", 1, run.code)
+        self.expect("in the list", True, "no readable ledger" in self.w.pinned_body())
+        self.expect("the run restored it", [], self.attention("no readable ledger"))
+        self.w.issues[(PRG, 900)]["body"] = self.LAST + "<!-- board-flow-ledger\n{broken\n-->\n"
+        self.expect("an unreadable block", [(name(PRG, 900), "owner")],
+                    self.attention("no readable ledger"))
+
+    def test_items_not_judged_this_run_keep_their_entry_while_open(self):
+        """Not visible, an unknown state or a failed read: the entry stays; a
+        closed item's goes."""
+        for n in (1, 2, 3):
+            self.req(n, self.SCOPE, D(days=4), turn="Claude")
+        self.go()
+        self.w.issues[(TLE, 1)]["_hide"] = True
+        self.w.issues[(TLE, 2)]["_fields"]["Requirement State"] = "Not a state"
+        del self.w.issues[(TLE, 3)]
+        self.w.log.clear()
+        self.go()
+        ledger = flow.parse_ledger(self.w.pinned_body())
+        self.expect("kept while open", {name(TLE, 1), name(TLE, 2)},
+                    {n for n in ledger if n.startswith(TLE)})
+        self.expect("with the age it had", NOW - D(days=4), ledger[name(TLE, 1)].since)
+
+    def test_the_ledger_is_compact(self):
+        self.proj(1, "Development", D(days=2), turn=None)
+        self.go()
+        block = self.w.pinned_body().split("<!-- board-flow-ledger\n")[1].split("\n-->")[0]
+        self.expect("short keys, no padding",
+                    '{"%s":{"d":"2026-11-13T12:00:00Z","s":"Development","t":"Claude"}}' % name(TLE, 1),
+                    block)
+
+    def test_a_body_near_githubs_limit_loses_the_tail_of_its_list_not_its_ledger(self):
+        for n in range(1, 601):
+            self.req(n, "Triage", D(days=3), ws=None, turn="Owner")
+        run = self.go()
+        body = self.w.pinned_body()
+        self.expect("under the limit", True, len(body) <= flow.BODY_LIMIT)
+        self.expect("every item in the ledger", 600, len(flow.parse_ledger(body)))
+        self.expect("says what was left out", True, "Items left out" in body)
+        self.expect("listed under needs a look", True,
+                    "pinned body near GitHub's limit" in body)
+        self.expect("exit 1", 1, run.code)
+
+    def test_a_body_within_the_limit_is_not_cut(self):
+        self.req(1, "Triage", D(days=3), ws=None)
+        self.go()
+        self.expect("whole", False, "left out" in self.w.pinned_body())
+        self.expect("and unlisted", [], self.attention("pinned body near GitHub's limit"))
+
+    def test_both_merged_readers_agree_on_what_merged_since(self):
+        """`merged_since` and the REST fallback share one reading of the listing."""
+        self.w.add_merged(TLE, 7, age=D(days=2))
+        self.w.add_merged(TLE, 8, age=D(days=40))
+        since = ago(days=10)
+        self.expect("same pull requests", [7],
+                    [p.number for p in sources.merged_since(TLE, since)])
+        self.expect("by date too", [7], [p["number"] for p in
+                    sources._merged_pulls(sources._Rest(), TLE, since[:10])])
+
+
 if __name__ == "__main__":
     unittest.main()
