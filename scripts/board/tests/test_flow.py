@@ -20,7 +20,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from board import flow, flow_settings, model, sources
+from board import flow, merge, model, sources
 from board.model import FLOW, ROLES
 
 from .cases import Cases
@@ -79,6 +79,9 @@ class Flow(Cases):
     def stalled(self, now=NOW):
         return {v.name for v in self.survey(now).stalled}
 
+    def attention(self, kind):
+        return [(v.name, a.role) for v, a in self.survey().attention if a.kind == kind]
+
     def actions(self, *args):
         actions = load_script("board-actions.py")
         out, err = io.StringIO(), io.StringIO()
@@ -135,6 +138,14 @@ class Flow(Cases):
         if turn:
             fields["Turn"] = turn
         return self.w.add_issue(repo, n, "Decision", fields=fields, since=since, **kw)
+
+    def age_in_ledger(self, repo, n, **delta):
+        """Say in the pinned issue's ledger that the sweep first saw the item in its
+        state `delta` before now: the way a test ages an item the sweep has seen."""
+        ledger = flow.parse_ledger(self.w.pinned_body())
+        seen = ledger[name(repo, n)]
+        ledger[name(repo, n)] = flow.Seen(seen.state, NOW - D(**delta), seen.turn)
+        self.w.issues[(PRG, 900)]["body"] = flow.render_ledger(ledger)
 
     def ticket(self, n, state, since, repo=SD, turn=None, **kw):
         fields = {"Ticket State": state}
@@ -433,6 +444,24 @@ class Bounds(Flow):
             self.expect(label, stalled, v.stalled)
             self.expect(f"{label}: age counted from the close", closed, v.age)
 
+    def test_release_check_package_with_a_date_milestone_holds_until_the_next_release_closes(self):
+        """M4: a package whose own milestone is a date waits for the lowest semver
+        milestone that is open or closed after it entered Post-deployment; a
+        release that closed before it entered does not end the hold."""
+        for label, own in (("a date milestone", ("2026.11.01-1", "closed")), ("none", None)):
+            self.w = World()
+            self.proj(1, "Post-deployment", D(days=3), turn="Hold", labels=("Release Check",),
+                      milestone=own)
+            self.w.add_milestone(TLE, "1.0.0", "closed", D(days=100))
+            self.w.add_milestone(TLE, "1.1.0", "open")
+            self.expect(f"{label}: waits on the open release", ("Hold", set()),
+                        (self.verdict(TLE, 1).turn, self.stalled()))
+            self.w.milestones[TLE][-1].update(state="closed", closed_at=ago(days=1))
+            self.expect(f"{label}: the hold ends when it closes",
+                        [(name(TLE, 1), "technical-lead")], self.attention(flow.INVALID_HOLD))
+            self.expect(f"{label}: Turn rewritten", [(TLE, 1, "Claude")],
+                        self.turns_written_by_go())
+
     def test_nothing_stalled_publishes_an_empty_list_and_exits_clean(self):
         """S22, O17: everything within its bound: an empty list, the run's time, exit 0."""
         self.quiet_world()
@@ -454,9 +483,7 @@ class Bounds(Flow):
         """S22, O20: age one item one minute past its bound: it is listed, exit 1."""
         self.quiet_world()
         self.expect("quiet", 0, self.go().code)
-        self.w.issues[(TLE, 1)]["_events"] = [{"event": "issue_field_added",
-                                                "created_at": ago(days=7, minutes=1)}]
-        self.w.issues[(TLE, 1)]["created_at"] = ago(days=7, minutes=1)
+        self.age_in_ledger(TLE, 1, days=7, minutes=1)
         run = self.go()
         self.expect("exit 1", 1, run.code)
         self.expect("listed", True, name(TLE, 1) in self.w.pinned_body())
@@ -516,9 +543,6 @@ class Turns(Flow):
     def hold(self, n, **kw):
         kw.setdefault("blocked_by", ())
         return self.req(n, "Scope, Options and Dependencies", D(days=30), turn="Hold", **kw)
-
-    def attention(self, kind):
-        return [(v.name, a.role) for v, a in self.survey().attention if a.kind == kind]
 
     def test_hold_with_an_open_dependency_rests(self):
         """S17, O7: a Hold on an open linked issue is kept and does not stall."""
@@ -589,6 +613,20 @@ class Turns(Flow):
         self.expect("reported for the other", [(name(TLE, 2), "design-authority")],
                     self.attention(flow.INVALID_HOLD))
 
+    def test_on_hold_is_bound_by_its_review_date(self):
+        """S18, Requirement table: past the review date it is stalled for its role;
+        on or before it, not; with no date, it rests while its reason holds."""
+        text = "## Dependencies and related work\n\nWaiting on the vendor. Review date: {}\n"
+        self.req(1, "On Hold", D(days=60), body=text.format("2026-11-14"))
+        self.req(2, "On Hold", D(days=60), body=text.format("2026-11-15"))
+        self.req(3, "On Hold", D(days=60), body=text.format("2026-11-16"))
+        self.req(4, "On Hold", D(days=60), blocked_by=((TLE, 99, "open"),))
+        self.req(5, "On Hold", D(days=60), body=text.format("2026-11-14"),
+                 blocked_by=((TLE, 99, "open"),))
+        self.expect("past its date, even with a linked issue open",
+                    {name(TLE, 1), name(TLE, 5)}, self.stalled())
+        self.expect("for its role", "design-authority", self.verdict(TLE, 1).role)
+
     def test_requirement_waiting_on_a_decision_rests_while_the_decision_is_listed_for_the_owner(self):
         """S19, M15: Scope with Turn Hold on an open Decision rests, the Decision
         is the owner's; once it is closed the requirement is its role's."""
@@ -636,6 +674,63 @@ class Turns(Flow):
                     [(TLE, 3, "Claude"), (TLE, 4, "Claude")], self.turns_written_by_go())
         self.expect("past the bound under the owner", {name(TLE, 2)}, self.stalled())
         self.expect("the owner holds it", "owner", self.verdict(TLE, 2).role)
+
+
+    def test_a_turn_the_sweep_wrote_is_its_to_rewrite_but_a_threads_is_kept(self):
+        """S15, M10: joint triage. Triage with no workstream is the owner's and the
+        sweep writes Owner; he comments, Claude comments and moves it to Scope with
+        a workstream: the Owner is the sweep's own, so it is rewritten. A thread's
+        Owner set after the sweep wrote Claude is kept while its approval is asked."""
+        scope = "Scope, Options and Dependencies"
+        self.req(1, "Triage", D(hours=2), ws=None,
+                 comments=(("a-thread", "Joint triage: what is this?", D(hours=1)),))
+        self.expect("owner's at triage", [(TLE, 1, "Owner")], self.turns_written_by_go())
+        issue = self.w.issues[(TLE, 1)]
+        issue["_comments"] += [
+            {"user": {"login": OWNER_LOGIN}, "body": "Tooling", "created_at": ago(minutes=30)},
+            {"user": {"login": "a-thread"}, "body": "Scoped.", "created_at": ago(minutes=10)}]
+        issue["_fields"].update({"Requirement State": scope, "Workstream": "Tooling"})
+        self.w.log.clear()
+        self.expect("rewritten to the derived value", [(TLE, 1, "Claude")],
+                    self.turns_written_by_go())
+        # A thread sets Owner over the sweep's Claude, and asks.
+        issue["_fields"]["Turn"] = "Owner"
+        issue["_comments"].append({"user": {"login": "a-thread"}, "body": "Please approve X",
+                                   "created_at": ago(minutes=5)})
+        self.w.log.clear()
+        self.expect("kept", [], self.turns_written_by_go())
+
+    def test_a_dry_run_reads_the_ledger_and_writes_nothing(self):
+        """S39: the ledger ages an item the field events say is new; a dry run uses
+        it, and writes neither fields nor the pinned body."""
+        self.req(1, "Scope, Options and Dependencies", D(days=1), turn="Claude")
+        self.go()
+        self.age_in_ledger(TLE, 1, days=9)
+        before = self.w.pinned_body()
+        self.w.log.clear()
+        run = self.go(dry_run=True)
+        self.expect("stalled by the ledger's age", {name(TLE, 1)}, self.stalled())
+        self.expect("nothing written", ([], before), (self.w.log, self.w.pinned_body()))
+        self.expect("said what it would do", True, "would rewrite" in run.out)
+
+    def test_the_sweeps_own_turn_write_does_not_restart_an_items_clock(self):
+        """S22, S-G11: a bootstrap run ages the item from its field event, judged
+        before it writes; the next days' runs go on from there."""
+        self.req(1, "Scope, Options and Dependencies", D(days=6), turn=None)
+        self.expect("first sighting: today's rule", D(days=6), self.verdict(TLE, 1).age)
+        self.expect("it writes Turn", [(TLE, 1, "Claude")], self.turns_written_by_go())
+        later = NOW + D(days=2)
+        v = self.verdict(TLE, 1, now=later)
+        self.expect("eight days old, not two", (D(days=8), True), (v.age, v.stalled))
+
+    def test_a_state_that_changed_since_the_ledger_is_aged_by_its_field_event(self):
+        """S22: the ledger's word holds only for the state it saw."""
+        self.req(1, "Scope, Options and Dependencies", D(days=20), turn="Claude")
+        self.go()
+        issue = self.w.issues[(TLE, 1)]
+        issue["_fields"]["Requirement State"] = "Candidate Project 1"
+        issue["_events"].append({"event": "issue_field_changed", "created_at": ago(days=1)})
+        self.expect("a day old", D(days=1), self.verdict(TLE, 1).age)
 
 
 # --------------------------------------------------------------------------
@@ -726,20 +821,66 @@ class MissedEvents(Flow):
     def state_writes(self):
         return [(r, n, v) for r, n, f, v in self.fields_written() if f == "Project State"]
 
-    def test_merged_refs_moves_a_production_release_package_to_deployment(self):
-        """S24, O16: a merged pull request's `Refs #N` moves a Production Release
-        package at Development to Deployment."""
+    def merged_reports(self):
+        return [(v.name, a.role, a.detail) for v, a in self.survey().attention
+                if a.kind == flow.MERGED]
+
+    def test_merged_refs_to_a_production_release_package_is_reported_not_moved(self):
+        """S24, O16: a merged pull request's `Refs #N` naming a Production Release
+        package at Development is listed under needs a look, for the package's
+        holder; nothing is written to it."""
         self.proj(1, "Development", D(days=2), turn="Claude", route="Production Release")
         self.w.add_merged(TLE, 300, body="Refs #1")
-        self.go()
-        self.expect("moved", [(TLE, 1, "Deployment")], self.state_writes())
+        run = self.go()
+        self.expect("not moved", [], self.state_writes())
+        self.expect("reported, with the way out",
+                    [(name(TLE, 1), "technical-lead",
+                      "merged PR #300 names it; move it if that merge delivered it")],
+                    self.merged_reports())
+        self.expect("and in the list", True, "merged, not moved" in run.out)
 
-    def test_merged_refs_moves_a_tooling_package_to_post_deployment(self):
-        """S24: a tooling-route package goes to Post-deployment."""
-        self.proj(1, "Development", D(days=2), turn="Claude", route="Docs and Programme Tooling")
-        self.w.add_merged(TLE, 300, body="Refs #1")
+    def test_merged_refs_to_a_tooling_package_is_reported_by_the_merge_modules_rule(self):
+        """S24: the route-to-phase rule is `merge.next_phase`'s: a tooling-route
+        package at User testing is reported too, and one that no merge completes
+        (an Other route) is not."""
+        self.proj(1, "User testing", D(days=2), turn="Claude", route="Docs and Programme Tooling")
+        self.proj(2, "Development", D(days=2), turn="Claude", route="Other")
+        self.w.add_merged(TLE, 300, body="Refs #1, Refs #2")
         self.go()
-        self.expect("moved", [(TLE, 1, "Post-deployment")], self.state_writes())
+        self.expect("not moved", [], self.state_writes())
+        self.expect("only the first", [name(TLE, 1)], [n for n, _, _ in self.merged_reports()])
+
+    def test_several_partial_merges_are_one_finding_naming_them_all(self):
+        """S24: a package delivered by several merges, none of which finished it:
+        reported once with every pull request, never moved by the first."""
+        self.proj(1, "Development", D(days=2), turn="Claude")
+        self.w.add_merged(TLE, 300, body="Refs #1", age=D(days=5))
+        self.w.add_merged(TLE, 301, body="Refs #1", age=D(days=2))
+        self.go()
+        self.expect("not moved", [], self.state_writes())
+        self.expect("one finding", 1, len(self.merged_reports()))
+        detail = self.merged_reports()[0][2]
+        self.expect("naming both", True, "#300" in detail and "#301" in detail
+                    and "merged PRs" in detail)
+
+    def test_a_merge_counts_by_when_it_merged_not_when_it_was_touched(self):
+        """S24: merged 40 days ago and commented on yesterday is outside the 30-day
+        lookback; merged 29 days ago is inside."""
+        self.proj(1, "Development", D(days=2), turn="Claude")
+        self.proj(2, "Development", D(days=2), turn="Claude")
+        old = self.w.add_merged(TLE, 300, body="Refs #1", age=D(days=40))
+        old["updated_at"] = ago(days=1)
+        self.w.add_merged(TLE, 301, body="Refs #2", age=D(days=29))
+        self.expect("only the recent merge", [name(TLE, 2)], [n for n, _, _ in self.merged_reports()])
+
+    def test_needs_a_look_alone_exits_one(self):
+        """S38, S-G21: nothing stalled, one item to look at: exit 1."""
+        self.proj(1, "Development", D(hours=1), turn="Claude")
+        self.w.add_merged(TLE, 300, body="Refs #1")
+        run = self.go()
+        self.expect("nothing stalled", set(), {v.name for v in self.survey().stalled})
+        self.expect("exit 1", 1, run.code)
+        self.expect("and listed", True, "## Needs a look" in run.out)
 
     def test_refs_to_a_parent_moves_nothing(self):
         """S24, O5: `Refs` to a parent only; the package stays."""
@@ -762,6 +903,15 @@ class MissedEvents(Flow):
         self.w.add_merged(TLE, 303, body="Refs #3")
         self.go()
         self.expect("nothing moved", [], self.state_writes())
+
+    def test_a_moved_items_age_starts_at_the_move(self):
+        """S41: a package moved because its release closed is aged from the move
+        and keeps that start on the next day's sweep."""
+        self.proj(1, "Deployment", D(days=3), turn="Hold", milestone=("1.0.0", "closed"))
+        self.expect("age zero at the move", D(0), self.verdict(TLE, 1).age)
+        self.go()
+        self.expect("recorded", NOW, flow.parse_ledger(self.w.pinned_body())[name(TLE, 1)].since)
+        self.expect("a day on", D(days=1), self.verdict(TLE, 1, now=NOW + D(days=1)).age)
 
     def test_closed_release_milestone_moves_its_open_work_packages(self):
         """S41, S-G13: a package at Deployment in a closed release milestone goes
@@ -826,7 +976,8 @@ class Failure(Flow):
         run fails."""
         self.w.add_issue(DP, 1, None)
         self.w.hang["fakeorg/dark-portal/issues"] = 1000
-        with mock.patch.object(flow_settings, "REST_TIMEOUT_SECONDS", 5):
+        with mock.patch.object(sources, "_flow_setting",
+                               lambda name: 5 if name == "rest_timeout_seconds" else 8):
             run = self.go()
         self.expect("exit 2", 2, run.code)
         self.expect("said so", True, "did not answer" in run.err)
@@ -1099,9 +1250,9 @@ class Lists(Flow):
         self.w.add_issue(DP, 1, None)
         run = self.go()
         self.expect("exit 2", 2, run.code)
-        self.expect("names it", True, flow_settings.STALLED_LIST_TITLE in run.err)
+        self.expect("names it", True, flow.STALLED_LIST_TITLE in run.err)
         self.expect("no write", [], self.w.log)
-        self.w.add_issue(PRG, 901, "Requirement", title=flow_settings.STALLED_LIST_TITLE,
+        self.w.add_issue(PRG, 901, "Requirement", title=flow.STALLED_LIST_TITLE,
                          fields={"Requirement State": "Triage"})
         self.expect("then it runs", True, self.go().code in (0, 1))
         self.expect("and writes the body", True, "Last complete run" in self.w.issues[(PRG, 901)]["body"])
@@ -1121,6 +1272,48 @@ class Lists(Flow):
         self.decision(2, "Asked", D(days=2), turn="Owner")
         out = self.actions("--quick", "--no-colour").out
         self.expect("once", 1, out.count("#2 "))
+
+
+class Survivors(Flow):
+
+    def test_a_closed_tickets_turn_is_cleared_never_written_null(self):
+        """A state with no holder takes the Turn off (a delete) only where it carries
+        one, and no write carries a null."""
+        self.ticket(1, "Closed", D(days=3), turn="Owner")
+        self.ticket(2, "Closed", D(days=3))
+        self.go()
+        clears = [(m, p) for m, p, _ in self.w.log if m == "DELETE"]
+        self.expect("one clear, of the first", [("DELETE", "repos/fakeorg/service-desk/issues/1/"
+                                                  "issue-field-values/49935304")], clears)
+        self.expect("no null written", True,
+                    all(entry["value"] is not None
+                        for _, _, payload in self.w.field_writes()
+                        for entry in payload["issue_field_values"]))
+        self.expect("the Turn is gone", None, self.w.field(SD, 1, "Turn"))
+        self.w.log.clear()
+        self.go()
+        self.expect("a rerun clears nothing", [], [e for e in self.w.log if e[0] == "DELETE"])
+
+    def test_a_ready_pull_request_that_owes_no_review_is_not_drafting(self):
+        """A non-draft pull request with no reviewer asked and a `No review owed`
+        Review heading is its author's to merge; a draft, and a ready one with no
+        such heading, are still drafting."""
+        owes_none = "## Review\n\nNo review owed: a record only.\n"
+        self.w.add_pull(TLE, 201, body=owes_none)
+        self.w.add_pull(TLE, 202, body=owes_none, draft=True)
+        self.w.add_pull(TLE, 203, body="## Review\n\nPlease review.\n")
+        states = {n: self.verdict(TLE, n).state for n in (201, 202, 203)}
+        self.expect("states", {201: "No review owed", 202: "Drafting", 203: "Drafting"}, states)
+        self.expect("its author's", "author", self.verdict(TLE, 201).role)
+
+    def test_the_ledger_is_one_block_in_the_pinned_body(self):
+        """The body ends with the ledger: each item's state, since and written Turn."""
+        self.proj(1, "Development", D(days=2), turn=None)
+        self.go()
+        ledger = flow.parse_ledger(self.w.pinned_body())
+        self.expect("the item", flow.Seen("Development", NOW - D(days=2), "Claude"),
+                    ledger[name(TLE, 1)])
+        self.expect("one block", 1, self.w.pinned_body().count("<!-- board-flow-ledger"))
 
 
 class FieldWrites(Flow):

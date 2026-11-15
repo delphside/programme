@@ -19,7 +19,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Sequence
 
-from . import flow_settings, profile
+from . import profile
 from .model import (PR_STATE, Comment, Link, MergedPull, Milestone, Observed,
                     OpenItem, RawBoardItem, RawIssue, RawPullRequest, RawSubIssue)
 
@@ -78,6 +78,16 @@ query($owner:String!, $repo:String!, $cursor:String) {
   }
 }
 """
+
+
+# The branch a merge delivers to.
+DEFAULT_BRANCH = "main"
+
+
+def _flow_setting(name: str) -> int:
+    """A tuning figure of the daily sweep's reads, from the programme file's
+    `[flow]` section (`config/programme.toml`)."""
+    return profile.programme_file().integer(f"flow.{name}")
 
 
 def _repository_query(parts: str) -> str:
@@ -1122,7 +1132,7 @@ class _Rest:
     def _read(self, path: str, url: str):
         try:
             run = subprocess.run(["gh", "api", url], capture_output=True, text=True,
-                                 timeout=flow_settings.REST_TIMEOUT_SECONDS)
+                                 timeout=_flow_setting("rest_timeout_seconds"))
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise Unavailable(f"GitHub did not answer: {exc}") from exc
         if run.returncode != 0:
@@ -1346,7 +1356,7 @@ def rest_get(path: str):
     failure raises `Unavailable`, so *absent* and *unreadable* are never merged."""
     try:
         run = subprocess.run(["gh", "api", path], capture_output=True, text=True,
-                                 timeout=flow_settings.REST_TIMEOUT_SECONDS)
+                                 timeout=_flow_setting("rest_timeout_seconds"))
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise Unavailable(f"GitHub did not answer: {exc}") from exc
     if run.returncode != 0:
@@ -1370,7 +1380,7 @@ def _rest_write(method: str, path: str, **fields) -> None:
             args += ["-f", f"{key}={value}"]
     try:
         run = subprocess.run(args, capture_output=True, text=True,
-                             timeout=flow_settings.REST_TIMEOUT_SECONDS)
+                             timeout=_flow_setting("rest_timeout_seconds"))
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise Unavailable(f"GitHub did not answer: {exc}") from exc
     if run.returncode != 0:
@@ -1560,7 +1570,7 @@ def _observe_pull(rest: _Rest, repo: str, p: dict) -> Observed:
         bot=(p.get("user") or {}).get("type") == "Bot")
     return Observed(repo=repo, raw=raw, pull=True,
                     changed_at=_latest(events, _REVIEW_EVENTS),
-                    head_sha=(p.get("head") or {}).get("sha"))
+                    head_sha=(p.get("head") or {}).get("sha"), draft=bool(p.get("draft")))
 
 
 def observe(repo: str) -> list[Observed]:
@@ -1582,7 +1592,7 @@ def observe(repo: str) -> list[Observed]:
         except Unavailable as exc:
             raise Unavailable(f"{repo}#{entry['number']}: {exc}") from None
 
-    with ThreadPoolExecutor(max_workers=flow_settings.READ_WORKERS) as pool:
+    with ThreadPoolExecutor(max_workers=_flow_setting("read_workers")) as pool:
         return list(pool.map(one, jobs))
 
 
@@ -1601,16 +1611,18 @@ def milestones_of(repo: str) -> tuple[Milestone, ...]:
 
 
 def merged_since(repo: str, since_iso: str) -> tuple[MergedPull, ...]:
-    """The pull requests merged into the default branch of `repo` that were
-    updated since `since_iso`, newest first. Read a page at a time and stopped
-    at the first one older, so the whole history is never read."""
+    """The pull requests merged into the default branch of `repo` since
+    `since_iso`, newest first. A pull request counts by when it merged, not by
+    when it was last touched. The listing is by last update, which is never
+    earlier than the merge, so it is read a page at a time and stopped at the
+    first one not updated since: the whole history is never read."""
     out: list[MergedPull] = []
     for p in _Rest().items(f"repos/{repo}/pulls?state=closed&sort=updated&direction=desc"):
         if (p.get("updated_at") or "") < since_iso:
             break
-        if p.get("merged_at") and (p.get("base") or {}).get("ref") == flow_settings.DEFAULT_BRANCH:
-            out.append(MergedPull(p["number"], p.get("title") or "", p.get("body") or "",
-                                  p["merged_at"]))
+        merged = p.get("merged_at")
+        if merged and merged >= since_iso and (p.get("base") or {}).get("ref") == DEFAULT_BRANCH:
+            out.append(MergedPull(p["number"], p.get("title") or "", p.get("body") or "", merged))
     return tuple(out)
 
 
@@ -1628,7 +1640,7 @@ def _write_json(method: str, path: str, payload: dict) -> None:
     args = ["gh", "api", "-X", method, path, "--input", "-"]
     try:
         run = subprocess.run(args, input=json.dumps(payload), capture_output=True, text=True,
-                             timeout=flow_settings.REST_TIMEOUT_SECONDS)
+                             timeout=_flow_setting("rest_timeout_seconds"))
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise Unavailable(f"GitHub did not answer: {exc}") from exc
     if run.returncode != 0:

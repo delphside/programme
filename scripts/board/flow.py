@@ -13,23 +13,28 @@ repositories, read over REST:
   type's starting state. A non-requirement with no workstream is raised with
   the owner. A pull request is never given a type or an issue field.
 * It derives the item's holder and `Turn` from the table and writes the `Turn`
-  where it differs. A thread-set `Owner` with an approval comment, and a `Hold`
-  whose reason still holds, are kept; any other is overwritten.
+  where it differs. A `Turn` is kept only where a thread set it: one that is not
+  what the sweep last wrote (the ledger, below). A thread-set `Owner` with an
+  approval comment, and a `Hold` whose reason still holds, are kept; any other
+  is overwritten.
 * It lists what has stalled: an item past its bound, by the role that holds
   it, with its claim. A claim that is stale is kept and the item offered to the
   role's current thread.
-* It catches the moves an event missed: a merged pull request's `Refs #N`, and a
-  closed release milestone (`Deployment` -> `Post-deployment`).
+* It moves a package whose release milestone closed (`Deployment` ->
+  `Post-deployment`). A merged pull request that names a package still before
+  its merge phase is only reported, under "needs a look": a merge may be one of
+  several, so a person moves it.
 
-Nothing is remembered between runs. An item's age is read from GitHub each
-time, so a missed day is corrected by the next (implementation.md, choice 2).
-
-**Age over REST is the latest field event of any field.** GitHub's REST
-timeline says that a field changed, not which field or to what, so the
-`step_ages` way of matching the value moved to is not available to a cloud
-session. The sweep's own writes are field events too: a `Turn` it writes
-restarts the clock of the item it writes to, so an item first written is aged
-from that write and is listed again only when seven days pass from it.
+**The ledger** is the one thing remembered between runs: a JSON block in an HTML
+comment at the foot of the pinned issue's body, which only the sweep writes. For
+each open item it holds its state, when the sweep first saw it in that state,
+and the `Turn` the sweep last wrote. Over REST the timeline says that a field
+changed, not which field or to what, so the age of a state cannot be read from
+GitHub once the sweep writes fields itself: its own `Turn` write would restart
+the clock. An item with no entry (or one whose state has changed since) is aged
+from its latest field event of any field, or its creation, judged before this
+run writes anything; the entry then keeps that time. A dry run reads the ledger
+and writes nothing, the ledger included.
 """
 
 from __future__ import annotations
@@ -40,14 +45,15 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable, Sequence
 
-from . import flow_settings, profile, refs, sources
+import json
+
+from . import merge, profile, refs, sources
 from .model import (
-    CLAIMED_BY, PROJECT_STATE, RELEASE, RELEASE_CHECK, REVIEW_DUE_DAYS, ROLE_AUTHOR,
+    CLAIMED_BY, PROJECT_STATE, RELEASE_CHECK, REVIEW_DUE_DAYS, ROLE_AUTHOR,
     ROLE_OWNER, ROLES, STARTING_STATE, STATE_FIELD_OF, TURN, TURN_HOLD,
     TURN_OWNER, TURNS, TYPE_HOLDER, WORKSTREAM, HOLD_ON_NAMED, HOLD_ON_RELEASE,
     HOLD_ON_SENDER, FLOW, Flow, Issue, Observed, ParentProject, StandaloneProject,
-    WorkPackage, classify, delivered_by_merge, flow_row, role_turn, route_of, section,
-    ROLE_DESIGN,
+    WorkPackage, classify, flow_row, owes_no_review, role_turn, section, ROLE_DESIGN,
 )
 from .sources import Unavailable
 from .turn import waiting_on_owner
@@ -63,8 +69,13 @@ _REF = re.compile(r"(?:(?P<repo>[\w.-]+/[\w.-]+))?#(?P<n>\d+)\b"
 # Scope to Design and Test Approach, then waits on its packages (design.md).
 PARENT_RESTS = ("Design and Test Approach", "Development", "User testing", "Deployment")
 DEPENDENCIES_HEADING = "Dependencies and related work"
-# A merge from either of these moves a package by its route.
-MERGE_FROM = ("Development", "User testing")
+# The issue whose body each sweep rewrites, found in the programme repository by
+# this exact title (owner, 2026-11-13: a pinned issue). It is an identifier
+# stored in GitHub: changing it blinds the sweep to the issue that exists
+# (docs/1.10).
+STALLED_LIST_TITLE = "Board flow: the stalled list"
+# What a pull request that owes no review reads as, in place of `Drafting`.
+NO_REVIEW_OWED = "No review owed"
 
 # What an attention finding is called, in the order they are listed.
 INVALID_HOLD = "invalid hold"
@@ -74,8 +85,9 @@ UNKNOWN_TYPE = "unknown type"
 NO_WORKSTREAM = "no workstream"
 NOT_VISIBLE = "not visible"
 MALFORMED_CLAIM = "malformed claim"
+MERGED = "merged, not moved"
 ATTENTION_ORDER = (LOST, INVALID_HOLD, NO_WORKSTREAM, UNKNOWN_STATE, UNKNOWN_TYPE,
-                   MALFORMED_CLAIM, NOT_VISIBLE)
+                   MALFORMED_CLAIM, MERGED, NOT_VISIBLE)
 
 
 def parse_time(text: str | None) -> datetime | None:
@@ -94,6 +106,50 @@ def stamp(when: datetime) -> str:
 
 def days(delta: timedelta) -> float:
     return delta.total_seconds() / 86400
+
+
+# --------------------------------------------------------------------------
+# the ledger
+# --------------------------------------------------------------------------
+
+_LEDGER = re.compile(r"<!-- board-flow-ledger\n(.*?)\n-->", re.DOTALL)
+
+
+@dataclass(frozen=True)
+class Seen:
+    """What the sweep remembers of one item: the state it saw, when it first saw
+    the item in that state, and the `Turn` it last wrote (None where it has
+    written none, or a thread has set the `Turn` since)."""
+
+    state: str
+    since: datetime
+    turn: str | None = None
+
+
+def parse_ledger(body: str | None) -> dict[str, Seen]:
+    """The ledger in a pinned issue's body. Absent or unreadable is empty: every
+    item is then aged as a first sighting, which is today's rule."""
+    m = _LEDGER.search(body or "")
+    if m is None:
+        return {}
+    try:
+        data = json.loads(m.group(1))
+    except json.JSONDecodeError:
+        return {}
+    out: dict[str, Seen] = {}
+    for name, entry in (data if isinstance(data, dict) else {}).items():
+        since = parse_time(entry.get("since")) if isinstance(entry, dict) else None
+        if since is None or not isinstance(entry.get("state"), str):
+            continue
+        turn = entry.get("turn")
+        out[name] = Seen(entry["state"], since, turn if isinstance(turn, str) else None)
+    return out
+
+
+def render_ledger(ledger: dict[str, Seen]) -> str:
+    data = {name: {"state": e.state, "since": stamp(e.since), "turn": e.turn}
+            for name, e in sorted(ledger.items())}
+    return "<!-- board-flow-ledger\n" + json.dumps(data, indent=0, sort_keys=True) + "\n-->\n"
 
 
 # --------------------------------------------------------------------------
@@ -148,15 +204,17 @@ class Write:
 
     repo: str
     number: int
-    kind: str               # "type" or "field"
+    kind: str               # "type", "field", or "clear" (take a field's value off)
     name: str               # the field's name; "Type" for a type
-    value: str
+    value: str | None = None
 
     @property
     def target(self) -> str:
         return f"{self.repo}#{self.number}"
 
     def __str__(self) -> str:
+        if self.kind == "clear":
+            return f"{self.target} {self.name} cleared"
         return f"{self.target} {self.name} = {self.value}"
 
 
@@ -186,6 +244,10 @@ class Verdict:
     resting: str | None = None
     claim: Claim | None = None
     parts: tuple[tuple[str, str], ...] = ()
+    # The ledger's two facts about it: when its state began, and the `Turn` the
+    # sweep has written (unchanged where it left a thread's `Turn` alone).
+    since: datetime | None = None
+    written_turn: str | None = None
     writes: list[Write] = field(default_factory=list)
     attention: list[Attention] = field(default_factory=list)
 
@@ -223,8 +285,9 @@ class Context:
     needs it, so a sweep with nothing to judge costs only its listings."""
 
     def __init__(self, observed: Sequence[Observed], now: datetime,
-                 board=sources) -> None:
+                 board=sources, ledger: dict[str, Seen] | None = None) -> None:
         self.now = now
+        self.ledger = ledger or {}
         self.today = now.astimezone(timezone.utc).date()
         self.board = board
         self.open = {(o.repo.lower(), o.raw.number) for o in observed}
@@ -245,9 +308,19 @@ class Context:
 
     def merged(self, repo: str):
         if repo not in self._merged:
-            since = self.now - timedelta(days=flow_settings.MERGED_LOOKBACK_DAYS)
+            lookback = profile.programme_file().integer("flow.merged_lookback_days")
+            since = self.now - timedelta(days=lookback)
             self._merged[repo] = self.board.merged_since(repo, stamp(since))
         return self._merged[repo]
+
+    def state_since(self, obs: Observed, state: str | None) -> datetime | None:
+        """When the item's current state began: the ledger's word where it saw
+        the item in this state, else the latest field event (a first sighting,
+        or a state that has changed since)."""
+        seen = self.ledger.get(obs.name)
+        if seen is not None and seen.state == state:
+            return seen.since
+        return state_start(obs)
 
     def comments(self, repo: str, number: int):
         key = (repo, number)
@@ -297,11 +370,19 @@ def _linked_refs(obs: Observed) -> list[tuple[str, int]]:
     return out
 
 
-def release_wait(obs: Observed, issue: Issue, ctx: Context) -> Reason | None:
+def _closed_after(milestone, when: datetime | None) -> bool:
+    closed = parse_time(milestone.closed_at)
+    return when is not None and closed is not None and closed > when
+
+
+def release_wait(obs: Observed, issue: Issue, ctx: Context,
+                 entered: datetime | None = None) -> Reason | None:
     """The release an item waits on (design.md, *Hold reasons*), or None where
     it waits on none. `Deployment` waits for its own milestone; a `Release
     Check` package at `Post-deployment` waits for the next release milestone in
-    its repository, the one after its own. While none is open the wait stays
+    its repository: the first after its own semver, or, where its own is a date
+    or missing, the lowest semver milestone that is open or that closed after
+    the package `entered` `Post-deployment`. While none is open the wait stays
     valid."""
     raw = obs.raw
     if issue.step == "Deployment":
@@ -317,7 +398,8 @@ def release_wait(obs: Observed, issue: Issue, ctx: Context) -> Reason | None:
         if own:
             later = [m for v, m in releases if v > own]
         else:
-            later = [m for v, m in releases if m.state == "open"]
+            later = [m for v, m in releases
+                     if m.state == "open" or _closed_after(m, entered)]
         nxt = later[0] if later else None
         if nxt is None or nxt.state == "open":
             name = nxt.title if nxt else "none raised yet"
@@ -327,13 +409,14 @@ def release_wait(obs: Observed, issue: Issue, ctx: Context) -> Reason | None:
     return None
 
 
-def hold_reason(obs: Observed, issue: Issue, ctx: Context) -> Reason:
+def hold_reason(obs: Observed, issue: Issue, ctx: Context,
+                entered: datetime | None = None) -> Reason:
     """Whether the item's `Hold` is valid: the first accepted reason that still
     holds, else why none does (S-G14)."""
     if issue.step == "Waiting on sender":
         return Reason(True, "waiting on the sender")
     ended = []
-    release = release_wait(obs, issue, ctx)
+    release = release_wait(obs, issue, ctx, entered)
     if release is not None:
         if release.valid:
             return release
@@ -381,36 +464,29 @@ def owner_approval_pending(obs: Observed, ctx: Context) -> bool:
 # --------------------------------------------------------------------------
 
 
-def missed_move(obs: Observed, issue: Issue, ctx: Context) -> str | None:
-    """The `Project State` a work package should already be in because of an
-    event nobody moved it for, or None (I5, S-G13).
-
-    A closed release milestone ships its package at `Deployment`. A merged pull
-    request whose `Refs #N` names a package at `Development` or `User testing`
-    moves it by its route: a Production Release to `Deployment`, a tooling
-    route (delivered by the merge) to `Post-deployment`. A package with an open
-    pull request is not moved: a reopened one has a new branch."""
+def missed_move(obs: Observed, issue: Issue) -> str | None:
+    """The `Project State` a work package should already be in because its
+    release milestone closed and nobody moved it (I5, S-G13): `Deployment` ->
+    `Post-deployment`. A merge is never moved here: see `merged_naming`."""
     if not isinstance(issue, (WorkPackage, StandaloneProject)):
         return None
-    if issue.step == "Deployment":
-        if semver(obs.raw.milestone) and obs.milestone_state == "closed":
-            return "Post-deployment"
-        return None
-    if issue.step not in MERGE_FROM:
-        return None
-    route = route_of(issue.route)
-    if route == RELEASE:
-        target = "Deployment"
-    elif delivered_by_merge(route):
-        target = "Post-deployment"
-    else:
-        return None
-    if ctx.pulls_naming(obs.repo, obs.raw.number):
-        return None
-    for merged in ctx.merged(obs.repo):
-        if obs.raw.number in refs.pull_request_names(merged.title, merged.body):
-            return target
+    if issue.step == "Deployment" and semver(obs.raw.milestone) \
+            and obs.milestone_state == "closed":
+        return "Post-deployment"
     return None
+
+
+def merged_naming(obs: Observed, issue: Issue, ctx: Context) -> list[int]:
+    """The pull requests merged within the lookback whose `Refs #N` names a
+    package that is still before its merge phase (`merge.next_phase` decides
+    which, by route). They are reported and the package is not moved: a merge
+    may be one of several, and a person says whether this one delivered it. A
+    package with an open pull request is not reported: a reopened one has a new
+    branch."""
+    if merge.next_phase(issue) is None or ctx.pulls_naming(obs.repo, obs.raw.number):
+        return []
+    return [m.number for m in ctx.merged(obs.repo)
+            if obs.raw.number in refs.pull_request_names(m.title, m.body)]
 
 
 # --------------------------------------------------------------------------
@@ -425,13 +501,14 @@ def state_start(obs: Observed) -> datetime | None:
     return max(times) if times else None
 
 
-def _development_start(obs: Observed, ctx: Context) -> datetime | None:
+def _development_start(obs: Observed, ctx: Context,
+                       since: datetime | None) -> datetime | None:
     """`Development` is aged from the head commit of the package's open pull
-    request (S-G11); with none, from the field's own age."""
+    request (S-G11); with none, from when the state began."""
     for pull in ctx.pulls_naming(obs.repo, obs.raw.number):
         if pull.head_sha:
             return parse_time(ctx.commit_time(obs.repo, pull.head_sha))
-    return state_start(obs)
+    return since
 
 
 def _review_due(text: str) -> date | None:
@@ -464,8 +541,12 @@ def judge_pull(obs: Observed, ctx: Context) -> Verdict:
         return v
     v.role, v.owes, v.bound = row.role, row.owes, row.bound
     v.turn = row.turn
-    start = state_start(obs)
-    v.age = None if start is None else ctx.now - start
+    if issue.step == "Drafting" and not obs.draft and owes_no_review(raw.body):
+        # Ready, with no reviewer asked, and its body says none is owed: its
+        # author merges it on green. GitHub's own state still reads `Drafting`.
+        v.state, v.owes = NO_REVIEW_OWED, "merge it on green: no review is owed"
+    v.since = ctx.state_since(obs, v.state)
+    v.age = None if v.since is None else ctx.now - v.since
     _stall(v)
     return v
 
@@ -514,9 +595,9 @@ def judge_issue(obs: Observed, ctx: Context) -> Verdict:
 
     moved = False
     prior_release: Reason | None = None
-    target = missed_move(obs, issue, ctx)
+    target = missed_move(obs, issue)
     if target:
-        prior_release = release_wait(obs, issue, ctx)
+        prior_release = release_wait(obs, issue, ctx, ctx.state_since(obs, issue.step))
         v.writes.append(Write(obs.repo, raw.number, "field", PROJECT_STATE, target))
         fields[PROJECT_STATE] = target
         issue = classify(replace(raw, issue_type=typ, fields=fields))
@@ -534,6 +615,11 @@ def judge_issue(obs: Observed, ctx: Context) -> Verdict:
                                          f"its state is not in the flow table and it has no {TURN}"))
         return v
 
+    # When its state began: the move itself, else the ledger's word or the
+    # latest field event, judged before this run writes anything.
+    since = ctx.now if moved else ctx.state_since(obs, issue.step)
+    v.since = since
+
     # Who holds it.
     role = row.role
     if typ == "Requirement" and issue.step == "Triage" and not v.workstream:
@@ -549,31 +635,50 @@ def judge_issue(obs: Observed, ctx: Context) -> Verdict:
         v.attention.append(Attention(MALFORMED_CLAIM, role,
                                      f"{CLAIMED_BY} {raw.fields.get(CLAIMED_BY)!r} is not a role "
                                      "and a link; read as no claim"))
+    named = merged_naming(obs, issue, ctx)
+    if named:
+        prs = ", ".join(f"#{n}" for n in named)
+        v.attention.append(Attention(
+            MERGED, role, f"merged PR{'s' if len(named) > 1 else ''} {prs} "
+                          f"name{'' if len(named) > 1 else 's'} it; move it if that merge "
+                          "delivered it"))
 
-    # What `Turn` says.
+    # What `Turn` says. A `Turn` is kept only where a thread set it: one that is
+    # what the sweep last wrote (the ledger) is the sweep's to rewrite.
+    seen = ctx.ledger.get(obs.name)
+    sweep_set = cur is not None and seen is not None and cur == seen.turn
     derived = role_turn(role)
     hold_applies = (row.hold in (HOLD_ON_NAMED, HOLD_ON_SENDER)
                     or (row.hold == HOLD_ON_RELEASE
                         and (issue.step == "Deployment" or RELEASE_CHECK in raw.labels)))
+    thread_hold = cur == TURN_HOLD and not sweep_set
     reason: Reason | None = None
-    if hold_applies or cur == TURN_HOLD:
-        reason = hold_reason(obs, issue, ctx)
+    if hold_applies or thread_hold:
+        reason = hold_reason(obs, issue, ctx, since)
         if moved and prior_release is not None and not prior_release.valid:
             reason = Reason(reason.valid, prior_release.text, reason.ended_at)
     final = derived
     if hold_applies:
         final = TURN_HOLD if reason.valid else derived
-    if cur == TURN_HOLD:
+    kept = False
+    if thread_hold:
         if reason.valid:
-            final = TURN_HOLD
+            final, kept = TURN_HOLD, True
         else:
             v.attention.append(Attention(INVALID_HOLD, role, reason.text))
-    elif hold_applies and not reason.valid and row.hold == HOLD_ON_NAMED:
+    elif hold_applies and not reason.valid and (row.hold == HOLD_ON_NAMED or cur == TURN_HOLD):
         v.attention.append(Attention(INVALID_HOLD, role, reason.text))
-    if cur == TURN_OWNER and derived != TURN_OWNER and owner_approval_pending(obs, ctx):
-        final, role = TURN_OWNER, ROLE_OWNER
+    if cur == TURN_OWNER and not sweep_set and derived != TURN_OWNER \
+            and owner_approval_pending(obs, ctx):
+        final, role, kept = TURN_OWNER, ROLE_OWNER, True
     if cur != final:
-        v.writes.append(Write(obs.repo, raw.number, "field", TURN, final))
+        if final is None:
+            # A state with no holder (a closed Ticket): never write a null, take
+            # the value off.
+            v.writes.append(Write(obs.repo, raw.number, "clear", TURN))
+        else:
+            v.writes.append(Write(obs.repo, raw.number, "field", TURN, final))
+    v.written_turn = (seen.turn if seen else None) if kept else final
     # The owner has a part in a state only while he has something to do in it:
     # his own sources (`turn.waiting_on_owner`) say so, not the state alone.
     parts = tuple(p for p in row.parts if p[0] != ROLE_OWNER or waiting_on_owner(issue))
@@ -583,9 +688,9 @@ def judge_issue(obs: Observed, ctx: Context) -> Verdict:
 
     # How long it has sat.
     v.bound = row.bound
-    start = state_start(obs)
+    start = since
     if issue.step == "Development":
-        start = _development_start(obs, ctx)
+        start = _development_start(obs, ctx, since)
     if issue.step == "Post-deployment" and RELEASE_CHECK in raw.labels and reason is not None \
             and not reason.valid and reason.ended_at:
         # The hold has ended: the review is due at once, and stalls 7 days
@@ -600,6 +705,8 @@ def judge_issue(obs: Observed, ctx: Context) -> Verdict:
     v.resting = _resting(v, row, resting_parent)
     if issue.step == "Pending" and typ == "Ticket":
         _pending(v, obs, ctx)
+    elif issue.step == "On Hold" and typ == "Requirement":
+        _on_hold(v, obs, ctx)
     else:
         _stall(v)
     return v
@@ -611,6 +718,18 @@ def _resting(v: Verdict, row: Flow, resting_parent: bool) -> str | None:
     if v.turn == TURN_HOLD and not row.stalls_under_hold:
         return "held"
     return None
+
+
+def _on_hold(v: Verdict, obs: Observed, ctx: Context) -> None:
+    """A Requirement at `On Hold` is bound by its review date (design.md,
+    Requirement table): past it, it is stalled for its role, even while a linked
+    issue is still open. With no date named it rests until its reason ends."""
+    due = _review_due(section(obs.raw.body, DEPENDENCIES_HEADING))
+    if due is None:
+        _stall(v)
+        return
+    v.bound, v.bound_text = None, f"until {due}"
+    v.stalled = ctx.today > due
 
 
 def _pending(v: Verdict, obs: Observed, ctx: Context) -> None:
@@ -644,6 +763,14 @@ class Sweep:
     now: datetime | None = None
     body: str = ""
     ids: dict[str, int] = field(default_factory=dict)
+    prior: dict[str, Seen] = field(default_factory=dict)   # the ledger as read
+
+    @property
+    def ledger(self) -> dict[str, Seen]:
+        """The ledger to publish: every judged item, with the state it is in now
+        and when that began."""
+        return {v.name: Seen(v.state, v.since, v.written_turn)
+                for v in self.verdicts if v.state and v.since}
 
     @property
     def stalled(self) -> list[Verdict]:
@@ -661,19 +788,19 @@ def programme_repository() -> str:
 def find_pinned(observed: Sequence[Observed]) -> Observed | None:
     for o in observed:
         if (o.repo == programme_repository() and not o.pull
-                and o.raw.title == flow_settings.STALLED_LIST_TITLE):
+                and o.raw.title == STALLED_LIST_TITLE):
             return o
     return None
 
 
 def field_ids(observed: Sequence[Observed]) -> dict[str, int]:
-    """Each field's id: the setting where it holds one, else the id some issue
-    carries a value of the field under."""
+    """Each field's id: the programme file's `[flow.field_ids]` where it holds
+    one, else the id some issue carries a value of the field under."""
     learned: dict[str, int] = {}
     for o in observed:
         learned.update(o.field_ids)
     ids = dict(learned)
-    ids.update({k: v for k, v in flow_settings.FIELD_IDS.items() if v is not None})
+    ids.update(profile.programme_file().table("flow.field_ids"))
     return ids
 
 
@@ -687,11 +814,12 @@ def survey(now: datetime, board=sources, repositories: Sequence[str] | None = No
         observed += board.observe(repo)
     pinned = find_pinned(observed)
     if require_pinned and pinned is None:
-        raise Refusal(f"there is no open issue titled {flow_settings.STALLED_LIST_TITLE!r} in "
+        raise Refusal(f"there is no open issue titled {STALLED_LIST_TITLE!r} in "
                       f"{programme_repository()}: create it by hand, then run again")
     items = [o for o in observed if o is not pinned]
-    ctx = Context(observed, now, board)
-    sweep = Sweep([], pinned, now=now)
+    prior = parse_ledger(pinned.raw.body) if pinned is not None else {}
+    ctx = Context(observed, now, board, prior)
+    sweep = Sweep([], pinned, now=now, prior=prior)
     sweep.ids = field_ids(observed)
     for o in items:
         try:
@@ -715,9 +843,12 @@ def perform(sweep: Sweep, board=sources) -> None:
                 else:
                     fid = ids.get(w.name)
                     if fid is None:
-                        raise Unavailable(f"no id is known for the issue field {w.name!r}: set it in "
-                                          "flow_settings.FIELD_IDS")
-                    board.write_issue_field(w.repo, w.number, fid, w.value)
+                        raise Unavailable(f"no id is known for the issue field {w.name!r}: set it "
+                                          "under [flow.field_ids] in config/programme.toml")
+                    if w.kind == "clear":
+                        board.clear_issue_field(w.repo, w.number, fid)
+                    else:
+                        board.write_issue_field(w.repo, w.number, fid, w.value)
             except Unavailable as exc:
                 sweep.failures.append(f"{w}: {exc}")
                 break
@@ -846,7 +977,7 @@ def run(now: datetime, dry_run: bool = False, board=sources,
     if dry_run:
         for w in sweep.planned:
             say(f"would write {w}")
-        say(f"would rewrite {sweep.pinned.name} ({flow_settings.STALLED_LIST_TITLE})")
+        say(f"would rewrite {sweep.pinned.name} ({STALLED_LIST_TITLE})")
     else:
         perform(sweep, board)
         for w in sweep.made:
@@ -860,13 +991,13 @@ def run(now: datetime, dry_run: bool = False, board=sources,
         say(render(sweep))
         return EXIT_FAILED
 
-    sweep.body = render(sweep)
+    sweep.body = render(sweep) + "\n" + render_ledger(sweep.ledger)
     if not dry_run:
         try:
             board.rewrite_body(sweep.pinned.repo, sweep.pinned.raw.number, sweep.body)
         except Unavailable as exc:
             complain(f"board-flow: could not rewrite {sweep.pinned.name}: {exc}")
-            say(sweep.body)
+            say(render(sweep))
             return EXIT_FAILED
-    say(sweep.body)
+    say(render(sweep))
     return EXIT_STALLED if (sweep.stalled or sweep.attention) else EXIT_CLEAN

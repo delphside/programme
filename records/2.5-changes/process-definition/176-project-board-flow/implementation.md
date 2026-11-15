@@ -61,9 +61,17 @@ sequenceDiagram
   permanent thread, as most workstreams do not. When nothing is stalled it ends
   without a message. The Monday trigger stays as it is.
 - **A missed day is tolerated.** A day when Claude's limits are reached runs
-  nothing, and the next run corrects it: reconciliation needs no history. A
+  nothing, and the next run corrects it. The one thing the sweep remembers is
+  the ledger at the foot of the pinned issue's body: for each open item, its
+  state, when the sweep first saw it there, and the `Turn` the sweep last wrote.
+  Without it the sweep's own `Turn` write would restart an item's clock, and a
+  thread's `Turn` could not be told from the sweep's. An item with no entry is
+  aged from its latest field event, so a lost ledger costs only the ages. A
   [black start](options.md#4-a-mix-events-for-speed-the-sweep-for-correctness-lists-for-the-work)
   begins with the sweep.
+- **`board-flow.py` exits 0 when nothing is stalled or needs a look, 1 when
+  something is stalled or needs a look, and 2 when it could not finish**, as
+  `board-hosts.py` does; a failed run never exits 1.
 - **The alternative** is cron on one of the VMs (virtual machines the
   applications run on): it runs even when Claude's limits are reached, but puts
   a GitHub token on a host.
@@ -79,7 +87,7 @@ the same action.
 | Event | Who moves it | If missed |
 | --- | --- | --- |
 | an issue is raised | the raising thread sets its starting state and `Turn` (R7, R10); Tile Lite Elite's `requirement-stage.yml` writes `Triage` there and stays as that event's tool, the sweep covering the other repositories; the service desk's `intake.yml` sets a Ticket to `New` | the next sweep writes them |
-| a pull request merges on GitHub | the merging thread moves its work package by route (delphside/tile-lite-elite#383 R13) | the next sweep, reading `Refs #N` with `refs.py` |
+| a pull request merges on GitHub | the merging thread moves its work package by route (delphside/tile-lite-elite#383 R13) | the next sweep lists the package under needs a look from `Refs #N` (`refs.py`), and a person moves it: one merge may be one of several |
 | a deploy | `deploy.sh` moves what it ships | the next sweep, reading the closed release milestone |
 | a pull request changes state | `pr-state.yml`, kept as it is, since `PR State` is a board field and needs GraphQL | the next sweep derives the mover from REST |
 
@@ -215,8 +223,8 @@ comment is read as Claude's. Its tests are in
 | Question | Answer |
 | --- | --- |
 | capacity | One sweep reads every open issue and pull request in the five repositories: 88 on 2026-11-13. At about four REST calls each (fields, sub-issues, dependencies, the timeline for age), that is about 400 calls, against the 15,000 an hour the token's limit allowed that day. Writes are one call per item that changed. The coordinator's session is one a day, ending at once when nothing is stalled. |
-| failure | A failed run writes what it reached and exits non-zero, naming the item and call that failed; the pinned issue says when the last complete run was. The next run corrects everything, because reconciliation keeps no history. A missed day (Claude's limits, a stopped coordinator) delays nudges by a day and loses nothing. A field the model cannot read is *not visible*, never a default (the existing `Unavailable` rule). |
-| limits and timeouts | Each REST call is cut at 120 s, the figure of `sources.py`'s REST reads, held as a setting so a test can shorten it. The bounds are the owner's (7 days; 1 day for triage), held in the flow table, not in code elsewhere. |
+| failure | A failed run writes what it reached and exits non-zero, naming the item and call that failed; the pinned issue says when the last complete run was. The next run corrects everything; the only thing it remembers is the ledger, and a run without one ages items from their field events. A missed day (Claude's limits, a stopped coordinator) delays nudges by a day and loses nothing. A field the model cannot read is *not visible*, never a default (the existing `Unavailable` rule). |
+| limits and timeouts | Each REST call is cut at 120 s, the figure of `sources.py`'s REST reads, held in the `[flow]` section of `config/programme.toml` with the other figures of the sweep, so a test can shorten it. The bounds are the owner's (7 days; 1 day for triage), held in the flow table, not in code elsewhere. |
 | secrets and access | None new. The sweep runs with the cloud session's own GitHub access, which is repository-scoped REST; no token is added to a host or to Actions. Creating the two fields is an organisation setting, so it is the owner's. |
 
 ## Deliveries
@@ -313,6 +321,7 @@ is judged on.
 | pull requests cannot carry `Turn` or `Claimed by` ([design.md](design.md#pull-request) gives why) | derived from `PR State` and the branch's thread | `board-actions.py` |
 | organisation paths are refused from the cloud | the owner creates fields and options by hand | owner, once |
 | the context header needs GraphQL | `context.yml` regenerates it daily in Actions, in the programme, Tile Lite Elite and Dark Portal | `context.yml` |
+| `board-check.py` does not read the flow table: it reports obligations, not holders or bounds, so it reports neither | `board-flow.py` and `board-actions.py --role` are where a holder and a bound are read | `flow.py` |
 
 ## Questions for the owner
 

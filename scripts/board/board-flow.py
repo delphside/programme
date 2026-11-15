@@ -11,15 +11,20 @@ REST (so it runs from a cloud session), judges each against the flow table
   * writes R7's starting types and states, and each issue's `Turn`, one call per
     item that changed. A pull request is never given a type or an issue field;
   * keeps a thread-set `Owner` with an approval comment, and a `Hold` whose
-    reason still holds; any other `Turn` is overwritten by the derived value;
+    reason still holds; a `Turn` that is what the sweep last wrote, or any other,
+    is overwritten by the derived value;
   * keeps a stale claim and offers the item to the role's current thread;
-  * moves a work package whose merge or deploy nobody moved it for;
+  * moves a work package whose release milestone closed; a merged pull request
+    that names a package still before its merge is only listed, under "needs a
+    look";
   * rewrites the body of the pinned stalled-list issue (titled by
-    `flow_settings.STALLED_LIST_TITLE`, in the programme repository), and prints
-    the same list by role.
+    `flow.STALLED_LIST_TITLE`, in the programme repository), and prints the same
+    list by role. The body ends with the ledger: each item's state, when the
+    sweep first saw it there, and the `Turn` the sweep last wrote.
 
-It refuses, naming it, when the pinned issue is missing. Nothing is remembered
-between runs, so a missed day is corrected by the next.
+It refuses, naming it, when the pinned issue is missing. The ledger is all it
+remembers between runs; a dry run reads it and writes nothing, the ledger
+included.
 
 Exit status (docs/1.10 *What a script's exit status means*): 0 nothing is
 stalled and nothing needs a look; 1 something is (a check reporting, not a

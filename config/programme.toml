@@ -42,6 +42,36 @@ to_do_floor = "2026-08-25"
 # being late. Read by `.claude/hooks/comment-check.sh`.
 retry_minutes = 10
 
+[flow]
+# The daily sweep (`board/flow.py`, `board-flow.py`), delphside/programme#176.
+# Each REST call is cut at this long, in seconds. The figure is `sources.py`'s
+# own for its REST reads before the sweep existed.
+rest_timeout_seconds = 120
+# How many of an item's own reads (sub-issues, dependencies, timeline, reviews)
+# are made at once. A hundred items took over two minutes one after another
+# (measured 2026-11-15); GitHub's limit on concurrent requests is well above this.
+read_workers = 8
+# How far back a merged pull request is read for the `Refs #N` it carries, to
+# catch a merge whose work package was not moved: a pull request counts when it
+# merged within this many days. A missed week of sweeps is tolerated; the figure
+# has no measurement behind it (chosen 2026-11-15).
+merged_lookback_days = 30
+
+[flow.field_ids]
+# The organisation's id for each issue field, by name (REST writes take an id),
+# read from the issues' own `issue_field_values` on 2026-11-15, except `Turn`,
+# which the owner created and gave the handover. `Claimed by` is a text field
+# whose id is not yet known: it is absent until it is set here, and until then
+# the sweep takes it from an issue that carries a value, or fails the write
+# naming it. A name missing here is learned the same way.
+"Turn" = 49935304
+"Project State" = 46162136
+"Requirement State" = 46185224
+"Decision State" = 46531431
+"Ticket State" = 48733274
+"Workstream" = 46217763
+"Route" = 46415058
+
 [programme]
 # The programme repository, the default place of its live checkout relative to
 # an application's main worktree, and the submodule path in an application.

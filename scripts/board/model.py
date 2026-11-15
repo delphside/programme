@@ -277,6 +277,7 @@ class Observed:
     open_packages: int = 0
     milestone_state: str | None = None
     head_sha: str | None = None
+    draft: bool = False
 
     @property
     def name(self) -> str:

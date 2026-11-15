@@ -12,6 +12,20 @@ machine_user = "fake-owner-claude"
 bot = "fake-bot"
 owner_name = "Pat"
 
+[flow]
+rest_timeout_seconds = 120
+read_workers = 8
+merged_lookback_days = 30
+
+[flow.field_ids]
+"Turn" = 49935304
+"Project State" = 46162136
+"Requirement State" = 46185224
+"Decision State" = 46531431
+"Ticket State" = 48733274
+"Workstream" = 46217763
+"Route" = 46415058
+
 [programme]
 repository = "fakeorg/programme"
 live_default = "../fake-programme"
