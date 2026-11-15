@@ -53,6 +53,13 @@ def _locate() -> None:
     REGISTER = Path(reg) if reg else records.activity_register()
     LOG = Path(log) if log else records.activity_log()
 
+# An activity whose record is not the log: the daily sweep writes its
+# `Last complete run:` line into the pinned issue (flow.py), so it is judged
+# there and never read as "never logged" here.
+RECORDED_ELSEWHERE = {
+    "board-flow": "the pinned issue's `Last complete run:` line",
+}
+
 _ROW = re.compile(
     r"^\|\s*`([\w-]+)`\s*\|([^|]*)\|\s*(\d+)\s*\|([^|]*)\|([^|]*)\|([^|]*)\|",
     re.M,
@@ -66,13 +73,14 @@ class Activity:
     frequency_days: int
     owner: str
     last: date | None
+    elsewhere: str | None = None
 
     @property
     def overdue_by(self) -> int | None:
         """Days past due. `None` for something never logged — a separate case
         from a number, because *never done* and *not yet due* must not read
         alike."""
-        if self.last is None:
+        if self.last is None or self.elsewhere:
             return None
         return (date.today() - self.last).days - self.frequency_days
 
@@ -107,14 +115,16 @@ def last_actioned() -> dict[str, date]:
 
 def activities() -> list[Activity]:
     logged = last_actioned()
-    return [Activity(aid, name, freq, owner, logged.get(aid))
+    return [Activity(aid, name, freq, owner, logged.get(aid), RECORDED_ELSEWHERE.get(aid))
             for aid, name, freq, owner in register()]
 
 
 def render(items: list[Activity]) -> str:
     lines = []
     for a in items:
-        if a.last is None:
+        if a.elsewhere:
+            status = f"recorded in {a.elsewhere}, not judged here"
+        elif a.last is None:
             status = "never logged"
         else:
             over = a.overdue_by
@@ -146,13 +156,14 @@ def main() -> int:
         return 2
 
     items = activities()
-    overdue = [a for a in items if a.last is None or (a.overdue_by or 0) > 0]
+    overdue = [a for a in items
+               if not a.elsewhere and (a.last is None or (a.overdue_by or 0) > 0)]
 
     if args.json:
         print(json.dumps([
             {"id": a.id, "name": a.name, "frequency_days": a.frequency_days,
              "owner": a.owner, "last": a.last.isoformat() if a.last else None,
-             "overdue_by": a.overdue_by}
+             "overdue_by": a.overdue_by, "recorded_elsewhere": a.elsewhere}
             for a in items
         ], indent=2))
     else:

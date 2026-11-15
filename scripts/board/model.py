@@ -689,12 +689,21 @@ class StandaloneProject(Project):
 ROLE_OWNER = "owner"
 ROLE_DESIGN = "design-authority"
 ROLE_TECHNICAL = "technical-lead"
-ROLE_COORDINATOR = "coordinator"
+ROLE_DEMAND = "demand-manager"
 ROLE_TEST = "test-manager"
 ROLE_RELEASE = "release-manager"
+ROLE_ENVIRONMENTS = "environments-manager"
+ROLE_LIBRARIAN = "librarian"
+ROLE_SECURITY = "security"
+# Every role of docs/1.7, as a lower-case hyphenated slug, even where the flow
+# table gives a role nothing yet.
+ROLES = (ROLE_OWNER, ROLE_DESIGN, ROLE_TECHNICAL, ROLE_DEMAND, ROLE_RELEASE,
+         ROLE_ENVIRONMENTS, ROLE_TEST, ROLE_LIBRARIAN, ROLE_SECURITY)
+# The author of a pull request holds its states but is no role: docs/1.2 §2.24
+# says it means the pull request's author, and `--role author` lists the pull
+# requests a thread opened.
 ROLE_AUTHOR = "author"
-ROLES = (ROLE_OWNER, ROLE_DESIGN, ROLE_TECHNICAL, ROLE_COORDINATOR, ROLE_TEST,
-         ROLE_RELEASE, ROLE_AUTHOR)
+HOLDERS = ROLES + (ROLE_AUTHOR,)
 
 TURN_OWNER, TURN_CLAUDE, TURN_HOLD = "Owner", "Claude", "Hold"
 TURNS = (TURN_OWNER, TURN_CLAUDE, TURN_HOLD)
@@ -754,26 +763,26 @@ REQUIREMENT_FLOW: dict[str, Flow] = {
                     "none: resting",
                     "the named event, or the issue it waits on closing",
                     hold=HOLD_ON_NAMED),
-    "Ready for Project": _row(ROLE_COORDINATOR, TURN_CLAUDE, None,
+    "Ready for Project": _row(ROLE_DEMAND, TURN_CLAUDE, None,
                               "a slot at planning",
                               "board-sweep planning; the owner agrees"),
-    "Candidate Project 1": _row(ROLE_COORDINATOR, TURN_CLAUDE, OWED_DAYS,
+    "Candidate Project 1": _row(ROLE_DEMAND, TURN_CLAUDE, OWED_DAYS,
                                 "raise the project, since it is next",
                                 "board-sweep planning"),
-    "Candidate Project 2": _row(ROLE_COORDINATOR, TURN_CLAUDE, None,
+    "Candidate Project 2": _row(ROLE_DEMAND, TURN_CLAUDE, None,
                                 "a slot at planning", "board-sweep planning"),
-    "Candidate Project 3": _row(ROLE_COORDINATOR, TURN_CLAUDE, None,
+    "Candidate Project 3": _row(ROLE_DEMAND, TURN_CLAUDE, None,
                                 "a slot at planning", "board-sweep planning"),
 }
 
 PROJECT_FLOW: dict[str, Flow] = {
     "Scope": _row(ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS,
                   "what the project does", "its action; the owner agrees the next move"),
-    "Q3": _row(ROLE_COORDINATOR, TURN_CLAUDE, None, "a place in the queue",
+    "Q3": _row(ROLE_DEMAND, TURN_CLAUDE, None, "a place in the queue",
                "board-sweep planning"),
-    "Q2": _row(ROLE_COORDINATOR, TURN_CLAUDE, None, "a place in the queue",
+    "Q2": _row(ROLE_DEMAND, TURN_CLAUDE, None, "a place in the queue",
                "board-sweep planning"),
-    "Q1": _row(ROLE_COORDINATOR, TURN_CLAUDE, None, "to be pulled into design",
+    "Q1": _row(ROLE_DEMAND, TURN_CLAUDE, None, "to be pulled into design",
                "board-sweep planning"),
     "Design and Test Approach": _row(
         ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS,

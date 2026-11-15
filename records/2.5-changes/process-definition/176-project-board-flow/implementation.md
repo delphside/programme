@@ -239,7 +239,7 @@ artefact's ([1.2 §2.15](../../../../docs/1.2-change-lifecycle.md#215-classifyin
 | --- | --- | --- | --- | --- |
 | 1 | the `Turn` and `Claimed by` issue fields, with `Turn`'s options and colours, and the owner's board view | Other | a date, the day it lands | a work package: the owner's steps, with a runbook |
 | 2 | the sweep, the role lists, R15's fixes and the cloud hooks, with their tests and documents | Docs and Programme Tooling | none | a work package carrying its tests, and the artefacts and steps listed after this table |
-| 3 | the coordinator's daily trigger, and the owner's step of pasting the updated `cloud-environment-setup.sh` into the cloud environment's settings, which puts the cloud hooks in force. It keeps the pinned stalled-list issue | Other | a date, the day it lands | a work package. Its post-deployment check includes a cloud thread showing the session-start list and the comment check running |
+| 3 | the coordinator's daily trigger, and the owner's step of pasting the updated `cloud-environment-setup.sh` into the cloud environment's settings, which puts the cloud hooks in force. He pastes it only after delivery 2's step 5 has moved Tile Lite Elite's and Dark Portal's pins past delivery 2's merge: the hooks run each application's pinned code, which until then overruns the session-start timeout and does not know `--role`. It keeps the pinned stalled-list issue | Other | a date, the day it lands | a work package. Its post-deployment check includes a cloud thread showing the session-start list and the comment check running |
 
 Delivery 2's artefacts, by repository. Why a cloud thread's hooks are only the
 user-level ones the setup script writes is in

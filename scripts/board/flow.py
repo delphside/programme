@@ -43,7 +43,7 @@ not judged this run keeps its entry while it is open. A pinned body that an
 earlier run wrote and that has no readable ledger is listed under "needs a
 look". The ledger is compact (short keys), and a body that would pass
 `BODY_LIMIT` loses the tail of its list, never its ledger. Runs must not
-overlap: the coordinator's one daily trigger runs it.
+overlap: the demand manager's one daily trigger runs it.
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ import json
 from . import merge, profile, refs, sources
 from .model import (
     CLAIMED_BY, PROJECT_STATE, RELEASE_CHECK, REVIEW_DUE_DAYS, ROLE_AUTHOR,
-    ROLE_OWNER, ROLES, STARTING_STATE, STATE_FIELD_OF, TURN, TURN_HOLD,
+    ROLE_OWNER, HOLDERS, STARTING_STATE, STATE_FIELD_OF, TURN, TURN_HOLD,
     TURN_OWNER, TURNS, TYPE_HOLDER, WORKSTREAM, HOLD_ON_NAMED, HOLD_ON_RELEASE,
     HOLD_ON_SENDER, FLOW, Flow, Issue, Observed, ParentProject, StandaloneProject,
     WorkPackage, classify, flow_row, owes_no_review, role_turn, section, ROLE_DESIGN,
@@ -215,7 +215,7 @@ def parse_claim(text: str | None) -> tuple[Claim | None, bool]:
     if text is None or not text.strip():
         return None, False
     first, _, rest = text.strip().partition(" ")
-    if first not in ROLES:
+    if first not in HOLDERS:
         return None, True
     rest = rest.strip()
     if not rest:

@@ -47,9 +47,10 @@ retry_minutes = 10
 # Each REST call is cut at this long, in seconds. The figure is `sources.py`'s
 # own for its REST reads before the sweep existed.
 rest_timeout_seconds = 120
-# How many of an item's own reads (sub-issues, dependencies, timeline, reviews)
-# are made at once. A hundred items took over two minutes one after another
-# (measured 2026-11-15); GitHub's limit on concurrent requests is well above this.
+# How many items are read at once; each item's own reads (sub-issues,
+# dependencies, timeline, reviews) run one after another. A hundred items took
+# over two minutes read one at a time (measured 2026-11-15); GitHub's limit on
+# concurrent requests is well above this.
 read_workers = 8
 # How far back a merged pull request is read for the `Refs #N` it carries, to
 # catch a merge whose work package was not moved: a pull request counts when it
