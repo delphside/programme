@@ -7,13 +7,13 @@
 # its `programme/` submodule, and its cache and log stay in the application's `.claude/`.
 #
 # **A summary, not a replay.** The full seven-day output is ~25KB, most of it
-# Claude's own comments being read back to itself. This emits which issues have
-# comments from Steve and what opened or closed; `programme/scripts/board/board-inbox.py` gives the
-# detail on demand.
+# Claude's own comments being read back to itself. This emits the owner's
+# comments Claude has not answered (of any age from the to-do floor, the 12 that
+# have waited longest) and what opened or closed; `programme/scripts/board/board-inbox.py`
+# gives the detail on demand.
 #
-# Note the counts are only reliable from 2026-08-16, when Claude started
-# footering everything it posts (#169). Before that, an unmarked comment may be
-# either party's, so older entries over-count Steve.
+# **Each section's heading says whose move it is, and each is read on its own**:
+# one read that fails prints its failure and hides no other section (#455).
 #
 # Never fails a session: every error path exits 0 with no output, because a
 # broken inbox must not stop work starting.
@@ -47,9 +47,13 @@ log() { printf '%s %s pid=%s %s\n' "$(date -u +%FT%TZ)" "$MODE" "$$" "$*" >> "$L
 
 cache_age() { echo $(( $(date +%s) - $(stat -c %Y "$CACHE" 2>/dev/null || echo 0) )); }
 
+# What the text holds, in the order it holds it (#455-R10).
+ORDER="the programme checkout and its pin; opened or closed in the last 7 days; the owner's comments not yet answered; reports from the scheduled workflows; board actions; board-check findings; overdue programme activities"
+INTRO="GitHub activity: what opened or closed in the last 7 days, and the owner's comments not yet answered, of any age. Sections come in this order, each only when it has something to show: $ORDER. Each heading says whose move it is. Run programme/scripts/board/board-inbox.py for the detail."
+
 # Plain text, with the cache's age so a stale one is never mistaken for live.
 cache_text() {
-  printf 'GitHub activity in the last 7 days (from a cache %s min old; programme/scripts/board/board-inbox.py for current detail).\n\n' "$(( $(cache_age) / 60 ))"
+  printf 'GitHub activity: what opened or closed in the last 7 days, and the owner'"'"'s comments not yet answered, of any age (from a cache %s min old; programme/scripts/board/board-inbox.py for current detail). Sections come in this order, each only when it has something to show: %s. Each heading says whose move it is.\n\n' "$(( $(cache_age) / 60 ))" "$ORDER"
   cat "$CACHE"
 }
 
@@ -102,6 +106,7 @@ if [[ "$MODE" != "--build" ]]; then
   [[ "$PIN_OUT" != /dev/null ]] && rm -f "$PIN_OUT"
   [[ -n "$PIN_NOTE" ]] && NOTE="${NOTE:+$NOTE$'\n'}$PIN_NOTE"
 fi
+[[ -n "$NOTE" ]] && NOTE="For Claude to fix: the programme checkout and its pin (programme/scripts/board/board-records.py):"$'\n'"$NOTE"
 with_note() { if [[ -n "$NOTE" ]]; then printf '%s\n\n%s' "$NOTE" "$1"; else printf '%s' "$1"; fi; }
 # Leave without a summary, still saying so if the checkout has a problem.
 bail() { [[ -n "$NOTE" ]] && emit_json "$NOTE" && mark_delivered "$SID"; exit 0; }
@@ -134,90 +139,120 @@ if [[ "$MODE" == "--build" ]]; then
   trap 'rmdir "$LOCK" 2> /dev/null' EXIT
 fi
 
-RAW="$("$BOARD"/board-inbox.py 7 --no-colour 2>/dev/null)" || bail
-[[ -z "$RAW" ]] && bail
-
-# **The to-do half is `board-inbox.py --open`** (#454), run with the others below:
-# the owner's comments Claude has not answered, of any age. This awk keeps only
-# what opened or closed, which is news rather than work.
-SUMMARY="$(printf '%s\n' "$RAW" | awk '
-  /^OPENED OR CLOSED/ { tail = 1; next }
-  tail && /^  #/ { events[++e] = $0 }
-  END {
-    # Capped. A release week closes thirty issues at once, and an unbounded
-    # summary of a busy week is the same wall of text this was meant to avoid.
-    if (e) {
-      printf "Opened or closed (%d; newest last):\n", e
-      start = e > 10 ? e - 9 : 1
-      if (start > 1) printf "  ...%d earlier\n", start - 1
-      for (i = start; i <= e; i++) print events[i]
-    }
-  }
-')"
-
-
-# **What is waiting on Claude, and what does not add up** — #347 R2. The two
-# tools that answer this were wired to nothing: the actions report was in no
-# hook at all, and the transition check was reachable only by hand or through
-# `verify.sh`, where it is a `note` and the rule in `CLAUDE.md` is to trust the
-# exit status rather than read the output. Following the process exactly meant never
-# seeing either.
-#
-# **Both moved to the board model on 2026-09-19** — `board-actions.py --claude`
-# (R1's mirror) and `board-check.py` (R4). This hook kept calling the retired
-# `check-transitions.sh` for the length of one commit, and because every path
-# here is guarded it lost that half **silently**: exactly the failure the
-# guards exist to prevent at session start, arriving as a missing signal rather
-# than an error.
-#
-# **In parallel**, because three sequential calls measured 16s against a 30s
-# timeout and a slow GitHub would eat the margin. Each is separately guarded:
-# one failing leaves the others, and all of them failing leaves the inbox
-# summary, which is what this hook did before.
+# **Every section is read on its own** (#455-R7). The seven-day read, the to-do
+# read, the actions, the findings and the practices run in parallel, because
+# five sequential calls measured 16s against a 30s timeout and a slow GitHub
+# would eat the margin; each one's output, error and exit status are kept
+# apart, so one that fails prints its failure under its own heading and the
+# others still show. A section's `could not be read` line is a report, not a
+# stop: the hook still exits 0 and the session still starts.
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"; [[ "$MODE" == "--build" ]] && rmdir "$LOCK" 2> /dev/null' EXIT
-( timeout 25 "$BOARD"/board-actions.py --claude --no-colour 2>/dev/null > "$TMP/actions" ) &
-( timeout 25 "$BOARD"/board-check.py --no-colour 2>/dev/null > "$TMP/trans" ) &
-( timeout 10 "$BOARD"/board-practices.py 2> "$TMP/practices.err" > "$TMP/practices" ) &
-( timeout 60 "$BOARD"/board-inbox.py --open --no-colour 2>/dev/null > "$TMP/open" ) &
+
+read_to() {   # read_to NAME SECONDS COMMAND...: output, error and status in $TMP/NAME{,.err,.rc}
+  local name="$1" secs="$2"; shift 2
+  ( timeout "$secs" "$@" > "$TMP/$name" 2> "$TMP/$name.err" < /dev/null; echo $? > "$TMP/$name.rc" ) &
+}
+read_to week     60 "$BOARD"/board-inbox.py 7 --no-colour
+read_to open     60 "$BOARD"/board-inbox.py --open --no-colour
+read_to actions  25 "$BOARD"/board-actions.py --claude --no-colour
+read_to findings 25 "$BOARD"/board-check.py --no-colour
+read_to practice 10 "$BOARD"/board-practices.py
 wait
 
-# Only the findings. A clean run says nothing is missing, which is worth
-# nothing in context and would be repeated into every later turn of the
-# session. R4 prints a finding's issue at column 0, where check-transitions.sh
-# indented it — a difference that silently matched nothing for one commit.
-TRANS="$(grep -E '^#[0-9]+' "$TMP/trans" 2>/dev/null | head -20 || true)"
-ACTIONS="$(grep -E '^  #[0-9]+' "$TMP/actions" 2>/dev/null | head -40 || true)"
-# #407 R3: read every session, since a session start is not a repetition of
-# the previous one — there is nothing to debounce, unlike the weekly digest
-# `programme-activities.yml` sends the owner during an absence.
-PRACTICES="$(grep -E 'OVERDUE|never logged' "$TMP/practices" 2>/dev/null || true)"
-# Its stderr is the reason when it cannot judge (the live checkout missing), so
-# it reaches the session rather than being thrown away.
-PRACTICES_ERR="$(head -3 "$TMP/practices.err" 2>/dev/null || true)"
+# Why a read failed, in one line: its status, and the first line it said.
+failure() {   # failure NAME HEADING: prints the failure line and succeeds when NAME failed
+  local rc detail
+  rc="$(cat "$TMP/$1.rc" 2>/dev/null)"; rc="${rc:-1}"
+  [[ "$rc" == 0 ]] && return 1
+  detail="$(head -1 "$TMP/$1.err" 2>/dev/null)"
+  [[ "$rc" == 124 ]] && detail="timed out"
+  printf '%s could not be read (exit %s)%s' "$2" "$rc" "${detail:+: $detail}"
+}
 
-# **Reports from the scheduled workflows.** Owner, 2026-09-27: "can you add a
-# hook so you notice a new report?" The workflows report by writing an issue
-# as the github-actions bot and editing it on later runs, which leaves no
-# comment for the summary above to count. board-inbox.py lists them in their
-# own section; this passes that section on, and nothing when it is empty.
-REPORTS="$(printf '%s\n' "$RAW" | sed -n '/^REPORTS FROM THE SCHEDULED WORKFLOWS/,/^$/p' \
-  | grep -E '^  #[0-9]+' || true)"
-
-# The to-do list first. `^#` is an issue; the sentence for an empty list and the
-# `...N earlier` line are not findings, so a quiet board adds nothing.
-OPEN="$(grep -E '^(#[0-9]+|  > |\.\.\.[0-9]+ earlier)' "$TMP/open" 2>/dev/null || true)"
+# Opened or closed: news, not work, so only that section of the seven-day read
+# (its comments are listed by `board-inbox.py 7`, on demand).
+H_EVENTS="For Claude to read: opened or closed in the last 7 days"
+if FAIL="$(failure week "$H_EVENTS (programme/scripts/board/board-inbox.py)")"; then
+  SUMMARY="$FAIL"
+else
+  SUMMARY="$(awk '
+    /^OPENED OR CLOSED/ { tail = 1; next }
+    tail && /^  #/ { events[++e] = $0 }
+    END {
+      # Capped. A release week closes thirty issues at once, and an unbounded
+      # summary of a busy week is the same wall of text this was meant to avoid.
+      if (e) {
+        printf "For Claude to read: opened or closed in the last 7 days (%d; newest last):\n", e
+        start = e > 10 ? e - 9 : 1
+        if (start > 1) printf "  ...%d earlier\n", start - 1
+        for (i = start; i <= e; i++) print events[i]
+      }
+    }
+  ' "$TMP/week")"
+fi
 
 # How the owner is named is the programme file's; a hook must not fail.
 OWNER_NAME="$(python3 "$BOARD"/board-profile.py get accounts.owner_name 2>/dev/null)" || OWNER_NAME="the owner"
 
-EXTRA=""
-[[ -n "$OPEN" ]] && EXTRA="$EXTRA"$'\n\n'"Waiting on Claude: comments from $OWNER_NAME not yet answered, of any age (programme/scripts/board/board-inbox.py --open --all):"$'\n'"$OPEN"
-[[ -n "$REPORTS" ]] && EXTRA="$EXTRA"$'\n\n'"For Claude to read: reports from the scheduled workflows, opened, updated or closed (programme/scripts/board/board-inbox.py):"$'\n'"$REPORTS"
-[[ -n "$ACTIONS" ]] && EXTRA="$EXTRA"$'\n\n'"Waiting on Claude: actions on the board (programme/scripts/board/board-actions.py --claude for the detail):"$'\n'"$ACTIONS"
-[[ -n "$TRANS" ]] && EXTRA="$EXTRA"$'\n\n'"For Claude to fix: incomplete for their type and step (programme/scripts/board/board-check.py):"$'\n'"$TRANS"
-[[ -n "$PRACTICES" ]] && EXTRA="$EXTRA"$'\n\n'"Programme activities overdue, whose move is the activity's owner in the programme's docs/1.4 (programme/scripts/board/board-practices.py):"$'\n'"$PRACTICES"
+# The to-do list: the comment lines and the `...N more` line. The sentence for an
+# empty list is not a finding, so a quiet board adds nothing.
+H_OPEN="Waiting on Claude: comments from $OWNER_NAME not yet answered, of any age (programme/scripts/board/board-inbox.py --open --all)"
+if FAIL="$(failure open "$H_OPEN")"; then
+  OPEN_SECTION="$FAIL"
+else
+  OPEN="$(grep -E '^(  > |\.\.\.[0-9]+ more )' "$TMP/open" 2>/dev/null || true)"
+  OPEN_SECTION="${OPEN:+$H_OPEN:$'\n'$OPEN}"
+fi
 
-[[ -n "$PRACTICES_ERR" ]] && EXTRA="$EXTRA"$'\n\n'"Programme activities could not be judged (programme/scripts/board/board-practices.py):"$'\n'"$PRACTICES_ERR"
+# Reports from the scheduled workflows. Owner, 2026-09-27: "can you add a hook so
+# you notice a new report?" They are written as issues by the github-actions bot
+# and edited on later runs, which leaves no comment for the to-do list to count.
+# `board-inbox.py` lists them in their own section of the seven-day read.
+H_REPORTS="For Claude to read: reports from the scheduled workflows, opened, updated or closed (programme/scripts/board/board-inbox.py)"
+if FAIL="$(failure week "$H_REPORTS")"; then
+  REPORTS_SECTION="$FAIL"
+else
+  REPORTS="$(sed -n '/^REPORTS FROM THE SCHEDULED WORKFLOWS/,/^$/p' "$TMP/week" | grep -E '^  #[0-9]+' || true)"
+  REPORTS_SECTION="${REPORTS:+$H_REPORTS:$'\n'$REPORTS}"
+fi
+
+# What is waiting on Claude, and what does not add up (#347 R2): the actions
+# report and the transition check, both on the board model.
+H_ACTIONS="Waiting on Claude: actions on the board (programme/scripts/board/board-actions.py --claude for the detail)"
+if FAIL="$(failure actions "$H_ACTIONS")"; then
+  ACTIONS_SECTION="$FAIL"
+else
+  ACTIONS="$(grep -E '^  #[0-9]+' "$TMP/actions" 2>/dev/null | head -40 || true)"
+  ACTIONS_SECTION="${ACTIONS:+$H_ACTIONS:$'\n'$ACTIONS}"
+fi
+
+# Only the findings. A clean run says nothing is missing, which is worth nothing in
+# context and would be repeated into every later turn. A finding's issue is at
+# column 0.
+H_FINDINGS="For Claude to fix: incomplete for their type and step (programme/scripts/board/board-check.py)"
+if FAIL="$(failure findings "$H_FINDINGS")"; then
+  FINDINGS_SECTION="$FAIL"
+else
+  FINDINGS="$(grep -E '^#[0-9]+' "$TMP/findings" 2>/dev/null | head -20 || true)"
+  FINDINGS_SECTION="${FINDINGS:+$H_FINDINGS:$'\n'$FINDINGS}"
+fi
+
+# #407 R3: read every session, since a session start is not a repetition of the
+# previous one. Its stderr is the reason when it cannot judge (the live checkout
+# missing), so it reaches the session rather than being thrown away.
+H_PRACTICE="Programme activities overdue, whose move is the activity's owner in the programme's docs/1.4 (programme/scripts/board/board-practices.py)"
+if FAIL="$(failure practice "Programme activities could not be judged (programme/scripts/board/board-practices.py)")"; then
+  PRACTICE_SECTION="$FAIL"
+else
+  PRACTICE="$(grep -E 'OVERDUE|never logged' "$TMP/practice" 2>/dev/null || true)"
+  PRACTICE_SECTION="${PRACTICE:+$H_PRACTICE:$'\n'$PRACTICE}"
+fi
+
+# The order is the one INTRO says: events (SUMMARY), then these.
+EXTRA=""
+for section in "$OPEN_SECTION" "$REPORTS_SECTION" "$ACTIONS_SECTION" "$FINDINGS_SECTION" "$PRACTICE_SECTION"; do
+  [[ -n "$section" ]] && EXTRA="$EXTRA"$'\n\n'"$section"
+done
 
 [[ -z "$SUMMARY" && -z "$EXTRA" ]] && bail
 
@@ -226,7 +261,7 @@ printf '%s\n' "$SUMMARY$EXTRA" > "$CACHE.tmp" && mv "$CACHE.tmp" "$CACHE"
 if [[ "$MODE" == "--build" ]]; then
   log "build end"
 else
-  emit_json "$(with_note "GitHub activity in the last 7 days. Run programme/scripts/board/board-inbox.py for the detail.
+  emit_json "$(with_note "$INTRO
 
 $SUMMARY$EXTRA")" && mark_delivered "$SID"
   log "sid=${SID:-?} end (built)"

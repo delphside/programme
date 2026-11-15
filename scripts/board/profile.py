@@ -52,7 +52,7 @@ PINNED_PROGRAMME_FILE = Path("programme") / "config" / "programme.toml"
 # file when it starts with one of these, to the programme profile when it
 # starts with `profile`, and to the technical profile otherwise.
 PROGRAMME_SECTIONS = ("organisation", "board", "accounts", "programme", "records",
-                      "programme_documents")
+                      "programme_documents", "comments")
 PROFILE_PREFIX = "profile"
 
 
