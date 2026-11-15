@@ -1447,7 +1447,7 @@ still be running, and two requests to one environment can run at once, one
 waiting for the lock. The deploy's steps look for their own file before each
 step and while they wait: the lock is taken in waits of one second
 (`flock -w 1`), and a hook's *not yet* is retried, each with a look between. A
-rollback looks only while it waits for the lock (step 3). On exit, by a trap,
+rollback looks only while it waits for the lock (item 3 below). On exit, by a trap,
 `turpin-host` stops its watcher and removes its file; a file left by a killed
 request is never read, since only its own request looks for it. Every hook
 runs with its input from `/dev/null`.
