@@ -17,7 +17,7 @@ host_ctx_load() {   # reads the request and the payload's profile into shell var
   fi
   PROJECT="$(jq -r '.project // empty' "$REQ")"; PROJECT="${PROJECT:-$H_APP-$H_ENV}"
   PJSON="$PAYLOAD/profile.json"
-  jq -e . "$PJSON" >/dev/null 2>&1 || die "$PJSON is not valid JSON: repair or restore it, then run turpin rollback ENV again"
+  jq -e . "$PJSON" >/dev/null 2>&1 || REASON=HOST_PAYLOAD_UNREADABLE die "$PJSON is not valid JSON: repair or restore it, then run turpin rollback ENV again"
   REQUIRED_HOOKS="$(jq -r '(.release.required_hooks // [])[]' "$PJSON" | tr '\n' ' ')"
   OVERRIDABLE="$(jq -r '(.release.overridable // [])[]' "$PJSON" | tr '\n' ' ')"
   HOOKS_DIR="$PAYLOAD/hooks"
@@ -36,6 +36,14 @@ st()      { state_field "$ENVDIR" "$1"; }        # NAME -> a field's value, empt
 st_put()  { state_put "$ENVDIR" "$@"; }          # FILTER [jq args]: one write of the record
 st_installed() { state_get "$ENVDIR" | jq -c '.installed_host_files // []'; }   # the host files `current` installed
 st_step() { st_put '.state = $s' --arg s "$1"; } # TEXT: the state alone, as each step writes it
+
+# finished_request MESSAGE: the `last_request` of a request that has passed its pivot or run to
+# its end, written in the same write as the state it ends in (design section 11).
+finished_request() {
+  jq -nc --arg id "$(jq -r .request_id "$REQ")" --arg m "$1" --argjson g "$(gates_from_notes)" \
+    '{request_id: $id, outcome: "finished", exit: 0, gates: $g,
+      result: {outcome: "ok", type: null, blip: null, reason: "", domain: "turpin", message: $m, metadata: {}, violations: []}}'
+}
 
 deploy_dir()  { printf '%s/deploys/%s' "${ENVDIR:?}" "$1"; }
 
@@ -161,8 +169,8 @@ host_files_apply() {
 restore() {
   local cur pend
   cur="$(st current)"; pend="$(st pending)"
-  [[ -n "$pend" ]] || { warn "there is no deploy under way to restore from"; return 1; }
-  restore_failed() { warn "$1"; st_put '.state = "failed: the restore did not complete"'; return 1; }
+  [[ -n "$pend" ]] || { warn "there is no deploy under way to restore from"; note F; note_result error HOST_RESTORE_FAILED "there is no deploy under way to restore from"; return 1; }
+  restore_failed() { warn "$1"; note F; note_result error HOST_RESTORE_FAILED "$1"; st_put '.state = "failed: the restore did not complete"'; return 1; }
   if [[ -d "$(deploy_dir "$pend")/payload/hooks" ]]; then HOOKS_DIR="$(deploy_dir "$pend")/payload/hooks"; fi
   # each step is run only if the one before it worked: `current`'s build is never started
   # on data that was not restored

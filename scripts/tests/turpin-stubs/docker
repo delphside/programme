@@ -56,6 +56,10 @@ case "${1:-}" in
           *) jq -c '[.]' "$f" ;;
         esac ;;
       ls)
+        # STUB_LS_HOLD=FILE: wait while FILE exists, saying so in FILE.reached (a test closes the host's input meanwhile)
+        if [[ -n "${STUB_LS_HOLD:-}" && -e "$STUB_LS_HOLD" ]]; then
+          : > "$STUB_LS_HOLD.reached"; while [[ -e "$STUB_LS_HOLD" ]]; do sleep 0.1; done
+        fi
         for f in "$S/images"/*.json; do [[ -f "$f" ]] || continue
           rd="$(jq -r '.RepoDigests[0] // empty' "$f")"; [[ -n "$rd" ]] || continue
           printf '%s:<none> %s %s\n' "${rd%@*}" "sha256:$(hex "$rd")" "$(jq -r .Id "$f")"

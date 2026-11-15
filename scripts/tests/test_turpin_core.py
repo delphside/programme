@@ -582,8 +582,8 @@ class Delegation(Isolated):
         tool = self.copy_tool('#!/usr/bin/env bash\necho legacy "$1"\n')
         (self.dir / "bin").mkdir()
         (self.dir / "bin" / "turpin").symlink_to(tool / "turpin")
-        done = subprocess.run([str(self.dir / "bin" / "turpin"), "status", "production"], capture_output=True, text=True)
-        self.assertEqual(("legacy status\n", 0), (done.stdout, done.returncode))
+        done = subprocess.run([str(self.dir / "bin" / "turpin"), "list", "production"], capture_output=True, text=True)
+        self.assertEqual(("legacy list\n", 0), (done.stdout, done.returncode))
 
     def test_every_subcommand_not_yet_ported_is_delegated(self):
         for command in (c for c in cli.KNOWN_COMMANDS if c not in commands.COMMANDS):
@@ -598,7 +598,7 @@ class Delegation(Isolated):
                               "echo \"ctype=${LC_CTYPE-unset}\"\n"
                               "read -r line; echo \"in=$line\"; echo err >&2\n")
         env = {k: v for k, v in os.environ.items() if k not in ("LC_ALL", "LC_CTYPE", "LANG", "LANGUAGE")}
-        done = subprocess.run([str(tool / "turpin"), "status", "x"], input="hello\n", env=env,
+        done = subprocess.run([str(tool / "turpin"), "list", "x"], input="hello\n", env=env,
                               capture_output=True, text=True)
         ignored = int(done.stdout.split("SigIgn:")[1].split()[0], 16)
         self.assertEqual(0, ignored & ((1 << (signal.SIGPIPE - 1)) | (1 << (signal.SIGXFSZ - 1))))
@@ -610,7 +610,7 @@ class Delegation(Isolated):
         tool = self.copy_tool("#!/bin/sh\n")
         text = (tool / "turpin").read_text().replace("(3, 11)", "(99, 0)")
         (tool / "turpin").write_text(text)
-        done = subprocess.run([str(tool / "turpin"), "status"], capture_output=True, text=True)
+        done = subprocess.run([str(tool / "turpin"), "list"], capture_output=True, text=True)
         self.assertEqual((2, ""), (done.returncode, done.stdout))
         self.assertIn("3.11", done.stderr)
 

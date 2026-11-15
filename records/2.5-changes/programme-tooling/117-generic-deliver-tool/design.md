@@ -1486,8 +1486,9 @@ whichever machine. How `turpin` sets up each child:
 
 - it starts each child (an `ssh`, a tool, a hook) in a process group of its
   own, so a SIGINT reaches `turpin` alone;
-- a call that reads data (`turpin-host login`, `allowlist` and `env`, and
-  `turpin login` passed on) gets that data, then the *closing line*
+- a call that reads data (`turpin-host login` and `allowlist`, and
+  `turpin login` passed on; `env` reads its secrets at a terminal prompt, not
+  from its input) gets that data, then the *closing line*
   `# turpin: end`, which the call removes before use; without that line it
   changes nothing and exits 75;
 - every other call it makes to `turpin-host`, or to `turpin` on any machine (the
@@ -1602,8 +1603,8 @@ JSON request on standard input.
 | `turpin login COMPONENT` | controller; on the component's machine, `turpin login` (builder, copier) or `turpin-host login` (an environment) | owner | the owner's one `docker-config` login for `controller`, `builder`, `copier` or an environment (its deployer): asks for the registry user, reads the token at a hidden prompt, and sends both on standard input to the component's machine ([§3](#3-oci-registry-integration) says which login each makes). Prints nothing of the token | the owner's `ssh` key to the component's machine; writes only that component's login |
 | `turpin env create\|destroy NAME` | deployer, on the environment's host | owner, on the environment's host | an ephemeral environment from the profile template: user, state folder, `.env` (secrets at a hidden prompt), Compose project; the `env-*` hooks | deployer: the deploy user and *root-ops* |
 | `turpin host-install ENV` | controller | owner | installs or updates `turpin-host` and libraries on ENV's host; installs `jq` if missing; refuses if `flock` or the tools its credential kind needs (`oci`) are absent. Refuses environments that would remove each other's host files ([§9](#9-gates-and-checks)) | the owner's `ssh` key, as a user with `sudo` on the target machine, to install into `/usr/local` |
-| `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `request_id`, `repeat`, `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
-| `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | [§11](#11-on-the-host)'s rollback. The request: `request_id`, `repeat`, `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait` | as for `deploy` |
+| `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `request_id`, `repeat`, `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `lock_wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
+| `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | [§11](#11-on-the-host)'s rollback. The request: `request_id`, `repeat`, `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait`, `lock_wait`, `fallback` | as for `deploy` |
 | `turpin-host status APP ENV --json` | deployer | `status`, `list`, `prune`, release, the rehearsal-level gate, production's version read | what runs, its record, state, as a [result object](#errors-results-and-the-pivot) | the deploy user (reads its state) |
 | `turpin promote APP < request` | release copier | `turpin release` and `turpin deploy --unrecorded`, on `[turpin.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request: `login`, `candidates`, `releases`, `copies` (`digest`, `dest` name), `record` (`tag`, `body`) or null | its `skopeo` login (read candidates, write releases) |
 | `turpin remove APP < request` | builder | `turpin prune`, on `[turpin.build].on` with the build login | remove each candidate the controller chose, through the Artifacts API ([the registry adapter](#the-registry-adapter)), only while the tag still has that digest, and never a digest in `keep`; an absent tag is done. The request: `login`, `candidates`, `removes` (`tag`, `digest`) and `keep` (the digests releases holds) | its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates) |
@@ -2403,8 +2404,10 @@ outcome:
 | `running` | on taking the lock, before the next step; found by its repeat, the request died part-way (a reboot, a kill) | refused, exit 1, running nothing and leaving `last_request` as found, naming `turpin status ENV` for the owner to judge what the host holds |
 
 - Any other request runs as a new one, writing its `request_id` with `running`.
-- An outcome is written in the same write as the state the request ends in,
-  and rewritten with exit 3 where a prune after the pivot fails.
+- A deploy's outcome is written in the pivot's write, and a rollback's in its
+  final write, so each is in the same write as the state the request ends in;
+  rewritten with exit 3 where a prune after the pivot fails. Every other
+  outcome is written as the host exits.
 - A rollback's outcome is `finished`, `failed`, `refused` or `running`; it is
   never `interrupted`, since an interruption does not stop a rollback holding
   the lock. One that finishes leaves the state `restored`, or
@@ -2413,11 +2416,35 @@ outcome:
   `changing: rollback`; one that runs a restore and fails marks
   `failed: the restore did not complete`, recorded `failed`.
 - A request refused because the lock is held, and any request under `--check`,
-  write nothing.
-- `turpin` marks each repeat with `repeat` set, which makes the host wait for
-  the lock, up to the `--wait` limit where the command sets one, else 60
-  minutes, and at the limit exit 75; the repeat waits for a hook's *not yet*
-  only where the command's own `wait` says so.
+  write nothing. Nor does a rollback on a host with no `state.json` (it has
+  nothing to hold a record), whose refusal names the fallback the request
+  carries in `fallback` ([§8](#8-profile-and-hooks)), since no payload is on
+  disk to name it.
+- `last_request` holds `request_id`, `outcome`, `exit`, `result` (the
+  `@result` object below) and `gates` (the `@gate` lines the request sent), which
+  is all a repeat needs to answer from the record.
+- The outcome written as the host exits is by its exit: 0 or 3 `finished`, 75 or
+  130 `interrupted`, 1 `refused` where the last stop was a gate and no restore
+  failed, otherwise `failed`. A payload step killed by a signal leaves
+  `running`, as a kill of the host does.
+- A kill of the host leaves its `request.*`, `payload.*`, `note.*` and
+  `interrupted.*` files in the state folder; the next request removes those
+  whose process id is gone.
+- The host's last line on standard error is `@result` and a JSON object, the
+  [result](#errors-results-and-the-pivot) with a `reason` from `model.py`'s
+  enumeration: each host stop, its refusals included, has one. `@gate NAME
+  RESULT` lines before it are the gates `turpin` logs. Over `ssh` the host's
+  standard error is shown after the call ends, except for exit 255.
+- `turpin status` shows `pending` as the folder's `meta.json` (commit, version,
+  record, when `smoke` passed), not the number (or `deploy N (folder not written)`
+  where a kill came before the folder's `meta.json`), and the last request's
+  `request_id` and outcome, so that the owner can judge a request left
+  `running`.
+- `turpin` marks each repeat with `repeat` set, and sends `lock_wait`, the minutes
+  the host waits for the lock: the `--wait` limit where the command sets one,
+  else 60 for a repeat (`settings.py`'s), and at the limit exit 75. The host has
+  no default of its own. The repeat waits for a hook's *not yet* only where the
+  command's own `wait` says so.
 - A `request_id` is a version 4 UUID, which `turpin` generates once per command
   and the host validates before it takes the lock, so each command has its own
   and a malformed one changes nothing.

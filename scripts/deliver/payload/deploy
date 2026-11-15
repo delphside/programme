@@ -4,6 +4,11 @@
 # pivot and the prune. Started by `turpin-host deploy` from the payload taken out
 # of the image, with the lock held (the inherited descriptor 9).
 #
+# The deploy looks for an interruption (the end of the request's input, `turpin-host`'s
+# watcher) before each step and in its waits, and starts no further step once it finds one:
+# before step 7 `turpin-host` writes back the state it found, from step 7 on the deploy
+# restores (design section 6, Interruption); after the pivot it leaves the prune to the next deploy.
+#
 # The pivot is step 10's one write of state.json. Until it, `current` is the last
 # finished deploy, so a failure from step 7 on runs a restore, and one before it
 # changes nothing that runs: `turpin-host` writes back the state it found. After
@@ -23,8 +28,8 @@ CUR="$(st current)"
 # a hook the profile requires that is missing or not executable refuses, so a
 # renamed hook cannot pass silently
 for h in $REQUIRED_HOOKS; do
-  if [[ ! -e "$HOOKS_DIR/$h" ]]; then gate_fail hooks-present "required hook $h is missing"; fi
-  if [[ ! -x "$HOOKS_DIR/$h" ]]; then gate_fail hooks-present "required hook $h is not executable"; fi
+  if [[ ! -e "$HOOKS_DIR/$h" ]]; then REASON=HOOK_MISSING gate_fail hooks-present "required hook $h is missing"; fi
+  if [[ ! -x "$HOOKS_DIR/$h" ]]; then REASON=HOOK_NOT_EXECUTABLE gate_fail hooks-present "required hook $h is not executable"; fi
 done
 gate_ok hooks-present "${REQUIRED_HOOKS:-none required}"
 
@@ -37,10 +42,11 @@ if [[ "$CHECK" == true ]]; then
   exit 0
 fi
 
+look_for_interruption "before step 6"
 # step 6: the next number, recorded as `pending`, then the folder, meta.json last
 N="$(next_n)"; DIR="$(deploy_dir "$N")"
 st_put '.state = "preparing: deploy-folder" | .pending = $n' --argjson n "$N"
-step6_failed() { drop_dir "$DIR"; st_put 'del(.pending)'; die "$1"; }
+step6_failed() { drop_dir "$DIR"; st_put 'del(.pending)'; REASON=HOST_STEP_FAILED die "$1"; }
 
 mkdir -p "$DIR" || step6_failed "cannot make $DIR"
 cp -a "$PAYLOAD" "$DIR/payload" || step6_failed "cannot keep the payload"
@@ -66,9 +72,10 @@ jq -nc --argjson n "$N" --slurpfile r "$REQ" --argjson join "$JOIN" --argjson hf
 mv "$DIR/meta.new" "$DIR/meta.json" || step6_failed "cannot write meta.json"
 
 # from step 7 on, a failure runs a restore
+STOPPED=0   # the stop is already noted (a gate's refusal, an interruption)
 fail_deploy() {   # STEP
   trap - ERR
-  warn "the deploy failed at $1"
+  if [[ $STOPPED -ne 1 ]]; then warn "the deploy failed at $1"; note_result error HOST_STEP_FAILED "the deploy failed at $1"; fi
   if ! restore; then
     warn "the restore failed: the state is left at '$(st state)'; run turpin rollback ENV once it can succeed, or put it right by hand. Fallback: $FALLBACK"
     exit 1
@@ -78,27 +85,41 @@ fail_deploy() {   # STEP
   else
     warn "the previous deploy (#$CUR) is back"
   fi
-  exit 1
+  exit "${FAIL_EXIT:-1}"
+}
+
+# look BEFORE: from step 7 on an interruption undoes the change as an error does, and exits 130.
+look() {
+  interrupted_now || return 0
+  STOPPED=1; FAIL_EXIT=130
+  warn "interrupted $1: the deploy is undone"
+  note_result error HOST_INTERRUPTED "interrupted $1"
+  fail_deploy "the interruption $1"
 }
 
 # step 7: changing, then save-state and migrate. Any command that fails from here to the
 # pivot and is not checked runs the restore, by the ERR trap.
 trap 'fail_deploy "an unexpected error"' ERR
+look_for_interruption "before step 7"
 st_put '.state = "changing: deploy save-state" | .target = $n' --argjson n "$N"
 hook_numbered save-state "$N" "$CUR" || fail_deploy save-state
+look "before migrate"
 st_step "changing: deploy migrate"
 hook_step migrate || fail_deploy migrate
 
 # step 8: the host files
+look "before the host files"
 if [[ "$HOST_FILES" -eq 1 ]]; then
   st_step "changing: deploy host-files"
   host_files_apply "$N" "$(st_installed)" || fail_deploy host-files
 fi
 
 # step 9: compose up, smoke, then what smoke found goes into meta.json
+look "before compose up"
 st_step "changing: deploy compose-up"
 compose_run "$N" up -d --no-build --remove-orphans || fail_deploy "compose up"
 verify_running "$N" || fail_deploy "the digest check of the running containers"
+look "before smoke"
 st_step "changing: deploy smoke"
 code=0; hook_run smoke || code=$?
 if [[ $code -eq 0 ]]; then
@@ -106,22 +127,33 @@ if [[ $code -eq 0 ]]; then
 else
   run_log_event gate "name=smoke" "result=refused"; gate_emit smoke refused
   [[ -z "$HOOK_REFUSAL" ]] || warn "$HOOK_REFUSAL"
-  warn "refused at gate smoke (exit $code)"; fail_deploy smoke
+  warn "refused at gate smoke (exit $code)"
+  note_result gate HOOK_REFUSED "refused at gate smoke (exit $code)"; STOPPED=1; fail_deploy smoke
 fi
 jq -c --arg t "$(now_utc)" '.deployed = $t | .smoke = "passed"' "$DIR/meta.json" > "$DIR/meta.new" && mv "$DIR/meta.new" "$DIR/meta.json" || fail_deploy "recording the smoke result"
 
 # step 10, the pivot: one write. What it needs is read first, under the trap; the write
 # itself is the last thing that can fail before the deploy is live.
 HF="$(host_files_of "$N")" || fail_deploy "reading the host files"
+look "before the pivot"
 trap - ERR
+# the pivot also records the request `finished`, in the same write (design section 11)
 st_put '(if .current != null then .previous = .current else del(.previous) end)
   | .current = .pending | del(.pending, .target)
-  | .installed_host_files = $hf | .state = "finished"' --argjson hf "$HF"
+  | .installed_host_files = $hf | .state = "finished"
+  | .last_request = $lr' --argjson hf "$HF" --argjson lr "$(finished_request "deployed $H_APP to $H_ENV: deploy #$N")"
 say "deployed $H_APP to $H_ENV: deploy #$N"
 
 # after the pivot a failure is exit 3, and the steps carry on
 set +e
 failed=0
-prune_host_images || { warn "pruning the host's images failed; the next deploy prunes again"; failed=1; }
-prune_deploys || { warn "pruning the deploy folders failed; the next deploy prunes again"; failed=1; }
+post_pivot_look() {   # the change is live: an interruption leaves the prune to the next deploy
+  interrupted_now || return 0
+  warn "interrupted after the pivot: the change is live; the next deploy prunes the host's images and folders"
+  exit 130
+}
+post_pivot_look
+prune_host_images || { warn "pruning the host's images failed; the next deploy prunes again"; note_result error HOST_PRUNE_FAILED "pruning the host's images failed; the next deploy prunes again"; failed=1; }
+post_pivot_look
+prune_deploys || { warn "pruning the deploy folders failed; the next deploy prunes again"; note_result error HOST_PRUNE_FAILED "pruning the deploy folders failed; the next deploy prunes again"; failed=1; }
 exit $(( failed ? EXIT_PARTIAL : 0 ))

@@ -211,8 +211,8 @@ def main(argv: Sequence[str]) -> int:
         return report(result, ctx)
     except ProgrammeError as exc:
         return report(exc.result, ctx)
-    except KeyboardInterrupt:
-        print("turpin: interrupted", file=sys.stderr)
+    except KeyboardInterrupt as exc:
+        print(f"turpin: {exc.args[0] if exc.args else 'interrupted'}", file=sys.stderr)
         return EXIT_INTERRUPTED
     except FormError as exc:    # a value nobody translated: unexpected, its field kept
         return report(exc.unexpected("a value made in this run").result, ctx)

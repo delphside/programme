@@ -7,4 +7,4 @@ A subcommand absent here runs in `turpin-legacy`. A command module offers
 (`cli.parse_args`).
 """
 
-COMMANDS: dict[str, str] = {}
+COMMANDS: dict[str, str] = {"status": "status", "rollback": "rollback"}

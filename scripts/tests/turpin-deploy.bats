@@ -449,7 +449,9 @@ EOF
   run d deploy rehearsal "$SHA" --off-level first
   assert_failure 1
   assert_equal "$(snapshot)" "$before"
-  [ ! -e "$(host_state_dir rehearsal rehearsal)/state.json" ]
+  # the only record is the refused request's, which holds nothing else
+  run jq -c '[keys, .last_request.outcome]' "$(host_state_dir rehearsal rehearsal)/state.json"
+  assert_output '[["last_request"],"refused"]'
   refute_regex "$(hook_calls | tr '\n' ' ')" "save-state"
   hook_clear pre-deploy
 }
@@ -561,7 +563,7 @@ killed_in_step_6() {   # SHA
   [ ! -e "$ed/state" ] && [ ! -e "$ed/counter" ] && [ ! -e "$ed/current" ] && [ ! -e "$ed/previous" ] && [ ! -e "$ed/host_files.installed" ]
   [ -z "$(ls "$ed" | grep 'state.json.')" ]
   run jq -c 'del(.installed_host_files) | keys' "$ed/state.json"
-  assert_output '["current","state"]'
+  assert_output '["current","last_request","state"]'
   run jq -c '.installed_host_files | map(.dest) | sort' "$ed/state.json"
   assert_output '["/etc/systemd/system/acme-backup.timer","/opt/acme/backup.sh"]'
   run jq -c '.current' "$ed/state.json"
@@ -790,6 +792,8 @@ echo backup"
   commit_change b; build_ok "$SHA"; local sha2="$SHA"
   killed_in_step_6 "$sha2"
   assert_equal "$(host_state rehearsal rehearsal)" "preparing: deploy-folder"
+  # what the kill left is not the rollback's change: the next request sweeps it (turpin-protocol.bats)
+  rm -rf "${W:?}/hosts/rehearsal/var/lib/turpin/acme/rehearsal"/payload.* "${W:?}/hosts/rehearsal/var/lib/turpin/acme/rehearsal"/request.* "${W:?}/hosts/rehearsal/var/lib/turpin/acme/rehearsal"/note.*
   local before; before="$(snapshot)"
   run d rollback rehearsal
   assert_failure 1
@@ -950,7 +954,7 @@ layout_refused() {   # WHAT-IT-NAMES
   run env TURPIN_HOST_ROOT="$W/hosts/rehearsal" "$TURPIN_HOST" status acme rehearsal --json
   assert_success
   run jq -e --arg sha "$SHA1" '.outcome == "ok" and .domain == "turpin" and (.reason | type) == "string" and (.message | type) == "string"
-    and .metadata.state == "finished" and .metadata.pending == null and .metadata.last_request == null
+    and .metadata.state == "finished" and .metadata.pending == null and .metadata.last_request.outcome == "finished"
     and .metadata.current.n == 1 and .metadata.current.sha == $sha and .metadata.current.smoke == "passed"
     and (.metadata.current.deployed | type) == "string" and .metadata.previous == null and (.metadata.running | length) == 2' <<< "$output"
   assert_success
@@ -962,8 +966,9 @@ captured_request() {   # REF -> $W/request.json
   assert_success
   jq -c '.check = false' "$W/request.check.json" > "$W/request.json"
 }
-direct_deploy() {   # runs turpin-host deploy on the rehearsal host with $W/request.json
-  run env TURPIN_HOST_ROOT="$W/hosts/rehearsal" bash -c "'$TURPIN_HOST' deploy acme rehearsal < '$W/request.json'"
+direct_deploy() {   # runs turpin-host deploy on the rehearsal host with $W/request.json, under a request id of its own, the input held open
+  jq -c --arg id "$(cat /proc/sys/kernel/random/uuid)" '.request_id = $id' "$W/request.json" > "$W/request.fresh.json"
+  run env TURPIN_HOST_ROOT="$W/hosts/rehearsal" bash -c "'$TURPIN_HOST' deploy acme rehearsal < <(held-request '$W/request.fresh.json')"
 }
 
 @test "one_failed_delete_in_prune_leaves_the_others_removed_and_exits_3 (R54)" {
