@@ -134,6 +134,10 @@ pub struct GameEnd { pub winner: Option<u8>, pub adjustments: Vec<RackAdjustment
 pub struct RackAdjustment { pub seat: u8, pub score_delta: i32 }
 ```
 
+**`Finished` is the event of a game that ends without a turn**, an
+administrator's force-end. A turn that ends the game says so in `ended`, and a
+resignation or timeout that leaves one seat playing keeps its own event.
+
 **`ForceResigned` does not say who did it.** Every client of the game receives
 the event, and which administrator acted is not theirs to know; the server's own
 log records it.
