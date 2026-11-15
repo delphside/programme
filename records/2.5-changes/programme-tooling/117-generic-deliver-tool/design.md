@@ -1104,8 +1104,13 @@ never read as refused or as empty:
 | a crash, or anything else unexpected | 70 |
 
 `turpin` catches the board model's `ProfileError`, otherwise unexpected (70),
-and exits 2. Around the call, it redirects the board model's standard error to
-the run log, so the operator sees one message.
+and exits 2. The board model's `Unavailable` (`sources.py`) carries `transient`,
+true for a connection error, a timeout, 429 or a 5xx, which `turpin` maps to 75,
+and otherwise 2. The board model starts each `gh` and `git` it runs in a process
+group of its own (`start_new_session`), so a Ctrl+C reaches `turpin` alone
+([interruption](#interruption)); both are changes to the board model, which is
+otherwise reused. Around the call, it redirects the board model's standard error
+to the run log, so the operator sees one message.
 
 **The revert rule** ([the milestone gate](#the-milestone-gate)) is in
 `repo.py`, so `board-check.py`'s pre-flight counts reverts as the gate does.
@@ -1370,7 +1375,10 @@ In the programme repository:
 ## 6. Commands
 
 Every command writes a run log naming each gate it ran, and refuses if one in
-its list did not.
+its list did not. A gate run on a host is reported to `turpin` as one line on
+standard error, `@gate NAME RESULT` (`passed`, `refused` or `set-aside`), which
+`hosts.py` copies into the controller's run log and leaves out of what the
+operator sees.
 
 ### Errors, results and the pivot
 
@@ -1429,6 +1437,14 @@ whichever machine. How `turpin` sets up each child:
 - every other call it makes to `turpin-host`, or to `turpin` on any machine (the
   *called side*), gets its request, or an empty line where it has none, as one
   line on standard input, which `turpin` holds open for the call's life.
+
+On the host, `turpin-host` owns that input. It reads the request line, then
+starts a watcher that reads on to the end of input and there writes
+`interrupted` in the state folder ([§11](#11-on-the-host)). The deploy and
+rollback steps look for that file before each step, and while they wait: the
+lock is taken in waits of one second (`flock -w 1`), and a hook's *not yet* is
+retried, each with a look between. Every hook runs with its input from
+`/dev/null`.
 
 Then, on a Ctrl+C:
 
@@ -1930,6 +1946,13 @@ layout ([the registry adapter](#the-registry-adapter)), so the hook needs no
 registry login. With `TURPIN_LOCAL` set, the hook loads the images into local
 Docker instead and prints their names only.
 
+**The hook sets the labels**: `org.opencontainers.image.revision`, `.version`
+and `.created`, from `TURPIN_SHA`, `TURPIN_VERSION` and `TURPIN_CREATED`, the
+time `build` started, which it sets once per build. A label cannot be added
+after the push without changing the digest, so `build` reads them from each
+layout before any push, and refuses an image whose labels differ, exit 1,
+pushing nothing.
+
 **The default hook** bakes one target per name in the profile's `images`, the
 target named as the image. It writes each to a directory it creates in the
 worktree, `.turpin/oci/IMAGE`, and prints the lines; each directory is then
@@ -1945,8 +1968,8 @@ docker buildx bake --builder turpin \
 Each hook gets `TURPIN_APP`, `TURPIN_ENV`, `TURPIN_ROLE` (`controller` for
 the release step, `ephemeral` for create and destroy), `TURPIN_SHA`,
 `TURPIN_VERSION`, `TURPIN_STATE` (state folder), `TURPIN_IMAGE_<NAME>`
-(each image by digest) and, for `build` under `--local` only,
-`TURPIN_LOCAL=1`. A hook that cannot judge answers refused.
+(each image by digest), for `build` `TURPIN_CREATED` and, under `--local`
+only, `TURPIN_LOCAL=1`. A hook that cannot judge answers refused.
 
 `save-state` and `restore-state` also get deploy numbers
 ([§11](#11-on-the-host)), so neither needs to know how far a deploy got:
@@ -2166,6 +2189,7 @@ passed is step 1's confirmation; the tool reads no test report.
   .env                  the host's own settings: registry address, login settings, keys, limits
   lock                  flock, held to the end of a deploy or rollback; `lock` may share a path across environments
   state.json            the host's record, below, replaced whole by rename
+  interrupted           written when a request's input ends; removed as a request starts
   deploys/<n>/          per deploy:
     turpin.env           images by digest
     meta.json             the deploy's facts: SHA, version, images, role, the record, joined files, host files or not; the time `smoke` passed (`deployed`) and its result, added then
@@ -2176,7 +2200,10 @@ passed is step 1's confirmation; the tool reads no test report.
 
 **`state.json` is the host's whole record**, and every change to it is one write
 of a new file renamed over the old, so a kill or a reboot leaves either the old
-record or the new one, never a mix. It holds:
+record or the new one, never a mix. A state folder with no `state.json` but a
+`state` file or a `current` link, the layout of the Bash `turpin`, is refused
+by every request, exit 2, naming it, since nothing says what it ran; the owner
+clears it by hand. It holds:
 
 - `state`, a row of the state table below, with the step reached and, under
   `changing`, the command that wrote it, `changing: deploy STEP` or
@@ -2308,7 +2335,8 @@ outcome:
 - A rollback's outcome is `finished`, `failed`, `refused` or `running`; it is
   never `interrupted`, since an interruption does not stop a rollback holding
   the lock. One that finishes leaves the state `restored`, or
-  `failed, no previous deploy` where it ran a first deploy's restore.
+  `failed, no previous deploy` where it ran a first deploy's restore; one
+  that fails is recorded `failed` and leaves `changing: rollback`.
 - A request refused because the lock is held, and any request under `--check`,
   write nothing.
 - `turpin` marks each repeat with `repeat` set, which makes the host wait for
@@ -2316,7 +2344,12 @@ outcome:
   minutes, and at the limit exit 75; the repeat waits for a hook's *not yet*
   only where the command's own `wait` says so.
 - A `request_id` is a version 4 UUID, which `turpin` generates once per command
-  and the host validates, so each command has its own.
+  and the host validates before it takes the lock, so each command has its own
+  and a malformed one changes nothing.
+- A repeat answered from the record is, for `turpin`, the request's own
+  result: after a `finished` deploy with exit 3, `turpin` goes on to `settle`
+  on production as it would have.
+- A refusal of a rollback is a gate's, exit 1.
 
 **Root-ops and the allowlist.** The deploy user is root-equivalent through
 Docker, so these checks guard against mistakes, not against a hostile user; a
@@ -2457,7 +2490,11 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
   the policy conditioned on `target.repo.name` ([policy](#policy)): an
   `oci artifacts container image list` finding its OCID, then
   `oci artifacts container image delete`. It shows both the lookup and the
-  delete work under that policy.
+  delete work under that policy. The candidate is a multi-arch build, with an
+  index, so the proof also shows what the image list holds for one: if it
+  lists the platform and attestation manifests as images of their own,
+  `remove` deletes each one the index names, after the index, and the design
+  says so before the code relies on it.
 - **The call times.** Claude reads each registry API and Artifacts API call's
   duration from the run logs of the first `turpin build`, release and `prune`,
   and each `turpin-host status --json` call's from those of the first release,

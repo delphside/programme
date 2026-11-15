@@ -29,13 +29,13 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | --- | --- | --- |
 | R1 | The tool names no application and no machine. Anything that differs comes from `app-profile.toml` or a hook. | G1; §2 |
 | R2 | The registry address is never in the profile. Each component reads `TURPIN_REGISTRY` from its own local configuration. | §3 |
-| R3 | `build [REF]` is non-interactive and refuses a REF that is not a commit on the remote. It builds from a clean worktree with the `build` hook, or `docker buildx bake` by default. It labels each image `org.opencontainers.image.revision` = SHA and `.version` = the version file. The hook writes each image as an OCI image layout, which the builder pushes as `SHA-IMAGE` with its own `skopeo` login; it prints the digests, an index digest for a multi-arch build, each equal to the digest the registry stores. | §6; §8 |
+| R3 | `build [REF]` is non-interactive and refuses a REF that is not a commit on the remote. It builds from a clean worktree with the `build` hook, or `docker buildx bake` by default. It labels each image `org.opencontainers.image.revision` = SHA, `.version` = the version file and `.created` = the build's start, which `build` sets once per build and gives the hook as `TURPIN_CREATED`; the hook writes the labels, and `build` reads them from each layout before any push and refuses an image whose labels differ, pushing nothing. The hook writes each image as an OCI image layout, which the builder pushes as `SHA-IMAGE` with its own `skopeo` login; it prints the digests, an index digest for a multi-arch build, each equal to the digest the registry stores. | §6; §8 |
 | R4 | An image whose `SHA-IMAGE` is already present is not rebuilt. A failed registry query refuses. A version tag or `VERSION-record` that releases already holds with other contents is never written; a copy of the same digest is a no-op. | §6; §9; §3 |
 | R5 | The payload goes into `payload_image` at `/turpin/`, from the pinned submodule and the app repository. It holds nothing secret. Joined files come from the payload and never from a working tree. An environment may name its own `join`. | §3; §8 |
 | R6 | `deploy ENV REF` checks REF against the environment's role. For preview, test and rehearsal, REF is a full or short SHA or a version, resolved in candidates. A short SHA that matches more than one candidate refuses. For production it is a version with a record, pulled from releases. The deploy runs over ssh, or locally where `host = "controller"`, and then `settle` for production. Gates key on the role, never the name. | §2; §6 |
 | R7 | Every image is pulled by digest. Its revision label must equal the SHA, and the running containers' `RepoDigests` must match. | §9 |
 | R8 | The environment's lock (`flock`) must be free and is held to the end. `--wait[=MINUTES]` waits for the lock and for a hook's exit 75, checking each minute, for at most 60 minutes by default. At the limit it stops as a blip, exit 75, naming what it waited for, with nothing changed. | §6; §9; §11 |
-| R9 | A deploy refuses unless `state.json` shows the last deploy finished. Exceptions: no state (a first deploy), `preparing` (a deploy stopped before `save-state`, nothing that runs changed), `restored` and `failed, no previous deploy` (a first deploy that failed and was restored) do not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `turpin rollback`; a redeploy refuses until then. | §9; §11 |
+| R9 | A deploy refuses unless `state.json` shows the last deploy finished. Exceptions: no state (a first deploy), `preparing` (a deploy stopped before `save-state`, nothing that runs changed), `restored` and `failed, no previous deploy` (a first deploy that failed and was restored) do not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `turpin rollback`; a redeploy refuses until then. This is the deploy column of §11's state table; R57 has the rollback column. | §9; §11 |
 | R10 | `pre-deploy` is a gate. It can be set aside with `--set-aside`, where the profile marks it overridable. | §8; §9 |
 | R11 | A deploy runs these steps in order: lock, then state, then pull by digest, then payload, then `pre-deploy`, then the new deploy folder, then `changing: deploy` recorded, then `save-state`, then `migrate`, then host files, then `compose up` from `pending`, then `smoke`, then the pivot (one write of `state.json`: `current`, `previous`, finished), then pruning host images. Compose runs with a fixed project name, `--project-directory` the deploy's own folder `deploys/N`, the host `.env` and then `deploys/N/turpin.env`, and `--no-build`. | §11 |
 | R12 | A failure from `save-state` on runs `restore-state`, given `pending`'s number, reinstalls `current`'s host files, runs `compose up` from `current` and clears `pending`, keeping its folder; `current` and `previous` move only at the pivot. It then exits by the error's type: 1 for a hook's refusal or failure. On a host's first `turpin` deploy there is no `current`: the failure runs `restore-state`, stops the new containers, removes their host files, clears `pending`, keeping its folder, marks the state `failed, no previous deploy`, and exits by the error's type, naming the application's fallback. | §8; §9; §11 |
@@ -55,8 +55,8 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R25 | The GitHub Release notes run from the previous release tag of any prefix. The next milestone is opened. | §10 |
 | R26 | A production deploy needs a record for VERSION, with its digests pulled from releases. `--unrecorded REASON` instead copies `SHA-IMAGE` to releases with no record. No version is spent, and settle moves nothing. | §6; §9 |
 | R27 | `settle` acts only on what the record carries. A carried work package goes to Post-deployment with a comment. Only Production Release work packages are carried, because the milestone gate counts no other route. A carried non-project issue is closed as completed with a comment. The milestone is closed. Each action checks first, so settle is safe to rerun, and it has no pivot. An action that fails is an error: the other actions still run, the items left are listed, the deploy stands, and the exit is 3, the message naming `turpin settle VERSION`. | §12; §9; §6 |
-| R28 | Rollback switches to `previous` and runs `restore-state`, given `current`'s number, and restores the previous deploy's host-file set, removing the current deploy's extra files. With no previous deploy it refuses and names the fallback. | §11 |
-| R29 | A hook listed in `required_hooks` that is missing or not executable refuses. Any other missing hook is a no-op. A hook's exit means 0 passed; 75 not yet, which without `--wait` stops the run, exit 75; and anything else refused or failed, a business error naming the hook, exit 1. Hooks receive `TURPIN_APP`, `_ENV`, `_ROLE`, `_SHA`, `_VERSION`, `_STATE` and `_IMAGE_<NAME>`; `save-state` also `_DEPLOY` and `_CURRENT`, and `restore-state` `_DEPLOY` (§8). A hook of kind check (`post-deploy`) that exits non-zero is reported as a warning, changes nothing else, and leaves the exit code as it was. | §8; §9 |
+| R28 | Rollback switches to `previous` and runs `restore-state`, given `current`'s number, and restores the previous deploy's host-file set, removing the current deploy's extra files. With no previous deploy it refuses and names the fallback. R57 has the other states. | §11 |
+| R29 | A hook listed in `required_hooks` that is missing or not executable refuses. Any other missing hook is a no-op. A hook's exit means 0 passed; 75 not yet, which without `--wait` stops the run, exit 75; and anything else refused or failed, a business error naming the hook, exit 1. Hooks receive `TURPIN_APP`, `_ENV`, `_ROLE`, `_SHA`, `_VERSION`, `_STATE` and `_IMAGE_<NAME>`; `build` also `_CREATED`; `save-state` also `_DEPLOY` and `_CURRENT`, and `restore-state` `_DEPLOY` (§8). Every hook on a host runs with its input from `/dev/null`. A hook of kind check (`post-deploy`) that exits non-zero is reported as a warning, changes nothing else, and leaves the exit code as it was. | §8; §9 |
 | R30 | Every override takes a reason. The reason goes into the record where there is one, and always into the run log. | §6 |
 | R31 | Every command writes a run log on its own machine, naming each gate it ran. A command that ends with a gate unrun refuses. Exits are 0 done, with at most warnings; 1 a gate refused or a business error; 2 a fundamental technical error; 75 a blip whose retries ran out, or `--wait` at its limit; a blip over `ssh` is retried where a retry is safe, a deploy or rollback repeated under its `request_id` and so taking effect at most once, and a build not retried; 70 an unexpected error; 3 done with errors, a step after the command's pivot having failed; 64 a usage error (a bad flag or a missing argument); 130 interrupted, the message naming the rerun and, for a command with a pivot, saying whether its change is live. A run that stops before its pivot has undone what it changed. A call that reads data changes something only once its data has arrived whole. | §6 |
 | R32 | `--check` runs every gate and changes nothing. | §6 |
@@ -84,6 +84,13 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R55 | Each command that changes something has a pivot. `deploy`'s is marking the state `finished`, once `smoke` has passed, so a `smoke` failure after `compose up` from `pending` still restores; `release`'s is the tag; `settle` and `prune` have none. Before the pivot an error stops the run, undoes what changed and exits by its type. After it, or at an action of `settle` or a delete of `prune`, an error is logged at severity *error*, the steps that do not need the failed one still run, and the exit is 3, the message naming the command that reruns what failed. | §6 *Errors, results and the pivot*; §10; §11; §12 |
 | R56 | Each error and warning in the run log, and `turpin-host status --json`'s output, is docs/1.10's result object: `outcome` (ok, warning, error or fatal); for an error or a fatal one, `type` and, for a technical one, `blip`; `reason`, upper snake case and unique in its domain; `domain`, `turpin`, or `oracle` for a registry call's cause; `message`, one sentence naming the next step, holding no tool's text and no registry address, namespace or OCID; `metadata`; `violations` for a refused value (field, value, limit and reason); `cause`, the result from below, nested. | §2 *Domain model*; §3 *Validation and errors*; §6 |
 | R41 | Tile Lite Elite's move: the first `turpin` deploy to rehearsal takes `--off-level`. The fallback until 0.10.2 has run in production is the written procedure to 0.10.0: stop the `turpin` project, restore the snapshot, then `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason. 0.10.2 is the first release with a record. The board reads `v` as released and `prod-` as history. | §14; (H) |
+| R57 | `turpin rollback` acts by `state.json`'s state, as §11's state table gives in its rollback column. None: refuses, naming the fallback. `preparing: STEP`: switches to `previous`, clearing `pending`, or, with no `previous`, refuses, naming the fallback. `changing: deploy`: a restore. `changing: rollback`: the rollback again. `finished` and `restored`: switches to `previous`, or refuses, naming the fallback, where there is none, so a second rollback after a finished one refuses, `previous` having been cleared. `failed, no previous deploy`: refuses, naming the fallback. `failed: the restore did not complete`: the restore again, a first deploy's where there is no `current`. A rollback that fails is recorded `failed` and, like one killed part-way, leaves `changing: rollback`, and is run again by `turpin rollback`; a new deploy refuses meanwhile (R9). A refusal is a gate's, exit 1. | §11 |
+| R58 | On taking the lock, before any other step, `turpin-host deploy` and `rollback` read `state.json`'s `last_request`, and act by its outcome when the request's `request_id` is the last one's. `finished`: answered with the recorded result, running nothing, the exit kept (3 where the prune failed). `failed` and `refused`: answered with the recorded result, running nothing. `interrupted` (a deploy only; a rollback is never interrupted): run again. `running` (the request died part-way): refused, exit 1, running nothing, `last_request` left as found, the message naming `turpin status ENV`. Any other `request_id` runs as a new request, which writes its id with `running`. A request refused because the lock is held, and any under `--check`, write nothing. A repeat waits for the lock up to the `--wait` limit, else 60 minutes, and at the limit exits 75; it waits for a hook's *not yet* only where the command's own `wait` says so. A `request_id` is a version 4 UUID, which the host validates before it takes the lock, so a malformed one changes nothing; one that is not is an unexpected error (R48). A repeat answered from the record is, for `turpin`, the request's own result: after a `finished` deploy with exit 3, `turpin` goes on to `settle` on production as it would have. | §11 *The last request*; §6 |
+| R59 | `turpin-host` owns the held-open input. It reads the request line, then starts a watcher that reads on to the end of input and there writes `interrupted` in the state folder. The deploy and rollback steps look for that file before each step and while they wait: the lock is taken in waits of one second (`flock -w 1`), and a hook's *not yet* is retried, each with a look between. A request removes a leftover `interrupted` as it starts. Every hook runs with its input from `/dev/null`, so a hook that reads its input gets end of file at once. | §6 *Interruption*; §11 |
+| R60 | A state folder with no `state.json` but a `state` file or a `current` link, the layout of the Bash `turpin`, is refused by every request, exit 2, naming it, since nothing says what it ran. The owner clears it by hand. | §11 |
+| R61 | A gate run on a host is reported to `turpin` as one line on standard error, `@gate NAME RESULT` (`passed`, `refused` or `set-aside`), which `hosts.py` copies into the controller's run log and leaves out of what the operator sees. | §6 |
+| R62 | A read of the board or git that cannot be made is never read as refused or as empty. The board model's `Unavailable` carries `transient`, true for a connection error, a timeout, 429 or a 5xx, which `turpin` maps to exit 75, and otherwise exit 2. A `ProfileError` is exit 2; any other exception is unexpected, exit 70. | §4 |
+| R63 | The board model starts each `gh` and `git` it runs in a process group of its own, so a Ctrl+C reaches `turpin` alone and a read already running runs to its end. | §4; §6 *Interruption* |
 
 ### Checked for contradiction
 
@@ -136,13 +143,18 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 - **C39 where a step fails, against its command's pivot** (complete over the four commands that name one): deploy, before `save-state` · deploy, after `save-state`, at `smoke` · deploy, after `finished` (the host's prune; settle on production) · release, before the tag · release, after the tag · settle, one action of several · prune, one delete of several
 - **C40 the type of an error that stops the run** (complete over the types): business · technical, fundamental · technical, a blip whose retries ran out · unexpected
 - **C41 a result's fields** (complete over R56): a cause nested from a registry call · `violations` on a refused value · a tool's error text holding an identifier · `turpin-host status --json` with no error
+- **C42 the last request on taking the lock** (complete over §11 *The last request*): a different `request_id` · the last one's with outcome `finished` · `finished` with the exit 3 of a failed prune · `failed` · `refused` · `interrupted` (a deploy only) · `running` · a `request_id` that is not a version 4 UUID
+- **C43 the repeat's wait** (complete): the lock free · the lock held beyond the limit · a hook's *not yet*, with and without `--wait`
+- **C44 an image's labels in its layout, read before any push** (complete): `revision`, `version` and `created` as the build set them · `revision` another SHA · `version` not the version file · `created` not `TURPIN_CREATED`
+- **C45 a read of the board or git** (complete over R62): made · a connection error · a timeout · 429 · a 5xx · authorisation refused · a `ProfileError` · another exception
+- **C46 where an interruption finds the host** (complete over R59): between two steps · waiting on the lock · waiting on a hook's *not yet* · a hook reading its input
 
 ## 3. Outcomes
 
 | | outcome |
 | --- | --- |
 | O1 | Exit 1. The run log and stderr name the refusing gate. A before-and-after snapshot of the registry, the host's containers and the state folder (`state.json`'s `last_request` apart, which records the outcome after the lock), git refs and the `gh` stub log shows no change. |
-| O2 | Candidates holds `SHA-IMAGE` for each profile image. Stdout prints each digest. The labels `revision` = SHA and `version` = the version file. |
+| O2 | Candidates holds `SHA-IMAGE` for each profile image. Stdout prints each digest. The labels `revision` = SHA, `version` = the version file and `created` = the build's start, the same on every image of the build. |
 | O3 | No push reaches the registry log for an image already present, and that image's digest is unchanged. |
 | O4 | Exit 0. The containers' `RepoDigests` equal the named digests. `state.json` names a new `deploys/<n>` as `current` and the earlier one as `previous`, and `state` = finished. |
 | O5 | The steps ran from `/turpin/` extracted from `payload_image`. A sentinel in the operator's working-tree copy is never touched. The joined files in `current/` equal the payload's own, or the environment's own `join`. |
@@ -167,6 +179,9 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | O24 | After a first deploy fails past `save-state`: `restore-state` was called, `state` = `failed, no previous deploy`, `save-state` was given no `TURPIN_CURRENT`, the new containers were stopped, `pending` and `pending`'s host files were removed, its folder kept for the next prune, the exit is by the error's type, and stderr names the application's fallback. |
 | O25 | The host-file set equals the intended deploy's set exactly: files the intended deploy carries have the payload's content and mode, and files it does not carry are absent. |
 | O26 | Exit 3. What was done before the failed step stands, the steps that do not need it ran, the run log holds its result at severity *error*, and the message names the command that reruns it. |
+| O27 | A repeat answered from `last_request`: the recorded exit, the run log saying it was answered from the record, nothing run (O1's snapshot shows no change, and `last_request` is as it was). |
+| O28 | A rollback ran to its end: `restore-state` was given the number of the deploy being left, `previous`'s digests are running and its host files are in place, `current` is the former `previous`, `previous`, `pending` and `target` are cleared, the state is `restored`, exit 0. |
+| O29 | The run log names each gate that ran on the host with its result (`passed`, `refused` or `set-aside`), and the operator's screen holds no `@gate` line. |
 
 ## 4. Matrix
 
@@ -196,6 +211,38 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 **Release rerun: C20.** Nothing done: full run. Copied, no tag: the copy is a no-op and the run resumes at the record. Tag with a matching record: resume at the GitHub Release. Tag with a different record: ✗, exit 1. All done: says so, exit 0.
 
 **Failure point: C11 × C12.** Before `save-state` with a previous deploy: O1, nothing changed. Before `save-state` with none: O1. From `save-state` on, with a previous deploy: O7. With none: O24 (S57).
+
+**The host's state against a new deploy and against `turpin rollback`** (R9 for
+the first column, R57 for the second; design §11's state table). Each cell gives
+the table's outcome and the scenario that shows it. A rollback's exit 0 is O28;
+a refusal is exit 1, O1.
+
+| state | a new deploy | `turpin rollback` |
+| --- | --- | --- |
+| none | runs: S57's first deploy to a bare environment | refuses, naming the fallback: S98 |
+| `preparing: STEP` | runs, numbering past `pending`'s folder: S94, S95 | switches to `previous`, clearing `pending`: S99 case 1; with no `previous`, refuses, naming the fallback: S99 case 2 |
+| `changing: deploy` | refuses, naming the step and `turpin rollback ENV`: S13 | a restore: S96 cases 1 and 2 |
+| `changing: rollback` | refuses, naming the step and `turpin rollback ENV`: S100 | the rollback again, after a kill: S96 case 3; after a failure that did not kill it: S101 |
+| `finished` | runs: S16 | switches to `previous`: S31; with none, refuses, naming the fallback: S31 |
+| `restored` | runs: S13, S97 | after a restore, switches to `previous`: S97 case 2; after a finished rollback, refuses, naming the fallback: S102 |
+| `failed, no previous deploy` | runs: S57, S94 | refuses, naming the fallback: S103 |
+| `failed: the restore did not complete` | refuses, naming `turpin rollback ENV`: S95 | the restore again, a first deploy's where there is no `current`: S96 case 4; where there is a `current`: S104 |
+
+**The last request: C42 outcome × kind of request** (R58; design §11 *The last
+request*). The cells are what a repeat of the same `request_id` gets. A
+different `request_id` runs as a new request under the table above: S93's last
+case.
+
+| outcome | a deploy | a rollback |
+| --- | --- | --- |
+| `finished` | answered with the recorded result, running nothing: S93 case 1; with the exit 3 of a failed prune, answered with exit 3: S105 | answered with the recorded result: S93 case 2 |
+| `failed` | answered with the recorded result: S106 case 1 | answered with the recorded result: S106 case 2 |
+| `refused` | answered with the recorded refusal: S94 case 1 | answered with the recorded refusal: S93 case 3 |
+| `interrupted` | run again: S91 case 1, S94 case 2 | never written: S90 case 5 |
+| `running` | refused, naming `turpin status ENV`, `last_request` as found: S94 case 4 | the same: S107 |
+
+The repeat's wait, and a `request_id` that is not a version 4 UUID, have
+scenarios of their own: S108 and S109.
 
 ## 5. Scenarios
 
@@ -233,7 +280,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S30 | Production deploy of a record carrying a Production Release work package and a non-project issue, where the release's commits also reference an Application Tooling work package in its own date milestone, and settle's `gh` fails partway; then `turpin settle VERSION` is rerun; then rerun again. | C23, C24 | O15; O14, with the Production Release work package moved and the Application Tooling one untouched; no new mutation | CI |
 | S31 | Rollback with a previous deploy; with none. | C12 | `restore-state` called, `previous`'s digests and host files in place, `current` now the former `previous` and `previous` cleared, the state `restored`, exit 0; O1 naming the fallback | CI |
 | S32 | Each command's run log and exit codes; `--check` on deploy and release. | R31, R32 | O23, O20 | CI |
-| S33 | TLE's real hooks on rehearsal: snapshot, `--migrate-only`, `/health` within 60 s; smoke failure injected. | R12, R29 | O4; then O7 with the database restored | REH |
+| S33 | TLE's real hooks on rehearsal: snapshot, `--migrate-only`, `/health` within 60 s; smoke failure injected. | R12, R29 | O4; then O7 with the database restored | REH; the snapshot contract on the real hooks is delphside/tile-lite-elite#555's (S97's real half, part 8) |
 | S34 | Host files on the rehearsal VM: the backup script and timer installed, the unit enabled; a file edited by hand. | R13 | O8 with real systemd; O9 | REH |
 | S35 | Instance-principal pull on rehearsal; rehearsal's identity trying to read releases or write candidates. | R33, R39 | pull ✓; refused | REH |
 | S36 | A measured pull on rehearsal within `pull_timeout`; in CI, a throttled pull beyond it. | R35 | REH: within; CI: O1 | REH + CI |
@@ -299,7 +346,25 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S94 | A production deploy whose `smoke` refuses, the host restoring, its stub `ssh` dropping the connection once the outcome is recorded; a first deploy to a host whose stub drops the connection after `save-state` and before its pivot; a deploy refused because another request holds a shared lock, then the holder's connection dropped after its pivot; a deploy cut off by a reboot after step 2, `last_request` left `running`, then its repeat; a new deploy after one killed in `preparing`; a deploy under `--check`. | R31, R50 | the retry answered with the recorded refusal, nothing run again, exit 1; the retry run, the outcome `interrupted` before it, the state `failed, no previous deploy` not refusing, exit 0; the refusal writing nothing to `last_request`, the holder's retry answered from its own record, exit 0; the repeat refused, nothing run, naming `turpin status ENV`, exit 1; the new deploy not refused by the state gate, exit 0; `last_request` unchanged | CI (bats) |
 | S95 | A deploy whose restore fails, then a new deploy; a deploy killed during step 6, on a host with pruned folders, then a new deploy; a deploy failing during step 6. | C8, R9 | the new deploy refused, naming the step and `turpin rollback ENV`, exit 1; the part-written folder numbered past and every pruned folder's `meta.json` kept, the new deploy giving O4, its prune removing the part-written folder, or cutting it to its `meta.json` where that was written; the failing deploy's folder removed, O1 | CI (bats) |
 | S96 | A deploy killed after `save-state` and before `compose up`, then `turpin rollback`; one killed after `compose up` from `pending`, then `turpin rollback`; a rollback killed part-way, then `turpin rollback` again; a first deploy whose restore fails, then a new deploy. | R9, C8 | the first two rollbacks each a restore: `restore-state` run, `current`'s digests running and its host files in place, `current` and `previous` unchanged, `pending` removed, the state `restored`, exit 0; the rollback run again to its end, as S31's first case; the new deploy refused, naming `turpin rollback ENV`, exit 1, then `turpin rollback` running the first deploy's restore again, the state `failed, no previous deploy` | CI (bats) |
-| S97 | On a host with a finished deploy, a deploy killed during `save-state`, then `turpin rollback`; on a host with two finished deploys, a deploy failing at `migrate` and restored, then `turpin rollback`; two finished deploys, then six deploys failing at `migrate` and restored, then `turpin rollback`. | R12, R28, R29, C11 `save-state` | `restore-state` given `pending`'s number finding no complete snapshot and restoring nothing, the data as before the deploy, the state `restored`; the rollback's `restore-state` given `current`'s number, restoring the snapshot taken before `current`'s `migrate`, never the restored deploy's; the same after the six, `current`'s snapshot kept by every `save-state`; in each case the stub's log showing `save-state` given `TURPIN_DEPLOY` as `pending`'s number and `TURPIN_CURRENT` as `current`'s | CI (bats) |
+| S97 | On a host with a finished deploy, a deploy killed during `save-state`, then `turpin rollback`; on a host with two finished deploys, a deploy failing at `migrate` and restored, then `turpin rollback`; two finished deploys, then six deploys failing at `migrate` and restored, then `turpin rollback`. | R12, R28, R29, C11 `save-state` | `restore-state` given `pending`'s number finding no complete snapshot and restoring nothing, the data as before the deploy, the state `restored`; the rollback's `restore-state` given `current`'s number, restoring the snapshot taken before `current`'s `migrate`, never the restored deploy's; the same after the six, `current`'s snapshot kept by every `save-state`; in each case the stub's log showing `save-state` given `TURPIN_DEPLOY` as `pending`'s number and `TURPIN_CURRENT` as `current`'s | CI (bats), with stub hooks that do what design §8 says; the contract itself, on Tile Lite Elite's real hooks and database, is delphside/tile-lite-elite#555's (part 8) |
+| S98 | `turpin rollback` on a bare host that has never deployed. | R57, C8 none | O1: exit 1, naming `[turpin].fallback`, nothing created in the state folder | CI (bats) |
+| S99 | A deploy killed in step 6 (state `preparing`) on a host with two finished deploys, then `turpin rollback`; the same on a host with one finished deploy, which has no `previous`. | R57, C8 `preparing`, C12 | case 1: O28, with `restore-state` given `current`'s number and `pending` cleared; case 2: O1 naming the fallback, exit 1, the state still `preparing` | CI (bats) |
+| S100 | A rollback killed part-way, then a new deploy; then `turpin rollback`; then the deploy again. | R9, R57, C8 `changing` from a rollback | the deploy refused, naming the step reached and `turpin rollback ENV`, exit 1, O1; the rollback run again to its end, O28; the deploy giving O4 | CI (bats) |
+| S101 | A rollback whose `restore-state` exits 1 at its second step, not killed; then a new deploy; then the cause removed and `turpin rollback` again. | R57, C8 `changing` from a rollback | exit 1; the state left `changing: rollback` at that step, `last_request` `failed`, nothing undone; the deploy refused, naming `turpin rollback ENV`, exit 1, O1; then O28 | CI (bats) |
+| S102 | Two finished deploys, then `turpin rollback`, then `turpin rollback` again, then a new deploy. | R57, C8 `restored`, C12 | O28; then O1 naming the fallback, exit 1, since the first rollback cleared `previous`, the state still `restored`; then O4 | CI (bats) |
+| S103 | A first deploy to a bare environment failing at `migrate` (S57), then `turpin rollback`. | R57, C8 `failed, no previous deploy` | O1 naming the fallback, exit 1, the state still `failed, no previous deploy` | CI (bats) |
+| S104 | A deploy on a host with a `current` failing at `migrate`, its restore failing too (the stub `restore-state` exits 1 once); then a new deploy; then `turpin rollback`. | R57, C8 `failed: the restore did not complete` | the state `failed: the restore did not complete`, `pending` and `target` kept; the deploy refused, naming `turpin rollback ENV`, exit 1; the restore run again: `restore-state` given `pending`'s number, `current`'s host files and digests in place, `pending` and `target` cleared, the state `restored`, `current` and `previous` unchanged, exit 0 | CI (bats) |
+| S105 | A deploy whose host prune fails after the pivot, the stub `ssh` dropping the connection once the exit 3 is recorded; the repeat under the same `request_id`, the deploy being to production. | R58, C42 `finished` with exit 3 | the repeat answered with exit 3, O27: no second prune, no step run; `turpin` goes on to `settle`, once, as if the first answer had arrived, the exit staying 3 | CI (bats) |
+| S106 | Case 1: a deploy whose `migrate` fails and whose restore succeeds, the stub `ssh` dropping the connection once the outcome is recorded; the repeat. Case 2: S101's failed rollback, the connection dropped the same way; the repeat. | R58, C42 `failed` | the outcome `failed`; the repeat answered with the recorded result, exit 1 naming the hook, O27, `restore-state` not called again; case 2 the same, with the rollback's recorded result | CI (bats) |
+| S107 | A rollback cut off by a reboot after it took the lock, `last_request` left `running`; then its repeat. | R58, C42 `running` | the repeat refused, nothing run, exit 1, naming `turpin status ENV`, `last_request` left `running` as found (O27's snapshot) | CI (bats) |
+| S108 | A repeat of a deploy while the original holds the lock, under `--wait=1`; a repeat of an interrupted deploy whose `pre-deploy` exits 75, without `--wait`. | R58, R8, C43 | exit 75 at the limit, naming the lock, nothing changed (O1); exit 75 at once, the hook not waited for, nothing changed. The default of 60 minutes is asserted only by review (X7) | CI (bats) |
+| S109 | A request sent straight to `turpin-host deploy` with `request_id` `not-a-uuid`; one with a version 1 UUID; then one with a version 4 UUID. | R48, R58, C42 not a version 4 UUID | exit 70 each time, the message saying it was not expected and is to be raised as an issue, nothing run, the lock never taken (the stub `flock` log is empty) and `last_request` unchanged; then O4 | CI (bats) |
+| S110 | An interruption on the host: case 1, a `deploy --wait` waiting on a held lock, given SIGINT; case 2, a `deploy --wait` whose `pre-deploy` answers 75, given SIGINT between two retries; case 3, a hook that reads its input; case 4, the next request after case 1. | R59, C46 | case 1: `interrupted` written when the input ends, the host stopping at its next one-second wait, the lock never taken, nothing that runs changed (O1's snapshot), exit 130; case 2: the host stopping at its next look, the hook not run again, nothing changed, exit 130; case 3: the hook reads end of file at once and receives none of the request line; case 4: the leftover `interrupted` removed as it starts, O4 | CI (bats) |
+| S111 | A build whose hook writes layouts with: all three labels as set; `revision` another SHA; `version` not the version file; `created` not `TURPIN_CREATED`. | R3, R29, C44 | O2, with `created` equal on both images and equal to the `TURPIN_CREATED` the hook logged; then O1 for each of the others, exit 1 naming the image and the label, nothing pushed (the registry log empty) | CI (unittest) |
+| S112 | A state folder holding the Bash `turpin`'s `state` file and no `state.json`; the same with a `current` link; then the folder cleared by hand. Each tried with a deploy, a rollback and a `status`. | R60 | exit 2 for each request, naming the file or link, nothing changed; then the deploy giving O4 | CI (bats) |
+| S113 | A deploy to rehearsal over ssh, where `pre-deploy` passes; then one where it refuses; then one with `--set-aside pre-deploy R`. | R61, R31 | O29: the controller's run log names each host gate with `passed`, `refused` and `set-aside`; the operator's stderr holds no `@gate` line | CI (bats) |
+| S114 | A release whose stub `gh` read fails with a connection error; with a timeout; with 429; with a 503; with authorisation refused; with a `ProfileError` from a malformed profile key; with an unexpected exception. | R62, C45 | exit 75 for the first four, naming the read, the gate neither refused nor passed and nothing changed (O1); exit 2 for the authorisation and the `ProfileError`; exit 70 for the last | CI (unittest) |
+| S115 | A release given SIGINT to `turpin`'s process group while its stub `gh` read is running. | R63, R62, C45 | the stub `gh` is in a process group other than `turpin`'s, is not signalled, and runs to its end; `turpin` then stops before the pivot, exit 130, nothing changed (O1) | CI (unittest) |
 
 ## 6. Refusals and successes
 
@@ -309,7 +374,9 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | build: never overwritten | registry query fails → O1 (S3) | query answers → O3 for present images, O2 for missing ones | CI |
 | deploy: by digest, revision label, `RepoDigests` | label ≠ SHA → O1 (S8) | true image → O4 | CI |
 | deploy: lock | held → O1 (S9) | freed → O4; `--wait` → O16 | CI; REH S37 |
-| deploy: killed or rebooted, not built upon | state shows a step → O1 (S13) | after rollback, deploy → O4 | CI; REH S38 |
+| deploy: killed or rebooted, not built upon | state shows a step → O1 (S13); a rollback left part-way (S100); a restore that failed (S95) | after rollback, deploy → O4 | CI; REH S38 |
+| rollback: there is a deploy to go back to | none, a first deploy's failure, a second rollback, or a `previous` absent → O1 naming the fallback (S98, S99 case 2, S102, S103; S31) | `previous` present → O28 (S31, S99 case 1, S104) | CI |
+| deploy and rollback: a repeat of a request left `running` | the repeat → O1, exit 1, naming `turpin status ENV` (S94 case 4, S107) | once the owner has judged with `status`, a new command (a new `request_id`) runs under the state table (S94's new deploy) | CI |
 | deploy: `pre-deploy` | exit 1 or 75 → O1 (S10) | exit 0 → O4; `--set-aside` where overridable → O4 + O12 | CI |
 | deploy: failure keeps the previous running | `migrate`/`smoke` fails → O7 (S14) | both pass → O4 | CI; REH S33 |
 | rehearsal deploy: starts at production's level † | first deploy ≠ production's record, or production runs a build with no record → O1 (S17, S48, S49) | production's record from its host state → O4; `--off-level` → O4 + O12 | CI; REH S39 |
@@ -328,10 +395,14 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | production deploy: a record exists | no record → O1 (S29) | recorded version → O4; `--unrecorded` → O4 + O12 | CI only; real: the owner's `--check` runs and 0.10.2's first production deploy (part 8) |
 | after a production deploy: settle (check) | `gh` fails → O15 (S30) | rerun → O14 | CI only; real: 0.10.2's post-deployment check |
 | `post-deploy` (check) | exit non-zero → reported, exit unchanged (S59) | exit 0 → quiet | CI |
+| build: the image's labels are the commit's | `revision`, `version` or `created` differs in a layout → O1, nothing pushed (S111) | all three true → O2 | CI |
+| deploy and rollback: the state folder is this tool's | `state` file or `current` link without `state.json` → O1, exit 2, naming it (S112) | cleared by hand → O4 | CI |
+| any gate that reads the board or git: the read can be made | cannot be made → 75 for a blip, 2 otherwise, never refused nor empty (S114) | made → the gate answers | CI |
 | any time: host files dropped by a release | a dropped file left on the host (not provokable from outside; S55's O25 assertion is the evidence) | removed → O25 (S55) | CI; REH half of S34 |
 | any time: host files (check) | edited file → O9 report (S15) | restored → quiet | CI; REH S34 |
 | required hook present (§8) | missing or not executable → O1 (S11) | present → O4 | CI |
 | gate count (§6) | not provokable from outside (X9b) | O23 on every run | CI |
+| `state.json` written whole by rename | not provokable from outside (X9c): a kill falls between two writes, never inside one | S13, S94 and S96 find a whole record after a kill | CI, reviewed |
 
 ## 7. Coverage, both ways
 
@@ -339,13 +410,13 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | --- | --- |
 | R1 | S45 |
 | R2 | S45 |
-| R3 | S1, S2, S4, S5 |
+| R3 | S1, S2, S4, S5, S111 |
 | R4 | S1, S3, S40 |
 | R5 | S6, S7, S44 |
 | R6 | S6, S7, S29, S58 |
 | R7 | S5, S8 |
-| R8 | S9, S10, S37, S54 |
-| R9 | S13, S38, S57, S95, S96 |
+| R8 | S9, S10, S37, S54, S108 |
+| R9 | S13, S38, S57, S95, S96, S100 |
 | R10 | S10, S12, S53 |
 | R11 | S6 |
 | R12 | S14, S33, S57, S85, S97 |
@@ -365,10 +436,10 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R25 | S18 |
 | R26 | S29 |
 | R27 | S29, S30, S84 |
-| R28 | S31, S56, S97 |
-| R29 | S6, S10, S11, S33, S57, S59, S97 |
+| R28 | S31, S56, S97, S102 |
+| R29 | S6, S10, S11, S33, S57, S59, S97, S111 |
 | R30 | S12, S17, S19, S20, S29, S49, S53 |
-| R31 | S32, S59, S88, S90, S91, S92, S93, S94 |
+| R31 | S32, S59, S88, S90, S91, S92, S93, S94, S113 |
 | R32 | S32 |
 | R33 | S35, S40, S65, S68 |
 | R34 | S41, S44, S70 |
@@ -385,7 +456,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R45 | S65, S67 |
 | R46 | S68, S69, S87 |
 | R47 | S70 |
-| R48 | S45, S71, S89 |
+| R48 | S45, S71, S89, S109 |
 | R49 | S72, S73 |
 | R50 | S75, S76, S79, S88, S90, S91, S92, S93, S94 |
 | R51 | S74, S75, S76, S83 |
@@ -394,6 +465,13 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R54 | S82 |
 | R55 | S84, S85, S86, S87 |
 | R56 | S79, S89 |
+| R57 | S31, S96, S97, S98, S99, S100, S101, S102, S103, S104 |
+| R58 | S93, S94, S105, S106, S107, S108, S109 |
+| R59 | S90, S110 |
+| R60 | S112 |
+| R61 | S113 |
+| R62 | S114, S115 |
+| R63 | S115 |
 
 | scenario | rules |
 | --- | --- |
@@ -427,7 +505,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S28 | R23 |
 | S29 | R6, R26, R27, R30 |
 | S30 | R27 |
-| S31 | R28 |
+| S31 | R28, R57 |
 | S32 | R31, R32 |
 | S33 | R12, R29 |
 | S34 | R13 |
@@ -488,14 +566,32 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S87 | R46, R55 |
 | S88 | R31, R50 |
 | S89 | R48, R56 |
-| S90 | R31, R50 |
+| S90 | R31, R50, R59 |
 | S91 | R31, R50 |
 | S92 | R31, R50 |
-| S93 | R31, R50 |
-| S94 | R31, R50 |
+| S93 | R31, R50, R58 |
+| S94 | R31, R50, R58 |
 | S95 | R9 |
-| S96 | R9 |
-| S97 | R12, R28, R29 |
+| S96 | R9, R57 |
+| S97 | R12, R28, R29, R57 |
+| S98 | R57 |
+| S99 | R57 |
+| S100 | R9, R57 |
+| S101 | R57 |
+| S102 | R28, R57 |
+| S103 | R57 |
+| S104 | R57 |
+| S105 | R58 |
+| S106 | R58 |
+| S107 | R58 |
+| S108 | R8, R58 |
+| S109 | R48, R58 |
+| S110 | R59 |
+| S111 | R3, R29 |
+| S112 | R60 |
+| S113 | R31, R61 |
+| S114 | R62 |
+| S115 | R62, R63 |
 
 ## 8. Approach
 
@@ -511,7 +607,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 
 S13 kills the run with a hook that sends SIGKILL to its parent. S90's interruption is SIGINT sent to the `turpin` process's group, as Ctrl+C at a terminal sends it; the stub `ssh` passes standard input through, so a call sees its input close. `pull_timeout` is tested through a throttling proxy, and time is not otherwise manipulated. Confirmation prompts and hidden prompts run under a pty. Each gate's test is first shown to fail by disabling the reason, as docs/1.9 requires. Each check's test includes its quiet case.
 
-**[REH].** Claude runs S33 to S39 and the real halves of S14, S15, S42 and S55 on Tile Lite Elite's rehearsal VM. They use the real OCI registry, instance-principal login, systemd and TLE's own hooks, and they run before the merge (docs/1.9 *What tests the tooling*).
+**[REH].** Claude runs S33 to S39 and the real halves of S14, S15, S42 and S55 on Tile Lite Elite's rehearsal VM. The real half of S97 is delphside/tile-lite-elite#555's, run with its keyed hooks. They use the real OCI registry, instance-principal login, systemd and TLE's own hooks, and they run before the merge (docs/1.9 *What tests the tooling*).
 
 **Production role.** The production-role gates (S29, S30, and R26 and R27 generally) are tested in CI only. On a real host they are shown by the owner's `--check` runs and by 0.10.2's first production deploy, post-deployment checks against #555 and #556. Production access is the owner's to run, so each of these is a check the owner runs, and Claude works from what comes back:
 
@@ -531,6 +627,12 @@ The refusal is shown first and the successful deploy follows, as the other gates
 - the state surviving a reboot;
 - the lock shared with the backup;
 - TLE's database snapshot, restore and migration;
+- the snapshot contract on Tile Lite Elite's real hooks and database (design
+  §8): `save-state` keys the snapshot to `TURPIN_DEPLOY`, marks it complete and
+  keeps `TURPIN_CURRENT`'s, and `restore-state` restores nothing without a
+  complete one. S97's first two cases are run against the real hooks. The real
+  keyed hooks are written in delphside/tile-lite-elite#555, which owns the test;
+  CI's S97 uses stub hooks that do what the contract says;
 - the `deploy.sh` fallback.
 
 Everything else runs in CI.
@@ -541,6 +643,8 @@ A test of what `turpin` decides is a `unittest` test; one of what a host does (`
 
 ### Build
 
+- `build_refuses_an_image_whose_labels_differ_and_pushes_nothing` (S111)
+- `build_gives_every_image_the_same_created_label` (S111)
 - `build_refuses_a_commit_not_on_the_remote`
 - `build_ignores_the_operators_dirty_tree`
 - `build_labels_revision_and_version`
@@ -657,7 +761,61 @@ A test of what `turpin` decides is a `unittest` test; one of what a host does (`
 - `no_registry_address_namespace_or_ocid_in_any_error`
 - `a_promote_failing_before_the_record_leaves_none_and_resumes`
 - `a_remove_failing_after_its_check_is_retried_by_the_next_prune`
-- `a_pruned_deploy_folder_keeps_only_its_meta_json`
+
+### Host state, interruption and repeated requests
+
+Bats tests, in `scripts/tests/turpin-*.bats`.
+
+- `a_pruned_deploy_folder_keeps_only_its_meta_json` (S82)
+- `a_misspelt_flag_exits_64_naming_it_and_runs_nothing` (S90)
+- `sigint_before_the_pivot_restores_and_says_the_change_is_not_live` (S90)
+- `sigint_during_settle_finishes_the_action_and_says_the_change_is_live` (S90)
+- `sigint_while_the_host_waits_for_the_lock_changes_nothing` (S90)
+- `sigint_during_a_rollback_lets_it_run_to_its_end` (S90)
+- `sigint_during_prune_finishes_the_delete_and_starts_no_other` (S90)
+- `a_dropped_connection_is_retried_under_the_same_request_id` (S91)
+- `a_refused_key_or_host_key_exits_2_naming_the_fix` (S91)
+- `a_dropped_allowlist_or_status_call_is_retried_and_merged_once` (S91)
+- `a_status_call_that_keeps_failing_exits_75_naming_the_rerun` (S92)
+- `a_repeat_after_the_pivot_is_answered_from_the_record` (S93)
+- `a_repeat_of_a_rollback_waits_for_the_lock_then_is_answered` (S93)
+- `a_repeat_of_a_refused_rollback_gets_the_recorded_refusal` (S93)
+- `a_new_request_id_for_the_current_build_runs_as_new` (S93)
+- `a_repeat_of_a_refused_deploy_gets_the_recorded_refusal` (S94)
+- `a_repeat_of_an_interrupted_first_deploy_runs_again` (S94)
+- `a_request_refused_for_the_lock_writes_nothing_to_last_request` (S94)
+- `a_repeat_of_a_request_left_running_is_refused_naming_status` (S94)
+- `a_new_deploy_after_a_kill_in_preparing_runs` (S94)
+- `check_mode_leaves_last_request_alone` (S94)
+- `a_failed_restore_refuses_the_next_deploy_naming_rollback` (S95)
+- `a_kill_in_step_6_leaves_a_folder_the_next_deploy_numbers_past` (S95)
+- `a_failure_in_step_6_removes_its_folder` (S95)
+- `rollback_restores_a_deploy_killed_before_or_after_compose_up` (S96)
+- `a_rollback_killed_part_way_is_run_again` (S96)
+- `rollback_reruns_a_first_deploys_failed_restore` (S96)
+- `restore_state_finds_no_complete_snapshot_and_restores_nothing` (S97)
+- `rollback_restores_currents_snapshot_never_the_restored_deploys` (S97)
+- `save_state_keeps_currents_snapshot_through_six_failed_deploys` (S97)
+- `rollback_on_a_bare_host_refuses_naming_the_fallback` (S98)
+- `rollback_from_preparing_switches_to_previous_or_refuses_without_one` (S99)
+- `a_new_deploy_after_a_rollback_left_part_way_is_refused_naming_rollback` (S100)
+- `a_rollback_that_fails_is_run_again_and_blocks_a_deploy_meanwhile` (S101)
+- `a_second_rollback_refuses_naming_the_fallback` (S102)
+- `rollback_after_a_failed_first_deploy_refuses_naming_the_fallback` (S103)
+- `rollback_after_a_failed_restore_runs_the_restore_again_from_current` (S104)
+- `a_repeat_of_a_finished_request_whose_prune_failed_is_answered_with_exit_3` (S105)
+- `a_repeat_of_a_failed_deploy_or_rollback_gets_the_recorded_result` (S106)
+- `a_repeat_of_a_rollback_left_running_is_refused_naming_status` (S107)
+- `a_repeat_waiting_for_the_lock_past_the_limit_exits_75` (S108)
+- `a_repeat_does_not_wait_for_a_hooks_not_yet_without_wait` (S108)
+- `a_request_id_that_is_not_a_version_4_uuid_is_an_unexpected_error` (S109)
+
+- `an_interruption_while_the_host_waits_for_the_lock_stops_at_the_next_wait` (S110)
+- `an_interruption_between_hook_retries_stops_at_the_next_look` (S110)
+- `a_hook_reading_its_input_gets_end_of_file_at_once` (S110)
+- `a_leftover_interrupted_file_is_removed_as_a_request_starts` (S110)
+- `a_state_folder_in_the_bash_turpins_layout_is_refused_naming_it` (S112)
+- `a_host_gate_is_reported_to_the_controllers_run_log_only` (S113)
 
 ### Errors, results and the pivot
 
@@ -670,6 +828,9 @@ A test of what `turpin` decides is a `unittest` test; one of what a host does (`
 - `a_refused_value_is_listed_in_violations`
 - `no_tool_text_or_identifier_reaches_a_message`
 - `host_status_json_is_one_result_object`
+- `a_board_or_git_read_that_cannot_be_made_exits_75_or_2_never_refused_or_empty` (S114)
+- `an_unexpected_exception_in_a_read_exits_70` (S114)
+- `a_gh_read_runs_in_its_own_process_group_and_finishes_when_turpin_is_interrupted` (S115)
 
 ### [REH]
 
@@ -679,10 +840,20 @@ A test of what `turpin` decides is a `unittest` test; one of what a host does (`
 - `deploy_waits_for_the_backup_lock`
 - `recorded_step_survives_a_reboot`
 - `first_turpin_deploy_takes_off_level_and_deploy_sh_can_return`
+- `tle_real_hooks_key_snapshots_to_the_deploy_and_restore_nothing_without_a_complete_one` (S97's real half, owned by delphside/tile-lite-elite#555)
 
 ## 10. Gaps
 
-**Status, 2026-10-28.** The design was revised after this list was drawn up, and the scenarios now assert its wording. Closed in the design, and by these scenarios:
+**Status, 2026-11-15.** The design was revised after this list was drawn up, and the scenarios now assert its wording. Closed in the design, and by these scenarios:
+
+- The design's answers to the build questions: the host-side interruption by
+  S110, the old layout by S112, the build's labels by S111, a gate on a host in
+  the controller's run log by S113, and the board read by S114 and S115; and the
+  request's own result after a repeat, by S105 and S109.
+- #185's material: the interruption of §6 by S90; the keyed snapshots of §8 by
+  S97, whose real half is X24; the host's state table by part 4's two matrices
+  (R9, R57, S98 to S104); and *the last request* by R58 and its matrix (S93,
+  S94, S105 to S109).
 
 - X1 by S30 (a carried work package of another route is in the fixture) and the settle test `settle_advances_a_carried_work_package_of_any_route`.
 - X3 by S20: "on `main`" stands, and docs/1.2 §1.0 is corrected (design §5).
@@ -705,6 +876,7 @@ Still open, each a question for the owner:
 | --- | --- | --- |
 | X2 † Production's level, and the release production runs, are read from production's host state over ssh, or its `/health` where it has no `turpin` state. | Closed: the owner decided on 2026-10-29 that the read is a scripted check, named in each application's CLAUDE.md. | S17, S20, S39, S48, S49 and S50 (R15 and R17) stand as written. |
 | X9b A command "ending with a gate unrun refuses" cannot be provoked from outside, and §6 gives no per-command gate list beyond §9. | A test hook or a documented gate list. | The run log is asserted against §9 (O23). The self-check is reviewed, not tested. |
+| X9c `state.json` is replaced whole by rename, so a kill leaves the old record or the new one (design §11). | A way to kill the host between the write and the rename, or inside the rename. | The test is not provokable from outside. Reviewed, not tested; S13, S94 and S96 show a whole record after a kill. |
 | X14 The `oci-api-key` adapter (Dark Portal's copier) is exercised by no Tile Lite Elite test. | Dark Portal's adoption, delphside/dark-portal#15, carries the test: the key missing, then present, with the refusal shown before the success. | Dark Portal is out of scope here. |
 | X15 The production-role gates are shown on a real host only by the owner's `--check` runs and 0.10.2's first production deploy (part 8), not before the merge. The real-host statement is: `turpin deploy production <raw SHA> --check` and `turpin deploy production <unrecorded version> --check` both refuse, naming the gate, and change nothing. It matches the post-deployment box of delphside/tile-lite-elite#555. | #555's test-approach box is changed to point at the CI tests and the post-deployment check. | Accepted at the test manager's sign-off on #117, 2026-10-28: production reads and deploys are the owner's, and the rehearsal identity cannot read releases. |
 
@@ -719,5 +891,6 @@ on the real stack does.
 | X21 S36 (a slow pull) is a delayed-pull stub, not a throttling proxy. | The rehearsal run's measured pull on a real host (`pull_timeout`). | The timeout path is exercised; the number is measured on the host. |
 | X22 S40 (each component's registry credential writes only its own repositories) uses the stub's `STUB_WRITE_ONLY`, not a registry's access control; the stub also records which machine each registry write ran on (`where.log`), so a copy made on the wrong machine fails the test. | The rehearsal run, with the real credentials of the builder, the copier and the hosts. | The tool's part (which machine, which login) is asserted; the registry's enforcement is not the tool's. |
 | X23 S65 to S70 (each component's login is its own, the controller cannot remove) rest on the stub registry reading a role from the auth file a `skopeo` call names and from the stub machine's `docker` login, not on a registry's policy or the real tools' handling of `REGISTRY_AUTH_FILE`, `~/.docker` contexts, `buildx` builders and credential stores. | The rehearsal run, with the laptop's real `docker` and `skopeo` and the real users and groups: `turpin login` for each component, then a build (with a `docker-container` builder named `turpin`, per design §5, the default builder unchanged), a release and a `prune`; the laptop's `docker context ls` unchanged. | The tool's part (which file, which machine, `DOCKER_CONFIG` untouched) is asserted; the registry's enforcement is not the tool's. |
+| X24 S97's first two cases on Tile Lite Elite's real hooks and database: the snapshot keyed to `TURPIN_DEPLOY`, marked complete, `TURPIN_CURRENT`'s kept, nothing restored without a complete one. CI's S97 uses stub hooks that do what the contract says. | The test owned by delphside/tile-lite-elite#555, run on rehearsal with its keyed hooks. | The contract's wording is tested in CI against stubs; whether the real hooks keep it is shown only where they run (part 8). |
 
 Derived by a fresh `test-designer` agent that read no implementation (docs/1.9).
