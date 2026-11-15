@@ -401,7 +401,7 @@ event rather than comparing numbers:
 
 | The client is told | It does |
 | --- | --- |
-| a **board** event | redraw the board and the panes, because a placement also moves its score and the turn; a staged word whose cells are now taken is discarded by [the occupancy check](71-07-client.md#the-composition-is-keyed-by-game-and-seat) |
+| a **board** event | what a game event does, and redraw the board, because a placement also moves its score and the turn; a staged word whose cells are now taken is discarded by [the occupancy check](71-07-client.md#the-composition-is-keyed-by-game-and-seat) |
 | a **game** event | redraw the panes — racks, scores, whose turn. Notify if it is now this player's turn |
 | a **periphery** event | a chat badge. Nothing else moves |
 | **nothing** — a refetch or a reconnect | rebuild everything, because there is no event to classify |
