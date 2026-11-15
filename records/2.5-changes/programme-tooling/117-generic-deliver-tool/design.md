@@ -638,9 +638,10 @@ log:
 | *technical* | authorisation refused, a network failure, a timeout, a missing tool or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
 | *unexpected* | any error the code did not expect: an Oracle reply that is invalid, a tool's output not in its format, or anything else not foreseen; usually a defect, Turpin's or a vendor's | 70 | that it was not expected, to raise as an issue; the cause is in the log |
 
-A usage error (64) and an interruption (130) are outside the three types
-([exit statuses](#errors-results-and-the-pivot)). Before a command's pivot every
-error stops the run; after it, the run carries on and exits 3.
+A usage error (64) and an interruption (130) are outside the three types ([exit
+statuses](#errors-results-and-the-pivot)). Before a command's
+[pivot](#errors-results-and-the-pivot) every error stops the run; after it, the
+run carries on and exits 3.
 
 Every deploy pulls by digest with `docker pull`, in the payload's steps
 ([§11](#11-on-the-host)), outside the port.
@@ -775,9 +776,10 @@ its result's `violations`:
 
 The second row is unexpected because `turpin` wrote the request from values it
 had already checked; the called side finds it. Of the four forms, an argument
-carries only a version or a commit. A digest or a repository's kind read from a
-reply, a record or a host's state is the middle layer's invalid reply, also
-unexpected.
+carries only a version or a commit. A bad digest is unexpected wherever else it
+is read: in a registry reply by the middle layer, in a record by
+`repo.tag_record`, in a host's state by `hosts.py`. A repository's kind is set
+by the code.
 
 A short SHA is resolved to a full one by *list versions* before it reaches a
 `Build`, and one that resolves to no build or to several is a business error
@@ -1406,35 +1408,34 @@ with those removed, is in the cause's `metadata`.
 
 #### Interruption
 
-**An interruption is a Ctrl+C to the `turpin` the operator runs**, on whichever
-machine. How `turpin` sets up each child:
+**An *interruption* is a Ctrl+C to the `turpin` the operator runs**, on
+whichever machine. How `turpin` sets up each child:
 
 - it starts each child (an `ssh`, a tool, a hook) in a process group of its
   own, so a SIGINT reaches `turpin` alone;
-- every call it makes to `turpin-host` or to another machine's `turpin`, other
-  than one that reads data to the end of its input (`turpin-host login`,
-  `allowlist` and `env`, and `turpin login` passed on), gets its request, or an
-  empty line, as one line on standard input, which `turpin` holds open for the
-  call's life.
+- a call that reads data to the end of its input (`turpin-host login`,
+  `allowlist` and `env`, and `turpin login` passed on) gets that data;
+- every other call it makes to `turpin-host` or to another machine's `turpin`
+  gets its request, or an empty line where it has none, as one line on standard
+  input, which `turpin` holds open for the call's life.
 
 Then, on a Ctrl+C:
 
 1. A tool, a hook or a data-reading call already running runs to its end.
 2. `turpin` closes the input of each call that has one held open.
 3. The called side reads the end of its input as the interruption at its next
-   step or while it waits (the lock, a hook's *not yet*), and exits 130, which
-   comes back over the `ssh` connection, still open.
+   step or while it waits (the lock, a hook's *not yet*).
+4. `turpin`, and each called side that read the interruption, starts no further
+   step of the command's work. Each one:
+   - before the command's pivot, undoes what changed, as for an error;
+   - after it, leaves the remaining steps for the rerun it names;
+   - in a command with no pivot, leaves each action done or not done, for a
+     rerun that retries what is not done.
+5. The called side exits 130, which comes back over the `ssh` connection, still
+   open, and `turpin` exits 130.
 
-`turpin`, and each called side that reads the interruption, then starts no
-further step of the command's work, and:
-
-- before the command's pivot, it undoes what changed, as for an error;
-- after it, it leaves the remaining steps for the rerun it names;
-- in a command with no pivot, each action is done or not done, and a rerun
-  retries what is not done.
-
-Its message names the rerun and, for a command that changes what runs, says
-whether the change is live.
+`turpin`'s message names the rerun and, for a command with a pivot, says
+whether its change is live.
 
 ### The commands
 
@@ -1483,12 +1484,16 @@ in [docs/1.2 *Making a release, then deploying it*](../../../../docs/1.2-change-
 Sent by one script to another, as the scripts run them. Each `ssh` is one
 non-interactive call: the command runs, its exit status and error output come
 back, and the connection closes. Its standard input carries its data, or its
-request or an empty line held open, as [interruption](#interruption) says. For
-reading, the examples show each request as a here-string, which closes the
-input, leave out the empty line and show the deploy request's JSON over several
-lines. On the same machine the call is the same without `ssh`. The aliases are
-the profile's, defined in `~/.ssh/config`. Since no `ssh` has a terminal, before
-the first run the operator:
+request or an empty line held open, as [interruption](#interruption) says. On
+the same machine the call is the same without `ssh`. The aliases are the
+profile's, defined in `~/.ssh/config`. To be easy to read, the examples differ
+from the real calls:
+
+- each request is a here-string, which closes the input;
+- the empty line is left out;
+- the deploy request's JSON is spread over several lines.
+
+**Before the first run**, since no `ssh` has a terminal, the operator:
 
 - loads the `ssh` key into an agent;
 - adds each host to `known_hosts`;
