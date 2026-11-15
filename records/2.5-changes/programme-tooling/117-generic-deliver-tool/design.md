@@ -634,11 +634,11 @@ log:
 
 | Type | What it is in the registry | Exit, where it stops the run | The message says |
 | --- | --- | --- | --- |
-| *business* | the input is wrong: a request the port implementation refuses on validation (a value from the command line that fails its form, a short SHA resolving to no build or to several, the keep list, no overwrite), or a correct answer that something the operation needed is not there | 1 | which input to fix; the value is in `violations`, the thing in `metadata` |
+| *business* | the input is wrong: a request the port implementation refuses on validation (a value that fails its form, from an argument, a request's field or the version file, a short SHA resolving to no build or to several, the keep list, no overwrite), or a correct answer that something the operation needed is not there | 1 | which input to fix; the value is in `violations`, the thing in `metadata` |
 | *technical* | authorisation refused, a network failure, a timeout, a missing tool, or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
 | *unexpected* | any error the code did not expect: an Oracle reply that is invalid, a tool's output not in its format, or anything else not foreseen; usually a defect, Turpin's or a vendor's | 70 | that it was not expected, to raise as an issue; the cause is in the log |
 
-Whatever error is neither business nor technical is unexpected. A usage error
+Any other error is unexpected. A usage error
 (64) and an interruption (130) are outside the three types
 ([exit statuses](#errors-results-and-the-pivot)). Before a command's pivot every
 error stops the run; after it, the run carries on and exits 3.
@@ -751,7 +751,7 @@ no layer above the middle sees Oracle's formats:
 
 | Layer | Finds | Reports |
 | --- | --- | --- |
-| top: port implementation | business errors on validation: each command-line value's form, before any call; the request's rules ([the registry adapter](#the-registry-adapter)), the keep list and no overwrite of a version tag or `VERSION-record`, before any write, since no overwrite needs an inspect of releases. It wraps whatever comes from below with the operation's context (which image, which step), keeping its type | business errors; a remove left where the tag has moved, which is no error; what comes from below, wrapped |
+| top: port implementation | business errors on validation: each value's form (an argument, a request's field or the version file), before any call; the request's rules ([the registry adapter](#the-registry-adapter)), the keep list and no overwrite of a version tag or `VERSION-record`, before any write, since no overwrite needs an inspect of releases. It wraps whatever comes from below with the operation's context (which image, which step), keeping its type | business errors; a remove left where the tag has moved, which is no error; what comes from below, wrapped |
 | middle: Oracle calls | through the translators, Oracle's answers: a manifest unknown; a delete answered `NotAuthorizedOrNotFound` (below); a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region). Its calls are well formed, since the top has validated them | *absent* for a manifest unknown on a read; a business error where the operation needed the thing; a technical error for a delete answered `NotAuthorizedOrNotFound`; an unexpected error for an invalid reply |
 | bottom: the APIs | technical errors: authorisation, the network, a timeout, a missing tool; and output not in the tool's format at all (not JSON, no envelope). It retries a blip (below) | technical errors; an unexpected error for output not in its format |
 
@@ -770,8 +770,8 @@ where it came from, with each bad value in its result's `violations`. A short
 SHA is resolved to a full one by *list versions* before it reaches a `Build`,
 and one that resolves to no build or to several is a business error then.
 
-A setting missing or malformed is not the request's fault:
-[§8](#8-profile-and-hooks) has it.
+A setting missing or malformed is a fundamental technical error
+([§8](#8-profile-and-hooks)).
 
 **An error is raised where it is found and translated once.** The top raises
 its own business errors; an error from a registry call goes layer by layer:
@@ -1075,8 +1075,8 @@ registry.
 
 `turpin` turns each answer into its exit status
 ([docs/1.10](../../../../docs/1.10-development-standards.md#what-a-scripts-exit-status-means));
-a read that cannot be made, or a profile error, raises and is never read as
-refused or as empty:
+a read that cannot be made, or a setting missing or malformed, raises and is
+never read as refused or as empty:
 
 | Condition | Exit |
 | --- | --- |
@@ -1367,17 +1367,26 @@ is Turpin's own is below.
 | 70 | stopped: an unexpected error, to raise as an issue; never read as refused |
 | 3 | done with errors: a step after the command's pivot failed, named with the command that reruns it |
 | 64 | stopped: a usage error, the message naming the bad flag or missing argument; `cli.py` replaces `argparse`'s own exit 2 |
-| 130 | interrupted by SIGINT, as docs/1.10 defines it |
+| 130 | interrupted; the message says whether the change is live and names the rerun |
 
-Only the controller's `turpin` is interrupted. It starts each `ssh` and tool
-child in a session of its own, so a Ctrl-C at the terminal reaches `turpin`
-alone, and a host call such as `turpin-host deploy` runs to its end. `turpin`
-then starts no further step:
+**An interruption is a Ctrl+C to the `turpin` the operator runs**, on whichever
+machine. `turpin` starts each child (an `ssh`, a tool, a hook) in a session of
+its own, so the SIGINT reaches `turpin` alone. A tool or hook already running
+runs to its end. A call to `turpin-host` or to another machine's `turpin` is
+told by its standard input: the request is one line, and `turpin` keeps the
+input open for the call's life and closes it to interrupt. The called side
+reads the end of its input as the interrupt at its next step or while it waits
+(the lock, a hook's *not yet*), stops as below and exits 130, which comes back
+through the `ssh` session still open. Whoever is interrupted then starts no
+further step:
 
 - before the command's pivot, it undoes what changed, as for an error;
 - after it, it leaves the remaining steps for the rerun it names;
 - in a command with no pivot, each action is done or not done, and a rerun
   retries what is not done.
+
+Since each `ssh` runs without a terminal, the operator's key comes from an
+agent and each host is already in `known_hosts`.
 
 **Each command that changes something names its pivot**, the step after which
 it is not undone (the saga pattern's pivot transaction). Before the pivot, an
@@ -1450,11 +1459,14 @@ in [docs/1.2 *Making a release, then deploying it*](../../../../docs/1.2-change-
 
 Sent by one script to another, as the scripts run them. Each `ssh` is one
 non-interactive call: the command runs, its exit status and error output come
-back, and the connection closes. On the same machine the call is the same
-without `ssh`. The aliases are the profile's, defined in `~/.ssh/config`.
+back, and the connection closes. Its request is one line on standard input, kept
+open until the call ends ([interruption](#errors-results-and-the-pivot)). On the
+same machine the call is the same without `ssh`. The aliases are the profile's,
+defined in `~/.ssh/config`.
 
 ```sh
 # turpin deploy, to the environment's host: the request on standard input
+# (shown as a here-string; turpin itself keeps the input open)
 ssh tle-rehearsal "turpin-host deploy tile-lite-elite rehearsal" <<< "$request"
 
 # turpin status, list, prune and the gates, reading an environment's state
@@ -1785,7 +1797,7 @@ Also:
   `on` and `copy_on` also take an `ssh` alias.
 
 A setting missing or malformed is found where it is read, before it is used: in
-a profile, in the controller's `~/.config/turpin/APP.env`, or in a host's
+a profile, in the reading machine's `~/.config/turpin/APP.env` or in a host's
 `.env`. It is a fundamental technical error, exit 2, naming the key, since it is
 the operator's to fix.
 
