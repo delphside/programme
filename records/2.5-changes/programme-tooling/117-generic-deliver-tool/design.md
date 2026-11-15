@@ -1438,19 +1438,18 @@ whichever machine. How `turpin` sets up each child:
   *called side*), gets its request, or an empty line where it has none, as one
   line on standard input, which `turpin` holds open for the call's life.
 
-On the host, `turpin-host` owns that input. It reads the request line,
-removes any `interrupted.PID` under its own process id, then starts a watcher
-that reads on to the end of input and there writes that file in the state
-folder ([§11](#11-on-the-host)). The file is keyed by process id, not by
-`request_id`, since a repeat shares its `request_id` with a request that may
-still be running, and two requests to one environment can run at once, one
-waiting for the lock. The deploy's steps look for their own file before each
-step and while they wait: the lock is taken in waits of one second
-(`flock -w 1`), and a hook's *not yet* is retried, each with a look between. A
-rollback looks only while it waits for the lock (item 3 below). On exit, by a trap,
-`turpin-host` stops its watcher and removes its file; a file left by a killed
-request is never read, since only its own request looks for it. Every hook
-runs with its input from `/dev/null`.
+On the host, `turpin-host` owns that input. It reads the request line, removes
+any `interrupted.PID` under its own process id, then starts a watcher that reads
+on to the end of input and there writes that file in the state folder
+([§11](#11-on-the-host)). The file is keyed by process id, not by `request_id`,
+since a repeat shares its `request_id` with a request that may still be running,
+and two requests to one environment can run at once, one waiting for the lock.
+The deploy's steps look for their own file before each step and while they wait:
+the lock is taken in waits of one second (`flock -w 1`), and a hook's *not yet*
+is retried, each with a look between. A rollback looks only while it waits for
+the lock (item 3 below). On exit, by a trap, `turpin-host` stops its watcher and
+removes its file; a file left by a killed request is never read, since only its
+own request looks for it. Every hook runs with its input from `/dev/null`.
 
 Then, on a Ctrl+C:
 
