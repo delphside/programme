@@ -37,7 +37,7 @@ Each heading titles its package's section of
 `GameSession::apply` (Game model) is the one method that changes a game, and
 `events::publish` (Event stream) saves, logs and publishes what it changed, to
 that game's `watch` channel only, which holds the latest state. Every caller
-sends `apply` a `GameMessage`: the handlers (Game service), the Roster, the
+sends `apply` a `GameCommand`: the handlers (Game service), the Roster, the
 Invitations, the Scheduler's timeouts and reminders, the admin routes (Admin
 endpoints) and the account service (Accounts) for a rename. The engine proxy
 goes; the in-process bot is a client of the game, hears it is on turn from the
