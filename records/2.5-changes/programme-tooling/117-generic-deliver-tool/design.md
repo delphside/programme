@@ -638,8 +638,8 @@ log:
 | *technical* | authorisation refused, a network failure, a timeout, a missing tool or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
 | *unexpected* | any error the code did not expect: an Oracle reply that is invalid, a tool's output not in its format, or anything else not foreseen; usually a defect, Turpin's or a vendor's | 70 | that it was not expected, to raise as an issue; the cause is in the log |
 
-A usage error (64) and an interruption (130) are outside the three types ([exit
-statuses](#errors-results-and-the-pivot)). Before a command's
+A usage error (64) and an interruption (130) are outside the three types
+([exit statuses](#errors-results-and-the-pivot)). Before a command's
 [pivot](#errors-results-and-the-pivot) every error stops the run; after it, the
 run carries on and exits 3.
 
@@ -751,7 +751,7 @@ no layer above the middle sees Oracle's formats:
 
 | Layer | Finds | Reports |
 | --- | --- | --- |
-| top: port implementation | business errors on validation: each value's form (from an argument or the version file), before any call; the request's rules ([the registry adapter](#the-registry-adapter)), the keep list and no overwrite of a version tag or `VERSION-record`, before any write, since no overwrite needs an inspect of releases. It wraps whatever comes from below with the operation's context (which image, which step), keeping its type | business errors; a remove left where the tag has moved, which is no error; what comes from below, wrapped |
+| top: port implementation | business errors on validation: each value's form (from an argument or the version file), before any call; the request's rules ([the registry adapter](#the-registry-adapter)), the keep list and no overwrite of a version tag or `VERSION-record`, before any write, since no overwrite needs an inspect of releases. It wraps whatever comes from below with the operation's context (which image, which step), keeping its type. | business errors; a remove left where the tag has moved, which is no error; what comes from below, wrapped |
 | middle: Oracle calls | through the translators, Oracle's answers: a manifest unknown; a delete answered `NotAuthorizedOrNotFound` (below); a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region). Its calls are well formed, since the top has validated them | *absent* for a manifest unknown on a read; a business error where the operation needed the thing; a technical error for a delete answered `NotAuthorizedOrNotFound`; an unexpected error for an invalid reply |
 | bottom: the APIs | technical errors: authorisation, the network, a timeout, a missing tool; and output not in the tool's format at all (not JSON, no envelope). It retries a blip (below) | technical errors; an unexpected error for output not in its format |
 
@@ -772,14 +772,18 @@ its result's `violations`:
 | From | Type | Exit | The message names |
 | --- | --- | --- | --- |
 | an argument or the version file | *business* | 1 | the argument or the file |
-| a field of a request sent to another machine's `turpin` or to `turpin-host` ([§6](#6-commands)) | *unexpected* | 70 | the field |
+| a field of a request sent to `turpin-host`, or to `turpin` on any machine ([§6](#6-commands)) | *unexpected* | 70 | the field |
 
 The second row is unexpected because `turpin` wrote the request from values it
-had already checked; the called side finds it. Of the four forms, an argument
-carries only a version or a commit. A bad digest is unexpected wherever else it
-is read: in a registry reply by the middle layer, in a record by
-`repo.tag_record`, in a host's state by `hosts.py`. A repository's kind is set
-by the code.
+had already checked; the side that receives the request finds the bad field. Of
+the four forms, an argument carries only a version or a commit. A bad digest
+read anywhere else is unexpected, found where the `Digest` is made:
+
+- in a registry reply, by the middle layer;
+- in a record, by `record_of_tag` in `gitrepo.py`;
+- in a host's state, by `hosts.py`.
+
+A repository's kind is set by the code.
 
 A short SHA is resolved to a full one by *list versions* before it reaches a
 `Build`, and one that resolves to no build or to several is a business error
@@ -985,7 +989,7 @@ builder or copier on another machine reads its own user's `APP.env`. A host's
 `OCI_CLI_KEY_FILE` and `OCI_CLI_CONFIG_FILE`, so `oci-instance-principal` works
 over non-interactive `ssh`, which carries no environment.
 `~/.config/turpin/APP.env` holds `KEY=value` lines, which `turpin` reads as
-text and `turpin-host` sources; the builder's also holds
+text and `turpin-host` checks line by line, then sources; the builder's also holds
 `TURPIN_OCI_COMPARTMENT`, the OCID of the compartment holding candidates, for a
 removal.
 
@@ -1415,8 +1419,8 @@ whichever machine. How `turpin` sets up each child:
   own, so a SIGINT reaches `turpin` alone;
 - a call that reads data to the end of its input (`turpin-host login`,
   `allowlist` and `env`, and `turpin login` passed on) gets that data;
-- every other call it makes to `turpin-host` or to another machine's `turpin`
-  gets its request, or an empty line where it has none, as one line on standard
+- every other call it makes to `turpin-host`, or to `turpin` on any machine
+  (the *called side*), gets its request, or an empty line where it has none, as one line on standard
   input, which `turpin` holds open for the call's life.
 
 Then, on a Ctrl+C:
@@ -1429,10 +1433,12 @@ Then, on a Ctrl+C:
    step of the command's work. Each one:
    - before the command's pivot, undoes what changed, as for an error;
    - after it, leaves the remaining steps for the rerun it names;
-   - in a command with no pivot, leaves each action done or not done, for a
-     rerun that retries what is not done.
-5. The called side exits 130, which comes back over the `ssh` connection, still
-   open, and `turpin` exits 130.
+   - in a command with no pivot (`settle`, `prune`, and every command the pivot
+     table leaves out), leaves each action done or not done, for a rerun that
+     retries what is not done.
+5. A called side that read the interruption exits 130, which comes back over
+   the `ssh` connection, still open. Once every call has returned, `turpin`
+   exits 130.
 
 `turpin`'s message names the rerun and, for a command with a pivot, says
 whether its change is live.
