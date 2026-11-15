@@ -1389,6 +1389,15 @@ message naming the command that reruns what failed.
 
 Every other command stops at its first error, exit by its type.
 
+**Every result is docs/1.10's result object**, a [`Result`](#domain-model):
+each error and warning in the run log, and the output of
+`turpin-host status --json`, whose `metadata` holds the status. Turpin's
+results have domain `turpin`; a registry error's `cause` has domain `oracle`
+([validation and errors](#validation-and-errors)). Each `reason` is a member of
+one enumeration in `model.py`, so it is unique in its domain. A `message` holds
+no tool's text and no registry address, namespace or OCID: the tool's text,
+with those removed, is in the cause's `metadata`.
+
 #### Interruption
 
 **An interruption is a Ctrl+C to the `turpin` the operator runs**, on whichever
@@ -1426,15 +1435,6 @@ Each `ssh` runs without a terminal, so before the first run the operator:
 - adds each host to `known_hosts`;
 - gives the host user that `host-install` connects as `sudo` without a
   password.
-
-**Every result is docs/1.10's result object**, a [`Result`](#domain-model):
-each error and warning in the run log, and the output of
-`turpin-host status --json`, whose `metadata` holds the status. Turpin's
-results have domain `turpin`; a registry error's `cause` has domain `oracle`
-([validation and errors](#validation-and-errors)). Each `reason` is a member of
-one enumeration in `model.py`, so it is unique in its domain. A `message` holds
-no tool's text and no registry address, namespace or OCID: the tool's text,
-with those removed, is in the cause's `metadata`.
 
 ### The commands
 
