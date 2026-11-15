@@ -57,11 +57,17 @@
 export CLAUDE_USER_DIR="${CLAUDE_USER_DIR:-/root/.claude}"
 
 # Each repository's pinned programme/, so the hooks find it at session start.
+# 60 s each: a cold fetch of both took 2.5 s (2026-11-15), and a hang must not
+# hold every session's start.
+found=0
 for d in "${CLAUDE_SETUP_WORKSPACE:-$PWD}"/*/; do
   git -C "$d" config -f .gitmodules --get submodule.programme.path >/dev/null 2>&1 || continue
-  timeout 120 git -C "$d" submodule update --init programme >/dev/null 2>&1 \
-    || echo "setup: could not fetch ${d}programme" >&2
+  found=1
+  why="$(timeout 60 git -C "$d" submodule update --init programme 2>&1 >/dev/null)" \
+    || echo "setup: could not fetch ${d}programme: ${why##*$'\n'}" >&2
 done
+[ "$found" = 1 ] || echo "setup: no repository with a programme/ submodule in ${CLAUDE_SETUP_WORKSPACE:-$PWD}" >&2
+
 # The application whose hooks run when the cwd is in none that has them.
 DEFAULT_APP="tile-lite-elite"
 mkdir -p "$CLAUDE_USER_DIR"
