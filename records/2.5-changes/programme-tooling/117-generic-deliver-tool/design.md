@@ -783,7 +783,8 @@ read anywhere else is unexpected, found where the `Digest` is made:
 - in a record, by `record_of_tag` in `gitrepo.py`;
 - in a host's state, by `hosts.py`.
 
-A repository's kind is set by the code.
+A bad version or commit read anywhere but an argument or the version file is
+unexpected in the same way. A repository's kind is set by the code.
 
 A short SHA is resolved to a full one by *list versions* before it reaches a
 `Build`, and one that resolves to no build or to several is a business error
@@ -1098,7 +1099,7 @@ never read as refused or as empty:
 | --- | --- |
 | a `GateResult` that refuses | 1 |
 | a read of the board or git that cannot be made | 75 for a blip, 2 for a fundamental one |
-| a setting missing or malformed ([§8](#8-profile-and-hooks)) | 2 |
+| a setting missing or malformed ([§8](#8-profile-and-hooks)); `turpin` catches the board model's `ProfileError`, which would exit 70 | 2 |
 | work left undone in `settle`, `open_next` or `publish`, named | 3, after the [pivot](#errors-results-and-the-pivot) |
 | a crash, or anything else unexpected | 70 |
 
@@ -1433,9 +1434,10 @@ Then, on a Ctrl+C:
    step of the command's work. Each one:
    - before the command's pivot, undoes what changed, as for an error;
    - after it, leaves the remaining steps for the rerun it names;
-   - in a command with no pivot (`settle`, `prune`, and every command the pivot
-     table leaves out), leaves each action done or not done, for a rerun that
-     retries what is not done.
+   - in `settle` or `prune`, which have no pivot, leaves each action done or
+     not done, for a rerun that retries what is not done;
+   - in any other command, stops before its next step, and the message says
+     which steps are done; what its rerun does is in that command's section.
 5. A called side that read the interruption exits 130, which comes back over
    the `ssh` connection, still open. Once every call has returned, `turpin`
    exits 130.
