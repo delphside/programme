@@ -64,6 +64,24 @@ dangling ID.
 `racks: Vec<RackDto>` disappears from the top level: a rack belongs to a seat,
 and hiding one is `SeatRackDto::Hidden`, not an empty rack.
 
+## Every score change is a move record
+
+The server decides every score, so the history carries every change to one
+(owner, 2026-11-15). Today a placement records its `score_delta`, but the
+end-of-game adjustment does not: `finish_game` (`game_state.rs`) takes each
+seat's rack value off its score and gives the seat that went out the others'
+total, recording only `final_bonus_seat` and `final_bonus_points`. So a seat's
+moves do not sum to its score once a game is over.
+
+At the end of a game the server adds one move record per seat whose score the
+adjustment changes, with `move_type` `rack_adjustment` and the change as its
+`score_delta`. A seat's score is then always the sum of its records'
+`score_delta`. These records are not turns, so the scoreless count
+([*Deriving beats accumulating*](71-07-client.md#deriving-beats-accumulating-and-the-scoreless-rule-is-the-case))
+skips them, and so does any lookup of the last move, such as the "just played"
+cells and the score change beside a seat. Playback steps through them like any
+other record, so the final step shows the adjustment.
+
 ## Structured descriptions
 
 `MoveRecordDto.description` and the prose in events are replaced:
