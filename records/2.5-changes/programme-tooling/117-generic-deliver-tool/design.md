@@ -635,7 +635,7 @@ log:
 | Type | What it is | Exit, where it stops the run | The message says |
 | --- | --- | --- | --- |
 | *business* | the input is wrong: a request the port implementation refuses on validation (a value that fails its form, from an argument or the version file; a short SHA resolving to no build or to several; the keep list; no overwrite), or a correct answer that something the operation needed is not there | 1 | which input to fix; the value is in `violations`, the thing in `metadata` |
-| *technical* | authorisation refused, a network failure, a timeout, a missing tool or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
+| *technical* | authorisation refused, a network failure, a timeout, a missing tool or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing, except over `ssh` in a call that changes something ([interruption](#interruption)); a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
 | *unexpected* | any error the code did not expect: an Oracle reply that is invalid, a tool's output not in its format, or anything else not foreseen; usually a defect, Turpin's or a vendor's | 70 | that it was not expected, to raise as an issue; the cause is in the log |
 
 A usage error (64) and an interruption (130) are outside the three types
@@ -1423,10 +1423,9 @@ whichever machine. How `turpin` sets up each child:
 - it starts each child (an `ssh`, a tool, a hook) in a process group of its
   own, so a SIGINT reaches `turpin` alone;
 - a call that reads data (`turpin-host login`, `allowlist` and `env`, and
-  `turpin login` passed on) gets that data and then a *closing line*,
-  `# turpin: end`, which the call checks for and removes before it uses the
-  data; data without it is incomplete, and the call changes nothing and exits
-  75;
+  `turpin login` passed on) gets that data, then the *closing line*
+  `# turpin: end`, which the call removes before use; without that line it
+  changes nothing and exits 75;
 - every other call it makes to `turpin-host`, or to `turpin` on any machine (the
   *called side*), gets its request, or an empty line where it has none, as one
   line on standard input, which `turpin` holds open for the call's life.
@@ -1437,10 +1436,10 @@ Then, on a Ctrl+C:
 2. `turpin` closes the input of each call that has one held open.
 3. The called side reads the end of its input as the interruption at its next
    step or while it waits (the lock, a hook's *not yet*). `turpin-host rollback`
-   reads it only before its first step and while it waits on the lock. Once
-   begun, a rollback runs to its end, since one stopped part-way has no rerun:
-   it exits as it would have, and `turpin` exits by its result, its message
-   saying the interruption came after the rollback began.
+   reads it only until it holds the lock. Once it holds the lock, it runs to
+   its end, since a rollback stopped part-way has no rerun: it exits as it
+   would have, and `turpin` exits by its result, its message saying the
+   interruption came after the rollback began.
 4. `turpin`, and each called side that read the interruption, starts no further
    step of the command's work. Each one:
    - before the command's pivot, undoes what changed, as for an error;
@@ -1451,10 +1450,11 @@ Then, on a Ctrl+C:
      done and what to run next.
 5. A called side that read the interruption exits 130, which comes back over
    the `ssh` connection, still open. Once every call has returned, `turpin`
-   exits 130.
+   exits 130, except for a rollback that had begun (step 3).
 
 `turpin`'s message names the rerun and, for a command with a pivot, says
-whether its change is live.
+whether its change is live. A rollback that ran to its end has no rerun, and
+its message is step 3's.
 
 **A dropped connection** ends a call's input too, so a called side whose input
 is held open stops as for an interruption, and a data-reading call finds its
@@ -1468,16 +1468,25 @@ requires every child's status to be mapped:
 | --- | --- | --- | --- |
 | `Permission denied` | fundamental | 2 | the `ssh` key to load into the agent |
 | `Host key verification failed` | fundamental | 2 | the host's entry in `known_hosts` to fix |
-| `Connection timed out`, `Connection refused`, `Connection reset`, `Broken pipe`, `Connection closed`, `Could not resolve hostname` | blip | 75 | how to find where the call stopped |
+| `Could not resolve hostname` | fundamental | 2 | the host alias to fix in the `ssh` configuration |
+| `Connection timed out`, `Connection refused`, `Connection reset`, `Broken pipe`, `Connection closed` | blip | 75 | where to look next, below |
 | anything else | unexpected | 70 | the text, in the run log, to raise as an issue |
 
-A blip in a call that changes nothing, a read such as `turpin-host status
---json`, is retried under [§3](#operations)'s rule. A blip in a call that
-changes something is not retried, since the call may have changed something
-before the drop; this departs from docs/1.10, which retries every blip, and
-`turpin` exits 75 at once. How to find where the call stopped is `turpin status
-ENV` for a call to an environment's host, and the run log on the builder's or
-copier's machine for a call there.
+A blip is handled by what the call does:
+
+- a read, such as `turpin-host status --json`, is retried as a registry call
+  is, with [§13](#13-non-functional-design)'s attempts, waits and timeout;
+- a call that changes something exits 75 at once, since it may have changed
+  the host before the drop. This departs from docs/1.10, which retries every
+  blip.
+
+The message then names where to look next:
+
+| The call | Where to look next |
+| --- | --- |
+| `turpin-host deploy` or `rollback` | `turpin status ENV`, to see where it stopped |
+| `turpin-host login` or `allowlist` | the command that made it, to rerun: `turpin login ENV` or `turpin host-install ENV` |
+| `turpin` on the builder's or copier's machine | the run log on that machine |
 
 ### The commands
 
@@ -2269,7 +2278,8 @@ exits 3, the message naming `turpin settle VERSION`.
   measured on its host (Tile Lite Elite's by delphside/tile-lite-elite#555's
   first deploy); a hook's limit is the application's, such as Tile Lite
   Elite's 60-second smoke test. A registry call that may be retried
-  ([validation and errors](#validation-and-errors)) gets three attempts,
+  ([validation and errors](#validation-and-errors)), and a read over `ssh`
+  ([interruption](#interruption)), gets three attempts,
   waiting 2 seconds, then 4; a registry call times out after 300 seconds,
   Tile Lite Elite's unmeasured `pull_timeout`, used for a registry call too.
   All three are unmeasured starting values, product settings in `settings.py`
