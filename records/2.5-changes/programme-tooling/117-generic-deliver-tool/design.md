@@ -988,8 +988,8 @@ builder or copier on another machine reads its own user's `APP.env`. A host's
 `TURPIN_OCI_TOKEN_CMD`, `TURPIN_REGISTRY_USER`, `OCI_CLI_AUTH`,
 `OCI_CLI_KEY_FILE` and `OCI_CLI_CONFIG_FILE`, so `oci-instance-principal` works
 over non-interactive `ssh`, which carries no environment.
-`~/.config/turpin/APP.env` holds `KEY=value` lines, which `turpin` reads as
-text and `turpin-host` checks line by line, then sources; the builder's also holds
+`~/.config/turpin/APP.env` holds `KEY=value` lines, which `turpin` reads as text
+and `turpin-host` checks line by line, then sources; the builder's also holds
 `TURPIN_OCI_COMPARTMENT`, the OCID of the compartment holding candidates, for a
 removal.
 
@@ -1419,9 +1419,9 @@ whichever machine. How `turpin` sets up each child:
   own, so a SIGINT reaches `turpin` alone;
 - a call that reads data to the end of its input (`turpin-host login`,
   `allowlist` and `env`, and `turpin login` passed on) gets that data;
-- every other call it makes to `turpin-host`, or to `turpin` on any machine
-  (the *called side*), gets its request, or an empty line where it has none, as one line on standard
-  input, which `turpin` holds open for the call's life.
+- every other call it makes to `turpin-host`, or to `turpin` on any machine (the
+  *called side*), gets its request, or an empty line where it has none, as one
+  line on standard input, which `turpin` holds open for the call's life.
 
 Then, on a Ctrl+C:
 
