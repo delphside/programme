@@ -13,6 +13,7 @@ envelope and the error body. It is followed by
 
 ```rust
 pub struct SeatDto {
+    pub id: u32,                      // the seat's SeatId
     pub number: u8,
     pub player_id: Option<String>,
     pub state: SeatStateDto,          // mirrors SeatState, tagged

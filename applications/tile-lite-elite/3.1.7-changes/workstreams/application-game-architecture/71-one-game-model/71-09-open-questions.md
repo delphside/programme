@@ -60,7 +60,7 @@ them), and it is the only way a description is ever readable in a language
 other than the one the server was written in — which matters for a service
 already shipping Spanish dictionaries.
 
-**A change to user details is a `GameMessage` like any other**, sent once per
+**A change to user details is a `SystemMessage` like any other**, sent once per
 game that player is in. It bumps the version, records the event and publishes,
 through the same handler as a move.
 

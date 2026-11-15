@@ -181,8 +181,8 @@ client changes Core's server changes require.
 
 **Takes**:
 [*One version, moved in one place*](71-03-version.md#one-version-moved-in-one-place),
-with every `GameMessage` variant except undo and redo; per-game locking; the
-seat model and its lifecycle;
+with every `GameCommand` variant, `Player` and `System`, except undo and redo;
+per-game locking; the seat model and its lifecycle;
 [*DTOs are invisible*](71-05-wire.md#dtos-are-invisible), including the opponent
 tile count and the shared error body (D65);
 [*The engine is a client*](71-06-engine.md#the-engine-is-a-client), with the

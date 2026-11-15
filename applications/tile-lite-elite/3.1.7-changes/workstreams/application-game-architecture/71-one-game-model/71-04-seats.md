@@ -396,7 +396,8 @@ long as its game exists; `number` is its place in the turn order, which the
 start changes when it drops spent seats. Once play starts the numbers stay, and
 a departed seat keeps its number while the turn passes over it. Anything that
 holds on to a seat, such as a bot's seat list, holds the `id`. `SeatId` is a
-`u32` from a counter in the game, so it survives a reload with the seat.
+`u32`, one more than the highest in the game, so it survives a reload with the
+seat; seats are added only before the start, and the start only drops them.
 
 `display_name` is gone, because a name is a lookup. `resigned: bool` is gone:
 `SeatState::Departed { how: Departure::Resigned, .. }` says it, and says which

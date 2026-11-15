@@ -211,7 +211,7 @@ wraps the messages a player may send and those only the server issues:
 ```rust
 pub enum GameCommand {
     Player(GameMessage),     // from a client, through the Transport API
-    System(SystemMessage),   // from the server's own timer, reminders and admin
+    System(SystemMessage),   // issued by the server itself, never by a client
 }
 
 /// In `game-wire`, so every client can build one.
