@@ -1438,13 +1438,19 @@ whichever machine. How `turpin` sets up each child:
   *called side*), gets its request, or an empty line where it has none, as one
   line on standard input, which `turpin` holds open for the call's life.
 
-On the host, `turpin-host` owns that input. It reads the request line, then
-starts a watcher that reads on to the end of input and there writes
-`interrupted` in the state folder ([§11](#11-on-the-host)). The deploy and
-rollback steps look for that file before each step, and while they wait: the
-lock is taken in waits of one second (`flock -w 1`), and a hook's *not yet* is
-retried, each with a look between. Every hook runs with its input from
-`/dev/null`.
+On the host, `turpin-host` owns that input. It reads the request line,
+removes any `interrupted.PID` under its own process id, then starts a watcher
+that reads on to the end of input and there writes that file in the state
+folder ([§11](#11-on-the-host)). The file is keyed by process id, not by
+`request_id`, since a repeat shares its `request_id` with a request that may
+still be running, and two requests to one environment can run at once, one
+waiting for the lock. The deploy's steps look for their own file before each
+step and while they wait: the lock is taken in waits of one second
+(`flock -w 1`), and a hook's *not yet* is retried, each with a look between. A
+rollback looks only while it waits for the lock (step 3). On exit, by a trap,
+`turpin-host` stops its watcher and removes its file; a file left by a killed
+request is never read, since only its own request looks for it. Every hook
+runs with its input from `/dev/null`.
 
 Then, on a Ctrl+C:
 
@@ -1530,7 +1536,7 @@ JSON request on standard input.
 
 | Command | Component | Called by | What | Privileges |
 | --- | --- | --- | --- | --- |
-| `turpin build [REF] [--local]` | builder | owner; timer; controller by `ssh` | builds REF (default `HEAD`) once, pushes to candidates; non-interactive. The `build` hook writes each image as an OCI image layout ([§8](#8-profile-and-hooks); the default runs `docker buildx bake` with OCI output per target), and the [registry adapter](#the-registry-adapter) pushes it; labels `org.opencontainers.image.revision` (SHA) and `.version` (from the version file); prints digests (an index digest for a multi-arch build). `--local` (preview only): the hook, given `TURPIN_LOCAL=1`, loads the images into local Docker (the default with `--load`), no push; identified by image id and revision label, not `RepoDigests` | builder: its `skopeo` login (read and push candidates), the machine's git login (fetch) |
+| `turpin build [REF] [--local]` | builder | owner; timer; controller by `ssh` | builds REF (default `HEAD`) once, pushes to candidates; non-interactive. The `build` hook writes each image as an OCI image layout ([§8](#8-profile-and-hooks); the default runs `docker buildx bake` with OCI output per target), and the [registry adapter](#the-registry-adapter) pushes it, once its labels `org.opencontainers.image.revision` (SHA), `.version` (from the version file) and `.created`, which the hook sets, are checked; prints digests (an index digest for a multi-arch build). `--local` (preview only): the hook, given `TURPIN_LOCAL=1`, loads the images into local Docker (the default with `--load`), no push; identified by image id and revision label, not `RepoDigests` | builder: its `skopeo` login (read and push candidates), the machine's git login (fetch) |
 | `turpin deploy ENV REF [--wait[=MIN]] [--check] [--set-aside GATE REASON] [--unrecorded REASON] [--off-level REASON]` | controller | owner | preview, test, rehearsal: REF is a SHA (full or short; ambiguous refuses) or version, resolved to candidates' digests. Production: a version with a record | controller: its `skopeo` login (read), the owner's `ssh` key. Deployer: the machine user's `docker` login (pull candidates, or releases for production); the deploy user and *root-ops* |
 | `turpin release [--expect VERSION] [--commit REF] [--emergency REASON] [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]` | controller; `turpin promote` on the copier | owner | releases the commit rehearsal runs; `--commit REF` names another commit instead, as `--skip-rehearsal` needs. Shows version (from the version file at that commit), commit, digests, last passing rehearsal deploy; the owner types the version to confirm (`--expect` if non-interactive). Gates [§9](#9-gates-and-checks), steps [§10](#10-the-release-and-its-record) | controller: its `skopeo` login (read), the owner's `gh` login (through the board model), the owner's git login (push `main`, by admin bypass, and the tag), the owner's `ssh` key to the copier's machine. Copier: its `skopeo` login (write releases) |
 | `turpin settle VERSION` | controller | owner | the board to what the record says shipped ([§12](#12-settling)); safe to rerun | controller: the owner's `gh` login, through the board model |
@@ -1948,10 +1954,11 @@ Docker instead and prints their names only.
 
 **The hook sets the labels**: `org.opencontainers.image.revision`, `.version`
 and `.created`, from `TURPIN_SHA`, `TURPIN_VERSION` and `TURPIN_CREATED`, the
-time `build` started, which it sets once per build. A label cannot be added
-after the push without changing the digest, so `build` reads them from each
-layout before any push, and refuses an image whose labels differ, exit 1,
-pushing nothing.
+time `build` started in RFC 3339 form, UTC, which it sets once per build. A
+label cannot be added after the push without changing the digest, so `build`
+reads them, before any push, from the configuration of each platform image in
+each layout, passing over attestation manifests, which carry none, and refuses
+an image whose labels differ, exit 1, pushing nothing.
 
 **The default hook** bakes one target per name in the profile's `images`, the
 target named as the image. It writes each to a directory it creates in the
@@ -1962,8 +1969,13 @@ runs `docker buildx bake --builder turpin --load` instead.
 
 ```sh
 docker buildx bake --builder turpin \
+  --set "IMAGE.labels.org.opencontainers.image.revision=$TURPIN_SHA" \
+  --set "IMAGE.labels.org.opencontainers.image.version=$TURPIN_VERSION" \
+  --set "IMAGE.labels.org.opencontainers.image.created=$TURPIN_CREATED" \
   --set "IMAGE.output=type=oci,dest=.turpin/oci/IMAGE,tar=false" IMAGE
 ```
+
+The `--load` form sets the same labels.
 
 Each hook gets `TURPIN_APP`, `TURPIN_ENV`, `TURPIN_ROLE` (`controller` for
 the release step, `ephemeral` for create and destroy), `TURPIN_SHA`,
@@ -2189,7 +2201,7 @@ passed is step 1's confirmation; the tool reads no test report.
   .env                  the host's own settings: registry address, login settings, keys, limits
   lock                  flock, held to the end of a deploy or rollback; `lock` may share a path across environments
   state.json            the host's record, below, replaced whole by rename
-  interrupted           written when a request's input ends; removed as a request starts
+  interrupted.PID       written when a request's input ends; removed by that request
   deploys/<n>/          per deploy:
     turpin.env           images by digest
     meta.json             the deploy's facts: SHA, version, images, role, the record, joined files, host files or not; the time `smoke` passed (`deployed`) and its result, added then
@@ -2201,9 +2213,10 @@ passed is step 1's confirmation; the tool reads no test report.
 **`state.json` is the host's whole record**, and every change to it is one write
 of a new file renamed over the old, so a kill or a reboot leaves either the old
 record or the new one, never a mix. A state folder with no `state.json` but a
-`state` file or a `current` link, the layout of the Bash `turpin`, is refused
-by every request, exit 2, naming it, since nothing says what it ran; the owner
-clears it by hand. It holds:
+`state` file or a `current` link, the layout of the Bash `turpin`, is refused by
+every `turpin-host` command that reads the state folder (`deploy`, `rollback`,
+`status` and `allowlist`), exit 2, naming it, since nothing says what it ran;
+the owner clears it by hand. It holds:
 
 - `state`, a row of the state table below, with the step reached and, under
   `changing`, the command that wrote it, `changing: deploy STEP` or
@@ -2326,7 +2339,7 @@ outcome:
 | `finished` | the request passed its pivot (a deploy) or ran to its end (a rollback); the exit is kept: 3 where the prune failed, recorded as 0 where an interruption or a dropped connection stopped it | answered with the recorded result, running nothing |
 | `failed` | the request stopped on an error, or its restore failed | answered with the recorded result, running nothing |
 | `refused` | a gate refused it after the lock was taken, `smoke` included, and any restore succeeded | answered with the recorded result, running nothing |
-| `interrupted` | an interruption or a dropped connection stopped a deploy before its pivot, and what it changed was undone | run again |
+| `interrupted` | an interruption, a dropped connection or a hook's *not yet* past the wait stopped a deploy before its pivot, and what it changed was undone | run again |
 | `running` | on taking the lock, before the next step; found by its repeat, the request died part-way (a reboot, a kill) | refused, exit 1, running nothing and leaving `last_request` as found, naming `turpin status ENV` for the owner to judge what the host holds |
 
 - Any other request runs as a new one, writing its `request_id` with `running`.
@@ -2335,8 +2348,10 @@ outcome:
 - A rollback's outcome is `finished`, `failed`, `refused` or `running`; it is
   never `interrupted`, since an interruption does not stop a rollback holding
   the lock. One that finishes leaves the state `restored`, or
-  `failed, no previous deploy` where it ran a first deploy's restore; one
-  that fails is recorded `failed` and leaves `changing: rollback`.
+  `failed, no previous deploy` where it ran a first deploy's restore. One that
+  switches to `previous` and fails is recorded `failed` and leaves
+  `changing: rollback`; one that runs a restore and fails marks
+  `failed: the restore did not complete`, recorded `failed`.
 - A request refused because the lock is held, and any request under `--check`,
   write nothing.
 - `turpin` marks each repeat with `repeat` set, which makes the host wait for
