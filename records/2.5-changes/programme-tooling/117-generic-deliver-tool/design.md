@@ -634,7 +634,7 @@ log:
 
 | Type | What it is in the registry | Exit, where it stops the run | The message says |
 | --- | --- | --- | --- |
-| *business* | the input is wrong: a request the port implementation refuses on validation (a bad value, a short SHA resolving to no build or to several, the keep list, no overwrite), or a correct answer that something the operation needed is not there | 1 | which input to fix; the value is in `violations`, the thing in `metadata` |
+| *business* | the input is wrong: a request the port implementation refuses on validation (a short SHA resolving to no build or to several, the keep list, no overwrite), or a correct answer that something the operation needed is not there | 1 | which input to fix; the value is in `violations`, the thing in `metadata` |
 | *technical* | authorisation refused, a network failure, a timeout or a missing tool. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (authorisation, a missing tool) is never retried | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy or installing the tool |
 | *unexpected* | any error the code did not expect: an Oracle reply that is invalid, a tool's output not in its format, or anything else not foreseen; usually a defect, Turpin's or a vendor's | 70 | that it was not expected, to raise as an issue; the cause is in the log |
 
@@ -763,9 +763,11 @@ reply) or the bottom (output not in its format).
 `sha256:` and 64 hexadecimal characters, a `Version` is semver, a `Build`'s
 `commit` is a full 40-character hexadecimal SHA, and a `Repository`'s `kind`
 is candidates or releases. The top's validation is of the request as a whole.
-A value that fails its form is refused before any call, as a business error
-naming the argument or, from the profile, the key, with each bad value in its
-result's `violations`. A short SHA is resolved to a full one by *list versions*
+A value that fails its form is refused before any call: from the command line
+as a usage error, exit 64, naming the argument; from the profile as a
+fundamental technical error, exit 2, naming the key, since a malformed setting
+is the operator's to fix. Either way each bad value is in its result's
+`violations`. A short SHA is resolved to a full one by *list versions*
 before it reaches a `Build`, and one that resolves to no build or to several is
 a business error then.
 
@@ -1078,7 +1080,7 @@ refused or as empty:
 | --- | --- |
 | a `GateResult` that refuses | 1 |
 | a read of the board or git that cannot be made | 75 for a blip, 2 for a fundamental one |
-| a profile error | 1, a business error naming the key |
+| a profile error: a setting missing or malformed | 2, a fundamental technical error naming the key |
 | work left undone in `settle`, `open_next` or `publish`, named | 3, after the [pivot](#errors-results-and-the-pivot) |
 | a crash, or anything else unexpected | 70 |
 
@@ -1362,6 +1364,8 @@ is Turpin's own is below.
 | 75 | stopped: a blip whose retries ran out, or `--wait` at its limit; try again later |
 | 70 | stopped: an unexpected error, to raise as an issue; never read as refused |
 | 3 | done with errors: a step after the command's pivot failed, named with the command that reruns it |
+| 64 | stopped: a usage error, such as a bad flag, a missing argument or an argument that fails its form |
+| 130 | interrupted: before the pivot what changed is undone; after it the message names the rerun |
 
 **Each command that changes something names its pivot**, the step after which
 it is not undone (the saga pattern's pivot transaction). Before the pivot, an
