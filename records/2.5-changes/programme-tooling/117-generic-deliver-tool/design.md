@@ -635,7 +635,7 @@ log:
 | Type | What it is | Exit, where it stops the run | The message says |
 | --- | --- | --- | --- |
 | *business* | the input is wrong: a request the port implementation refuses on validation (a value that fails its form, from an argument or the version file; a short SHA resolving to no build or to several; the keep list; no overwrite), or a correct answer that something the operation needed is not there | 1 | which input to fix; the value is in `violations`, the thing in `metadata` |
-| *technical* | authorisation refused, a network failure, a timeout, a missing tool or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing, and over `ssh` is retried only where a retry is safe ([interruption](#interruption)); a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
+| *technical* | authorisation refused, a network failure, a timeout, a missing tool or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing (over `ssh`, retried only where safe: [interruption](#interruption)); a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
 | *unexpected* | any error the code did not expect: an Oracle reply that is invalid, a tool's output not in its format, or anything else not foreseen; usually a defect, Turpin's or a vendor's | 70 | that it was not expected, to raise as an issue; the cause is in the log |
 
 A usage error (64) and an interruption (130) are outside the three types
@@ -1477,29 +1477,19 @@ requires every child's status to be mapped:
 dropped after the call changed something, so each call is made safe to repeat or
 is not retried:
 
-- **`turpin-host deploy` and `rollback` are idempotent receivers.** Each request
-  carries a `request_id`, which `turpin` sets once per command and keeps across
-  its retries. The host records the last request's id and outcome in `state`
-  ([§11](#11-on-the-host)). Given a request whose id is the last one's, the
-  host:
-  - answers with the recorded result, running nothing, where that request
-    finished, failed or was refused;
-  - waits for the lock, as `--wait` does, where that request still holds it,
-    then answers likewise;
-  - runs it again, where the drop stopped it before its pivot and the host
-    restored.
-
-  A request the host never took has an id other than the last one's, so it
-  runs as any new request does. Where the drop came after the pivot, the
-  recorded result is the finished deploy, and the host's prune it stopped is
-  left for the next deploy.
+- **`turpin-host deploy` and `rollback` are *idempotent receivers*** (the
+  Enterprise Integration Patterns pattern). Each request carries a `request_id`,
+  which `turpin` sets once per command and keeps across its retries, and the
+  host answers a repeat from its record of the last request, so a request takes
+  effect at most once ([§11](#11-on-the-host), *the last request*).
 - **A call that changes nothing, or is safe to repeat as it is, is retried**:
   `turpin-host status --json`; a login, which overwrites; `allowlist`, which
   merges; `host-install`'s install, which installs or updates; and
   `turpin promote` and `remove`, which repeat as [§3](#operations)'s registry
   calls do.
 - **`turpin build` on the builder is not retried**, since the build gate
-  ([§9](#9-gates-and-checks)) refuses a commit whose images are already pushed.
+  ([§9](#9-gates-and-checks)) refuses a commit whose images are already pushed;
+  its message names the run log on the builder, which says whether they were.
 
 A retry repeats only the call over `ssh`, never the controller's gates. Once
 retries run out, or for `build`, `turpin` exits 75, its message naming where the
@@ -2158,7 +2148,8 @@ passed is step 1's confirmation; the tool reads no test report.
 /var/lib/turpin/APP/ENV/
   .env                  the host's own settings: registry address, login settings, keys, limits
   lock                  flock, held to the end of a deploy or rollback; `lock` may share a path across environments
-  state                 the step reached, written at each step; "finished" at the end; the last request's `request_id` and outcome
+  state                 the step reached, written at each step; "finished" at the end
+  last_request          the last deploy's or rollback's `request_id` and outcome, below
   host_files.installed  the host files the current deploy installed
   deploys/<n>/          per deploy:
     turpin.env           images by digest
@@ -2208,6 +2199,29 @@ host's first `turpin` deploy has no `previous`: failure runs `restore-state`,
 stops the new containers, removes `current`, marks the state
 `failed, no previous deploy` and names the fallback (`[turpin].fallback`). A
 failed prune after the pivot is an error, exit 3, and the deploy stands.
+
+**The last request.** `turpin-host deploy` and `rollback` write `last_request`
+only while they hold the lock: on taking it, before any other step, the
+request's `request_id` with the outcome `running`; at the end, `finished`,
+`failed` or `refused`, with the result, or `interrupted` where an interruption
+or a dropped connection stopped it and what changed was undone. A request
+refused because the lock is held writes nothing. A rollback, which runs to its
+end once it holds the lock, is never `interrupted`.
+
+Before it tries the lock, the host reads `last_request`. Given a request whose
+`request_id` is the last one's, it:
+
+- waits for the lock where the outcome is `running`, since that request still
+  holds it, up to `--wait`'s default limit, then reads again;
+- answers with the recorded result, running nothing, where the outcome is
+  `finished`, `failed` or `refused`;
+- runs the request where the outcome is `interrupted`.
+
+Any other request runs as a new one. A `request_id` is a version 4 UUID, which
+`turpin` generates and the host validates, so two commands never share one.
+Where a dropped connection came after the deploy's pivot, the outcome is
+`finished`, and the host's prune it stopped is left for the next deploy, which
+repeats it, rather than named as a rerun.
 
 **Rollback** is the same switch to `previous` on demand, with `restore-state`
 and host files restored alike. It removes `previous`, so a second refuses, as
@@ -2300,12 +2314,14 @@ exits 3, the message naming `turpin settle VERSION`.
   first deploy); a hook's limit is the application's, such as Tile Lite Elite's
   60-second smoke test. A registry call that may be retried
   ([validation and errors](#validation-and-errors)), and a call over `ssh` that
-  may be ([interruption](#interruption)), get three attempts, waiting 2 seconds,
-  then 4. A registry call times out after 300 seconds, Tile Lite Elite's
-  unmeasured `pull_timeout`; `turpin-host status --json` times out after 60
-  seconds, a guess; a call over `ssh` that changes the host is bounded by its
-  own limits, `pull_timeout` and the hooks'. The attempts, the waits and both
-  timeouts are starting values, product settings in `settings.py`
+  is retried ([interruption](#interruption)), get three attempts, waiting 2
+  seconds, then 4. A registry call times out after 300 seconds, Tile Lite
+  Elite's unmeasured `pull_timeout`. Over `ssh`, `turpin-host status --json`, a
+  login and `allowlist` time out after 60 seconds, and `host-install`'s install
+  after 300, both guesses; `turpin-host deploy` and `rollback` are bounded by
+  `pull_timeout` and the hooks' limits, and `turpin build`, `promote` and
+  `remove` by their registry calls' timeout. The attempts, the waits and the
+  three timeouts are starting values, product settings in `settings.py`
   ([§5](#scripts-and-their-dependencies)), set from the first runs' call times
   ([§14](#14-moving-tile-lite-elite-to-it)) and then revisited from the run log.
 - **Secrets and access.** The tool holds no credential of its own: each
@@ -2355,7 +2371,7 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
   duration from the run logs of the first `turpin build`, release and `prune`,
   and each `turpin-host status --json` call's from those of the first release,
   `prune` and rehearsal deploy, with the owner's timing of the proof by hand,
-  and sets both timeouts and the retry numbers in `settings.py` from them
+  and sets the timeouts and the retry numbers in `settings.py` from them
   ([§13](#13-non-functional-design)).
 - **The first rehearsal cycle** has no production record to start from. It
   starts from production's commit deployed by `deploy.sh`, as today, and the
