@@ -1399,7 +1399,7 @@ message naming the command that reruns what failed.
 
 | Command | Pivot | Before it | After it |
 | --- | --- | --- | --- |
-| `deploy` | marking the state `finished` ([§11](#11-on-the-host), step 10), once `smoke` has passed. The switch of `current` and `compose up` come before it, so a `smoke` failure still restores | a failure from `save-state` on restores the previous deploy; one earlier has changed nothing that runs | the host's prune of images and folders, which the next deploy repeats; on production, `settle` ([§12](#12-settling)), rerun by `turpin settle VERSION`; `post-deploy`, a check, whose failure is a warning |
+| `deploy` | step 10 ([§11](#11-on-the-host)), once `smoke` has passed: `current` and `previous` move, and the state is marked `finished`. `compose up` from `pending` comes before it, so a `smoke` failure still restores | a failure from `save-state` on restores the previous deploy; one earlier has changed nothing that runs | the host's prune of images and folders, which the next deploy repeats; on production, `settle` ([§12](#12-settling)), rerun by `turpin settle VERSION`; `post-deploy`, a check, whose failure is a warning |
 | `release` | the push of the tag `vVERSION` ([§10](#10-the-release-and-its-record), step 4), where the version is spent | the images and `VERSION-record` already copied stay in releases, which nothing deletes from, for the rerun to reuse | the GitHub Release, the bump of `main` and the next milestone, rerun by `turpin release`, which resumes |
 | `settle` | none: each action skips what is done, so a rerun retries only what failed | a failure before any action, such as the record unread, stops, exit by type | each failed action an error, the others carried on, rerun by `turpin settle VERSION` |
 | `prune` | none: each delete is independent of the others | a failure while choosing (a host's state or the registry unread) stops, exit by type, nothing removed | each failed delete an error, the others carried on, rerun by `turpin prune` |
@@ -1525,7 +1525,7 @@ JSON request on standard input.
 | `turpin env create\|destroy NAME` | deployer, on the environment's host | owner, on the environment's host | an ephemeral environment from the profile template: user, state folder, `.env` (secrets at a hidden prompt), Compose project; the `env-*` hooks | deployer: the deploy user and *root-ops* |
 | `turpin host-install ENV` | controller | owner | installs or updates `turpin-host` and libraries on ENV's host; installs `jq` if missing; refuses if `flock` or the tools its credential kind needs (`oci`) are absent. Refuses environments that would remove each other's host files ([§9](#9-gates-and-checks)) | the owner's `ssh` key, as a user with `sudo` on the target machine, to install into `/usr/local` |
 | `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `request_id`, `repeat`, `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
-| `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | switch to `previous`. The request: `request_id`, `repeat`, `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait` | as for `deploy` |
+| `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | [§11](#11-on-the-host)'s rollback. The request: `request_id`, `repeat`, `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait` | as for `deploy` |
 | `turpin-host status APP ENV --json` | deployer | `status`, `list`, `prune`, release, the rehearsal-level gate, production's version read | what runs, its record, state, as a [result object](#errors-results-and-the-pivot) | the deploy user (reads its state) |
 | `turpin promote APP < request` | release copier | `turpin release` and `turpin deploy --unrecorded`, on `[turpin.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request: `login`, `candidates`, `releases`, `copies` (`digest`, `dest` name), `record` (`tag`, `body`) or null | its `skopeo` login (read candidates, write releases) |
 | `turpin remove APP < request` | builder | `turpin prune`, on `[turpin.build].on` with the build login | remove each candidate the controller chose, through the Artifacts API ([the registry adapter](#the-registry-adapter)), only while the tag still has that digest, and never a digest in `keep`; an absent tag is done. The request: `login`, `candidates`, `removes` (`tag`, `digest`) and `keep` (the digests releases holds) | its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates) |
@@ -1977,7 +1977,7 @@ production deploy, an error after the deploy's
 | build | no overwrite | existing `SHA-IMAGE` not rebuilt; failed registry query refuses; releases tags never overwritten | gate | — |
 | every deploy | exact bytes | pulled by digest; revision label is the SHA; running `RepoDigests` match (`--local`: image id and label) | gate | — |
 | every deploy | no overlap | lock free, held to the end | gate | nothing (`--wait` waits) |
-| every deploy | *state gate* | state is none (a first deploy), finished, restored, `failed, no previous deploy` or a step before `save-state` (nothing that runs has changed yet); else refuses, naming the step reached and `turpin rollback ENV`. A failed restore leaves `failed: the restore did not complete`, which refuses alike, naming the fallback instead where there is no previous deploy | gate | nothing: `turpin rollback` |
+| every deploy | *state gate* | the state admits a new deploy, by [§11](#11-on-the-host)'s state table: none, `preparing`, `finished`, `restored` or `failed, no previous deploy`; `changing` and a failed restore refuse, naming the step reached and `turpin rollback ENV`, or the fallback where there is no `current` | gate | nothing: `turpin rollback` |
 | deploy, release | application's hooks | every `required_hooks` hook present and executable; `pre-deploy` (deploy) and `release-check` (release) pass | gate | the two hooks by `--set-aside`, where overridable |
 | every deploy | allowed host files | destination off the allowlist refuses ([§11](#11-on-the-host)) | gate | nothing: rerun `turpin host-install` |
 | deploy, host-install | no mutual removal | two environments of one application on one host both installing host files refuse | gate | nothing: `host_files = false` on all but one |
@@ -2150,7 +2150,7 @@ passed is step 1's confirmation; the tool reads no test report.
 /var/lib/turpin/APP/ENV/
   .env                  the host's own settings: registry address, login settings, keys, limits
   lock                  flock, held to the end of a deploy or rollback; `lock` may share a path across environments
-  state                 the step reached, written at each step; "finished" at the end
+  state                 the deploy state (the state table), with the step reached
   last_request          the last deploy's or rollback's `request_id` and outcome (the last request)
   host_files.installed  the host files the current deploy installed
   deploys/<n>/          per deploy:
@@ -2159,6 +2159,7 @@ passed is step 1's confirmation; the tool reads no test report.
     payload/              the payload as built, with the commit's `profile.json`, the hooks and the host files
     record.json           the record, if any
     the joined files, at their own paths
+  pending -> deploys/<n+1>   the deploy under way, until its pivot
   current -> deploys/<n>
   previous -> deploys/<n-1>
 ```
@@ -2172,40 +2173,59 @@ builder uses it with its `build:` blocks.
 **A deploy's steps** (gates in [§9](#9-gates-and-checks)):
 
 1. take the lock;
-2. check the state against [§9](#9-gates-and-checks)'s state gate; this deploy
-   first writes the state file once this step passes;
+2. check the state against [§9](#9-gates-and-checks)'s state gate;
 3. pull every image by digest, within `pull_timeout`;
 4. take the payload out of `payload_image`;
 5. run `pre-deploy`;
-6. write the new deploy folder, `meta.json` last, first removing any
-   part-written folder: one with no `meta.json`, which a pruned folder always
-   keeps. An error in this step removes its own folder;
+6. remove any folder `pending` names, which a deploy stopped while preparing
+   left; write the new deploy folder, `meta.json` last, and point `pending` at
+   it;
 7. run `save-state`, then `migrate`;
-8. install host files where `host_files` is true (default only for rehearsal and
-   production, so environments sharing a host never overwrite each other's; an
-   application whose test environments need a schedule keeps it inside its
-   Compose project, not as a host unit): copy with
-   modes, `systemctl daemon-reload`, enable and restart units marked `enable`,
-   as root through `root-ops`. A host file the previous deploy installed (listed in
-   `host_files.installed`) and this one lacks is removed;
-9. switch `current`, run `compose up`, then `smoke`;
-10. mark the state `finished` and prune images under the registry address, and
-    `deploys/<n>` folders, other than current and previous (local images are
-    untouched). A pruned folder keeps only its `meta.json`, which holds the
-    whole record and is under a kilobyte, so the host keeps the history of
-    what it ran: which commit, version and record, and when.
+8. install `pending`'s host files where `host_files` is true (default only for
+   rehearsal and production, so environments sharing a host never overwrite each
+   other's; an application whose test environments need a schedule keeps it
+   inside its Compose project, not as a host unit): copy with modes,
+   `systemctl daemon-reload`, enable and restart units marked `enable`, as root
+   through `root-ops`. A host file `current` installed (listed in
+   `host_files.installed`) and `pending` lacks is removed;
+9. run `compose up` from `pending`'s folder, then `smoke`;
+10. the pivot: point `previous` at `current`'s folder and `current` at
+    `pending`'s, write `host_files.installed`, mark the state `finished`, remove
+    `pending`; then prune images under the registry address, and `deploys/<n>`
+    folders, other than current and previous (local images are untouched). A
+    pruned folder keeps only its `meta.json`, which holds the whole record and
+    is under a kilobyte, so the host keeps the history of what it ran: which
+    commit, version and record, and when.
 
-**Step 10's marking `finished` is the deploy's
-[pivot](#errors-results-and-the-pivot).** A failure before it, `smoke`'s
-included, stops the deploy and exits by its type. One after `save-state` first
-runs `restore-state`, switches to `previous` and reinstalls its host files. A
-host's first `turpin` deploy has no `previous`: failure runs `restore-state`,
-stops the new containers, removes `current`, marks the state
-`failed, no previous deploy` and names the fallback (`[turpin].fallback`). A
-restore to `previous` marks the state `restored`; a deploy stopped before
-`save-state`, which has changed nothing that runs, writes back the state it
-found. A failed prune after the pivot is an error, exit 3, and the deploy
-stands.
+**`current` and `previous` move only at the pivot**, so until then `current` is
+the last finished deploy and a restore never needs to know how far the deploy
+got. The state file holds one of these:
+
+| State | Written | What runs | A new deploy | `turpin rollback` |
+| --- | --- | --- | --- | --- |
+| none | never, on a host's first deploy | nothing | runs | refuses, naming the fallback |
+| `preparing: STEP` | at steps 3 to 6 | `current`, untouched | runs, step 6 removing what `pending` names | switches to `previous` |
+| `changing: STEP` | at steps 7 to 9; left only by a kill or a reboot, since the host restores on any stop it sees | `current` or `pending`, part-way | refuses, naming `turpin rollback ENV` | restores, as below, and leaves `restored` |
+| `finished` | at the pivot | `current` | runs | switches to `previous` |
+| `restored` | by a restore, or by a rollback that finished | `current` | runs | switches to `previous` where there is one |
+| `failed, no previous deploy` | by a first deploy's restore | nothing | runs | refuses, naming the fallback |
+| `failed: the restore did not complete` | by a restore that failed | unknown | refuses, naming `turpin rollback ENV`, or the fallback where there is no `current` | restores again, as below |
+
+**A restore** runs `restore-state`, reinstalls `current`'s host files, removing
+any `pending` installed that `current` lacks, runs `compose up` from `current`'s
+folder, removes `pending` and its folder and marks the state `restored`. On a
+host's first deploy, with no `current`, it runs `restore-state`, stops
+`pending`'s containers, removes `pending` and marks the state
+`failed, no previous deploy`, naming the fallback (`[turpin].fallback`). The
+host restores on any stop from step 7 to the pivot, `smoke`'s refusal included;
+a stop before step 7 has changed nothing that runs, and writes back the state it
+found. A kill between the pivot's moves of `current` and its marking `finished`
+leaves `pending` equal to `current`: the next rollback or deploy then finishes
+the pivot, marking `finished` and removing `pending`, before anything else.
+
+**The pivot is the deploy's [pivot](#errors-results-and-the-pivot).** A failure
+before it stops the deploy and exits by its type, after the restore where one
+runs. A failed prune after it is an error, exit 3, and the deploy stands.
 
 **The last request.** `turpin-host deploy` and `rollback` read and write
 `last_request` only while they hold the lock, so one request at a time uses it.
@@ -2233,13 +2253,12 @@ whose `request_id` is the last one's, the host acts on its outcome:
 - A `request_id` is a version 4 UUID, which `turpin` generates once per command
   and the host validates, so each command has its own.
 
-**Rollback** is the same switch to `previous` on demand, with `restore-state`
-and host files restored alike. It removes `previous`, so a second refuses, as
-does one with no previous deploy, naming the fallback
-([§8](#8-profile-and-hooks)). Where a deploy stopped from `save-state` on but
-before step 9's switch, `current` is still the last finished deploy: rollback
-then runs `restore-state` and reinstalls `current`'s host files, keeping
-`current` and `previous`.
+**Rollback**, from `finished` or `restored`, switches to `previous`:
+`restore-state`, `previous`'s host files, `compose up` from its folder, then
+`current` pointed at it and `previous` removed, so a second refuses, as does one
+with no previous deploy, naming the fallback ([§8](#8-profile-and-hooks)). From
+`changing` or a failed restore, it is a restore, which keeps `current` and
+`previous`.
 
 **Root-ops and the allowlist.** The deploy user is root-equivalent through
 Docker, so these checks guard against mistakes, not against a hostile user; a
