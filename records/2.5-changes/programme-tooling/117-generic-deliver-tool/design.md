@@ -635,14 +635,13 @@ log:
 | Type | What it is in the registry | Exit, where it stops the run | The message says |
 | --- | --- | --- | --- |
 | *business* | the input is wrong: a request the port implementation refuses on validation (a value from the command line that fails its form, a short SHA resolving to no build or to several, the keep list, no overwrite), or a correct answer that something the operation needed is not there | 1 | which input to fix; the value is in `violations`, the thing in `metadata` |
-| *technical* | authorisation refused, a network failure, a timeout, a missing tool, or a setting in the profile missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (authorisation, a missing tool, a setting in the profile missing or malformed) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the profile key to fix |
+| *technical* | authorisation refused, a network failure, a timeout, a missing tool, or a setting missing or malformed. A *blip* (a network error, a timeout, HTTP 429 or 5xx) is retried, and is reported once retries run out, having kept failing; a *fundamental* one (the rest) is never retried. | 75 for a blip, 2 for a fundamental one | for a blip, to try again later; for a fundamental one, the next step: `turpin login COMPONENT`, the policy, installing the tool or the setting to fix |
 | *unexpected* | any error the code did not expect: an Oracle reply that is invalid, a tool's output not in its format, or anything else not foreseen; usually a defect, Turpin's or a vendor's | 70 | that it was not expected, to raise as an issue; the cause is in the log |
 
-Whatever is neither business nor technical is unexpected. A usage error is
-`cli.py`'s, found before any of these ([exit
-statuses](#errors-results-and-the-pivot)). Before a command's
-[pivot](#errors-results-and-the-pivot) every error stops the run; after it, the
-run carries on and exits 3.
+Whatever error is neither business nor technical is unexpected. A usage error
+(64) and an interruption (130) are outside the three types
+([exit statuses](#errors-results-and-the-pivot)). Before a command's pivot every
+error stops the run; after it, the run carries on and exits 3.
 
 Every deploy pulls by digest with `docker pull`, in the payload's steps
 ([§11](#11-on-the-host)), outside the port.
@@ -765,15 +764,14 @@ reply) or the bottom (output not in its format).
 `sha256:` and 64 hexadecimal characters, a `Version` is semver, a `Build`'s
 `commit` is a full 40-character hexadecimal SHA, and a `Repository`'s `kind`
 is candidates or releases. The top's validation is of the request as a whole.
-These values come from the command line. One that fails its form is refused
-before any call, as a business error, exit 1, naming the argument, with each bad
-value in its result's `violations`. A short SHA is resolved to a full one by
+A value that fails its form, whether from an argument, a request's field or
+the version file, is refused before any call, as a business error, exit 1,
+naming where it came from, with each bad value in its result's `violations`. A short SHA is resolved to a full one by
 *list versions* before it reaches a `Build`, and one that resolves to no build
 or to several is a business error then.
 
-**A setting missing or malformed**, in the profile or the local config, is found
-when the profile is loaded, before any command runs. It is a fundamental
-technical error, exit 2, naming the key, since it is the operator's to fix.
+A setting missing or malformed is not the request's fault:
+[§8](#8-profile-and-hooks) has it.
 
 **An error is raised where it is found and translated once.** The top raises
 its own business errors; an error from a registry call goes layer by layer:
@@ -1084,7 +1082,7 @@ refused or as empty:
 | --- | --- |
 | a `GateResult` that refuses | 1 |
 | a read of the board or git that cannot be made | 75 for a blip, 2 for a fundamental one |
-| a profile error: a setting missing or malformed | 2, a fundamental technical error naming the key |
+| a setting missing or malformed ([§8](#8-profile-and-hooks)) | 2 |
 | work left undone in `settle`, `open_next` or `publish`, named | 3, after the [pivot](#errors-results-and-the-pivot) |
 | a crash, or anything else unexpected | 70 |
 
@@ -1368,16 +1366,17 @@ is Turpin's own is below.
 | 75 | stopped: a blip whose retries ran out, or `--wait` at its limit; try again later |
 | 70 | stopped: an unexpected error, to raise as an issue; never read as refused |
 | 3 | done with errors: a step after the command's pivot failed, named with the command that reruns it |
-| 64 | stopped: a usage error, as docs/1.10 defines it, named by `cli.py`, which overrides `argparse`'s own exit 2 |
-| 130 | interrupted (SIGINT); the message says whether the change is live and names the rerun |
+| 64 | stopped: a usage error, the message naming the bad flag or missing argument; `cli.py` replaces `argparse`'s own exit 2 |
+| 130 | interrupted by SIGINT, as docs/1.10 defines it |
 
-`turpin` catches SIGINT and stops at once. `turpin-host` treats SIGHUP, which it
-gets when the `ssh` session from `turpin` closes, as SIGINT, and `turpin` passes
-on its 130 rather than reading it as a signal's death. Both then act alike:
+Only the controller's `turpin` is interrupted. It starts each `ssh` and tool
+child in a session of its own, so a Ctrl-C at the terminal reaches `turpin`
+alone, and a host call such as `turpin-host deploy` runs to its end. `turpin`
+then starts no further step:
 
-- before a command's pivot, they undo what changed, as for an error;
-- after it, they skip the remaining steps and leave them for the rerun;
-- in a command with no pivot, each action is left done or not done, and a rerun
+- before the command's pivot, it undoes what changed, as for an error;
+- after it, it leaves the remaining steps for the rerun it names;
+- in a command with no pivot, each action is done or not done, and a rerun
   retries what is not done.
 
 **Each command that changes something names its pivot**, the step after which
@@ -1784,6 +1783,11 @@ Also:
   version ([§9](#9-gates-and-checks));
 - `on` (builder), `copy_on` and `host` take `"controller"` (`"control-node"` still works);
   `on` and `copy_on` also take an `ssh` alias.
+
+A setting missing or malformed is found where it is read, before it is used: in
+a profile, in the controller's `~/.config/turpin/APP.env`, or in a host's `.env`.
+It is a fundamental technical error, exit 2, naming the key, since it is the
+operator's to fix.
 
 Each key is read from one of two profiles:
 
