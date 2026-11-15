@@ -40,3 +40,24 @@ ENV_LOG_DIR = "TURPIN_LOG_DIR"        # where run logs go, else the XDG state fo
 ENV_GH_REPO = "TURPIN_GH_REPO"        # the GitHub repository, else the origin URL's
 
 PROFILE_FILE = "app-profile.toml"
+
+# The registry adapter (design §3 *The registry address*, *Logins*). Read from
+# the machine's `APP.env`, or the host's `.env`; never from the profile.
+ENV_REGISTRY = "TURPIN_REGISTRY"                # REGISTRY_HOST/NAMESPACE
+ENV_REGISTRY_USER = "TURPIN_REGISTRY_USER"      # the login name an `oci-*` kind presents
+ENV_TOKEN_CMD = "TURPIN_OCI_TOKEN_CMD"          # prints a short-lived registry token
+ENV_COMPARTMENT = "TURPIN_OCI_COMPARTMENT"      # the compartment holding candidates, for a removal
+ENV_OCI_CONFIG_FILE = "OCI_CLI_CONFIG_FILE"     # an API key's configuration, else ~/.oci/config
+
+# A short SHA given as an argument must have at least this many characters: git's
+# default abbreviation, so a prefix of fewer is a typo.
+SHORT_SHA_MIN = 7
+
+# A tag is at most 128 characters (the OCI Distribution Specification). `SHA-IMAGE` and
+# `VERSION-IMAGE` start with at most 41 of them: a 40-character SHA and the hyphen.
+TAG_MAX_LENGTH = 128
+TAG_PREFIX_LENGTH = 41
+
+# A tool's error text kept in a result's metadata is cut here: enough for a stack
+# of messages, short enough for a log line. A guess, as the timeouts are.
+ERROR_TEXT_MAX = 2000
