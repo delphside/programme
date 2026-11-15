@@ -299,7 +299,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S94 | A production deploy whose `smoke` refuses, the host restoring, its stub `ssh` dropping the connection once the outcome is recorded; a first deploy to a host whose stub drops the connection after `save-state` and before its pivot; a deploy refused because another request holds a shared lock, then the holder's connection dropped after its pivot; a deploy cut off by a reboot after step 2, `last_request` left `running`, then its repeat; a new deploy after one killed in `preparing`; a deploy under `--check`. | R31, R50 | the retry answered with the recorded refusal, nothing run again, exit 1; the retry run, the outcome `interrupted` before it, the state `failed, no previous deploy` not refusing, exit 0; the refusal writing nothing to `last_request`, the holder's retry answered from its own record, exit 0; the repeat refused, nothing run, naming `turpin status ENV`, exit 1; the new deploy not refused by the state gate, exit 0; `last_request` unchanged | CI (bats) |
 | S95 | A deploy whose restore fails, then a new deploy; a deploy killed during step 6, on a host with pruned folders, then a new deploy; a deploy failing during step 6. | C8, R9 | the new deploy refused, naming the step and `turpin rollback ENV`, exit 1; the part-written folder numbered past and every pruned folder's `meta.json` kept, the new deploy giving O4, its prune removing the part-written folder, or cutting it to its `meta.json` where that was written; the failing deploy's folder removed, O1 | CI (bats) |
 | S96 | A deploy killed after `save-state` and before `compose up`, then `turpin rollback`; one killed after `compose up` from `pending`, then `turpin rollback`; a rollback killed part-way, then `turpin rollback` again; a first deploy whose restore fails, then a new deploy. | R9, C8 | the first two rollbacks each a restore: `restore-state` run, `current`'s digests running and its host files in place, `current` and `previous` unchanged, `pending` removed, the state `restored`, exit 0; the rollback run again to its end, as S31's first case; the new deploy refused, naming `turpin rollback ENV`, exit 1, then `turpin rollback` running the first deploy's restore again, the state `failed, no previous deploy` | CI (bats) |
-| S97 | A deploy killed during `save-state`, then `turpin rollback`; a deploy failing at `migrate` and restored, then `turpin rollback`; two finished deploys, then six deploys failing at `migrate` and restored, then `turpin rollback`. | R12, R28, R29, C11 `save-state` | `restore-state` given `pending`'s number finding no complete snapshot and restoring nothing, the data as before the deploy, the state `restored`; the rollback's `restore-state` given `current`'s number, restoring the snapshot taken before `current`'s `migrate`, never the restored deploy's; the same after the six, `current`'s snapshot kept by every `save-state`; in each case the stub's log showing `save-state` given `TURPIN_DEPLOY` as `pending`'s number and `TURPIN_CURRENT` as `current`'s | CI (bats) |
+| S97 | A deploy killed during `save-state`, then `turpin rollback`; on a host with two finished deploys, a deploy failing at `migrate` and restored, then `turpin rollback`; two finished deploys, then six deploys failing at `migrate` and restored, then `turpin rollback`. | R12, R28, R29, C11 `save-state` | `restore-state` given `pending`'s number finding no complete snapshot and restoring nothing, the data as before the deploy, the state `restored`; the rollback's `restore-state` given `current`'s number, restoring the snapshot taken before `current`'s `migrate`, never the restored deploy's; the same after the six, `current`'s snapshot kept by every `save-state`; in each case the stub's log showing `save-state` given `TURPIN_DEPLOY` as `pending`'s number and `TURPIN_CURRENT` as `current`'s | CI (bats) |
 
 ## 6. Refusals and successes
 
@@ -348,7 +348,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R9 | S13, S38, S57, S95, S96 |
 | R10 | S10, S12, S53 |
 | R11 | S6 |
-| R12 | S14, S33, S57, S97 |
+| R12 | S14, S33, S57, S85, S97 |
 | R13 | S15, S34, S55, S56 |
 | R14 | S16 |
 | R15 † | S17, S39, S48, S49 |
@@ -359,14 +359,14 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R20 | S23, S51, S52, S53, S53a |
 | R20a | S53b |
 | R21 | S24 |
-| R22 | S26 |
+| R22 | S26, S86 |
 | R23 | S26, S28 |
 | R24 | S27 |
 | R25 | S18 |
 | R26 | S29 |
-| R27 | S29, S30 |
+| R27 | S29, S30, S84 |
 | R28 | S31, S56, S97 |
-| R29 | S6, S10, S11, S33, S59, S97 |
+| R29 | S6, S10, S11, S33, S57, S59, S97 |
 | R30 | S12, S17, S19, S20, S29, S49, S53 |
 | R31 | S32, S59, S88, S90, S91, S92, S93, S94 |
 | R32 | S32 |
@@ -455,15 +455,15 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S54 | R8 |
 | S55 | R13 |
 | S56 | R28, R13 |
-| S57 | R12, R9 |
+| S57 | R12, R9, R29 |
 | S58 | R6 |
 | S59 | R29, R31 |
 | S60 | R42 |
 | S61 | R42, R43 |
 | S62 | R42, R43 |
-| S63 | R42 |
+| S63 | R42, R43 |
 | S64 | R42, R43 |
-| S65 | R33, R44 |
+| S65 | R33, R44, R45 |
 | S66 | R44 |
 | S67 | R45 |
 | S68 | R33, R36, R46 |
