@@ -2184,8 +2184,8 @@ record or the new one, never a mix. It holds:
 - `current` and `previous`, the deploy numbers of the last finished deploy and
   the one before it, either absent;
 - `pending`, the deploy number under way, or absent;
-- `target`, under `changing`, the deploy number the change moves to: `pending`'s
-  for a deploy, `previous`'s for a rollback;
+- `target`, under `changing` and after a failed restore, the deploy number the
+  change moves to: `pending`'s for a deploy, `previous`'s for a rollback;
 - `installed_host_files`, the host files `current` installed;
 - `last_request`, the last deploy's or rollback's `request_id` and outcome (*the
   last request*, below).
@@ -2243,7 +2243,7 @@ also left by its own failure, on purpose, so that it is run again.
 | State | Written | What runs | A new deploy | `turpin rollback` |
 | --- | --- | --- | --- | --- |
 | none | before a host's first deploy | nothing | runs | refuses, naming the fallback |
-| `preparing: STEP` | at steps 3 to 6 | `current`, untouched, or nothing on a first deploy | runs, numbering past `pending`'s folder | switches to `previous`, or refuses, naming the fallback, where there is none; `pending` is cleared |
+| `preparing: STEP` | at steps 3 to 6 | `current`, untouched, or nothing on a first deploy | runs, numbering past `pending`'s folder | switches to `previous`, clearing `pending`, or refuses, naming the fallback, where there is no `previous` |
 | `changing: STEP` | at steps 7 to 9, and by a rollback before its last step | part `current`, part `target` | refuses, naming `turpin rollback ENV` | for `changing: deploy`, a restore; for `changing: rollback`, the rollback again |
 | `finished` | at the pivot | `current` | runs | switches to `previous`, or refuses, naming the fallback, where there is none |
 | `restored` | by a restore, or by a rollback that finished | `current` | runs | as from `finished` |
