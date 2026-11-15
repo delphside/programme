@@ -106,11 +106,13 @@ two_builds() {   # P (production's) and Q (another)
   assert_output --partial "rehearsal-passed"
   # the deploy did not finish
   jq '.smoke = "passed"' "$m" > "$m.new" && mv "$m.new" "$m"
-  printf 'in progress: smoke\ndeploy=1\n' > "$(host_state_dir rehearsal rehearsal)/state"
+  host_record_set rehearsal rehearsal '.state = "changing: deploy smoke"'
+
   run d release --expect 0.10.2
   assert_failure 1
   assert_output --partial "rehearsal-passed"
-  printf 'finished\ndeploy=1\n' > "$(host_state_dir rehearsal rehearsal)/state"
+  host_record_set rehearsal rehearsal '.state = "finished"'
+
   local before; before="$(snapshot)"
   run d release --expect 0.10.2
   assert_success
