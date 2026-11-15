@@ -298,6 +298,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S93 | A production deploy whose stub `ssh` drops the connection after the state is marked `finished`; a `rollback` whose stub drops the connection after it took the lock; a rollback with no previous deploy whose stub drops the connection after the host refused; a second deploy of the build already current and finished, with a new `request_id`, whose stub drops the connection before the host takes the lock. | R31, R50 | the retry with the same `request_id` answered from the record, nothing run again, `turpin` carrying on to `settle`, exit 0; the retry waiting on the lock, then answered from the record, the rollback run once, exit 0; the retry answered with the recorded refusal, exit 1, naming the fallback; the retry run, the deploy run once, exit 0 | CI (bats) |
 | S94 | A production deploy whose `smoke` refuses, the host restoring, its stub `ssh` dropping the connection once the outcome is recorded; a first deploy to a host whose stub drops the connection after `save-state` and before its pivot; a deploy refused because another request holds a shared lock, then the holder's connection dropped after its pivot; a deploy cut off by a reboot after step 2, `last_request` left `running`, then its repeat; a new deploy after one killed before `save-state`; a deploy under `--check`. | R31, R50 | the retry answered with the recorded refusal, nothing run again, exit 1; the retry run, the outcome `interrupted` before it, the state `failed, no previous deploy` not refusing, exit 0; the refusal writing nothing to `last_request`, the holder's retry answered from its own record, exit 0; the repeat refused, nothing run, naming `turpin status ENV`, exit 1; the new deploy not refused by the state gate, exit 0; `last_request` unchanged | CI (bats) |
 | S95 | A deploy whose restore fails, then a new deploy; a deploy killed during step 6, on a host with pruned folders, then a new deploy; a deploy failing during step 6. | C8, R9 | the new deploy refused, naming the step and `turpin rollback ENV`, exit 1; the part-written folder removed and every pruned folder's `meta.json` kept, the new deploy giving O4; the failing deploy's folder removed, O1 | CI (bats) |
+| S96 | A deploy killed after `save-state` and before the switch of `current`, then `turpin rollback`; a first deploy whose restore fails, then a new deploy. | R9 | the rollback runs `restore-state`, `current` and `previous` unchanged, the state `restored`, exit 0; the new deploy refused, naming the fallback, exit 1 | CI (bats) |
 
 ## 6. Refusals and successes
 
@@ -343,7 +344,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | R6 | S6, S7, S29, S58 |
 | R7 | S5, S8 |
 | R8 | S9, S10, S37, S54 |
-| R9 | S13, S38, S57, S95 |
+| R9 | S13, S38, S57, S95, S96 |
 | R10 | S10, S12, S53 |
 | R11 | S6 |
 | R12 | S14, S33, S57 |
@@ -492,6 +493,7 @@ In this matrix "the tag" is the release production runs, not the newest tag. S50
 | S93 | R31, R50 |
 | S94 | R31, R50 |
 | S95 | R9 |
+| S96 | R9 |
 
 ## 8. Approach
 

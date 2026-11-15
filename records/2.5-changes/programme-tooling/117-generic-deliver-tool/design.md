@@ -1977,7 +1977,7 @@ production deploy, an error after the deploy's
 | build | no overwrite | existing `SHA-IMAGE` not rebuilt; failed registry query refuses; releases tags never overwritten | gate | — |
 | every deploy | exact bytes | pulled by digest; revision label is the SHA; running `RepoDigests` match (`--local`: image id and label) | gate | — |
 | every deploy | no overlap | lock free, held to the end | gate | nothing (`--wait` waits) |
-| every deploy | *state gate* | state is none (a first deploy), finished, restored, `failed, no previous deploy` or a step before `save-state` (nothing that runs has changed yet); else refuses, naming the step reached and `turpin rollback ENV`. A failed restore leaves `failed: the restore did not complete`, which refuses alike | gate | nothing: `turpin rollback` |
+| every deploy | *state gate* | state is none (a first deploy), finished, restored, `failed, no previous deploy` or a step before `save-state` (nothing that runs has changed yet); else refuses, naming the step reached and `turpin rollback ENV`. A failed restore leaves `failed: the restore did not complete`, which refuses alike, naming the fallback instead where there is no previous deploy | gate | nothing: `turpin rollback` |
 | deploy, release | application's hooks | every `required_hooks` hook present and executable; `pre-deploy` (deploy) and `release-check` (release) pass | gate | the two hooks by `--set-aside`, where overridable |
 | every deploy | allowed host files | destination off the allowlist refuses ([§11](#11-on-the-host)) | gate | nothing: rerun `turpin host-install` |
 | deploy, host-install | no mutual removal | two environments of one application on one host both installing host files refuse | gate | nothing: `host_files = false` on all but one |
@@ -2236,7 +2236,10 @@ whose `request_id` is the last one's, the host acts on its outcome:
 **Rollback** is the same switch to `previous` on demand, with `restore-state`
 and host files restored alike. It removes `previous`, so a second refuses, as
 does one with no previous deploy, naming the fallback
-([§8](#8-profile-and-hooks)).
+([§8](#8-profile-and-hooks)). Where a deploy stopped from `save-state` on but
+before step 9's switch, `current` is still the last finished deploy: rollback
+then runs `restore-state` and reinstalls `current`'s host files, keeping
+`current` and `previous`.
 
 **Root-ops and the allowlist.** The deploy user is root-equivalent through
 Docker, so these checks guard against mistakes, not against a hostile user; a
