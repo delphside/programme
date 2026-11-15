@@ -75,8 +75,10 @@ moves do not sum to its score once a game is over.
 
 At the end of a game the server adds one move record per seat whose score the
 adjustment changes, with `move_type` `rack_adjustment` and the change as its
-`score_delta`. A seat's score is then always the sum of its records'
-`score_delta`. These records are not turns, so the scoreless count
+`score_delta`. They come from the game's one event: `Finished` carries the
+`adjustments` ([*Structured descriptions*](#structured-descriptions)), so the
+log holds them and its category is `Game`. A seat's score is then always the
+sum of its records' `score_delta`. These records are not turns, so the scoreless count
 ([*Deriving beats accumulating*](71-07-client.md#deriving-beats-accumulating-and-the-scoreless-rule-is-the-case))
 skips them, and so does any lookup of the last move, such as the "just played"
 cells and the score change beside a seat. Playback steps through them like any
@@ -104,7 +106,8 @@ pub enum GameEventDto {
     SeatsSwapped  { a: u8, b: u8 },
     SeatHidden    { seat: u8 },
     ReminderSent  { seat: u8 },
-    Started, Aborted, Finished { winner: Option<u8> },
+    Started, Aborted,
+    Finished { winner: Option<u8>, adjustments: Vec<RackAdjustment> },
     UserDetailsUpdated { player: String },
     ChatPosted    { seat: Option<u8>, player: String },
 }
@@ -123,6 +126,8 @@ impl GameEventDto {
 }
 
 pub enum ChangeCategory { Board, Game, Periphery }
+
+pub struct RackAdjustment { pub seat: u8, pub score_delta: i32 }
 ```
 
 **`ForceResigned` does not say who did it.** Every client of the game receives
