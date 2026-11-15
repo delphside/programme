@@ -35,7 +35,7 @@ missing (`71-test-approach.md`).
 
 ## Its acceptance
 
-- [ ] **Claude** — every `GameMessage` arm has a test that it moves `version`, and a refused one that it changes nothing
+- [ ] **Claude** — every `GameCommand` arm, `Player` and `System`, has a test that it moves `version` (except `Hide` and `ReminderSent`, which save without moving it), and a refused one that it changes nothing
 - [ ] **Claude** — the round-trip property passes over generated `GameView`s, and `view_for` gives a viewer holding two seats both racks
 - [ ] **Claude** — the in-process bot is handed only the games its account holds a seat in, each redacted for its account, and is never answered 429
 - [ ] **Claude** — a bot seated in a new game while running plays it: the seat list gains a seat in the game, `updates_for` joins that game's channel before it reads the game, and the glue makes a bot object for the seat

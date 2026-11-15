@@ -107,9 +107,10 @@ subscriber, a WebSocket or a bot, is its own task. The two loops are:
 Bot object, on each update from its link:   // the link holds the identity,
                                             // the object none
     GameUpdate::Game { view, .. }:
+        let number = view.number_of(seat_id)  // the object holds its seat's id
         if view.status == Active
-           && view.current_seat == seat:    // seat is the object's own
-            if let Some(msg) = take_turn(player, &view, seat, budget) {
+           && view.current_seat == number:
+            if let Some(msg) = take_turn(player, &view, number, budget) {
                 link.submit(view.game_id, msg)
             }
     GameUpdate::GameRemoved(_):

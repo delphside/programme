@@ -88,8 +88,8 @@ allows only its variants, each with only its own fields.
 
 ### How the message uses enums
 
-`GameMessage` has one variant for every way a game can change, and `apply`
-matches on it with no catch-all arm. A new kind of change cannot be added
+`GameCommand` and its two enums have between them one variant for every way a
+game can change, and `apply` matches on them with no catch-all arm. A new kind of change cannot be added
 without the compiler naming each place that has to handle it, which is the
 property the freshness problem lacks today. `ApplyError`, the other enum in
 [*The message*](#the-message), names each way a message is refused in the same
@@ -223,12 +223,10 @@ pub enum GameMessage {
     Abort,
     SeatAdded { .. },
     SeatInvited { seat: u8, .. },
-    InvitationPassed { seat: u8, to: PlayerId },
     InvitationAccepted { seat: u8, .. },
     InvitationDeclined { seat: u8 },
     SeatWithdrawn { seat: u8 },
     KeepRequested,
-    UpdateUserDetails { player: PlayerId },
     Start,
     SeatsSwapped { a: u8, b: u8 },
     ChatPosted { player: PlayerId, body: String },
@@ -241,11 +239,15 @@ pub enum SystemMessage {
     ForceResign { seat: u8 },
     AdminForceEnd,
     ReminderSent { seat: u8 },
+    InvitationPassed { seat: u8, to: PlayerId },  // on a followed link or a verified address
+    UpdateUserDetails { player: PlayerId },       // on a rename
 }
 ```
 
-**The split is the compiler's check, not a run-time one** (owner, 2026-11-15).
-A client cannot express a time-out, so the Transport API has nothing to refuse.
+**The compiler keeps the server's messages from clients** (owner, 2026-11-15).
+A message the server alone issues is a `SystemMessage`, so a client cannot
+express a time-out or pass an invitation, and the Transport API has nothing to
+refuse.
 There is still one handler: it matches `Player` or `System`, then the message.
 
 `Start` deals the racks and drops the spent seats in one step. Undo and redo
@@ -461,7 +463,7 @@ move, and no caller of `apply` hands it anything
 impl GameSession {
     /// The only method that mutates a game. Validates, applies, advances the
     /// version, records the event — in that order.
-    pub fn apply(&mut self, message: GameMessage, now: i64)
+    pub fn apply(&mut self, command: GameCommand, now: i64)
         -> Result<Applied, ApplyError>;
 }
 ```

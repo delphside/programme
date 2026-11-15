@@ -381,7 +381,7 @@ true of every seat in every state; the rest move into the state that owns them.
 
 ```rust
 pub struct Seat {
-    pub id: SeatId,                       // fixed when the seat is added; never reused in its game
+    pub id: SeatId,                       // a per-game counter, set when the seat is added and stored with it
     pub number: u8,                       // the turn order; the start renumbers it
     pub player: Option<PlayerId>,         // resolved when the seat is created; a bot is a player
     pub invitation: Option<Invitation>,   // fixed at creation; None for own seat and bots
@@ -395,7 +395,8 @@ pub struct Seat {
 long as its game exists; `number` is its place in the turn order, which the
 start changes when it drops spent seats. Once play starts the numbers stay, and
 a departed seat keeps its number while the turn passes over it. Anything that
-holds on to a seat, such as a bot's seat list, holds the `id`.
+holds on to a seat, such as a bot's seat list, holds the `id`. `SeatId` is a
+`u32` from a counter in the game, so it survives a reload with the seat.
 
 `display_name` is gone, because a name is a lookup. `resigned: bool` is gone:
 `SeatState::Departed { how: Departure::Resigned, .. }` says it, and says which
