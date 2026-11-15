@@ -37,7 +37,7 @@ engine out possible and where it runs. This file follows
   `run_engine_turns` sends the state on `AppState.events` and sleeps
   `ENGINE_TURN_BROADCAST_DELAY` (120 ms) so that a watching client sees each
   move
-  ([what paces it after](71-09-open-questions.md#open-questions-about-the-shapes)).
+  ([what paces it after](71-07-client.md#every-move-is-shown)).
 
 ### To move away from
 

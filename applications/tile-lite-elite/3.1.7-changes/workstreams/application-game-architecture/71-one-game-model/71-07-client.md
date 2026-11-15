@@ -428,6 +428,39 @@ advances for both, and any placement ends the run. If either ever stops
 advancing the turn, this derivation breaks silently, which is worth a test
 rather than a comment.
 
+## Every move is shown
+
+**Requirement** (owner, 2026-11-15): every move is displayed, slowly enough for
+the browser to draw it and for a person to register it. Today a client that
+receives an update before it has drawn the last one skips the last one, so a
+bot-against-bot game can show only its final position. The 120 ms pause in the
+server ([the engine's as-is](71-06-engine.md#worth-keeping)) goes when a bot
+becomes a client, so nothing in the server paces moves after #268.
+
+**The client paces what it shows, as a playback queue** (owner, 2026-11-15).
+The game runs at the speed its seats play; only the client knows what it has
+drawn and whether anybody is watching. No wire change is needed, because every
+state already carries the whole move list (`moves: Vec<MoveRecordDto>`), and
+each record has the `positions` it filled:
+
+- The client keeps `shown_moves`, the number of moves drawn so far, in
+  presentation state. When a state arrives with more moves, `shown_moves`
+  steps forward one move at a time, holding each for the playback interval.
+- The board drawn is the server's board with the cells of every move after
+  `shown_moves` left empty, and the scores less those moves' `score_delta`.
+  It is derived on render, like the rest of this file, so a state that arrives
+  mid-playback only lengthens the queue.
+- **just played** marks the cells of move `shown_moves`, not of `moves.last()`.
+- While the queue is behind, the viewer cannot stage, so a player never stages
+  against a past board. A viewer's own move is drawn at once.
+- Selecting a game, or reconnecting, sets `shown_moves` to the full count: a
+  game opened after the fact shows where it stands rather than replaying it.
+
+The interval is a client product setting, listed with the others in
+[4.4.1](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.4.1-configuration.md);
+its value is set when #269 is built, starting from 600 ms. It ships in #269, which goes out with
+#268, so moves are never left unpaced.
+
 ## This is delivered in Core Client UI
 
 Raised as **#157**, which carries the reproduction and the two handlers it

@@ -238,13 +238,10 @@ the game unrated; that is
 outside #71. Until then #71 leaves `suggest_move` as it is, and a hint, once
 built, takes an `engine_limit` permit like any other search in the server.
 
-**What paces the engine's moves?** `ENGINE_TURN_BROADCAST_DELAY` (`games.rs`)
-sleeps 120 ms between engine turns so that a person watching an engine game
-sees each move; without it an all-engine game finishes before a socket has
-opened. A bot that is a client replies as fast as its search returns, and
-nothing in [the model](71-06-engine.md#the-model) paces it. Either the bot paces
-itself, or the client shows each move for a minimum time, or neither. Open, for
-the owner.
+**What paces the engine's moves?** Answered (owner, 2026-11-15): the client,
+as a playback queue that shows each move for a set interval, while the game
+runs at full speed. See
+[*Every move is shown*](71-07-client.md#every-move-is-shown).
 
 **How does the server act as the bot accounts it runs in-process, and do they
 need an owner?** Settled by owner, 2026-10-20: see
