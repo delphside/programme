@@ -223,6 +223,66 @@ class OpenItem:
         return f"{self.repo}#{self.number}"
 
 
+@dataclass(frozen=True)
+class Link:
+    """An issue another is blocked by, as GitHub's dependency link gives it."""
+
+    repo: str               # owner/name
+    number: int
+    state: str              # open or closed
+
+
+@dataclass(frozen=True)
+class Comment:
+    author: str
+    created_at: str
+    body: str
+
+
+@dataclass(frozen=True)
+class Milestone:
+    title: str
+    state: str              # open or closed
+    closed_at: str | None
+
+
+@dataclass(frozen=True)
+class MergedPull:
+    """A pull request that merged, for the `Refs #N` it carries."""
+
+    number: int
+    title: str
+    body: str
+    merged_at: str
+
+
+@dataclass(frozen=True)
+class Observed:
+    """An open issue or pull request as the daily sweep reads it over REST
+    (`sources.observe`), with what the flow table's judgements need beside it.
+
+    `fields` (on `raw`) holds the single-selects and the text fields alike, by
+    name. `changed_at` is when the item last moved in a way that restarts its
+    clock: REST's timeline names neither the field nor the value of a field
+    event, so it is the latest field event of any field (and for a pull request
+    the latest review event)."""
+
+    repo: str               # owner/name
+    raw: RawIssue
+    pull: bool = False
+    fields_visible: bool = True
+    field_ids: Mapping[str, int] = field(default_factory=dict)
+    changed_at: str | None = None
+    links: tuple[Link, ...] = ()
+    open_packages: int = 0
+    milestone_state: str | None = None
+    head_sha: str | None = None
+
+    @property
+    def name(self) -> str:
+        return f"{self.repo}#{self.raw.number}"
+
+
 # --------------------------------------------------------------------------
 # Routes: the values of the Route field, decided here once
 # --------------------------------------------------------------------------
@@ -237,6 +297,10 @@ REQUIREMENT_STATE = "Requirement State"
 PROJECT_STATE = "Project State"
 PR_STATE = "PR State"
 TICKET_STATE = "Ticket State"
+DECISION_STATE = "Decision State"
+TURN = "Turn"
+CLAIMED_BY = "Claimed by"
+WORKSTREAM = "Workstream"
 
 
 RELEASE = "Production Release"
@@ -605,16 +669,246 @@ class StandaloneProject(Project):
         return self.raw.milestone
 
 
+# --------------------------------------------------------------------------
+# the flow table: who holds an item in each state, and for how long
+# --------------------------------------------------------------------------
+#
+# Designed in `programme/records/2.5-changes/process-definition/176-project-board-flow/`
+# (design.md's tables; implementation.md §1). **One table, read by every
+# caller** (R3): the sweep (`flow.py`), the role lists, the owner's list and
+# `turn.py`'s waits. The bounds live here and nowhere else in code. It holds the
+# generalisation of what `DECISION_TURNS` held for Decisions alone.
+#
+# `role` is the one holder (R1): the mover of the move the state owes or, where
+# the item rests, whoever reviews the wait. `parts` are the other actors with a
+# part in the state, who see the item on their own lists. `turn` is the `Turn`
+# the state implies; `bound` is the days an item may sit in the state before
+# somebody is told, None where it has none.
+
+ROLE_OWNER = "owner"
+ROLE_DESIGN = "design-authority"
+ROLE_TECHNICAL = "technical-lead"
+ROLE_COORDINATOR = "coordinator"
+ROLE_TEST = "test-manager"
+ROLE_RELEASE = "release-manager"
+ROLE_AUTHOR = "author"
+ROLES = (ROLE_OWNER, ROLE_DESIGN, ROLE_TECHNICAL, ROLE_COORDINATOR, ROLE_TEST,
+         ROLE_RELEASE, ROLE_AUTHOR)
+
+TURN_OWNER, TURN_CLAUDE, TURN_HOLD = "Owner", "Claude", "Hold"
+TURNS = (TURN_OWNER, TURN_CLAUDE, TURN_HOLD)
+
+# Owner, 2026-11-13: 7 days for every state where the owner or a thread owes a
+# move, a day for triage, none for a queue.
+TRIAGE_DAYS = 1
+OWED_DAYS = 7
+# A delivery at Post-deployment owes a review after this long, and is stalled
+# when it is the same again overdue.
+REVIEW_DUE_DAYS = 7
+POST_DEPLOYMENT_DAYS = REVIEW_DUE_DAYS + OWED_DAYS
+
+# A delivery carrying this waits for the next release and owes nobody an
+# action: the difference between "you have not done this" and "this cannot be
+# done yet". Without it a Release Check project nags for a review for ever,
+# which is #310.
+RELEASE_CHECK = "Release Check"
+
+# Why a `Hold` is valid, by the kind of wait a state makes (design.md, *Hold
+# reasons*). A state with no kind accepts a thread-set `Hold` on any reason.
+HOLD_ON_RELEASE = "release"
+HOLD_ON_SENDER = "sender"
+HOLD_ON_NAMED = "named"
+
+
+@dataclass(frozen=True)
+class Flow:
+    """One row of the flow table."""
+
+    role: str | None
+    turn: str | None
+    bound: float | None
+    owes: str
+    leaves_on: str
+    parts: tuple[tuple[str, str], ...] = ()
+    # The wait this state makes, where it is a wait: it derives `Turn` = `Hold`
+    # while its reason holds.
+    hold: str | None = None
+    # A Ticket's sender is the reason for `Hold`, and the hold stalls under the
+    # owner after the bound (design.md, Hold reasons).
+    stalls_under_hold: bool = False
+
+
+def _row(role, turn, bound, owes, leaves_on, **kw) -> Flow:
+    return Flow(role, turn, bound, owes, leaves_on, **kw)
+
+
+REQUIREMENT_FLOW: dict[str, Flow] = {
+    "Triage": _row(ROLE_DESIGN, TURN_CLAUDE, TRIAGE_DAYS,
+                   "the minimum fields, then an outcome",
+                   "the thread's action, at raising (R10)"),
+    "Scope, Options and Dependencies": _row(
+        ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS,
+        "options, dependencies, a recommendation", "the thread's action"),
+    "On Hold": _row(ROLE_DESIGN, TURN_HOLD, None,
+                    "none: resting",
+                    "the named event, or the issue it waits on closing",
+                    hold=HOLD_ON_NAMED),
+    "Ready for Project": _row(ROLE_COORDINATOR, TURN_CLAUDE, None,
+                              "a slot at planning",
+                              "board-sweep planning; the owner agrees"),
+    "Candidate Project 1": _row(ROLE_COORDINATOR, TURN_CLAUDE, OWED_DAYS,
+                                "raise the project, since it is next",
+                                "board-sweep planning"),
+    "Candidate Project 2": _row(ROLE_COORDINATOR, TURN_CLAUDE, None,
+                                "a slot at planning", "board-sweep planning"),
+    "Candidate Project 3": _row(ROLE_COORDINATOR, TURN_CLAUDE, None,
+                                "a slot at planning", "board-sweep planning"),
+}
+
+PROJECT_FLOW: dict[str, Flow] = {
+    "Scope": _row(ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS,
+                  "what the project does", "its action; the owner agrees the next move"),
+    "Q3": _row(ROLE_COORDINATOR, TURN_CLAUDE, None, "a place in the queue",
+               "board-sweep planning"),
+    "Q2": _row(ROLE_COORDINATOR, TURN_CLAUDE, None, "a place in the queue",
+               "board-sweep planning"),
+    "Q1": _row(ROLE_COORDINATOR, TURN_CLAUDE, None, "to be pulled into design",
+               "board-sweep planning"),
+    "Design and Test Approach": _row(
+        ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS,
+        "the design, and the test approach",
+        "design done and test approach approved",
+        parts=((ROLE_TEST, "approve the test approach"),
+               (ROLE_OWNER, "answer the Design boxes"))),
+    "Development": _row(ROLE_TECHNICAL, TURN_CLAUDE, OWED_DAYS,
+                        "the change on its branch", "first test deploy, or merge"),
+    "User testing": _row(ROLE_TECHNICAL, TURN_CLAUDE, OWED_DAYS,
+                         "the branch tip deployed and tested", "tests ticked",
+                         parts=((ROLE_OWNER, "run the browser tests"),)),
+    "Deployment": _row(ROLE_TECHNICAL, TURN_HOLD, None,
+                       "the release it waits for", "the deploy",
+                       parts=((ROLE_RELEASE, "make the release"),),
+                       hold=HOLD_ON_RELEASE),
+    "Post-deployment": _row(ROLE_TECHNICAL, TURN_CLAUDE, POST_DEPLOYMENT_DAYS,
+                            "the post-deployment review, due after "
+                            f"{REVIEW_DUE_DAYS} days", "the review",
+                            hold=HOLD_ON_RELEASE),
+    "Project Closedown": _row(ROLE_TECHNICAL, TURN_CLAUDE, OWED_DAYS,
+                              "the lessons written", "lessons written, closed"),
+}
+
+DECISION_FLOW: dict[str, Flow] = {
+    "Asked": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "answer the question",
+                  "the owner answers"),
+    "Feedback Provided": _row(ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS,
+                              "write the decision down", "Claude writes it down"),
+    "Documented Ready for Sign-Off": _row(
+        ROLE_OWNER, TURN_OWNER, OWED_DAYS, "read the decision and sign it off",
+        "the owner signs off"),
+    "Decided": _row(ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS, "apply the decision",
+                    "Claude applies it"),
+    "Actioned": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS,
+                     "read the outcome, and close it", "the owner closes it"),
+}
+
+# Derived from GitHub's own state by `board-pr-state.py`, never typed. Awaiting
+# review is the owner's; every other state is its author's (design.md).
+PULL_REQUEST_FLOW: dict[str, Flow] = {
+    "Drafting": _row(ROLE_AUTHOR, TURN_CLAUDE, OWED_DAYS,
+                     "finish the draft, then ask for review", "ready for review"),
+    "Awaiting review": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS,
+                            "review: approve or request changes", "the review"),
+    "Changes requested": _row(ROLE_AUTHOR, TURN_CLAUDE, OWED_DAYS,
+                              "make the changes, then re-request the review",
+                              "re-requested"),
+    "Approved": _row(ROLE_AUTHOR, TURN_CLAUDE, OWED_DAYS,
+                     "approved — mine to merge", "the merge"),
+}
+
+TICKET_FLOW: dict[str, Flow] = {
+    "New": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "read it", "the owner reads it"),
+    "In progress": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "answer it",
+                        "a reply is sent"),
+    "Waiting on sender": _row(ROLE_OWNER, TURN_HOLD, OWED_DAYS,
+                              "review the wait on the sender",
+                              "the sender answers", hold=HOLD_ON_SENDER,
+                              stalls_under_hold=True),
+    # Its bound is the review date in the Ticket's last note; a Ticket whose
+    # note names none falls back to the figure here.
+    "Pending": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS,
+                    "decide it, at the review date in the last note",
+                    "the review date"),
+    "Resolved": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "close it", "closed"),
+    "Refused": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "close it", "closed"),
+    "Closed": _row(None, None, None, "none", "none"),
+}
+
+# type -> state -> row. A project's three kinds share the Project rows; a
+# parent's difference is the sweep's (`flow.py`), as design.md states it.
+FLOW: dict[str, dict[str, Flow]] = {
+    "Requirement": REQUIREMENT_FLOW,
+    "Project": PROJECT_FLOW,
+    "Decision": DECISION_FLOW,
+    "PullRequest": PULL_REQUEST_FLOW,
+    "Ticket": TICKET_FLOW,
+}
+
+# The field that carries each type's state, and the state it starts at
+# (R7; S-G5, S-G6). A pull request's is derived from GitHub, never written.
+STATE_FIELD_OF: dict[str, str] = {
+    "Requirement": REQUIREMENT_STATE,
+    "Project": PROJECT_STATE,
+    "Decision": DECISION_STATE,
+    "PullRequest": PR_STATE,
+    "Ticket": TICKET_STATE,
+}
+STARTING_STATE: dict[str, str] = {
+    "Requirement": "Triage",
+    "Project": "Scope",
+    "Decision": "Asked",
+    "Ticket": "New",
+}
+
+# The holder of an item of a type whose state the table cannot place, where its
+# workstream is known (design.md, *The turn*).
+TYPE_HOLDER: dict[str, str] = {
+    "Requirement": ROLE_DESIGN,
+    "Project": ROLE_DESIGN,
+    "Decision": ROLE_DESIGN,
+    "PullRequest": ROLE_AUTHOR,
+    "Ticket": ROLE_OWNER,
+}
+
+
+def role_turn(role: str | None) -> str | None:
+    """The `Turn` a role's holding implies: the owner's, or Claude's."""
+    if role is None:
+        return None
+    return TURN_OWNER if role == ROLE_OWNER else TURN_CLAUDE
+
+
+def flow_type(issue) -> str:
+    """The flow table's type for a classified issue: its three project kinds
+    are one."""
+    if isinstance(issue, Project):
+        return "Project"
+    return issue.kind
+
+
+def flow_row(issue) -> Flow | None:
+    """The row for an issue's type and state, or None where the state is not in
+    the table (a renamed option is reported, never defaulted)."""
+    return FLOW.get(flow_type(issue), {}).get(issue.step or "")
+
+
 # Who holds a decision at each `Decision State`, and what they do next:
-# the programme's docs/1.2's table, decided here once. The turn alternates at every step, so
-# the owner holds three of the five. Until 2026-09-30 the reports knew only
-# `Asked`, and five decisions documented for sign-off read as nothing waiting.
+# the programme's docs/1.2's table, now the flow table's rows. The turn
+# alternates at every step, so the owner holds three of the five. Until
+# 2026-09-30 the reports knew only `Asked`, and five decisions documented for
+# sign-off read as nothing waiting.
 DECISION_TURNS: dict[str, tuple[str, str]] = {
-    "Asked": (OWNER, "answer the question"),
-    "Feedback Provided": (CLAUDE, "write the decision down"),
-    "Documented Ready for Sign-Off": (OWNER, "read the decision and sign it off"),
-    "Decided": (CLAUDE, "apply the decision"),
-    "Actioned": (OWNER, "read the outcome, and close it"),
+    state: (OWNER if row.role == ROLE_OWNER else CLAUDE, row.owes)
+    for state, row in DECISION_FLOW.items()
 }
 
 
@@ -624,11 +918,11 @@ class Decision(Issue):
 
     @property
     def step(self) -> str | None:
-        return self.field("Decision State")
+        return self.field(DECISION_STATE)
 
     @property
     def step_field(self) -> str:
-        return "Decision State"
+        return DECISION_STATE
 
     @property
     def turn(self) -> tuple[str, str] | None:
