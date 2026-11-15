@@ -252,6 +252,9 @@ that move, but the bot's real seat waits for the next `Seats`. Options:
    and remade at the start, and the bot's seat still misses its turn
    until the new `Seats` arrives.
 
+Answered (owner, 2026-11-15): option 1, a stable seat id beside the number,
+which stays the turn order ([*The seat*](71-04-seats.md#the-seat)).
+
 **G2.** Finishing keeps a seat in the list, so its object and its engine player
 live until the game is deleted, up to seven days later (RET-1). Proposed: the
 glue drops a seat's object when a view shows its game `Finished` or `Aborted`,
@@ -274,10 +277,9 @@ first subscribes, rather than for every account.
    compiled in.** Proposed: the server refuses to start, naming the setting,
    as for any invalid setting.
 2. **An administrator deletes a listed bot's account while the server runs.**
-   Options: (a) refused while the account is on the bot list, as DEL-2
-   refuses one a game names, which adds a DEL rule; recommended. (b) Allowed,
-   and the bot task ends at once, so the bot plays nothing more until the list
-   is fixed.
+   Answered (owner, 2026-11-15): refused while the account is on the bot list,
+   as DEL-2 refuses one a game names, which adds a DEL rule
+   ([*The bots the server runs*](71-06b-engine-bots.md#the-bots-the-server-runs)).
 
 **G5.** The design logs every applied message, chat and hide included, but
 `Hide` and `ReminderSent` save without moving the version, so rows keyed by

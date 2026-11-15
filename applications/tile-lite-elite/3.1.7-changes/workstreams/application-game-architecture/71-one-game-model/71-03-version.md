@@ -205,18 +205,22 @@ holding `apply`, so a second writer does not compile
 
 ## One version, moved in one place
 
-Every change to a game goes through a single handler taking an enum:
+Every change to a game goes through a single handler taking one enum, which
+wraps the messages a player may send and those only the server issues:
 
 ```rust
+pub enum GameCommand {
+    Player(GameMessage),     // from a client, through the Transport API
+    System(SystemMessage),   // from the server's own timer, reminders and admin
+}
+
+/// In `game-wire`, so every client can build one.
 pub enum GameMessage {
     Place { seat: u8, candidate: MoveCandidate },
     Pass { seat: u8 },
     Exchange { seat: u8, tiles: Vec<Tile> },
     Resign { seat: u8 },
-    ForceResign { seat: u8 },
-    TimeOut { seat: u8 },
     Abort,
-    AdminForceEnd,
     SeatAdded { .. },
     SeatInvited { seat: u8, .. },
     InvitationPassed { seat: u8, to: PlayerId },
@@ -229,9 +233,20 @@ pub enum GameMessage {
     SeatsSwapped { a: u8, b: u8 },
     ChatPosted { player: PlayerId, body: String },
     Hide { seat: u8 },
+}
+
+/// In `server-game` only, so no client can build one.
+pub enum SystemMessage {
+    TimeOut { seat: u8 },
+    ForceResign { seat: u8 },
+    AdminForceEnd,
     ReminderSent { seat: u8 },
 }
 ```
+
+**The split is the compiler's check, not a run-time one** (owner, 2026-11-15).
+A client cannot express a time-out, so the Transport API has nothing to refuse.
+There is still one handler: it matches `Player` or `System`, then the message.
 
 `Start` deals the racks and drops the spent seats in one step. Undo and redo
 join the enum with #272. Anything that changes what a client of the game could

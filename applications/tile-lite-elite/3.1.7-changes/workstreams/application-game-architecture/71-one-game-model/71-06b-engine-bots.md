@@ -127,6 +127,11 @@ The server runs the bots its settings list.
 - All of a bot's objects share its identity and run under `engine_limit`
   ([the blocking pool](71-06-engine.md#how-the-engine-uses-the-blocking-pool)).
 - The list is the programme owner's, who is accountable for the bots on it.
+- A list naming an account that does not exist, or an engine not compiled in,
+  stops the server at start-up, naming the setting.
+- An account on the list cannot be deleted (owner, 2026-11-15), as DEL-2
+  refuses one a game refers to. WP A adds this as a DEL rule in
+  [4.1.0](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md#deleting-an-account).
 - In-process bots are compiled into the server from reviewed code. A
   third-party bot runs as an external client, which can run on the server's
   host.
