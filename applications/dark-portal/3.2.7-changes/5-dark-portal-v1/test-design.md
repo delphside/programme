@@ -4,7 +4,7 @@ Project: delphside/dark-portal#7 *#5 WP B Del 2 of 5: consumable profiles* · ty
 
 ## 1. Rules
 
-Taken from the design documents at 66d5492 (`docs/5.x` on
+Taken from the design documents at 47c862a (`docs/5.x` on
 `claude/project-thread-01pbpu`), delphside/dark-portal#7's body and its
 Decisions table. The documents are drafts for delphside/dark-portal#7's design.
 
@@ -65,10 +65,10 @@ Decisions table. The documents are drafts for delphside/dark-portal#7's design.
 | P11 | The `profile` view gives each item at the latest hour: reference columns, `lowest`, the fill price at default N, and each flow's total over the turnover window. | 5.4.2 |
 | P12 | The views and macros are defined once in `sql/profiles.sql` over the gold and reference table names; `dp` loads it over the lake; `export/profiles.sql` is views named as those tables over the export's files, then `sql/profiles.sql` unchanged, so a client computes nothing of its own. | 5.1.1; 5.4.2; 5.2.3 *Clients* |
 | P13 | An item with no listings in an hour, but listings the hour before, has an `item_hour` row with no lowest price (`lowest` null) and its flows. | 5.2.3 *History*; 5.4.5 |
-| P14 | A median or a mean over hours (P4, P6) counts only the hours held with a span of 1, since an hour after a gap holds the flows of several. A total, a day's (P9) or the profile's (P11), takes every held hour. | 5.2.3 *The price now*; 5.2.2 *Times* |
+| P14 | A median or a mean of hourly flows, the default N (P4) and the depth ladder's divisor (P6), counts only the hours held with a span of 1, since an hour after a gap holds the flows of several. A total, a day's (P9) or the profile's (P11), takes every held hour, and so does a day's median fill price. | 5.2.3 *The price now*; 5.2.2 *Times* |
 | X1 | Exit `0`: done, with at most warnings. | 1.10; 5.2.1 |
 | X2 | Exit `75`: a timeout, 429, 502, 503 or 504 when the retry window closes; `last-modified` still before the current hour when it closes; `last-modified` in the hour after the current one, the current hour a gap; the lock wait running out. | 5.2.1 *When it fails* |
-| X3 | Exit `2`: a new token refused (401), including after a cached one was refused; 403 or 404 on the snapshot; `last-modified` more than an hour after the current hour; disk full. | 5.2.1 *When it fails* |
+| X3 | Exit `2`: a new token refused (401), including after a cached one was refused; 403 or 404 on the snapshot; a `last-modified` whose hour is two or more after the current one; disk full. | 5.2.1 *When it fails* |
 | X4 | Exit `70`: Blizzard answers 400, 500 or another status, a body the parser cannot use, or no `last-modified`. | 5.2.1 |
 | X5 | Exit `3`: an item lookup (401 included, 404 not), the transform or the export failed after the pivot. | 5.2.1 |
 | X6 | Before the pivot a failure leaves no temporary or partial file. Usage errors exit `64`; a signal is unexpected; errors are 1.10's result object; a business error is logged at `INFO`, a technical one at `WARN`. | 1.10 |
@@ -80,7 +80,7 @@ Decisions table. The documents are drafts for delphside/dark-portal#7's design.
 | E1 | `dp export` writes, each under a temporary name then renamed: a `price_level_hour` and an `item_hour` file per committed hour within the hourly keep that the export lacks; `item_day.parquet` and `item.parquet` rewritten; `profiles.sql`. A copy taken mid-run may be uneven; the next copy levels it. | 5.4.2 *The export*; 5.1.1; delphside/dark-portal#7 decision 8 |
 | SEC | The client secret comes from `DP_BLIZZARD_CLIENT_SECRET_FILE` and never appears in logs, bronze or the export. | 5.4.1 |
 | REF | Reference is fetched once per item in stage 1; `reference.item` takes the latest response with status 200 per item from bronze. | 5.1.1; 5.4.2 |
-| BK | The backup is what the bucket holds and keeps: bronze, pushed by `dp daily` and kept a year, and the daily history (`daily/item_day.parquet`, `daily/item.parquet`), pushed by `dp daily` and kept indefinitely. The restore from it after a lost host, its steps and its drill, are delphside/dark-portal#38's. | 5.1.1 *Restarts and recovery*, *Data layers*; 5.4.2 *The bucket* |
+| BK | The backup is what the bucket holds and keeps: bronze, pushed by `dp daily` and kept a year, and the daily history (`daily/item_day.parquet`, `daily/item.parquet`), pushed by `dp daily` and kept indefinitely. The restore from it after a lost host, its steps and its drill, are in delphside/dark-portal#38 *Restore Dark Portal after a lost host*. | 5.1.1 *Restarts and recovery*, *Data layers*; 5.4.2 *The bucket* |
 
 ### Checked for contradiction
 
@@ -348,7 +348,7 @@ The datasets are in part 8.
 | S49 | Secret scan | SEC | O42 |
 | S50 | Unexpected error, signal, bad flag | D28 | O38 |
 | S51 | Cached token refused: a new token accepted; or refused too | D11.8–9 | O16; O17 |
-| S52 | Clock two hours or more ahead, or 403 or 404 on the snapshot; then put right | D10.10, D11.10 | O45, then O13 |
+| S52 | A `last-modified` two hours or more after the current hour (the host's clock behind), or 403 or 404 on the snapshot; then put right | D10.10, D11.10 | O45, then O13 |
 | S53 | 429 with `Retry-After: 120` | D11.12 | O40 |
 | S54 | Item 404; hourly runs skip it; `dp daily` asks again: 404 again, then 200 | D14.4, D14.8–9 | O47; `dp daily` exits 0; then O20, the 200 winning in reference |
 | S55 | An ended ID reappears (TD-D4) | D1.5 | O44 |
@@ -744,10 +744,11 @@ rules:
   processed or recorded as a gap.
 - TT2 (E5): the first `dp items` fetches about 10,500 items at 50 a second
   (about 3.5 min) with no 429.
-- TT3 (E5, load), with an ad hoc query running at E5's `DP_ADHOC_*`: passes
-  where every hour's `transform` and `export` finish inside 5.4.1's hourly
-  processing bound (5 min, H10) and the hourly run's peak memory stays inside
-  its 1 GB `memory_limit` (H7), and fails otherwise. Beside it, per hour,
+- TT3 (E5, load), over TT1's 72 hours, with an ad hoc query running at E5's
+  `DP_ADHOC_*`: passes where every hour's `transform` and `export` finish
+  inside 5.4.1's hourly processing bound (5 min, H10), and the peak memory of
+  every hourly and daily run stays inside its 1 GB `memory_limit` (H7), and
+  fails otherwise. Beside it, reported, not judged: per hour,
   `price_level_hour` and `listing_record` rows and bytes, projected to 4 weeks
   and a year against delphside/dark-portal#5's figures and the capacity plan.
 - TT4 (E5): kill a run after the bronze file and before the commit: the next run
@@ -771,12 +772,12 @@ rules:
   before :25 past the next hour: the timer runs the missed job when the host is
   back and it collects the previous hour (S57).
 
-A restore drill is not in this package: the restore's steps and its drill are
-delphside/dark-portal#38 *Restore Dark Portal after a lost host*. BK is tested
-here for what reaches the bucket and stays there (S46, TT8, PD6), and the
-rebuild from bronze by L4 (S47, TT6).
+The restore's steps and its drill are in delphside/dark-portal#38 *Restore Dark
+Portal after a lost host*. BK is tested here for what reaches the bucket and
+stays there (S46, TT8, PD6), and the rebuild from bronze by L4 (S47, TT6).
 
-**[PD]**, run from the export the owner pulls, since production reads are his;
+**[PD]**, from the export the owner pulls and what he reads, since production
+reads are his;
 one row per requirement in delphside/dark-portal#7:
 
 - PD1 (R1): the owner compares three commodities' lowest and fill price with the
@@ -789,9 +790,11 @@ one row per requirement in delphside/dark-portal#7:
 - PD4 (R8v): every hour shows the sold floor and estimate for each item, the
   floor never above the estimate.
 - PD5 (gaps; H3, P10): every `meta.gap` row in the first week is explained:
-  the owner lists them, and Claude matches each to the run's log.
-- PD6 (keeps; R2, K2, BK): the bucket's lifecycle rule on `bronze/` is 1 year,
-  `daily/` has none, and host bronze holds no snapshot file older than 7 days.
+  the owner lists them with the runs' logs, and Claude matches each.
+- PD6 (keeps; R2, K2, BK): the owner reads the bucket's lifecycle rules and
+  lists host bronze, and gives Claude the result: the rule on `bronze/` is
+  1 year, `daily/` has none, and host bronze holds no snapshot file older than
+  7 days.
 
 ## 9. Test names
 
@@ -974,7 +977,7 @@ need the owner's agreement.
 | Gap | What would make the missing test fail | What it would take to close it | Why it is acceptable for now |
 | --- | --- | --- | --- |
 | G7 A raised or re-priced ID | An ID in C with a higher quantity, or a different price, has no mark: neither intact nor reduced. | Give each a rule, such as a warning and treating it as intact. | Blizzard's model allows neither; only bad data shows it. |
-| G19 No clock seam | Every timed test (poll, :25, backoff, token margin, lock wait, 00:50, 03:00) needs the clock injected; none is named. | Name it in Development. | A Development matter; part 8 says what it must cover. |
+| G19 No clock seam | Every timed test (poll, :25, backoff, token margin, lock wait, the processing bound, 00:50, 03:00) needs the clock injected; none is named. | Name it in Development. | A Development matter; part 8 says what it must cover. |
 | G28 E3 to E6 are not yet built (delphside/dark-portal#11) | [AUTO], [UT] and [TT] have nowhere to run. | delphside/dark-portal#11's packages land first. | Designed; delphside/dark-portal#7's Development waits on delphside/dark-portal#11. |
 | G29 "Lower bound" | Not directly observable. | Accept the structural tests (`listing_posted_and_bought_between_snapshots_shows_in_no_flow`, floor ≤ estimate). | Inherent. |
 | G32 The indefinite keeps and the backup † (pending) | The bucket keeps `daily/item_day.parquet` and `daily/item.parquet` indefinitely, so R2's daily history survives a lost host; silver (kept indefinitely) still cannot be rebuilt beyond bronze's year. | The owner agrees the design, and that silver older than a year is lost with the host. | The owner's decision is pending; nothing is at risk until a year after go-live. |
