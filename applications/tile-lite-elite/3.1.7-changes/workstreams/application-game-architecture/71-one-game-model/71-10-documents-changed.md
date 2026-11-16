@@ -161,6 +161,10 @@ gains what this settles:
 - bots hold accounts, and an external client authenticates as a person before
   assuming a bot
 - how many tiles each opponent holds is public
+- when a game may be hidden (DEL-5): by a player once they are no longer playing
+  in it, having withdrawn, declined, resigned, timed out or been force-resigned,
+  or once the game is over; by its creator only once it is over (owner,
+  2026-11-16)
 - aborting cancels every pending invitation, and nothing about a seat can be
   invited, accepted or claimed once the game has started
 
