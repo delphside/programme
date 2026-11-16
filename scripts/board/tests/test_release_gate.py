@@ -157,6 +157,54 @@ class TheMilestoneIsAShippingList(Cases):
                 result = gate(request(sha, range=sha, milestone_set_aside=True))
             self.expect("passes, both carried", (True, [12, 13]), (result.passed, result.carries["issues"]))
 
+    def test_an_open_issue_a_commit_names_with_no_milestone_is_reported(self):                 # T14
+        """named + open + no milestone is a note; the release goes ahead"""
+        with History() as h, inside(h.path):
+            sha = h.commit("a feature\n\nRefs #12\n\nRefs #13")
+            with Board([raw(12), raw(13, milestone=None)]):
+                result = gate(request(sha, range=sha))
+            self.expect("passes, and names only the one", (True, ["#13 is named by a commit in the release and is open with no milestone"]),
+                        (result.passed, result.notes))
+
+    def test_an_issue_with_another_milestone_is_not_reported(self):                            # T14
+        with History() as h, inside(h.path):
+            sha = h.commit("a feature\n\nRefs #12\n\nRefs #13")
+            with Board([raw(12), raw(13, milestone="2026.11.16-1")]):
+                result = gate(request(sha, range=sha))
+            self.expect("no note", [], result.notes)
+
+    def test_a_closed_issue_is_not_reported(self):                                             # T14
+        with History() as h, inside(h.path):
+            sha = h.commit("a feature\n\nRefs #12\n\nRefs #13")
+            with Board([raw(12)], others=[raw(13, milestone=None, state="CLOSED")]):
+                result = gate(request(sha, range=sha))
+            self.expect("no note", [], result.notes)
+
+    def test_a_parent_and_an_issue_no_commit_names_are_not_reported(self):                    # T14
+        with History() as h, inside(h.path):
+            sha = h.commit("a feature\n\nRefs #12\n\nRefs #301")
+            parent = raw(301, "Project", milestone=None, subs=(RawSubIssue(363, "Project"),))
+            with Board([raw(12), parent, raw(14, milestone=None)]):
+                result = gate(request(sha, range=sha))
+            self.expect("no note", [], result.notes)
+
+    def test_a_set_aside_milestone_still_reports_it(self):                                     # T14
+        with History() as h, inside(h.path):
+            sha = h.commit("a feature\n\nRefs #13")
+            with Board([raw(13, milestone=None)]):
+                result = gate(request(sha, range=sha, milestone_set_aside=True))
+            self.expect("noted", 1, len(result.notes))
+
+    def test_a_reverted_mention_is_not_reported(self):                                         # T14
+        with History() as h, inside(h.path):
+            h.commit("base\n\nRefs #99")
+            h.tag("v0.10.1")
+            first = h.commit("a feature\n\nRefs #13")
+            sha = h.revert(first, "Refs #13")
+            with Board([raw(13, milestone=None)]):
+                result = gate(request(sha, range=f"v0.10.1..{sha}"))
+            self.expect("no note", [], result.notes)
+
     def test_a_revert_takes_the_evidence_away(self):
         """a commit that is reverted, and the revert, name nothing"""
         with History() as h, inside(h.path):

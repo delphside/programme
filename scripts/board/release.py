@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from typing import Sequence
 
 from . import profile, repo, sources
-from .milestone import carried, unbuilt, unconfirmed
+from .milestone import carried, unbuilt, unconfirmed, unmilestoned
 from .model import (PROJECT_STATE, RELEASE, Issue, ParentProject, PullRequest,
                     StandaloneProject, WorkPackage, classify, route_of)
 from .sources import Unavailable
@@ -278,6 +278,8 @@ def milestone_gate(req: GateRequest, issues: Sequence[Issue], result: GateResult
     """The milestone is a shipping list (design §9, *The milestone gate*)."""
     own = _items(issues, req.version)
     wp, other = _split(own)
+    result.notes += [f"#{n} is named by a commit in the release and is open with no milestone"
+                     for n in unmilestoned(issues, set(repo.named_in_range(req.range, effective=True)))]
     if req.milestone_set_aside:
         result.carries = {"work_packages": wp, "issues": other, "releases": []}
         result.gates.append(Verdict("milestone", True, "set aside: the milestone's open items are carried as they stand"))

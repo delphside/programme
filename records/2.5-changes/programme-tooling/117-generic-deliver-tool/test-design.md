@@ -102,6 +102,8 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R72 | Where the technical profile sets `ships.carries_payload = true`, a move of the `programme` pin counts as reaching the image only where it changes a file the payload carries (`scripts/deliver/payload/`, and `common.sh`, `toml.sh`, `toml.awk` of `scripts/deliver/lib/`, named once in `board/shipping.py`) between the old pin and the new one, in `commit`, `range`, `ships` and, for the staged move, `paths`; a pin that cannot be compared ships. Without the key the pin is a path like any other and `ships.non_shipping` decides it. | §3 |
 | R73 | `host-install ENV` makes `/var/lib/turpin/APP/` and `/var/lib/turpin/APP/ENV/` owned by the deploy user, mode 0700, and an empty `.env`, mode 0600, where none exists, and never overwrites an existing `.env`; a copier or builder gets neither. | §11 |
 | R74 | The payload's `profile.json` holds only the keys a host reads (`application`, `release.required_hooks`, `release.overridable`, `turpin.fallback`, `host_files`, `join`, `ephemeral`), so a change to another key changes nothing the image carries. | §3; §8 |
+| R75 | Where the technical profile sets `ships.carries_payload = true`, an edit to the profile file (`app-profile.toml`) counts as reaching the image only where the profile cut to the keys a host reads (`HOST_READS` of `board/shipping.py`, the cut R74 makes the payload's `profile.json`) differs between the two commits, in `commit`, `range`, `ships` and, for the staged edit, `paths`; a profile that cannot be read or parsed at either commit, or is added or removed, ships. Without the key the profile is a path like any other. | §3 |
+| R76 | `turpin release` reports, as a note in its output and not a refusal, each open issue that a commit in the release's range names with `Refs` (a reverted one excepted) and that has no milestone; an issue with a milestone, a closed one, a parent and one no commit names are not reported. It is not recorded, and is reported under `--set-aside milestone` too. | §9 |
 
 ### Checked for contradiction
 
@@ -389,6 +391,8 @@ scenarios of their own: S108 and S109.
 | S126 | A commit moving the `programme` pin over a programme commit that changes only documents; one changing `scripts/deliver/payload/`; one changing `lib/common.sh`; one changing only `lib/registry.sh`; a pin that cannot be compared; the same with a shipping path in the commit; the payload move without the key; the staged move through `paths`. | R72 | does not reach the image; reaches it; reaches it; does not reach it; reaches it; reaches it by the path; does not reach it (`non_shipping` decides); `paths` names `programme` only with the key and a carried file | CI |
 | S127 | `turpin host-install` for an environment on an empty host; again with an existing `.env` of other content and mode; for a copier. | R73 | the folder 0700 and an empty `.env` 0600; the `.env` unchanged; neither | CI |
 | S128 | A build of a commit whose profile has board keys, `environments` and `versions` as well as the host's keys. | R74 | the payload's `profile.json` holds only the keys a host reads | CI |
+| S129 | With the key: an edit to board keys only (an environment's host, `release.tag_prefix`) and one that only adds a comment, in `range`, `commit` and `ships`; an edit to each of `application`, `release.required_hooks`, `turpin.fallback`, and one removing `turpin.fallback`; a profile that does not parse after, and before, the edit; a profile added and removed; a board-key edit staged, a host-read edit staged and an unparsable one staged, through `paths`. Without the key: a staged board-key edit through `paths`. | R75 | do not reach the image; reach it; reaches it; reach it; `paths` omits the profile for the board-key edit and names it for the others; names it without the key | CI |
+| S130 | A release range with commits naming: an open issue with no milestone; one in milestone VERSION; one in a date milestone; a closed one; a parent with no milestone; an open issue no commit names; an issue named only by a commit that is then reverted. Also the first case under `--set-aside milestone`. | R76 | only the first is reported, and the release goes ahead; the first is reported under set-aside | CI |
 
 ## 6. Refusals and successes
 
@@ -508,6 +512,8 @@ scenarios of their own: S108 and S109.
 | R72 | S126 |
 | R73 | S127 |
 | R74 | S128 |
+| R75 | S129 |
+| R76 | S130 |
 
 | scenario | rules |
 | --- | --- |
@@ -641,6 +647,8 @@ scenarios of their own: S108 and S109.
 | S126 | R72 |
 | S127 | R73 |
 | S128 | R74 |
+| S129 | R75 |
+| S130 | R76 |
 
 ## 8. Approach
 
@@ -772,6 +780,10 @@ A test of what `turpin` decides is a `unittest` test; one of what a host does (`
 - `an_environment_gets_its_state_folder_for_the_deploy_user_and_an_empty_env` (S127, T11)
 - `a_rerun_never_overwrites_an_existing_env` (S127)
 - `the_payload_carries_only_the_profile_keys_a_host_reads` (S128, T6)
+- `a_board_key_edit_ships_nothing`, `an_edit_that_only_reorders_or_comments_ships_nothing`, `a_host_read_key_edit_ships`, `without_the_key_the_profile_path_is_judged_as_before` (S129, T13)
+- `a_profile_that_does_not_parse_ships`, `a_profile_that_did_not_parse_before_ships`, `a_profile_added_or_removed_ships` (S129)
+- `the_pre_commit_paths_pass_a_staged_board_key_edit`, `the_pre_commit_paths_name_a_staged_host_read_edit`, `the_pre_commit_paths_without_the_key_name_a_staged_board_key_edit`, `an_unreadable_staged_profile_is_named` (S129)
+- `an_open_issue_a_commit_names_with_no_milestone_is_reported`, `an_issue_with_another_milestone_is_not_reported`, `a_closed_issue_is_not_reported`, `a_parent_and_an_issue_no_commit_names_are_not_reported`, `a_set_aside_milestone_still_reports_it`, `a_reverted_mention_is_not_reported` (the board model, S130, T14)
 
 ### Release
 

@@ -315,6 +315,16 @@ def staged_pin_move(path: str = "programme") -> tuple[str, str] | None:
     return (old, new) if old and new and old != new else None
 
 
+def file_at(rev: str, path: str) -> str | None:
+    """A file as it was at commit `rev`, or None where it cannot be read there."""
+    return _git("show", f"{rev}:{path}") if _git("cat-file", "-t", f"{rev}:{path}").strip() == "blob" else None
+
+
+def staged_file(path: str) -> str | None:
+    """A file as staged, or None where it cannot be read."""
+    return _git("show", f":{path}") if _git("ls-files", "--stage", path).strip() else None
+
+
 def programme_paths_between(old: str, new: str, path: str = "programme") -> list[str] | None:
     """The paths that differ between two commits of the submodule at `path`, or None where it cannot
     say (the submodule is not checked out, or lacks one of the commits)."""

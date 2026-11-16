@@ -27,6 +27,7 @@ out; the profile is the only thing read.
 from __future__ import annotations
 
 import re
+import tomllib
 from functools import lru_cache
 from typing import Iterable, Sequence
 
@@ -43,6 +44,25 @@ PIN = "programme"
 PAYLOAD_DIR = "scripts/deliver/payload"
 LIB_DIR = "scripts/deliver/lib"
 LIB_FILES = ("common.sh", "toml.sh", "toml.awk")
+
+
+# The profile keys a host reads, and the one place they are named: `payload/steps.sh` (required_hooks,
+# overridable, fallback, host_files, join), `turpin-host` (host_files for the allowlist, and `env`'s
+# application and ephemeral) and nothing else. A host that needs another key adds it here. Where the
+# application carries the payload, an edit to its profile reaches the image only where the profile cut
+# to these keys (`host_profile`) differs, so a board key edited alone ships nothing.
+HOST_READS = {"release": ("required_hooks", "overridable"),
+              "turpin": ("fallback", "host_files", "join", "ephemeral")}
+
+
+def host_profile(profile: dict) -> dict:
+    """`profile` cut to the keys in `HOST_READS` (and `application`), as the payload carries it."""
+    cut: dict = {"application": profile["application"]} if "application" in profile else {}
+    for table, keys in HOST_READS.items():
+        kept = {key: (profile.get(table) or {})[key] for key in keys if key in (profile.get(table) or {})}
+        if kept:
+            cut[table] = kept
+    return cut
 
 
 def carried(path: str) -> bool:
@@ -69,13 +89,41 @@ def reaches_image(path: str) -> bool:
     return not _non_shipping().match(path)
 
 
-def image_paths(paths: Iterable[str], pin_ships: bool = False) -> list[str]:
+def image_paths(paths: Iterable[str], pin_ships: bool = False, host_reads_changed: bool = True) -> list[str]:
     """The paths, of these, that reach the image, in the order given. Where the application carries
-    the payload, the pin is judged by `pin_ships` (whether its move changes what is carried) and
-    not by `non_shipping`."""
+    the payload, the pin is judged by `pin_ships` (whether its move changes what is carried) and the
+    profile by `profile_ships` (whether its edit changes what a host reads), not by `non_shipping`
+    and the patterns."""
     if carries_payload():
-        return [p for p in paths if p and (pin_ships if p == PIN else reaches_image(p))]
+        judged = {PIN: pin_ships, profile.TECHNICAL_FILE: host_reads_changed}
+        return [p for p in paths if p and (judged[p] if p in judged else reaches_image(p))]
     return [p for p in paths if p and reaches_image(p)]
+
+
+def profile_edit_ships(old: str | None, new: str | None) -> bool:
+    """Whether a profile edit changes what a host reads: the two texts, parsed and cut to
+    `HOST_READS`, differ. A text that is missing or does not parse counts as shipping."""
+    if old is None or new is None:
+        return True
+    try:
+        return host_profile(tomllib.loads(old)) != host_profile(tomllib.loads(new))
+    except tomllib.TOMLDecodeError:
+        return True
+
+
+def profile_ships(base: str, head: str) -> bool:
+    """Whether the profile edit between `base` and `head` changes what a host reads. Never where the
+    application does not carry the payload."""
+    if not carries_payload():
+        return False
+    return profile_edit_ships(repo.file_at(base, profile.TECHNICAL_FILE), repo.file_at(head, profile.TECHNICAL_FILE))
+
+
+def staged_profile_ships() -> bool:
+    """The same for the profile edit that is staged."""
+    if not carries_payload():
+        return False
+    return profile_edit_ships(repo.file_at("HEAD", profile.TECHNICAL_FILE), repo.staged_file(profile.TECHNICAL_FILE))
 
 
 def pin_ships(old: str, new: str) -> bool:
@@ -102,7 +150,7 @@ def staged_pin_ships() -> bool:
     return moved is not None and pin_ships(*moved)
 
 
-def touches_image(paths: Iterable[str], pin_moved_the_steps: bool = False) -> bool:
+def touches_image(paths: Iterable[str], pin_moved_the_steps: bool = False, host_reads_changed: bool = True) -> bool:
     """Whether a change to these paths reaches the image.
 
     No paths is *no*: a change that touched nothing changed nothing. `pin_moved_the_steps` counts
@@ -110,7 +158,7 @@ def touches_image(paths: Iterable[str], pin_moved_the_steps: bool = False) -> bo
     """
     paths = list(paths)
     if carries_payload():
-        return bool(image_paths(paths, pin_moved_the_steps))
+        return bool(image_paths(paths, pin_moved_the_steps, host_reads_changed))
     return bool(image_paths(paths))
 
 
@@ -152,9 +200,10 @@ def version_bump_only(files: Sequence[str], changed_lines: Sequence[str]) -> boo
     return bool(lines) and all(line_pattern.match(line) for line in lines)
 
 
-def ships(files: Sequence[str], changed_lines: Sequence[str], pin_moved_the_steps: bool = False) -> bool:
+def ships(files: Sequence[str], changed_lines: Sequence[str], pin_moved_the_steps: bool = False,
+          host_reads_changed: bool = True) -> bool:
     """Whether a change carries anything to release: it reaches the image, and it
     is more than the version moving. After a release `main` holds the next
     version's bump and nothing else, which ships nothing."""
-    return touches_image(files, pin_moved_the_steps) and not version_bump_only(files, changed_lines)
+    return touches_image(files, pin_moved_the_steps, host_reads_changed) and not version_bump_only(files, changed_lines)
 
