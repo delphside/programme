@@ -396,8 +396,9 @@ docs/1.6 records the app it works through.
   makes the reader look it up.
   - It covers documents, issue bodies, comments, pull request bodies, commit
     message bodies and the chat, Claude's questions to the owner included. A
-    commit body gives the title without the asterisks, since git shows them
-    as typed; titles of commits and pull requests are left out.
+    commit body gives the title in quotation marks, `#N "title"`, since git
+    shows asterisks as typed. A commit subject and a pull request's own
+    title stay as they are.
   - The repository goes before the number, as `delphside/programme#N`, where
     it is another repository's, and always in the chat, which spans every
     application.
@@ -405,7 +406,9 @@ docs/1.6 records the app it works through.
   - A line the tooling reads takes the form it parses: a `Refs #N` trailer
     takes no title, and a dependency is one line each, `**waits on #N**
     *title*: why` or `**is needed by #N** *title*: why`. A dependency on
-    another repository's issue takes its repository and is not checked.
+    another repository's issue takes its repository, as
+    `**waits on delphside/programme#N** *title*: why`, and `board-check.py`
+    checks only this repository's.
   - A paragraph written before 2026-11-16 takes the form when it is next
     edited; records, closed issues and posted comments stay as they are.
 - One fact, one home. The rule lives in its owning document, the argument in
