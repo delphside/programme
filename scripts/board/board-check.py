@@ -17,9 +17,11 @@ gate refuses and work stops; a check reports and a person decides, and this is
 the second until the diff against the old scripts has been quiet.
 
 Exit statuses. 0: the report ran (with `--exit-code`, nothing missing). 1: with
-`--exit-code`, something is missing. 2: a source did not answer, so nothing was
-checked, which is not a pass. `--vocabulary` follows the same three and prints
-nothing on a pass unless `-v`; 70 is a profile that cannot be read (`profile.run`).
+`--exit-code`, something is missing; also, before this is mapped, a missing live
+programme checkout or an uncaught crash. 2: a source did not answer, so nothing
+was checked, which is not a pass. 70: a profile that cannot be read
+(`ProfileError`). `--vocabulary` follows the same and prints nothing on a pass
+unless `-v`.
 
 Design: programme/records/2.5-changes/programme-tooling/383-one-board-model/
 """
