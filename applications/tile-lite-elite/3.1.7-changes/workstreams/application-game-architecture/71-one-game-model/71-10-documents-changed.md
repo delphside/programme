@@ -176,6 +176,8 @@ gains what this settles:
 - GAME-12's "players seated": an invited addressee and a player who is or was
   playing, resigned and timed out included, may chat; one who declined or
   withdrew may not (owner, 2026-11-16)
+- RET-3's keep applies only before the start, and is refused after it (owner,
+  2026-11-16)
 - inviting yourself by name gives your own seat, claimed (#106); your own
   address is invited like any other (owner, 2026-11-16)
 - a player withdrawing from their own seat hides the game from their list
