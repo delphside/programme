@@ -54,7 +54,7 @@ if [[ "$path" == graphql ]]; then
       case "$option" in opt-post) name="Post-deployment" ;; opt-dev) name="Development" ;; *) name="$option" ;; esac
       printf '%s\n' "$name" > "$G/state/pstate-${issue#I_}"
       echo '{"data":{"setIssueFieldValue":{"clientMutationId":null}}}'; exit 0 ;;
-    *"issueFields(first:30)"*)
+    *"issueFields(first:"*)
       echo '{"data":{"organization":{"issueFields":{"nodes":[{"id":"FLD_1","name":"Project State","options":[{"id":"opt-dev","name":"Development"},{"id":"opt-post","name":"Post-deployment"}]}]}}}}'; exit 0 ;;
     *"{ id }"*)
       n="$(sed -n 's/.*issue(number:\([0-9]*\)).*/\1/p' <<< "$query" | head -1)"
