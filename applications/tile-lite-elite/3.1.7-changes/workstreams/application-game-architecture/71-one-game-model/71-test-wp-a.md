@@ -37,7 +37,7 @@ verified addresses, and INV-4 is #439's.
 
 ## Its acceptance
 
-- [ ] **Claude** — every `GameCommand` arm, `Player` and `System`, has a test that it moves `version` (except `Hide` and `ReminderSent`, which save without moving it), and a refused one that it changes nothing
+- [ ] **Claude** — every `GameCommand` arm, `Player` and `System`, has a test that it moves `version` (except `Hide` and `ReminderSent`, which save without moving it, and a `KeepRequested` after the start, which is answered with a notice and saves nothing (RET-3)), and a refused one that it changes nothing
 - [ ] **Claude** — the round-trip property passes over generated `GameView`s, and `view_for` gives a viewer holding two seats both racks
 - [ ] **Claude** — the in-process bot is handed only the games its account holds a seat in, each redacted for its account, and is never answered 429
 - [ ] **Claude** — a bot seated in a new game while running plays it: the seat list gains a seat in the game, `updates_for` joins that game's channel before it reads the game, and the glue makes a bot object for the seat
@@ -70,7 +70,7 @@ verified addresses, and INV-4 is #439's.
 - [ ] **Claude** — DEL-2, DEL-3 and DEL-5: deleting an account is refused where it created a game, holds a seat or was invited, with the game Waiting, Active, Finished and Aborted, with its seat withdrawn, resigned or timed out, with an invitation it declined (also after the start has dropped that seat), and with the game hidden from its list; the deletion succeeds once those games are deleted
 - [ ] **Claude** — the migration keeps every rating row under its new (`player_id`, `edition`) key, writes `schema_version` 1, and fails on a foreign-key violation (#253, #302)
 - [ ] **Claude** — a rename reaches every game the player is in (#80), and moves each one's version
-- [ ] **Claude** — a keep sets `last_activity_at`; a chat, a hide and a rename do not (RET-3)
+- [ ] **Claude** — a keep on a `Waiting` game sets `last_activity_at`; a chat, a hide and a rename do not (RET-3)
 - [ ] **Claude** — `engine_limit` bounds parallel searches, and a search's time starts once its permit is held (#429, D62)
 - [ ] **Claude** — each `ApplyError` variant and each sender-check refusal maps to its own `Reason` in #402's body; a failed save is `ServiceBusy` with `Retry-After`, and a deleted game `GameNotFound`
 - [ ] **Claude** — a reconnect yields the game's current view, with no `because` (#142)
@@ -100,7 +100,7 @@ verified addresses, and INV-4 is #439's.
 - [ ] **Claude** — an invitation to an aborted game: after an abort from `Waiting`, the addressee's accept and decline and a claim of the link are each refused with `GameAborted`, change nothing, and the invitation's page says the game was aborted; `GameAborted` also answers a seat declined, a seat withdrawn, and a link claimed by another account, before the abort; the same on a `Waiting` game succeeds
 - [ ] **Claude** — GAME-11: a force-end of a game not started aborts it, one in play finishes it with the seats as they stand and a record of the force-end, and one of a game already over is refused
 - [ ] **Claude** — GAME-12: the creator, an `Invited` seat's addressee and the player of a `Claimed` seat can each post in a game `Waiting` or aborted from `Waiting`, and the player of a `Playing` or `Departed` seat in a game Active, Finished or Aborted; the player of a `Declined` or `Withdrawn` seat, and anyone holding no seat, is refused, and the same player once given a new `Invited` seat in that game can post; 1,000 characters are accepted, and 1,001 characters or a blank message are refused
-- [ ] **Claude** — RET-3: adding, withdrawing, swapping, accepting, declining and claiming a seat each set `last_activity_at`, and a reminder sent does not; a keep on a game Active, Finished or Aborted is answered successfully with an information notice that the game has already started, and moves neither `version` nor `last_activity_at` and writes no log row
+- [ ] **Claude** — RET-3: adding, withdrawing, swapping, accepting, declining and claiming a seat each set `last_activity_at`, and a reminder sent does not; a keep on a game Active, Finished or Aborted is answered with `outcome` `ok`, the game's state and the information reason `GameAlreadyStarted`, moves neither `version` nor `last_activity_at`, writes no log row and publishes nothing
 - [ ] **Claude** — ADM-2: `admin_delete_game` refuses a game in play and changes nothing, and deletes a game not started and a game over
 - [ ] **Claude** — no state or event sent to a client names the account that acted beyond the seat; the log row's `actor_id` does
 - [ ] **Claude** — `view_for` gives a viewer's own racks as `Visible` and every other as `Hidden` with its tile count, gives a seatless viewer no rack, and tells a hidden rack from an empty one
