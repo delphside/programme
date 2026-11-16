@@ -11,4 +11,4 @@ Each parent project has a folder, named `<issue>-<name>/`:
 
 | Folder | Project |
 | --- | --- |
-| [`5-dark-portal-v1/`](5-dark-portal-v1/) | [dp#5](https://github.com/delphside/dark-portal/issues/5) *Dark Portal v1* |
+| [`5-dark-portal-v1/`](5-dark-portal-v1/) | [delphside/dark-portal#5](https://github.com/delphside/dark-portal/issues/5) *Dark Portal v1* |
