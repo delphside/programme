@@ -1,7 +1,10 @@
 # Tile Lite Elite on Turpin: test approach changes
 
-Proposed changes to the technical tests of delphside/tile-lite-elite#555, for
-the test manager, from its [design](design.md). An *S* number is a scenario in
+Proposed changes to the technical tests of delphside/tile-lite-elite#555 *WP B
+Del 3 of 4: deploy tooling builds once and promotes*, for the test manager,
+from its
+[design](design.md), which is for delphside/tile-lite-elite#545 *MAIN PROJECT:
+Build once, promote through environments*. An *S* number is a scenario in
 [Turpin's test design](../../../../../../records/2.5-changes/programme-tooling/117-generic-deliver-tool/test-design.md#5-scenarios),
 and an *X* number a gap in its
 [part 10](../../../../../../records/2.5-changes/programme-tooling/117-generic-deliver-tool/test-design.md#10-gaps).
@@ -31,14 +34,18 @@ Every test runs on rehearsal before the merge unless it says otherwise.
   alone.
 - **The lock, with a real backup**: a deploy with `--wait` waits for a running
   backup and goes on, and one without it is refused (S37).
-- **Applying a change and resetting**: `turpin-host compose` refuses where
-  there is no current deploy, and takes the environment's lock.
+- **Applying a change**: `turpin-host compose` refuses where there is no
+  current deploy, and takes the environment's lock; a rehearsal script
+  (`rehearsal-access.sh`) applies a `.env` change through it.
+- **Resetting rehearsal**: `deploy-rehearsal.sh reset` runs
+  `turpin-host compose ... down -v` then `up -d`, and the server starts
+  empty.
 - **R9's question**: `turpin release` asks `[y/N]` for an open issue in the
   milestone that no commit names, and skips a parent; `--confirm N` answers
   ahead and the record's `carries.confirmed` holds it. In CI, with Turpin's
   release scenarios.
-- **The first deploy on an adopted host**. It
-  runs before rehearsal's first Turpin deploy (design §4 step 4.3), on a
+- **The first deploy on an adopted host**: it runs before rehearsal's first
+  Turpin deploy (design §4 step 4.3), on a
   rehearsal made to look like production: the backup and log-check files and
   timers installed by hand, as on production. A failure at `migrate` leaves
   0.10.1 serving, with the server `save-state` stopped started again; a
@@ -50,11 +57,9 @@ Every test runs on rehearsal before the merge unless it says otherwise.
 - **Preview**: every deploy starts from an empty database (functional, on
   preview).
 - **The `.env`**: `rehearsal-access.sh grant` writes its key to the state
-  folder's `.env` and applies it.
+  folder's `.env`.
 - **The check names**: after the merge, `turpin release --check` passes the
   `ci-passed` gate.
 
-Not tried before production: the HTTP upload through the PAR, proven there
-already. #556's post-deployment row covers it: the owner starts the backup
-service once by hand after 0.10.2's deploy, and the marker is seen
-refreshed.
+The upload through the PAR is first tried on production; [design §4 step
+8.4](design.md#4-migration-order) has the check.

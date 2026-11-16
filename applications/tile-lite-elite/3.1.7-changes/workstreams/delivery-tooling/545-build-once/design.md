@@ -1,6 +1,6 @@
 # Build once, promote: Tile Lite Elite on Turpin
 
-The design for delphside/tile-lite-elite#545, for its work packages #555 (the
+The design for delphside/tile-lite-elite#545, for work packages #555 (the
 deploy tooling) and #556 (the image). The generic tool is Turpin,
 delphside/programme#117; *Turpin's design* is its
 [design](../../../../../../records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md),
@@ -9,7 +9,7 @@ Elite's `main` at 7f07f889 (app 0.10.2).
 
 Beside it:
 
-- [questions.md](questions.md): the owner's answers Q1 to Q6;
+- [questions.md](questions.md): the owner's answers, Q1 to Q6;
 - [test-design.md](test-design.md): the changes to #555's tests;
 - [turpin-gaps.md](turpin-gaps.md): Turpin's gaps T1 to T12, closed by
   delphside/programme#233 *Turpin: close the gaps for Tile Lite Elite*.
@@ -40,8 +40,8 @@ From Turpin's design:
   something other than what production runs;
 - *settle*: moving the board to what the record says shipped.
 
-This design's own: *an adopted host* ran the application under another tool
-before Turpin's first deploy, as both VMs ran `deploy.sh`.
+This design's own: *an adopted host* runs the application under another tool
+before Turpin's first deploy, as both VMs run `deploy.sh`.
 
 ## 1. As-is
 
@@ -54,7 +54,7 @@ Production runs 0.10.1 (`prod-0.10.1`, commit `2bbb957`), deployed by
 | preview | `deploy-preview.sh` | loads the artefact on the laptop; `at REF` and `reset` wipe the volume |
 | rehearsal | `deploy-rehearsal.sh` | `deploy.sh` with `rehearsal-target.sh`'s host; `reset` runs `down -v` |
 | production | `deploy.sh` | the gates, then the steps that follow this table |
-| rollback | `rollback.sh`, `rollback-rehearsal.sh` | retags `:previous` and restores a named snapshot; the earlier compose file stays |
+| rollback | `rollback.sh`, `rollback-rehearsal.sh` | retags `:previous`, restores a named snapshot |
 | host settings | `rehearsal-access.sh`, `rehearsal-limits.sh`, `rehearsal-key.sh`, `seed-rehearsal.sh` | read or edit `~/tile-lite-elite/.env`, or restore a snapshot, then `docker compose up -d` |
 
 `deploy.sh`'s steps on a host, over `ssh` and `scp`:
@@ -69,20 +69,29 @@ Production runs 0.10.1 (`prod-0.10.1`, commit `2bbb957`), deployed by
 6. smoke-test the public `/health` for `VERSION+SHA` within 60 s;
 7. roll back on a failure in steps 3 to 6.
 
-Then the `sa` alias, the tag, the GitHub Release, the bump and the settle.
+Then the tag, the Release, the bump and the settle.
 
-Its gates, before anything is built: the commit on a remote branch; CI green
-on its push to `main`, with `e2e`, and on its pull request's run; production's
-`schema_version` within the build's migrations; a readable version, and
-`check-release-version.sh`; the milestone listed and confirmed; preview's and
-rehearsal's `/health` reporting the commit. `DEPLOY_EMERGENCY` skips the last
-and reads CI from the pull request's run; `DEPLOY_SKIP_CI=1` skips the CI
-gates.
+Its gates, before anything is built:
 
-The gaps #545 names: the build is copied by `scp`; the gates compare short SHAs;
-nothing records that rehearsal passed; the Caddyfile and build ID are baked
-into the image; the deploy script runs from the working tree; `main` is
-bumped after the production deploy; R8's host files are installed by hand.
+- the commit on a remote branch;
+- CI green on its push to `main`, with `e2e`, and on its pull request's run;
+- production's `schema_version` within the build's migrations;
+- a readable version, and `check-release-version.sh`;
+- the milestone listed and confirmed;
+- preview's and rehearsal's `/health` reporting the commit.
+
+`DEPLOY_EMERGENCY` skips the last and reads CI from the pull request's run;
+`DEPLOY_SKIP_CI=1` skips the CI gates.
+
+The gaps #545 names:
+
+- the build is copied by `scp`;
+- the gates compare short SHAs;
+- nothing records that rehearsal passed;
+- the Caddyfile and build ID are baked into the image;
+- the deploy script runs from the working tree;
+- `main` is bumped after the production deploy;
+- R8's host files are installed by hand.
 
 ## 2. To-be
 
@@ -147,13 +156,11 @@ join = ["docker-compose.preview.yml", "Caddyfile.preview"]
 
 [environments.rehearsal]               # existing keys stay
 role = "rehearsal"
-ssh = "tile-lite-elite-rehearsal"
 login = "oci-instance-principal"
 project = "tile-lite-elite"
 
 [environments.production]              # existing env stays
 role = "production"
-ssh = "tile-lite-elite"
 login = "oci-instance-principal"
 project = "tile-lite-elite"
 url = "the public site address"
@@ -180,7 +187,7 @@ A hook that cannot judge refuses.
 | `release-check` | laptop | `check-release-version.sh VERSION`; refuses where the milestone is unread | that script |
 | `pre-deploy` | host | refuses where the database's highest applied migration exceeds the pulled image's `org.tileliteelite.schema` label | the `schema` gate |
 | `save-state` | host | [2.2.2](#222-the-snapshot-contract) | the snapshot step |
-| `migrate` | host | `server --migrate-only`, through `TURPIN_COMPOSE`, within 300 s | the migration step |
+| `migrate` | host | `server --migrate-only`, through `TURPIN_COMPOSE` (T1), within 300 s | the migration step |
 | `smoke` | host | `/health` through Caddy on the host reports `VERSION+` a prefix of `TURPIN_SHA` within 60 s | the smoke test |
 | `restore-state` | host | [2.2.2](#222-the-snapshot-contract) | `rollback.sh`'s restore |
 | `post-deploy` | laptop | `/health` at the public address; after production, the open `Release Check` issues | the smoke test's public leg |
@@ -219,9 +226,8 @@ folder `TLE_SNAPSHOT_DIR` names in the environment's `.env`:
    `.partial` name, then renames it;
 4. removes each `turpin-*.tgz` but `TURPIN_DEPLOY`'s and `TURPIN_CURRENT`'s;
    `deploy.sh`'s `pre-*` snapshots stay;
-5. on role `preview`, empties the volume: preview is a standing
-   environment whose every deploy starts empty, so no preview inherits an
-   earlier one's data (Q5).
+5. on role `preview`, empties the volume, so each preview deploy starts empty
+   (Q5).
 
 `restore-state`, given `TURPIN_DEPLOY`, stops the server and replaces the
 volume's contents from `turpin-$TURPIN_DEPLOY.tgz` where it exists, and does
@@ -234,14 +240,14 @@ The state folder is `/var/lib/turpin/tile-lite-elite/ENV/`, which
 `.env`.
 
 - **`.env`**: moves there from `~/tile-lite-elite/.env`, gaining Turpin's
-  registry and login keys, `TLE_SNAPSHOT_DIR` and `TLE_UPLOAD`. No link is left at the
-  old path, since `sed -i` replaces a link with a copy.
+  registry and login keys, `TLE_SNAPSHOT_DIR` and `TLE_UPLOAD`. The old path
+  holds nothing, as `sed -i` replaces a link with a copy.
   `rehearsal-target.sh` names its path once, as `REHEARSAL_ENV_FILE`, for
   `rehearsal-access.sh`, `rehearsal-limits.sh` and `rehearsal-key.sh`.
 - **Applying a change**: the `docker compose up -d` of those scripts and of
   `seed-rehearsal.sh`, which restores a database, becomes
   `turpin-host compose tile-lite-elite ENV up -d` (Q4), Turpin's own
-  arguments for the current deploy under the environment's lock; the old
+  arguments for the current deploy under the environment's lock, since the old
   folder's compose file would start the old images.
 - **The host files** are R8's, installed on rehearsal and production at each
   deploy:
@@ -257,19 +263,26 @@ The state folder is `/var/lib/turpin/tile-lite-elite/ENV/`, which
   | the `sa` alias, a new file | `/etc/profile.d/tile-lite-elite-sa.sh` | 0644 | — |
 
 - **The timers run on rehearsal too** (Q3). `backup-to-oci.sh` and
-  `check-log-hygiene-nightly.sh` send every object, the backup and the
-  marker, through one upload function, whose adapter `TLE_UPLOAD` in the
-  host's `.env` chooses: `par` on production, the HTTP upload through the PAR
-  as today; `local` on rehearsal, which empties a folder on the host, writes
-  into it and reports success, or failure where a test sets `TLE_UPLOAD=local-fail`.
-  Both scripts change, so they ship in #556, and 4.4.1 lists the setting.
-- **The backup reaches the database through `turpin-host compose`**, not
-  `$COMPOSE`, the old folder's file that Turpin's deploy folder replaces.
+  `check-log-hygiene-nightly.sh` send every object, the backup and the marker
+  object, through one upload function. `TLE_UPLOAD` chooses its adapter:
+  - `par`, on production: the HTTP upload through the PAR (a
+    pre-authenticated request) as today;
+  - `local`, on rehearsal: writes each object into `uploads/` in the state
+    folder, removing the older database copy first, and reports success;
+  - `local-fail`, set by a test: reports failure.
+
+  The scripts read `TLE_UPLOAD` from the one `.env` matching
+  `/var/lib/turpin/tile-lite-elite/*/.env`, and refuse unless exactly one
+  does; the PAR stays in `~/.tile-lite-elite-backup-par`. Both scripts change,
+  so they ship in #556, and 4.4.1 lists the setting.
 - **The backup takes the deploy lock**: the backup service runs its script
   under `flock -w 1800` on the environment's `lock`. A deploy that finds the
   lock held is refused, unless run with `--wait`.
-- **Operational commands find the server container by its Compose labels**:
-  the `sa` alias, `backup-to-oci.sh` and `clean-test-accounts.sh`.
+- **Operational commands find the server container by its Compose labels**
+  (project `tile-lite-elite`, service `server`): the `sa` alias,
+  `backup-to-oci.sh`, which uses `docker exec` and `docker cp` on it, and
+  `clean-test-accounts.sh`. The backup does not use `turpin-host compose`,
+  which refuses while the lock is held.
 
 ### 2.4 The old scripts
 
@@ -281,7 +294,7 @@ order).
 | `deploy.sh`, `rollback.sh`, `rollback-rehearsal.sh`, `ssh-preflight.sh` | the fallback; retired in 0.10.3 |
 | `deploy-preview.sh` | `turpin build`, then `turpin deploy preview`; retired in 0.10.3 |
 | `deploy-rehearsal.sh` | `turpin deploy rehearsal`; rehearsal's way back until 0.10.3, when `reset` (`turpin-host compose ... down -v`, then `up -d`) moves to `rehearsal-reset.sh` |
-| `rehearsal-target.sh`, `run-log.sh` | kept for `bench-rehearsal.sh`, `restore-backup.sh`, the `rehearsal-*` scripts and the profile's `[environments.rehearsal].url_from`, which reads rehearsal's address from `rehearsal-target.sh` |
+| `rehearsal-target.sh`, `run-log.sh` | kept for `bench-rehearsal.sh`, `restore-backup.sh`, the `rehearsal-*` scripts and the profile's `[environments.rehearsal].url_from`, which reads the address from `rehearsal-target.sh` |
 | `verify.sh` | [2.4.1](#241-verifysh) |
 | `check-release-version.sh` | called by `release-check` |
 | `rehearsal-access.sh`, `rehearsal-limits.sh`, `rehearsal-key.sh`, `seed-rehearsal.sh` | [2.3](#23-on-the-host) |
@@ -296,19 +309,12 @@ order).
 | `envs`, `unreleased`, `rehearsal` | unchanged: each reads `/health` |
 | `tree`, `pushed`, `branches`, `ci`, `token`, `hosts`, `prstate`, the board check | unchanged |
 
-Turpin's payload carries only the profile keys a host reads, and #555 sets
-`[ships].carries_payload = true` on the branch, once the image carries the
-payload (Q6): a pin move ships only where it changes a file the payload
-carries, and a board key's edit does not. `[ships].non_shipping` drops what
-the payload carries: `turpin/hooks/` and the host files' sources.
-
 ### 2.5 CI
 
 - **The hooks' tests**: Bats, with stub `docker` and `curl`, in the `check`
   job; `deploy.sh`'s stay until 0.10.3.
 - **`e2e`** builds its own preview stack, with the empty payload #556's
-  `Dockerfile` allows, as it judges the commit before any build is stored; R5
-  is about the deploy and verification checks.
+  `Dockerfile` allows, as it judges the commit before any build is stored.
 
 ### 2.6 The release step and the dev bump
 
@@ -329,8 +335,8 @@ Tile Lite Elite's, under *Deliveries and releases*:
 - after `turpin release`, wait for CI on the bump; after a production deploy,
   run `verify.sh`;
 - `main`'s versions are provisional until a release fixes them (owner,
-  2026-11-16): `turpin release`'s bump starts the app version at the next
-  patch, and later changes may move it;
+  2026-11-16): the bump starts the app version at the next patch, and later
+  changes may move it;
 - the milestone warning is the release's milestone gate;
 - the scripted checks gain `turpin status ENV` and Turpin's reads of
   production's state and `/health`.
@@ -358,6 +364,12 @@ CI: `verify.sh`, the `rehearsal-*` scripts, the CI workflow, the documents and
 `CLAUDE.md`. Both ride #545's one branch; #555 is delivered when it lands,
 and #556 with 0.10.2.
 
+Turpin's payload carries only the profile keys a host reads. #555 sets
+`[ships].carries_payload = true` on the branch, once the image carries the
+payload (Q6), so a pin move ships only where it changes a file the payload
+carries. `app-profile.toml` stays in `[ships].non_shipping` until Turpin's T13
+is in, which is before #555 merges.
+
 ### 2.10 Requirements met
 
 | Requirement | Met by |
@@ -379,12 +391,12 @@ and #556 with 0.10.2.
 
 - a host keeps two Turpin image sets, about 300 MB, and until 0.10.3
   `deploy.sh`'s `:latest` and `:previous`: about 600 MB, on a disk 13% used;
-- two `turpin-N.tgz` of a database of about 5 MB (#174's measure), beside
+- two `turpin-N.tgz` of a 5 MB database (#174's measure), beside
   `deploy.sh`'s five;
 - the registry keeps every release (R7), each adding the layers it changed;
   `turpin prune` after a release removes candidates no environment runs;
-- the laptop's first build is cold, as the `turpin` Buildx builder has its
-  own cache;
+  #554 checked the free allowance;
+- the laptop's first build is cold: the `turpin` builder has its own cache;
 - the OCI CLI's memory peak on the 1 GB host, measured at rehearsal's first
   deploy.
 
@@ -405,12 +417,14 @@ and #556 with 0.10.2.
 
 | Limit | Value | From |
 | --- | --- | --- |
-| `pull_timeout` | 300 s | Turpin's default, unmeasured; then three times rehearsal's first cold pull, revisited from the run log. #554 pushed the 51 MB server image in about 64 s |
+| `pull_timeout` | 300 s | Turpin's default, unmeasured; then 3 times rehearsal's first cold pull. #554 pushed the 51 MB server image in about 64 s |
 | `smoke` | 60 s | `deploy.sh`'s 30 tries 2 s apart |
 | `migrate` | 300 s | `deploy.sh`'s guard against an image ignoring `--migrate-only` |
-| `save-state`, `restore-state` | 120 s each | a guess: a 5 MB tar takes seconds |
+| `save-state`, `restore-state` | 120 s each | a guess: a 5 MB tar is seconds |
 | `pre-deploy` | 30 s | a guess |
-| the backup's wait for the lock | 1800 s | a deploy's limits: two pulls of 300, `pre-deploy` 30, `save-state` 120, `migrate` 300, `smoke` 60 and a restore's 120, 1,230 s, rounded up for the unbounded `compose up` and host-file install |
+| the backup's wait for the lock | 1800 s | a deploy's limits: two pulls of 300, `pre-deploy` 30, `save-state` 120, `migrate` 300, `smoke` 60 and a restore's 120, 1,230 s, rounded up |
+
+Turpin's own retries and call timeouts are its `settings.py`'s.
 
 **Secrets and access**:
 
@@ -430,9 +444,10 @@ first deploy finds no state.
 
 1. **Laptop** (owner): Turpin's
    [§14 steps](../../../../../../records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md#14-moving-tile-lite-elite-to-it)
-   (the Buildx builder, the builder's API key and the OCI CLI, `turpin login`
-   for the controller, copier and builder, the old releaser login removed);
-   then `turpin host-install preview`.
+   (the Buildx builder, the builder's API key, the OCI CLI, `turpin login`
+   for the three logins, the old releaser login gone);
+   then `turpin host-install preview`, and `TLE_SNAPSHOT_DIR` in preview's
+   `.env`.
 2. **Branch** (Claude): #555 and #556 committed, CI green, `turpin build SHA`.
 3. **Preview**: Claude runs `turpin deploy preview SHA`; the owner runs the
    user tests (#556).
@@ -465,9 +480,10 @@ first deploy finds no state.
       `turpin deploy production VERSION --check`, with a version that has no
       record, each refused;
    3. `turpin deploy production 0.10.2`, then `verify.sh`;
-   4. the owner starts the backup service once by hand, and the marker is
-      seen refreshed: #556's post-deployment row for the upload through the
-      PAR, the one path not tried before production.
+   4. owner: start the backup service once by hand, then check in production's
+      bucket that the marker object is refreshed. This is #556's
+      post-deployment row for the upload through the PAR, the one path not
+      tried before production.
 
    **Way back** (owner), 4.3.3's *Roll back a first Turpin deploy*, tried on
    rehearsal in step 4:
