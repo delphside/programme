@@ -61,7 +61,9 @@ class TheBlock(Cases):
         quoted = f"see `{BEGIN}` and {END} here\n"
         self.expect("a block after a fence that shows the markers", True,
                     dataflow.is_current(dataflow.splice(fenced + _doc())))
-        for name, text in (("fenced", fenced), ("in a sentence", quoted)):
+        long_fence = f"````\n```\n{BEGIN}\n{END}\n````\n"
+        for name, text in (("fenced", fenced), ("in a sentence", quoted),
+                           ("a short fence line inside a longer fence", long_fence)):
             with self.subTest(name), self.assertRaises(dataflow.BlockError):
                 dataflow.splice(text)
 
@@ -125,7 +127,9 @@ class TheCommand(Cases):
                 ("no block", ("--check", str(self.file("# Title\n")))),
                 ("two blocks", ("--check", str(self.file(_doc() + _doc())))),
                 ("a missing file", ("--check", "/nonexistent/doc.md")),
-                ("both options", ("--check", "a", "--write", "b"))):
+                ("both options", ("--check", "a", "--write", "b")),
+                ("an empty file name", ("--write", "")),
+                ("a table and a check", ("--table", "--check", "a"))):
             status, out, _ = self.run_it(*argv)
             self.expect(f"{name}: exit 2", 2, status)
             self.expect(f"{name}: no pass on stdout", "", out)

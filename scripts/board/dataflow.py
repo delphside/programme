@@ -92,15 +92,33 @@ class BlockError(ValueError):
     """The text has no generated block, or more than one, or its markers are out of order."""
 
 
+def _fence(text: str) -> tuple[str, int, str] | None:
+    """(character, length, what follows) of a fence line, as CommonMark has it: up
+    to three spaces, then three or more backticks or tildes. A backtick fence's
+    info string holds no backtick."""
+    stripped = text.lstrip(" ")
+    if len(text) - len(stripped) > 3 or stripped[:1] not in ("`", "~"):
+        return None
+    char = stripped[0]
+    length = len(stripped) - len(stripped.lstrip(char))
+    rest = stripped[length:].strip()
+    if length < 3 or (char == "`" and "`" in rest):
+        return None
+    return char, length, rest
+
+
 def _block(lines: list[str]) -> tuple[int, int]:
     """Line indexes of the begin and end markers. Only a line that is exactly a
     marker counts, and not one inside a code fence."""
-    begins, ends, fence = [], [], None
+    begins, ends, fence = [], [], None   # fence: (character, length) of the open one
     for i, line in enumerate(lines):
         text = line.rstrip("\r\n")
-        mark = text.lstrip()[:3]
-        if mark in ("```", "~~~"):
-            fence = None if fence == mark else (fence or mark)
+        run = _fence(text)
+        if fence is None and run:
+            fence = run[:2]
+        elif fence is not None and run and run[0] == fence[0] and run[1] >= fence[1] \
+                and not run[2]:
+            fence = None
         elif fence is None and text == BEGIN:
             begins.append(i)
         elif fence is None and text == END:

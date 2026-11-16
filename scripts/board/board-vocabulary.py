@@ -8,8 +8,10 @@
     programme/scripts/board/board-vocabulary.py --check FILE   # exit 1 when that block is stale
 
 The block in FILE lies between the line `dataflow.BEGIN` and the line
-`dataflow.END`. --check exits 0 when it is current, 1 when stale, and 2 when it
-could not judge: a usage error, an unreadable file, or no block or more than one.
+`dataflow.END`. The four options are exclusive. --check exits 0 when the block
+is current and 1 when it is stale. Exit 2 is a run that could not complete: a
+usage error, a file that cannot be read or written, or a file with no block or
+more than one. --write exits 0 when the block is as it should be.
 
 Reads the board's own source with `ast` and `vocabulary.py`, and nothing from
 GitHub: it is the data the data flow design (delphside/tile-lite-elite#383 R18)
@@ -38,8 +40,12 @@ def _file(path: Path, write: bool) -> int:
         return 2
     if write:
         if new != text:
-            with open(path, "w", newline="") as f:
-                f.write(new)
+            try:
+                with open(path, "w", newline="") as f:
+                    f.write(new)
+            except OSError as e:
+                print(f"board-vocabulary: {path}: cannot write: {e}", file=sys.stderr)
+                return 2
         return 0
     if new == text:
         return 0
@@ -51,16 +57,15 @@ def _file(path: Path, write: bool) -> int:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--table", action="store_true", help="the Markdown table only")
-    ap.add_argument("--mermaid", action="store_true", help="the Mermaid flowchart only")
-    ap.add_argument("--write", metavar="FILE", help="replace the generated block in FILE")
-    ap.add_argument("--check", metavar="FILE", help="exit 1 when FILE's generated block is stale")
+    one = ap.add_mutually_exclusive_group()
+    one.add_argument("--table", action="store_true", help="the Markdown table only")
+    one.add_argument("--mermaid", action="store_true", help="the Mermaid flowchart only")
+    one.add_argument("--write", metavar="FILE", help="replace the generated block in FILE")
+    one.add_argument("--check", metavar="FILE", help="exit 1 when FILE's generated block is stale")
     args = ap.parse_args(argv)
-    if args.write and args.check:
-        print("board-vocabulary: --write and --check are exclusive", file=sys.stderr)
-        return 2
-    if args.write or args.check:
-        return _file(Path(args.write or args.check), write=bool(args.write))
+    if args.write is not None or args.check is not None:
+        write = args.write is not None
+        return _file(Path(args.write if write else args.check), write=write)
     if args.table:
         print(dataflow.markdown())
     elif args.mermaid:
