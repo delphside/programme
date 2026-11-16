@@ -775,6 +775,7 @@ Bats tests, in `scripts/tests/turpin-*.bats`.
 
 - `a_pruned_deploy_folder_keeps_only_its_meta_json` (S82)
 - `a_misspelt_flag_exits_64_naming_it_and_runs_nothing` (S90)
+- `sigint_during_the_gates_changes_nothing_and_says_the_change_is_not_live` (S90)
 - `sigint_before_the_pivot_restores_and_says_the_change_is_not_live` (S90)
 - `sigint_during_settle_finishes_the_action_and_says_the_change_is_live` (S90)
 - `sigint_while_the_host_waits_for_the_lock_changes_nothing` (S90)

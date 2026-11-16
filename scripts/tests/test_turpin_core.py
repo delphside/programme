@@ -1,6 +1,6 @@
 """turpinlib's core (delphside/programme#117, task T1): the front end's exits,
 the model's results and forms, the profile and `APP.env`, the hooks, and the
-delegation to `turpin-legacy`.
+entry script.
 
 Test conditions derive from the design (§2 *Domain model*, §6, §8) and the test
 design (R31, R48, R50, S71), not from the code.
@@ -10,6 +10,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import signal
 import shutil
 import subprocess
@@ -556,77 +557,44 @@ class RunLogs(Isolated):
         self.assertEqual(2, len(kept))
 
 
-class Delegation(Isolated):
-    """A subcommand with no module under `commands/` runs `turpin-legacy`, with
-    the arguments unchanged. In T1 that is every subcommand."""
+class EntryScript(Isolated):
+    """The entry script and the front end's own answers."""
 
-    def copy_tool(self, legacy_body):
+    def copy_tool(self):
         tool = self.dir / "tool"
         shutil.copytree(DELIVER / "turpinlib", tool / "turpinlib", ignore=shutil.ignore_patterns("__pycache__"))
         shutil.copy(DELIVER / "turpin", tool / "turpin")
-        legacy = tool / "turpin-legacy"
-        legacy.write_text(legacy_body)
-        legacy.chmod(0o755)
         return tool
 
-    ARGS = ["host-install", "rehearsal", "abc 123", "--set-aside", "milestone", "a reason", "", "--wait=5", "*"]
-
-    def test_the_entry_script_passes_its_arguments_through_unchanged(self):
-        tool = self.copy_tool('#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "$OUT"\nexit 7\n')
-        out = self.dir / "args"
-        done = subprocess.run([str(tool / "turpin"), *self.ARGS], env={**os.environ, "OUT": str(out)})
-        self.assertEqual(7, done.returncode)            # legacy's own exit is ours
-        self.assertEqual(self.ARGS, out.read_text().split("\n")[:-1])
-
-    def test_a_symlink_to_the_entry_script_finds_the_package_and_legacy(self):
-        tool = self.copy_tool('#!/usr/bin/env bash\necho legacy "$1"\n')
+    def test_a_symlink_to_the_entry_script_finds_the_package(self):
+        tool = self.copy_tool()
         (self.dir / "bin").mkdir()
         (self.dir / "bin" / "turpin").symlink_to(tool / "turpin")
-        done = subprocess.run([str(self.dir / "bin" / "turpin"), "list", "production"], capture_output=True, text=True)
-        self.assertEqual(("legacy list\n", 0), (done.stdout, done.returncode))
-
-    def test_every_subcommand_not_yet_ported_is_delegated(self):
-        for command in (c for c in cli.KNOWN_COMMANDS if c not in commands.COMMANDS):
-            with self.subTest(command), mock.patch("turpinlib.cli.os.execv") as execv, \
-                    mock.patch("turpinlib.cli._restore_for_exec"):
-                cli.main([command, "--odd", "x"])
-                execv.assert_called_once_with(cli.LEGACY, [str(cli.LEGACY), command, "--odd", "x"])
-
-    def test_legacy_gets_default_signals_the_callers_locale_and_the_three_streams(self):
-        tool = self.copy_tool("#!/usr/bin/env bash\n"
-                              "grep SigIgn /proc/self/status\n"
-                              "echo \"ctype=${LC_CTYPE-unset}\"\n"
-                              "read -r line; echo \"in=$line\"; echo err >&2\n")
-        env = {k: v for k, v in os.environ.items() if k not in ("LC_ALL", "LC_CTYPE", "LANG", "LANGUAGE")}
-        done = subprocess.run([str(tool / "turpin"), "list", "x"], input="hello\n", env=env,
-                              capture_output=True, text=True)
-        ignored = int(done.stdout.split("SigIgn:")[1].split()[0], 16)
-        self.assertEqual(0, ignored & ((1 << (signal.SIGPIPE - 1)) | (1 << (signal.SIGXFSZ - 1))))
-        self.assertIn("ctype=unset", done.stdout)
-        self.assertIn("in=hello", done.stdout)
-        self.assertEqual("err\n", done.stderr)
+        done = subprocess.run([str(self.dir / "bin" / "turpin"), "--help"], capture_output=True, text=True)
+        self.assertEqual(0, done.returncode)
+        self.assertIn("usage: turpin build", done.stdout)
 
     def test_the_entry_script_below_python_3_11_4_says_so_and_exits_2(self):
-        tool = self.copy_tool("#!/bin/sh\n")
+        tool = self.copy_tool()
         text = (tool / "turpin").read_text().replace("(3, 11, 4)", "(99, 0)")
         (tool / "turpin").write_text(text)
         done = subprocess.run([str(tool / "turpin"), "list"], capture_output=True, text=True)
         self.assertEqual((2, ""), (done.returncode, done.stdout))
         self.assertIn("3.11.4", done.stderr)
 
-    def test_the_legacy_script_is_beside_the_entry_script(self):
-        self.assertEqual(DELIVER / "turpin-legacy", cli.LEGACY)
-        self.assertTrue(os.access(cli.LEGACY, os.X_OK))
+    def test_a_command_with_no_module_is_a_usage_error_naming_it(self):
+        code, _, err = self.run_main(["frobnicate", "x"])
+        self.assertEqual(64, code)
+        self.assertIn("unknown command frobnicate", err)
 
-    def test_a_legacy_script_that_cannot_run_is_a_fundamental_error(self):
-        with mock.patch("turpinlib.cli.os.execv", side_effect=FileNotFoundError("gone")), \
-                mock.patch("turpinlib.cli._restore_for_exec"), contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(2, cli.main(["build"]))
+    def test_every_command_the_usage_names_has_a_module(self):
+        for command in re.findall(r"turpin ([a-z-]+)", cli.USAGE):
+            self.assertIn(command, commands.COMMANDS)
 
     def test_help_is_answered_here_and_names_every_command(self):
         code, out, _ = self.run_main(["--help"])
         self.assertEqual(0, code)
-        for command in cli.KNOWN_COMMANDS:
+        for command in commands.COMMANDS:
             self.assertIn(f"turpin {command}", out)
 
 

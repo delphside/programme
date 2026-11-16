@@ -1261,15 +1261,5 @@ class WireForm(Isolated):
         self.assertEqual("", err.getvalue())
 
 
-class Registered(unittest.TestCase):
-    def test_each_command_is_registered_and_no_longer_run_by_turpin_legacy(self):
-        from turpinlib import commands
-        for name in ("build", "promote", "remove", "prune", "login"):
-            self.assertIn(name, commands.COMMANDS)
-        legacy = (Path(__file__).resolve().parents[1] / "deliver" / "turpin-legacy").read_text()
-        for name in ("cmd_build", "cmd_prune", "cmd_login"):
-            self.assertNotIn(name, legacy)
-
-
 if __name__ == "__main__":
     unittest.main()

@@ -145,7 +145,7 @@ leftovers() { ls -A "$(ed)" | grep -E '^(interrupted|request|payload|note)\.' ||
 
 # ---------------------------------------------------------------- the repeat table (§11)
 
-@test "a_repeat_after_the_pivot_is_answered_from_the_record (S93)" {
+@test "host_a_repeat_after_the_pivot_is_answered_from_the_record (S93)" {
   first_deploy
   commit_change next; build_ok "$SHA"; mkreq "$SHA" "$ID1"
   host_call deploy; assert_success
@@ -262,7 +262,7 @@ leftovers() { ls -A "$(ed)" | grep -E '^(interrupted|request|payload|note)\.' ||
   assert_equal "$(lr request_id):$(lr outcome)" "$ID2:finished"
 }
 
-@test "a_new_request_id_for_the_current_build_runs_as_new (S93)" {
+@test "host_a_new_request_id_for_the_current_build_runs_as_new (S93)" {
   first_deploy
   commit_change next; build_ok "$SHA"; mkreq "$SHA" "$ID1"
   host_call deploy; assert_success
@@ -330,7 +330,7 @@ leftovers() { ls -A "$(ed)" | grep -E '^(interrupted|request|payload|note)\.' ||
   lock_release
 }
 
-@test "a_repeat_of_a_rollback_waits_for_the_lock_then_is_answered (S93)" {
+@test "host_a_repeat_of_a_rollback_waits_for_the_lock_then_is_answered (S93)" {
   first_deploy; second_deploy
   mkrb "$ID1"; host_call rollback; assert_success
   : > "$HOOKLOG"
@@ -342,7 +342,7 @@ leftovers() { ls -A "$(ed)" | grep -E '^(interrupted|request|payload|note)\.' ||
   assert_equal "$(hook_calls)" ""
 }
 
-@test "a_repeat_of_a_refused_rollback_gets_the_recorded_refusal (S93)" {
+@test "host_a_repeat_of_a_refused_rollback_gets_the_recorded_refusal (S93)" {
   first_deploy
   mkrb "$ID1"; host_call rollback
   assert_failure 1
@@ -743,23 +743,6 @@ leftovers() { ls -A "$(ed)" | grep -E '^(interrupted|request|payload|note)\.' ||
   assert_failure 1
   assert_output --partial "restore the snapshot"                # [turpin].fallback, in the request
   [ ! -e "$(ed)/state.json" ]
-}
-
-@test "sigint_during_a_rollback_lets_it_run_to_its_end (S90)" {
-  first_deploy; second_deploy
-  hook_hold restore-state
-  ( cd "$W/work" && exec "$TURPIN" rollback rehearsal > "$W/rb.out" 2>&1 ) &
-  local pid=$!
-  wait_file "$HOOKCTL/restore-state.reached"
-  kill -INT "$pid"; sleep 1
-  hook_release restore-state
-  local code=0; wait "$pid" || code=$?
-  assert_equal "$code" 0
-  run cat "$W/rb.out"
-  assert_output --partial "after the rollback began"
-  assert_equal "$(host_state rehearsal rehearsal)" restored
-  assert_equal "$(host_current rehearsal rehearsal)" 1
-  [ -z "$(host_previous rehearsal rehearsal)" ]
 }
 
 @test "a_status_call_that_is_dropped_is_retried_and_shown (S91)" {

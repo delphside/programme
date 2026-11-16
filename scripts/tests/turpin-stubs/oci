@@ -47,6 +47,10 @@ case "$sub" in
     [[ -z "${STUB_OCI_DELETE_FAIL:-}" && "$role" == builder ]] || fail NotAuthorizedOrNotFound 404
     [[ -n "$(tags_of "$repo" "$digest")" ]] || fail NotAuthorizedOrNotFound 404   # it is gone: the API says so as it says a missing right
     for t in $(tags_of "$repo" "$digest"); do rm -f "$R/$ns/$repo/tags/$t"; done
+    # STUB_OCI_DELETE_HOLD=FILE: once a delete is done, wait while FILE exists, saying so in FILE.reached
+    if [[ -n "${STUB_OCI_DELETE_HOLD:-}" && -e "$STUB_OCI_DELETE_HOLD" ]]; then
+      : > "$STUB_OCI_DELETE_HOLD.reached"; while [[ -e "$STUB_OCI_DELETE_HOLD" ]]; do sleep 0.1; done
+    fi
     if [[ -n "${STUB_OCI_DELETE_503:-}" && ! -e "$STUB_LOG_DIR/oci.503" ]]; then : > "$STUB_LOG_DIR/oci.503"; fail InternalServerError 503; fi ;;
   *) echo "oci stub: unsupported: $sub" >&2; exit 9 ;;
 esac

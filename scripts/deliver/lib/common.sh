@@ -2,21 +2,19 @@
 # common.sh: what `turpin`, `turpin-host` and the payload's steps share.
 # Sourced, never executed. Design: records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md
 #
-# It holds: messages and exits, the run log, the gate list (a gate is named when
-# it runs, and a command that ends with one unrun refuses), the flags that set a
-# gate aside, and the hook runner. It names no application and no machine.
+# It holds: messages and exits, the run log, the gates a host reports, the way a
+# request sets one aside, and the hook runner. It names no application and no
+# machine. The client's own are in `turpinlib`.
 
 # Exit codes (design §6): 0 done; 1 refused or failed; 3 live, a later step failed.
 EXIT_REFUSED=1
 EXIT_FUNDAMENTAL=2
+# shellcheck disable=SC2034  # read by payload/deploy, which sources this file
 EXIT_PARTIAL=3
 
 TURPIN_CMD="${TURPIN_CMD:-turpin}"
 RUN_LOG="${RUN_LOG:-}"
-GATES_EXPECTED=()
-GATES_RAN=()
 SET_ASIDE=()        # "gate<TAB>reason"
-OVERRIDES=()        # "flag<TAB>reason", for the run log
 
 EXIT_BLIP=75
 EXIT_INTERRUPTED=130
@@ -142,8 +140,6 @@ run_log_event() {   # EVENT [key=value...]
 
 # ---------------------------------------------------------------- gates
 
-gates_expect() { GATES_EXPECTED=("$@"); }
-
 # On a host the controller reads the gate lines from stderr (GATE_EMIT=1).
 gate_emit() {
   note G "$1" "$2"
@@ -151,22 +147,11 @@ gate_emit() {
 }
 
 gate_ok() {        # NAME [detail]
-  GATES_RAN+=("$1")
   run_log_event gate "name=$1" "result=passed" "detail=${2:-}"
   gate_emit "$1" passed
 }
 
-# A check that passes and has something to say (an emergency's unticked tests):
-# shown to the person and recorded as `reported`, not as plain `passed`.
-gate_report() {    # NAME message
-  GATES_RAN+=("$1")
-  run_log_event gate "name=$1" "result=reported" "detail=$2"
-  gate_emit "$1" passed
-  say "check $1: $2"
-}
-
 gate_fail() {      # NAME message
-  GATES_RAN+=("$1")
   run_log_event gate "name=$1" "result=refused" "detail=$2"
   gate_emit "$1" refused
   warn "refused at gate $1: $2"
@@ -176,7 +161,6 @@ gate_fail() {      # NAME message
 
 # gate_blip NAME message: a gate that could not be passed for now: refused as a blip (exit 75).
 gate_blip() {
-  GATES_RAN+=("$1")
   run_log_event gate "name=$1" "result=refused" "detail=$2"
   gate_emit "$1" refused
   warn "refused at gate $1: $2"
@@ -194,7 +178,6 @@ gate_set_aside() {
       *" $name "*) ;;
       *) return 1 ;;
     esac
-    GATES_RAN+=("$name")
     run_log_event gate "name=$name" "result=set-aside" "reason=${entry#*$'\t'}"
     gate_emit "$name" set-aside
     SET_ASIDE_USED+=("$entry")
@@ -210,51 +193,8 @@ set_aside_requested() {   # NAME: was it named at all (overridable or not)?
   return 1
 }
 
-# gates_finish: a command that ends with a gate of its list unrun refuses.
-gates_finish() {
-  local want ran missing=()
-  for want in "${GATES_EXPECTED[@]}"; do
-    local found=0
-    for ran in "${GATES_RAN[@]}"; do [[ "$ran" == "$want" ]] && { found=1; break; }; done
-    [[ $found -eq 1 ]] || missing+=("$want")
-  done
-  if [[ ${#missing[@]} -gt 0 ]]; then
-    run_log_event gates-unrun "names=${missing[*]}"
-    die "ended with gates unrun: ${missing[*]}"
-  fi
-}
-
-# ---------------------------------------------------------------- flags
-
-# take_reason FLAG VALUE...: a flag that sets a gate aside takes a reason.
-reason_ok() {      # VALUE
-  [[ -n "${1:-}" && "$1" != --* ]]
-}
-
-# parse_common_flag: handles the flags every command shares. Sets OPT_*.
-# Usage in a loop: parse_common_flag "$@" && { shift "$PARSED"; continue; }
-OPT_CHECK=0
+# The minutes a hook that says "not yet" is waited for: the request's `wait`, set by the payload's steps.
 OPT_WAIT=""
-PARSED=0
-parse_common_flag() {
-  case "$1" in
-    --check) OPT_CHECK=1; PARSED=1 ;;
-    --wait) OPT_WAIT=60; PARSED=1 ;;
-    --wait=*) OPT_WAIT="${1#--wait=}"; [[ "$OPT_WAIT" =~ ^[0-9]+$ ]] || die "--wait takes minutes"; PARSED=1 ;;
-    --set-aside)
-      [[ -n "${2:-}" && "${2:-}" != --* ]] || die "--set-aside takes a gate and a reason"
-      reason_ok "${3:-}" || die "--set-aside $2 needs a reason"
-      SET_ASIDE+=("$2"$'\t'"$3"); OVERRIDES+=("set-aside:$2"$'\t'"$3"); PARSED=3 ;;
-    *) return 1 ;;
-  esac
-}
-
-# reason_flag FLAG VALUE: record an override flag's reason or refuse.
-reason_flag() {
-  reason_ok "${2:-}" || die "$1 needs a reason"
-  OVERRIDES+=("$1"$'\t'"$2")
-  run_log_event override "flag=$1" "reason=$2"
-}
 
 # ---------------------------------------------------------------- hooks
 
@@ -349,14 +289,8 @@ hook_step() {
 
 # ---------------------------------------------------------------- small helpers
 
-sha256_of() { sha256sum | cut -d' ' -f1; }
-
 # image_var NAME: TURPIN_IMAGE_<NAME> for the compose file's ${...}.
 image_var() { printf 'TURPIN_IMAGE_%s' "$(printf '%s' "$1" | tr 'a-z-' 'A-Z_')"; }
-
-semver_gt() {      # A B: is A strictly greater than B
-  [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" == "$1" ]]
-}
 
 # ---------------------------------------------------------------- the host's record
 

@@ -13,6 +13,10 @@ set -uo pipefail
 R="${STUB_REGISTRY:?}"
 echo "skopeo $*" >> "${STUB_LOG_DIR:?}/skopeo.log"
 [[ -z "${STUB_REGISTRY_DOWN:-}" ]] || { echo "dial tcp: connection refused" >&2; exit 1; }
+# STUB_SKOPEO_HOLD=FILE: wait while FILE exists, saying so in FILE.reached (a test interrupts the caller meanwhile)
+if [[ -n "${STUB_SKOPEO_HOLD:-}" && -e "$STUB_SKOPEO_HOLD" ]]; then
+  : > "$STUB_SKOPEO_HOLD.reached"; while [[ -e "$STUB_SKOPEO_HOLD" ]]; do sleep 0.1; done
+fi
 
 # parse docker://host/ns/repo:tag or @digest -> REPODIR TAG|DIGEST
 parse() {

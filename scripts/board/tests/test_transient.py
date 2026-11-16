@@ -148,6 +148,17 @@ class Detached(Repository):
             sources.run_detached(["git", "status"], capture_output=True, timeout=5)
         run.assert_called_once_with(["git", "status"], start_new_session=True, capture_output=True, timeout=5)
 
+    def test_a_caller_that_refuses_new_calls_stops_the_next_one_before_it_starts(self):
+        """S90: `turpin settle` given a Ctrl+C lets the call under way end and starts no other."""
+        refusing = [False]
+        with mock.patch.object(sources, "refuse_new_calls", lambda: refusing[0]), \
+                mock.patch.object(sources.subprocess, "run") as run:
+            sources.run_detached(["gh", "api", "first"])
+            refusing[0] = True
+            with self.assertRaises(Unavailable):
+                sources.run_detached(["gh", "api", "second"])
+        run.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -147,11 +147,7 @@ env-destroy"
   assert_output --partial "oci is missing (needed by the oci-instance-principal login)"
 }
 
-@test "login adapters: the three are named, and an unknown one is refused (R39)" {
-  run bash -c ". '$TURPIN_SRC/lib/common.sh'; . '$TURPIN_SRC/lib/registry.sh'; login_adapters"
-  assert_output "docker-config
-oci-api-key
-oci-instance-principal"
+@test "an unknown login adapter is refused (R39)" {
   run bash -c ". '$TURPIN_SRC/lib/common.sh'; . '$TURPIN_SRC/lib/registry.sh'; login_run nonsense; echo \$REG_ERR"
   assert_output --partial "unknown login adapter nonsense"
 }

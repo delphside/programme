@@ -1169,7 +1169,10 @@ failure (`gh`'s `error connecting to HOST`, `check your internet connection`, `C
 resolve host`). It does not take ssh's `Could not resolve hostname`, a host name wrong in a
 configuration, so name resolution is transient for `gh` only. The board model starts each `gh` and `git` it runs in a process
 group of its own (`start_new_session`), so a Ctrl+C reaches `turpin` alone
-([interruption](#interruption)); both are changes to the board model, which is
+([interruption](#interruption)). Its third change is `sources.refuse_new_calls`,
+which `run_detached` checks before it starts a `gh` or `git`: `turpin settle`
+sets it while it holds a Ctrl+C, so the action under way finishes and none is
+started after it. All three are changes to the board model, which is
 otherwise reused. Around the call, it redirects the board model's standard error
 to the run log, so the operator sees one message. It also holds a Ctrl+C until
 the call returns, because `subprocess.run` kills its child on one, and then stops
@@ -1327,9 +1330,9 @@ reading the profile with `tomllib` (hence Python 3.11 or later; 3.11.4 for the t
 | `oci.py` | what the OCI image format fixes (the label keys, an attestation manifest, a layout's first entry), shared by `layout.py` and the registry adapter's translators |
 | `settings.py` | the client's product settings: the retry limit and backoff, shared by registry calls and `ssh` calls, and the timeout of each ([§13](#13-non-functional-design)); and the names of the environment variables `turpin` reads between its own calls: `TURPIN_CALLED`, `TURPIN_ON_BUILD_HOST`, and `TURPIN_BIN`, the program a call to `turpin` runs (default: the entry script beside `turpinlib`) |
 | `payload.py` | assembling the payload and its `profile.json` |
-| `board.py` | the board model's `release` module, imported from `scripts/board/`; before calling it, sets what `board-release.py`'s `_environment()` sets: `BOARD_REPOSITORY` from `TURPIN_GH_REPO` or the origin URL, and `PROGRAMME_CONFIG` where it is unset; `calling`, which turns what the model raises into a result and holds a Ctrl+C until the call returns |
+| `board.py` | the board model's `release` module, imported from `scripts/board/`; before calling it, sets what `board-release.py`'s `_environment()` sets: `BOARD_REPOSITORY` from `TURPIN_GH_REPO` or the origin URL, and `PROGRAMME_CONFIG` where it is unset; `calling`, which turns what the model raises into a result and holds a Ctrl+C until the call returns; `no_new_calls`, which `settle` runs inside, so a held Ctrl+C lets the action under way finish and starts no other |
 | `registry/` | the registry port and the `OCIR` adapter ([the registry adapter](#the-registry-adapter)); `connect.py`, the one place a command makes the port for a component's credentials |
-| `commands/` | one module per command: `build`, `deploy` (and `rollback`), `release`, `settle`, `status` (and `list`), `prune`, `promote`, `remove`, `login`, `host_install`, `env` |
+| `commands/` | one module per command: `build`, `deploy` (and `rollback`), `release`, `settle`, `status`, `list`, `prune`, `promote`, `remove`, `login`, `host_install`, `env` |
 
 `turpin-host` is one Bash script whose front end calls each subcommand's
 function (`cmd_deploy`, `cmd_status` and so on). It and the payload source
@@ -1543,7 +1546,9 @@ Then, on a Ctrl+C:
    - in any other command with no pivot, has its message say which steps are
      done and what to run next.
    - A call into the board model counts as one step: it is held to its end
-     (item 1), and every action `settle` makes through it is safe to run again.
+     (item 1). `settle`'s actions are each a `gh` call the model makes, and none
+     is started once a Ctrl+C is held, so the action under way finishes and the
+     rest are left for the rerun (S90); every action is safe to run again.
 5. A called side that read the interruption exits 130, which comes back over
    the `ssh` connection, still open. Once every call has returned, `turpin`
    exits 130, except for a rollback that held the lock (step 3).
@@ -1671,7 +1676,8 @@ from the real calls:
 - loads the `ssh` key into an agent;
 - adds each host to `known_hosts`;
 - gives the host user that `host-install` connects as `sudo` without a
-  password.
+  password; on the controller's own machine, which has the operator's terminal,
+  `host-install` may prompt for the `sudo` password instead.
 
 ```sh
 # turpin deploy, to the environment's host: the request on standard input
@@ -2238,7 +2244,7 @@ What a caller does with each:
 | a release's carried releases (the board model's `tag_record`) | a release with no record, under the range rules below | refuses |
 | `settle` | settles nothing and exits 3, warning that the tag has no record it reads | settles nothing and exits 3, warning that the tag has no record it reads |
 | `status` | passes over the tag | passes over the tag |
-| `list` | lists the version as history, with no record | lists the version as history, with no record |
+| `list` | lists the version as `(history: no record)`; a tag whose suffix is not a semver version is not listed | lists the version as `(a record this tool does not read)` |
 | `prune` | counts the tag's own date toward the newest release, and treats none of its candidates as released | counts the tag's own date toward the newest release, and treats none of its candidates as released |
 
 In a deploy by version, the controller takes the commit and the digests from
@@ -2563,10 +2569,9 @@ exits 3, the message naming `turpin settle VERSION`.
 A tag with no record is a business error (exit 1), raised before any action.
 A profile with no announcement, a profile that cannot be read, or a repository
 the model cannot name is a fundamental error (exit 2), also before any action.
-A board that cannot be reached is a blip (exit 75), until the model names which
-of its errors are transient. An interruption names the rerun. It says the
-action under way finished and none started only once the model's `gh` runs in
-a process group of its own.
+A board that cannot be reached is a blip (exit 75) where the model says the
+failure is transient, else fundamental (exit 2). An interruption lets the action
+under way finish, starts none, and names the rerun.
 
 ## 13. Non-functional design
 
