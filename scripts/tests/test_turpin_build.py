@@ -27,7 +27,7 @@ from unittest import mock
 from .test_turpin_core import Isolated
 from .test_turpin_registry import AdapterCase, REGISTRY as REGISTRY_ADDRESS, component
 
-from turpinlib import gitrepo, hosts, layout, model, payload, profile, remote, settings  # noqa: E402
+from turpinlib import board, gitrepo, hosts, layout, model, payload, profile, remote, settings  # noqa: E402
 from turpinlib.commands import build, login, prune, promote, remove  # noqa: E402
 from turpinlib.model import (Api, BusinessError, Build, ComponentKind, CredentialKind, Deployed,  # noqa: E402
                              DeployedBuild, Digest, ErrorType, Image, Outcome, ProgrammeError, Reason,
@@ -665,7 +665,6 @@ class Payloads(unittest.TestCase):
                     self.assertNotIn("token", path.name.lower())
 
     def test_the_payload_carries_only_the_profile_keys_a_host_reads(self):                          # T6
-        from turpinlib import board
         with tempfile.TemporaryDirectory() as folder:
             repo = Repo(Path(folder))
             sha = repo.git("rev-parse", "HEAD", cwd=repo.work)
@@ -687,7 +686,6 @@ class Payloads(unittest.TestCase):
             self.assertEqual("ops/backup.sh", carried["turpin"]["host_files"][0]["src"])
 
     def test_the_payload_carries_the_libraries_the_board_model_names_and_no_others(self):          # T6
-        from turpinlib import board
         with tempfile.TemporaryDirectory() as folder:
             repo = Repo(Path(folder))
             sha = repo.git("rev-parse", "HEAD", cwd=repo.work)

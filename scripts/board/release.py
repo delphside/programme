@@ -278,14 +278,14 @@ def milestone_gate(req: GateRequest, issues: Sequence[Issue], result: GateResult
     """The milestone is a shipping list (design §9, *The milestone gate*)."""
     own = _items(issues, req.version)
     wp, other = _split(own)
+    ev_counts = repo.named_in_range(req.range, effective=True)
     result.notes += [f"#{n} is named by a commit in the release and is open with no milestone"
-                     for n in unmilestoned(issues, set(repo.named_in_range(req.range, effective=True)))]
+                     for n in unmilestoned(issues, set(ev_counts))]
     if req.milestone_set_aside:
         result.carries = {"work_packages": wp, "issues": other, "releases": []}
         result.gates.append(Verdict("milestone", True, "set aside: the milestone's open items are carried as they stand"))
         return
 
-    ev_counts = repo.named_in_range(req.range, effective=True)
     evall = set(repo.named_in_range(req.range, effective=False))
     ev = set(ev_counts)
     main_named = set(repo.named_in_range(req.main_range, effective=False))

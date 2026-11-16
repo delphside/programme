@@ -111,11 +111,11 @@ def unmilestoned(issues: Sequence[Issue], named: Collection[int]) -> tuple[int, 
 
     The release's milestone gate reads only the milestone's own issues, so an issue the release
     mentions and the board never put in it would pass unseen. A parent is left out, as everywhere
-    here (it owns no delivery, D51), and so is a pull request. `issues` are the open ones, so a closed
-    issue is never reported. A check, not a gate: the release goes ahead.
+    here (it owns no delivery, D51), and so is a pull request. Only an open issue is reported, whatever
+    the list holds. A check, not a gate: the release goes ahead.
     """
     return tuple(sorted(i.number for i in issues
-                        if i.number in named and not i.raw.milestone
+                        if i.number in named and i.raw.state == "OPEN" and not i.raw.milestone
                         and not isinstance(i, (ParentProject, PullRequest))))
 
 

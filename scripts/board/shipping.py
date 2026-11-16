@@ -92,7 +92,7 @@ def reaches_image(path: str) -> bool:
 def image_paths(paths: Iterable[str], pin_ships: bool = False, host_reads_changed: bool = True) -> list[str]:
     """The paths, of these, that reach the image, in the order given. Where the application carries
     the payload, the pin is judged by `pin_ships` (whether its move changes what is carried) and the
-    profile by `profile_ships` (whether its edit changes what a host reads), not by `non_shipping`
+    profile by `host_reads_changed` (whether its edit changes what a host reads), not by `non_shipping`
     and the patterns."""
     if carries_payload():
         judged = {PIN: pin_ships, profile.TECHNICAL_FILE: host_reads_changed}

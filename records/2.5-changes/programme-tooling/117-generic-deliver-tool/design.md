@@ -2200,6 +2200,7 @@ production deploy, an error after the deploy's
 | release | CI passed | every `required_checks` check green on the commit | gate | — |
 | release | version spent once | no tag for it; a `VERSION-record` in releases is reused if it has this commit and digests; above the newest release tag of any prefix | gate | — |
 | release | shipping list | open issues in milestone VERSION evidenced by commits in the release or confirmed by a person; Production Release work packages the commits name in it or an undeployed release's ([The milestone gate](#the-milestone-gate)) | gate | `--set-aside milestone REASON` |
+| release | no unmilestoned mention | an open issue with no milestone that a commit in the range names, parents aside, is reported as a note ([The milestone gate](#the-milestone-gate)) | check | — |
 | release | no silent drop | an item an earlier release in the range carried and this drops: `#N is in X but not carried by Y` ([§10](#10-the-release-and-its-record)) | check | — |
 | production deploy | made releases only | a record exists for VERSION; digests pulled from releases | gate | `--unrecorded` |
 | after production deploy | board is current | `settle` ([§12](#12-settling)); failure reported, exit 3, deploy stands | check | — |
