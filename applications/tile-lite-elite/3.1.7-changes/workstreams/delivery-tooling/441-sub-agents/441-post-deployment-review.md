@@ -49,7 +49,7 @@ written without asking where its evidence would be kept.
 | Finding | Pre-approved change, requirement or project | Or why no change |
 | --- | --- | --- |
 | R1's three launches unconfirmed | | The review-round record already names which agents ran; the next three pull requests' *Review rounds* are read for the handover's headings (*Done when*, *Already checked*). Claude answers it at the next weekly review, and R1 stays open until then |
-| *Cases to check* in the digest versus the template | Pre-approved change: the owner or Claude confirms whether W44's process change landed, and edits `docs/templates/agent-handover.md` or the digest note | Straight to `main`, Docs and Programme Tooling |
+| *Cases to check* in the digest versus the template | | Answered 2026-11-16: the change was never meant to land. The W44 digest's *Claude's reading* settles lesson 1 without a new step, through the test approach and delphside/tile-lite-elite#542 *Entity life histories in designs* (owner, 2026-10-26 and 2026-10-27), so the template is right as it is |
 | No post-deployment row for R8 to R15 | | Their trials are recorded in the project and the agents are in daily use: `change-reviewer` ran on delphside/programme#185 *Change 117: Turpin redesign, Python controller and OCIR adapter* to round 18 |
 | R5 and R6 not built | | Built when a first need appears, as the project says |
 | The body's stale `docs/5.0` and `docs/5.1` references | | The documents live and the issues expire: `docs/1.1` is the home, and nothing cites the body as authority |
