@@ -50,6 +50,7 @@ verified addresses, and INV-4 is #439's.
 - [ ] **Claude** — two seats of one listed bot share one account and one rating per edition
 - [ ] **Claude** — a scripted second client sees every change the first makes, invitations included, within one update
 - [ ] **Claude** — the same engine plays the same move through the glue and through the external transport
+- [ ] **Claude** — a bot's account has no `email` and no `password_hash`, and the Rust account type cannot hold a bot with either or a human without both; registering, or renaming to, a display name ending in ` (bot)` is refused, and one not ending so succeeds; a listed bot named `<engine> (bot)` finds the account the migration made, with its ratings
 - [ ] **Claude** — an engine's `start` refuses a level of 0 or above its maximum, a bot list giving one stops the server at start-up, an engine starts at its default when the bot list gives none, and one with a maximum of 1 plays at level 1
 - [ ] **Claude** — G1: a bot seat the start renumbers keeps its bot object and plays on its new number, and a swap writes no seat list
 - [ ] **Claude** — G2: a bot object ends on the first view that shows its game finished or aborted, and one made at start-up for a game already over ends on that game's first view
