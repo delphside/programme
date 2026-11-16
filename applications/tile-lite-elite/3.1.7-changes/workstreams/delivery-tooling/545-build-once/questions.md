@@ -1,6 +1,6 @@
 # Questions for the owner: Tile Lite Elite on Turpin
 
-Six questions for delphside/tile-lite-elite#545, *Build once, promote through
+Six questions, all answered, for delphside/tile-lite-elite#545, *Build once, promote through
 environments*, that its [design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md) cannot settle. #545 delivers
 through two work packages: #555, the deploy tooling (route Application
 Tooling, delivered when its branch lands), and #556, the image (route
@@ -9,8 +9,7 @@ build, release and deploy tool (delphside/programme#117), and a *T* number is a
 gap in it, in [turpin-gaps.md](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/turpin-gaps.md).
 
 Each question stands alone: its terms are glossed in it, its options are
-numbered with what each constrains and costs, and the last line is the
-recommendation, which the design assumes until the question is answered.
+numbered with what each constrains and costs, and the last line is the answer.
 
 ## Q1. The package for R8 and R10
 
@@ -37,7 +36,7 @@ requirements.
    artefacts that reach the image, against the rule that a route belongs to the
    artefact. Costs: nothing in the work; a misfiled route.
 
-**Recommendation**: option 1.
+**Answer**: option 1, decided by the rule that a route belongs to its artefact (2026-11-16).
 
 ## Q2. R9's confirmation
 
@@ -46,8 +45,7 @@ the milestone check informs rather than alarms. Where an issue in the
 release's milestone is named by no commit, it asks `Project tle#N has this
 milestone but is not explicitly mentioned in a commit. Confirm that #N is in
 this build [y/N]`, in place of today's claim that the issue "was not built";
-and it skips a parent project with sub-projects. Turpin skips parents but has
-no per-issue confirmation ([T9](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/turpin-gaps.md)).
+and it skips a parent project with sub-projects. Turpin has it ([T9](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/turpin-gaps.md)).
 
 1. **Accept Turpin's refusal.** `turpin release` refuses, naming each open
    issue in the milestone that no commit in the release names. The fix is a
@@ -59,8 +57,7 @@ no per-issue confirmation ([T9](https://github.com/delphside/programme/blob/main
    delphside/programme#117's design and test design. Costs: a Turpin change
    before 0.10.2.
 
-**Recommendation**: option 1 for 0.10.2, raising option 2 on #117 if a
-set-aside is needed in practice.
+**Answer**: option 2 (the owner, 2026-11-16). R9 stands as agreed. Turpin has it (T9): `turpin release` asks the question per issue, `--confirm N` answers ahead, the record keeps `carries.confirmed`, and `--set-aside milestone REASON` stays.
 
 ## Q3. The timers on rehearsal
 
@@ -90,7 +87,7 @@ Rehearsal has no PAR, so its backup fails every night.
    nothing. Costs: the timers and the backup's lock are first tried on
    production.
 
-**Recommendation**: option 1.
+**Answer**: option 1, extended (the owner, 2026-11-16). The backup and the log check send every object through one upload function; `TLE_UPLOAD` in each host's `.env` chooses its adapter: production uploads through the PAR, rehearsal writes into a local folder and reports success, or failure where a test sets it. Only the upload through the PAR is not tried before production; a post-deployment row in #556 covers it.
 
 ## Q4. Applying a changed `.env`, and resetting rehearsal
 
@@ -112,7 +109,7 @@ folder's compose file would start the old images.
    a snapshot and a restart for each key; and no reset, since a deploy keeps
    the data.
 
-**Recommendation**: option 1.
+**Answer**: option 1 (the owner, 2026-11-16). `turpin-host compose` exists (T2).
 
 ## Q5. Preview's lifetime
 
@@ -130,7 +127,7 @@ Turpin's ephemeral environments do not fit a preview on the laptop
    delphside/programme#117. Costs: a Turpin change; a Linux user per preview
    on the laptop.
 
-**Recommendation**: option 1.
+**Answer**: option 1 (the owner, 2026-11-16), which meets #545's option 4 without a Turpin change; T8 is not needed.
 
 ## Q6. The pin and the profile in the image
 
@@ -151,4 +148,4 @@ keys included, waits for a release.
    steps. Constrains: delphside/programme#117 and the board's shipping rule.
    Costs: a small change to each.
 
-**Recommendation**: option 2.
+**Answer**: option 2 (the owner, 2026-11-16). Tile Lite Elite sets `[ships].carries_payload = true` in #555, once its image carries the payload.
