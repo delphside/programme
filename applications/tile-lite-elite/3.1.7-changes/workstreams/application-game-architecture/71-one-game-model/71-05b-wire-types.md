@@ -111,11 +111,11 @@ pub enum GameEventDto {
     SeatAdded     { seat: u32 },
     SeatsSwapped  { a: u32, b: u32 },
     KeepRequested,
-    SeatHidden    { seat: u8 },
+    SeatHidden    { seat: u32 },        // by id: a hide may come before the start
     ReminderSent  { seat: u8 },
     Started, Aborted, Finished { winner: Option<u8> },
     UserDetailsUpdated { player: String },
-    ChatPosted    { seat: Option<u8>, player: String },
+    ChatPosted    { seat: Option<u32>, player: String },  // by id: chat is allowed in any state (GAME-12)
 }
 
 impl GameEventDto {
@@ -143,16 +143,20 @@ administrator's force-end after the start. A turn that ends the game says so in
 `ended`, and a resignation or timeout that leaves one seat playing keeps its own
 event, so a client reads the end from the state's `status`, not from one event.
 
-**`ForceResigned` does not say who did it.** Every client of the game receives
-the event, and which administrator acted is not theirs to know; the log row's
-`actor_id` records it ([*Database*](71-08-storage.md#database)).
+**`ForceResigned` does not say who did it**, though only the game's creator may
+(GAME-6). The log row's `actor_id` records it
+([*Database*](71-08-storage.md#database)).
 
 **Undo and redo are classified by what they undo**, not by being undo —
 undoing a placement is a board change, undoing a pass is a game change. That
 falls out if the event carries what it reversed, which it must anyway for the
 log to be readable.
 
-Seat numbers and player IDs, not sentences. The client renders them, which is
+Seat ids or numbers and player IDs, not sentences: an event that may come
+before the start names the seat by its id, and an event of play by its number,
+which is fixed once play starts. A client renders an id with the seat's current
+number and player; once the start has dropped the seat, the event is shown as
+one about a seat that has left. The client renders them, which is
 the only way any of it is readable in a language other than the one the server
 was written in — and this service already ships Spanish dictionaries.
 

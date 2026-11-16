@@ -291,6 +291,7 @@ sequenceDiagram
   participant B as Bot object
 
   D->>ES: delete the game
+  Note over ES: takes the game's lock, sets deleted, removes it from the map
   ES->>GW: drop the sender
   ES->>SW: write the new seat list of each account its seats name
   GW--)U: the channel closes

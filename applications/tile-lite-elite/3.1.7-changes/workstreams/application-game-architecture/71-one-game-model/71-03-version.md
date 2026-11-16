@@ -146,9 +146,11 @@ save of that game, which is the point of the rule in
 change has happened only once it is in the database.
 
 This project owns the map's shape; #408 designs its deadline index, loading and
-eviction on top of it [^d70]. A handler holding a cloned `Arc` can still save
-after a sweep or an admin delete has removed the game from the map, which
-inserts its row again
+eviction on top of it [^d70]. A handler holding a cloned `Arc` could save
+after a sweep or an admin delete has removed the game from the map, which would
+insert its row again. So the session carries a `deleted` flag: the deleter
+takes the game's lock, sets it and removes the game from the map, and the one
+handler refuses a message to a deleted game and saves nothing
 ([*Open questions about the shapes*](71-09-open-questions.md#open-questions-about-the-shapes)).
 
 ## Watch channels
@@ -220,6 +222,7 @@ pub enum GameMessage {
     Pass { seat: u8 },
     Exchange { seat: u8, tiles: Vec<Tile> },
     Resign { seat: u8 },
+    ForceResign { seat: u8 },             // the creator's only (GAME-6)
     Abort,
     SeatAdded { .. },                     // an invited seat's invitation is sent with it
     InvitationAccepted { seat: SeatId, .. },
@@ -229,13 +232,12 @@ pub enum GameMessage {
     Start,
     SeatsSwapped { a: SeatId, b: SeatId },
     ChatPosted { player: PlayerId, body: String },
-    Hide { seat: u8 },
+    Hide { seat: SeatId },                // allowed before the start too (RET-3)
 }
 
 /// In `server-game` only, so no client can build one.
 pub enum SystemMessage {
     TimeOut { seat: u8 },
-    ForceResign { seat: u8 },
     AdminForceEnd,
     ReminderSent { seat: u8 },
     InvitationPassed { seat: SeatId, to: PlayerId },  // on a followed link or a verified address
@@ -455,7 +457,9 @@ pub enum ApplyError {
     NotYourTurn { seat: u8 },
     SeatNotPlaying { seat: u8 },
     GameNotActive,
-    GameNotWaiting,            // a seat message (invite, accept, claim) after the start
+    GameNotWaiting,            // a seat message (add, accept, claim, swap) after the start
+    InvitationNotAvailable,    // a link claimed after its seat found an addressee (INV-2)
+    NotCreator,                // a creator's message from anyone else (GAME-6)
     IllegalMove(rules_shared::MoveError),
     Unknown(String),
 }

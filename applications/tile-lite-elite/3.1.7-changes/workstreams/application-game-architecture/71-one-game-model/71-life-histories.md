@@ -133,7 +133,7 @@ code in brackets, (G1) to (G7), names the gap whose answer fills the cell.
 | E18 | U | U | — | U | U | — | — | — |
 | E19 | U | — (nothing published) | — | — | — | — | — | — |
 | E20 | U | — (nothing published) | — | — | — | — | — | — |
-| E21 | D | D, its receivers closed | U, each seated account's | U, yields `GameRemoved`, leaves | U, sends `GameRemoved`, then D | — | D | — |
+| E21 | D | D, its receivers closed | U, each account its seats name, players and addressees alike | U, yields `GameRemoved`, leaves | U, sends `GameRemoved`, then D | — | D | — |
 | E22 | — | — | — | — | — | — | — (re-validated on arrival, [the engine](71-06-engine.md#what-follows-from-the-engine-being-a-client)) | — |
 | E23 | U, `unsaved` cleared by the reload | — (nothing published) | — | — | — | — | U, when the bot sent it: it submits once more after `Retry-After` (G6) | — |
 | E24 | R | C, if it is the first | — | C, one game: its view, then each change | C | — | — | — |
@@ -146,7 +146,8 @@ The Seat-list watch column follows G3's answer, which is in
 [the Event stream](71-06-engine.md#how-the-event-stream-uses-watch).
 
 Every change that moves the version also sets and clears the Game entry's
-`unsaved` flag under its lock; that is the Game entry's U in E3 to E18. E19
+`unsaved` flag under its lock; that is the Game entry's U in E4 to E18, E12
+excepted, and part of its C in E3. E19
 and E20 save under the same lock without moving the version.
 
 ## State tables
@@ -244,15 +245,17 @@ stateDiagram-v2
     Unsaved --> Clean: save failed, reloaded from its row (503)
     Unsaved --> Stuck: save failed, and the reload failed
     Stuck --> Clean: a later reload succeeds
-    Clean --> [*]: the game deleted
-    Stuck --> [*]: the game deleted
+    Clean --> Deleted: the deleter takes the lock, sets deleted
+    Stuck --> Deleted: the deleter takes the lock, sets deleted
+    Deleted --> [*]: the last clone dropped
 ```
 
 | state | a message | the save succeeds | the save fails | a reader arrives | the game deleted |
 | --- | --- | --- | --- | --- | --- |
-| Clean | → Unsaved, applied under the lock | impossible | impossible | reads | → ended |
+| Clean | → Unsaved, applied under the lock | impossible | impossible | reads | → Deleted |
 | Unsaved | impossible: the lock is held | → Clean, published | reload: → Clean, or → Stuck if it fails; 503 either way | impossible: the lock is held | impossible: the lock is held |
-| Stuck | reload first: → Clean and applied, or 503 | impossible | impossible | reload first: → Clean, or 503 | → ended |
+| Stuck | reload first: → Clean and applied, or 503 | impossible | impossible | reload first: → Clean, or 503 | → Deleted |
+| Deleted (still held through a cloned `Arc`) | refused, nothing saved | impossible | impossible | — | impossible |
 
 ## Gaps the matrix found
 
@@ -317,7 +320,8 @@ seat id, so a swap and the start's renumbering write no list
 **G4.** Two questions:
 
 1. **The bot list names an account that does not exist, or an engine not
-   compiled in.** Answered (2026-11-15): the server refuses to start,
+   compiled in.** Answered (owner, 2026-11-15), with a level outside 1 to the
+   engine's `max_level` added on 2026-11-16: the server refuses to start,
    naming the setting, as for any invalid setting
    ([*The bots the server runs*](71-06b-engine-bots.md#the-bots-the-server-runs)).
 2. **An administrator deletes a listed bot's account while the server runs.**

@@ -118,7 +118,7 @@ states to mix.
 **Capacity.** One process on a two-core VM. Engine searches are the largest CPU
 cost the server carries, and moving them off the request path removes the
 accidental bound on them, so a bound replaces it: `engine_limit`, default 2
-because the VM has two cores [^d62], taken by every search and every hint.
+because the VM has two cores [^d62], taken by every search, and by every hint once #585 builds them.
 Memory is unchanged in kind: every live game is held in the map as today, one
 lock each. The whole-state-per-update wire costs a few kilobytes per message per
 connection, which is what is sent today. Each game has its own `watch` channel
@@ -194,7 +194,9 @@ in-process glue under the bot; the append-only game log (D61);
 [*Migration*](71-08-storage.md#migration), with the schema version, foreign keys
 and the rating key; the user-details lookup rule; and the code-review findings
 routed from #460 to it. It takes #142, #80, #106, #105, #429 and the invitation
-that outlives its game, each true by construction here [^d67]. It also builds
+that outlives its game, each true by construction here [^d67]. It removes
+`suggest_move` and its route, which play the move against RATE-4; hints wait
+for #585 (owner, 2026-11-16, G7). It also builds
 the `game-wire` crate and the test client.
 
 **Waits on**: delphside/tile-lite-elite#576, sqlx 0.9, because the migration
