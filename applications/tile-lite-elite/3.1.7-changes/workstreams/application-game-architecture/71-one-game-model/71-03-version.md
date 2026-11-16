@@ -373,6 +373,9 @@ pub struct GameSession {
     pub turn: i64,                        // was `turn_number`; game state, walks back under undo
     pub version: i64,                     // every change, of any kind. Never decreases
     pub last_scoring_turn: i64,           // replaces `consecutive_scoreless_turns`
+    pub hidden_by_creator: bool,          // a seatless creator's hide (U5.2); a seat's player hides on the seat
+    unsaved: bool,                        // set and cleared under the lock (The one handler)
+    deleted: bool,                        // set by the deleter under the lock
 }
 ```
 
@@ -478,11 +481,11 @@ refuses otherwise with `SubmitError::Refused` and its `ErrorDto` code:
 | `SeatWithdrawn` | the creator, or the seat's player (GAME-9) |
 | `InvitationAccepted` | the seat's addressee; on an `Open` seat, any signed-in player (GAME-10) |
 | `InvitationDeclined` | the seat's addressee only |
+| `ChatPosted` | a seated player or the creator, as `player` (GAME-12) |
 
 A link with no addressee is claimed through `InvitationPassed`, the server's
 own message, and accepts nothing; only then may its new addressee accept or
 decline ([*Who may accept*](71-04-seats.md#who-may-accept); INV-2, INV-5).
-| `ChatPosted` | a seated player or the creator, as `player` (GAME-12) |
 
 It then
 calls `apply`, and passes the caller to `events::publish` with the `Applied`,

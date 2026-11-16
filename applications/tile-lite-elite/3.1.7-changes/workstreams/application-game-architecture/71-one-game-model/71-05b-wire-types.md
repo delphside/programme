@@ -194,22 +194,21 @@ it is not applied.
 
 ## The error body, shared by every endpoint
 
-One shape for every error any endpoint returns, designed here in Core because
-Core rewrites the contract anyway, so it changes once (#380 R8).[^d65] Today's
-`ApiError` body, `{ message, blocking_games }`, becomes one case of it.
+**The error body is #402's** (owner, 2026-11-16): RFC 9457 Problem Details,
+typed by docs/1.10's error scheme, delivered by
+[#606](https://github.com/delphside/tile-lite-elite/issues/606) before 1.0.0,
+and adopted here. Its fields, its `Reason` enum in `crates/api` and its
+headers are in [#402's design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/operations/402-server-error-handling/402-design.md), *The model*, *The body* and *Coordination
+with #71*. This design calls that body `ErrorDto` and adds only what Core
+refuses:
 
-```rust
-pub struct ErrorDto {
-    pub code: ErrorCode,                 // stable and machine-readable; the message may change
-    pub message: String,                 // for a person, never parsed
-    pub correlation_id: Option<String>,  // #402 fills it; Core only reserves the field
-    pub detail: Option<ErrorDetail>,     // e.g. the games blocking a deletion
-}
-```
+- **One `Reason` variant per `ApplyError` variant**, and one per refusal of the
+  Game service's sender check ([*The message*](71-03-version.md#the-message)),
+  replacing `MoveRefused`. `IllegalMove`'s `MoveError` is the body's `detail`.
+- **`SubmitError::NotSaved` is `ServiceBusy`**: 503, technical, a blip, with
+  `Retry-After` ([the interface layer](71-05-wire.md#the-interface-layer)).
+- **A deleted game is `GameNotFound`**, 404, and a live socket on it closes
+  with 4404.
 
-`ApplyError` maps onto `code`, so a client tells a stale submission from an
-illegal move without reading prose. Every response carries the same headers,
-the API version among them, and #402 adds the correlation ID to them.
-
-[^d65]: Decision #465 (D65): #71 Core designs the shared error body and
-    response header.
+D65 (#465) had Core design the body; that is superseded, and #268 waits
+on #606.
