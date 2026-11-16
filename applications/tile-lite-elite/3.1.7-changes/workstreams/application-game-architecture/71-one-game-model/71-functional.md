@@ -153,7 +153,9 @@ adding a player mid-game is not a small extension of this model but a
 different one, and the diagram is where that shows up. So the handler refuses
 any seat message — inviting, accepting, claiming — once the game has left
 `Waiting`, with `ApplyError::GameNotWaiting`, and `Start` refuses a game that
-has already started rather than doing nothing.
+has already started rather than doing nothing. The exception is an accept,
+decline or claim on an `Aborted` game, refused with `ApplyError::GameAborted`
+so the player is told why ([71-04](71-04-seats.md#who-may-accept)).
 
 **Finished and Aborted freeze the seats** rather than giving them states of
 their own. Which seats are `Playing` and which are `Departed` when the game
