@@ -90,7 +90,7 @@ verified addresses, and INV-4 is #439's.
 - [ ] **Claude** — INV-6: the creator's view shows the typed address, another player's view shows an invited seat with no address, nobody's shows the addressee before acceptance, and inviting answers the same for an unknown address, the creator's own and a seated player's
 - [ ] **Claude** — GAME-2: a resignation, a force-resign or a timeout leaving one seat `Playing` finishes the game as `Played`, and one leaving two lets it go on; the scoreless limit and an empty bag with an empty rack also finish it as `Played`
 - [ ] **Claude** — GAME-7 and TIME-3: a seat past its move time limit becomes `Departed`, timed out, and a seat within it does not; a timeout, a resignation and a force-resign each return the seat's tiles to the bag
-- [ ] **Claude** — RATE-2: in a three-seat game, a seat that resigned is ranked below and rated against every seat that finished
+- [ ] **Claude** — RATE-2: in a three-seat game, a seat that resigned is ranked below and rated against every seat that finished; in a four-seat game where two resign, the later resigner ranks above the earlier, whatever their scores
 - [ ] **Claude** — RATE-3: a seat that timed out or was force-resigned has no rating change, is not ranked, and the others' changes equal those of the same game played without it
 - [ ] **Claude** — a bot comes on turn and plays after a timeout and after a force-resign hands it the turn, not only after a move
 - [ ] **Claude** — an engine search that returns an error, panics or runs past `ENGINE_TURN_TIMEOUT` leaves its seat on turn and the game playable, nothing is returned to the human whose move started it, and a later legal move applies (supersedes #582 *#71 WP G: Test for the engine move timeout*)
