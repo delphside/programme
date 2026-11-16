@@ -13,26 +13,22 @@ will not) or *unexpected* (a defect).
 
 ## What the owner is asked to approve
 
-- **Two choices on cards of 2026-11-16**, which this design follows in their
-  recommended form until they are answered: [Decisions](#decisions) 2 and 3.
-  Decision 1 is answered.
-- **Two choices this design makes**, decisions 4 and 5: the reason, not a URI,
-  is the machine code, and the reason decides the status.
-- **Four status changes on existing paths**, which make the API a minor:
-  [401 against 403](#401-against-403).
+- **Two choices this design makes**, [decisions](#decisions) 4 and 5: the
+  reason, not a URI, is the machine code, and the reason decides the status.
+  Decisions 1 to 3 are the owner's, answered on his cards of 2026-11-16.
+- **Three kinds of status change on existing paths, on 12 refusals**, which
+  keep the API a minor: [401 against 403](#401-against-403).
 
 ## The work packages
 
 | Package | Requirements | Route | Waits on |
 | --- | --- | --- | --- |
 | [delphside/tile-lite-elite#606](https://github.com/delphside/tile-lite-elite/issues/606) WP A: API errors to the scheme | R1, R2, R6 to R9, the correlation ID | Production Release | none |
-| WP B: symptom counters | R3 | Production Release | WP A, whose classification it counts |
-| WP C: alarms | R4, R5 | Other: the VM and the console | WP B, and [delphside/tile-lite-elite#224](https://github.com/delphside/tile-lite-elite/issues/224)'s `post-metric.sh` |
+| [delphside/tile-lite-elite#609](https://github.com/delphside/tile-lite-elite/issues/609) WP B: symptom counters | R3 | Production Release | WP A, whose classification it counts |
+| [delphside/tile-lite-elite#610](https://github.com/delphside/tile-lite-elite/issues/610) WP C: alarms | R4, R5 | Other: the VM and the console | WP B, and [delphside/tile-lite-elite#608](https://github.com/delphside/tile-lite-elite/issues/608)'s `post-metric.sh` |
 
-**R1's event types are 1.10's severities.** R1 names ITIL's *informational*,
-*warning* and *exception*; 1.10, which R7 adopts, names the same three
-*info*, *warning*, and *error* or *fatal*, and adds the type. This design uses
-1.10's names, and #402's R1 is restated in them.
+**R1 classifies by 1.10's type and severity**, whose *info*, *warning*, and
+*error* or *fatal* are ITIL's *informational*, *warning* and *exception*.
 
 ```mermaid
 flowchart LR
@@ -58,10 +54,9 @@ the counters (R1).*
 - **The body is `ApiError { message, blocking_games }`**
   (`crates/api/src/lib.rs`), with no code. A client tells refusals apart only
   by status.
-- **A 401 signs the player out.** The client treats a 401 on a request that
-  carried a token as an expired session (`crates/ui/src/app.rs`, `request`),
-  so a player who tries to change the seats of a game they did not create is
-  told their session has expired.
+- **A 401 on a read signs the player out.** The client treats a 401 on a GET
+  that carried a token as an expired session (`crates/ui/src/app.rs`,
+  `get_json_auth`); on a POST it shows the server's message.
 - **Some responses are not an `ApiError`**: axum's own rejections (400, 415,
   422), the WebSocket's two refusals before the upgrade
   (`app/events.rs`, `game_events`), and a panic, which drops the connection
@@ -79,7 +74,7 @@ the counters (R1).*
 ## The model: one reason classifies a failure (R1)
 
 **A refusal names a `Reason`, and the reason decides everything else.** The
-call site no longer chooses a status:
+reason chooses the status:
 
 ```rust
 // crates/api: shared by the server, the client and the admin CLI
@@ -115,8 +110,8 @@ impl Reason {
 - **The match is the classification**, and the only one. The status code,
   the body, the log level and WP B's counters all read it.
 - **A call site writes `ApiProblem::new(Reason::NotGameCreator, message)`.**
-  The per-status constructors go, so a 401 for a rule's refusal can no longer
-  be written. `from_sqlx` keeps its job: `ServiceBusy` for a pool timeout, a
+  The per-status constructors go, so a rule's refusal has no way to answer
+  401. `from_sqlx` keeps its job: `ServiceBusy` for a pool timeout, a
   closed pool or a busy or locked database, `Internal` for anything else.
 - **`ErrorType` is `Business`, `Technical` or `Unexpected`**, and `blip` is a
   separate flag, `false` for every reason that is not technical.
@@ -195,8 +190,8 @@ alarms and what the server does are WP C's, all as columns of the same
 - **`cause` and `errors` are never sent**: every caller of the API is outside
   the programme, and an unexpected error's cause stays in the log.
 - **`violations` is filled for the limits the API states**: a chat message
-  over `MAX_CHAT_MESSAGE_LEN`, and a move time limit outside its range
-  (`games.rs`). Its `limit` is the constant the check reads.
+  over `MAX_CHAT_MESSAGE_LEN` (`game_state.rs`), and a move time limit
+  outside its range (`games.rs`). Its `limit` is the constant the check reads.
 - **`message` stays for at least one release**, as 1.10 requires. Claude raises
   its removal as a requirement when WP A ships; removing it is an API major.
 - **`ApiError` gains the new members with `#[serde(default)]`**, so the client
@@ -204,8 +199,8 @@ alarms and what the server does are WP C's, all as columns of the same
 
 **The API version moves to 2.17**, a minor by
 [4.3.3 §2.4.3](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#243-decide-whether-the-api-version-moves):
-every member is added, none removed or renamed, and the four status changes are
-on paths that already exist.
+every member is added, none removed or renamed, and the status changes are on
+paths that already exist.
 
 ## The correlation ID
 
@@ -286,17 +281,17 @@ The status changes, each a refusal on an existing path:
   - `roster.rs`: reorder seats, add, remove, force-resign and abort, each
     creator-only (`NotGameCreator`); withdraw, holder-only (`NotYourSeat`);
   - `invitations.rs`: inviting to another's game (`NotGameCreator`), and
-    accepting an invitation not sent to you;
-  - `events.rs`: signed in but not in the game (`NotInGame`).
-- **401 to 401 or 403, split**: the WebSocket's refusal, above.
+    accepting an invitation not sent to you (`NotYourInvitation`);
+  - `events.rs`: the WebSocket's one refusal, split by the table above into
+    401 and 403 (`NotInGame`).
 - **403 to 401, no session**: starting a game and asking for a suggestion
   answer 403 to a caller with no session today; they answer
   `SignInRequired`.
-- **400 to 403**: removing a game from your list when you are not in it
-  (`NotInGame`).
+- **401 with a rule's words, to `SignInRequired`**: reordering seats checks no
+  session today, so a caller with none is told only the creator may; it checks
+  the session first, as the other roster calls do.
 
-The client signs out only on 401, so a player refused something now sees the
-refusal and stays signed in.
+A 403 shows the refusal on a read or a write and never ends the session.
 
 ## Logs (R1, R6)
 
@@ -304,8 +299,8 @@ refusal and stays signed in.
 `ApiProblem::into_response`, at the level 1.10 sets for a request: `info` for
 *business*, `warn` for *technical*, `error` for *unexpected*. Its fields are
 `status`, `error.type`, `error.reason`, `error.domain` and `request_id`. It
-joins 4.4.7's catalogue and `check-log-hygiene.py`'s schema, as does
-`request_id` on the two database lines.
+joins 4.4.7's catalogue, its field vocabulary and its schema, which
+`check-log-hygiene.py` reads, as does `request_id` on the two database lines.
 
 - **The `error.` prefix is OpenTelemetry's**, and keeps the new fields apart
   from `login rejected`'s existing `reason`.
@@ -336,7 +331,7 @@ answer as 1.10 asks of a client:
 
 It prints the body's `detail`, never reqwest's text; with `--json` it prints
 the error's body to stdout, as it prints a success's. A panic is caught in
-`main` and exits 70 rather than 101. Its `--help` lists the statuses.
+`main` and exits 70. Its `--help` lists the exit codes.
 
 ## What the server does about a failure (R5)
 
@@ -347,7 +342,7 @@ the error's body to stdout, as it prints a success's. A panic is caught in
 | --- | --- | --- |
 | the caller asks too often | answer 429 with `Retry-After` | `throttle.rs` |
 | everyone together asks for more than there is room for | answer 503 with `Retry-After` | `throttle.rs`, `auth.rs` |
-| the server is unreachable | the client retries after 700 ms, then reconnects every 3 seconds | `crates/ui/src/app.rs` |
+| the server is unreachable | sign-in and registration retry twice, 700 ms apart; otherwise the client polls `/health` and reopens its WebSocket every 3 seconds | `crates/ui/src/app.rs` |
 | the container exits | Docker restarts it | `restart: unless-stopped`, `docker-compose.yml` |
 
 **What R5 owes is that each workaround is seen**, and WP C carries it:
@@ -360,8 +355,8 @@ the error's body to stdout, as it prints a success's. A panic is caught in
 - The owner handles it as 1.8's incident rule says; an incident that recurs is
   a problem, with a row in the problem register
   ([1.4](../../../../../../docs/1.4-programme-activities.md#the-problem-register)).
-  A problem closed without resolution, R5's accepted known error, says so in
-  its row's *Initiative*.
+  A problem accepted without a fix, R5's known error, is a row whose
+  *Initiative* says there is none, as 1.4 allows.
 
 **The server takes no new action on its own.** Restarting a component from
 inside the process, or degrading a feature, would be a design of its own, and
@@ -393,13 +388,15 @@ only what WP A must leave room for.
 
 #71 Core (delphside/tile-lite-elite#268) designed an `ErrorDto`
 (`71-05b-wire-types.md`, *The error body, shared by every endpoint*, D65). Under
-decision 1, **this design supplies that body**, and #268's section links
-here. Core needs three things of it, all met:
+decision 1, **this design supplies that body**; programme pull request #211
+changes 71-05b's section to link here and records D65 as superseded. Core
+needs three things of it, stated by #71's design authority on 2026-11-16 and
+all met:
 
 | Core needs | Met by |
 | --- | --- |
 | a stable code per refusal, for `ApplyError`'s variants and the sender check | `Reason`: #268 adds one variant per `ApplyError` variant, replacing `MoveRefused` |
-| a failed save, `SubmitError::NotSaved`, reads as a retryable blip | `ServiceBusy`: 503, *technical*, blip, with `Retry-After` |
+| a failed save (71-life-histories.md's "not saved (503)") reads as a retryable blip | `ServiceBusy`: 503, *technical*, blip, with `Retry-After` |
 | a message to a deleted game reads as a 404 | `GameNotFound`, whether the game never existed or was deleted |
 
 `IllegalMove`'s `MoveError` detail, which the player sees, is the `detail`
@@ -413,8 +410,8 @@ sentence.
   that fails to serialise, the one failure inside the error path, falls back
   to a fixed `application/problem+json` string, tested.
 - **Limits and timeouts**: none, because no limit or timeout changes. The ID's
-  60 bits make a collision likely only after about a billion requests, against
-  the service's few thousand a day.
+  60 bits make a collision likely only after about a billion requests, many
+  years of the service's traffic at any rate the capacity plan records.
 - **Secrets and access**: the body never carries a driver's, axum's, a
   library's or a panic's words; the correlation ID is random and names
   nothing; `cause` is never sent. Answers kept vague for security stay vague:
@@ -425,8 +422,8 @@ sentence.
 
 | # | Decision | State |
 | --- | --- | --- |
-| 1 | #402 delivers the error body before 1.0.0, and #268 adopts it, superseding D65's sketch. | the owner, on his card of 2026-11-16 |
-| 2 | The client shows the correlation ID on a 500 only. | the owner's card of 2026-11-16, open |
-| 3 | Three work packages; R5 by 1.8's incidents and the problem register. | the owner's card of 2026-11-16, open |
+| 1 | #402 delivers the error body before 1.0.0, and #268 adopts it, superseding D65's sketch. | answered by the owner, on his card of 2026-11-16 |
+| 2 | The client shows the correlation ID on a 500 only. | answered by the owner, on his card of 2026-11-16 |
+| 3 | Three work packages; R5 by 1.8's incidents and the problem register. | answered by the owner, on his card of 2026-11-16 |
 | 4 | RFC 9457's `type` is left out; the reason is the machine code. | this design, for the owner's approval |
 | 5 | The reason decides the status, and the per-status constructors go. | this design, for the owner's approval |
