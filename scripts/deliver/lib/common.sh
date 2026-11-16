@@ -205,7 +205,7 @@ HOOK_NOT_YET=75
 hook_env_export() {
   export TURPIN_APP="$H_APP" TURPIN_ENV="$H_ENV" TURPIN_ROLE="$H_ROLE"
   export TURPIN_SHA="$H_SHA" TURPIN_VERSION="$H_VERSION" TURPIN_STATE="$H_STATE" TURPIN_URL="${H_URL:-}"
-  # the deploy a hook is part of, from step 6 on (design §8): the caller sets H_DEPLOY, and the
+  # the deploy a hook is part of, from step 7 on (design §8): the caller sets H_DEPLOY, and the
   # folder and the Compose command line follow from it, in one place (`compose_line`). H_CURRENT
   # is `save-state`'s alone.
   if [[ -n "${H_DEPLOY:-}" ]]; then

@@ -22,7 +22,7 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-from . import gitrepo
+from . import board, gitrepo
 from .model import BusinessError, Reason, TechnicalError
 
 TOOL = Path(__file__).resolve().parents[1]      # scripts/deliver: the running tool's own steps
@@ -53,13 +53,14 @@ def pinned_programme(repo: Path, sha: str) -> str | None:
 
 def _tool_files(repo: Path, sha: str, into: Path) -> Path:
     """The folder holding `payload/` and `lib/` of the tool this commit was built with."""
+    shipping = board.shipping_module()
     pinned = pinned_programme(repo, sha)
     if pinned is None:
         return TOOL
     programme = repo / "programme"
     try:
         archive = subprocess.run(["git", "-C", str(programme), "archive", pinned,
-                                  "scripts/deliver/payload", "scripts/deliver/lib"],
+                                  shipping.PAYLOAD_DIR, shipping.LIB_DIR],
                                  capture_output=True, check=True, stdin=subprocess.DEVNULL).stdout
     except (subprocess.CalledProcessError, OSError) as exc:
         raise TechnicalError.make(Reason.GIT_FAILED,
@@ -98,7 +99,7 @@ def assemble(repo: Path, tree: Path, sha: str, dest: Path) -> None:
     with tempfile.TemporaryDirectory(prefix="turpin-tool-") as scratch:
         tool = _tool_files(repo, sha, Path(scratch))
         shutil.copytree(tool / "payload", dest, dirs_exist_ok=True)
-        for name in ("common.sh", "toml.sh", "toml.awk"):
+        for name in board.shipping_module().LIB_FILES:
             shutil.copy2(tool / "lib" / name, dest / "lib" / name)
     if (tree / "turpin" / "hooks").is_dir():
         shutil.copytree(tree / "turpin" / "hooks", dest / "hooks", dirs_exist_ok=True)

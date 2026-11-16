@@ -375,9 +375,17 @@ class RollbackCommand(CommandsBase):
         self.assertRegex(request["request_id"], UUID4)
         self.assertEqual(
             {"repeat": False, "app": "acme", "env": "production", "role": "production",
-             "login": "oci-instance-principal", "repo": "acme/releases", "pull_timeout": 120,
+             "login": "oci-instance-principal", "repo": "acme/releases", "pull_timeout": 120, "url": "",
              "wait": None, "lock_wait": None, "fallback": "stop it"},
             {k: v for k, v in request.items() if k not in ("request_id", "lock", "project")})
+
+    def test_the_request_carries_the_environments_url_for_the_hooks(self):                          # T3, R66
+        self.assertIn("[environments.production]", self.text)
+        self.text = self.text.replace("[environments.production]", '[environments.production]\nurl = "https://acme.test"', 1)
+        self.plan({"exit": 0, "stderr": self.GATES})
+        self.assertEqual(0, self.main("rollback", "production")[0])
+        (sent,) = self.sent()
+        self.assertEqual("https://acme.test", json.loads(sent["line"])["url"])
 
     def test_a_non_production_environment_reads_candidates_and_a_missing_fallback_is_said(self):
         self.plan({"exit": 0, "stderr": self.GATES})

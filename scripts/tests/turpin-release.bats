@@ -263,8 +263,8 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
 @test "the same two cuts with production's record read from its host state (S50, R17)" {
   emergency_world
   # production has turpin state and its record names 0.10.0
-  git -C "$W/work" checkout -q -f "$E"; build_ok "$E"; git -C "$W/work" checkout -q -f main
-  fake_production 0.10.0 "$E"
+  git -C "$W/work" checkout -q -f "$C0"; build_ok "$C0"; git -C "$W/work" checkout -q -f main
+  fake_production 0.10.0 "$C0"
   gh_milestone 0.10.2 "30|Requirement||0|"
   emergency_ready "$L"
   run d release --expect 0.10.2 --commit "$L" --emergency "outage"
@@ -332,7 +332,7 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   assert_output --partial "another commit or other digests"
   rm -rf "$W/registry/reg.test/ns/acme/releases/oci/0.10.2-record" "$W/registry/reg.test/ns/acme/releases/tags/0.10.2-record"
   # lower than a prod- tag of an earlier prefix
-  text_tag prod-0.11.0 "$(git -C "$W/work" rev-parse HEAD~1)"
+  text_tag prod-0.11.0 "$RSHA"
   fake_production 0.11.0 "$RSHA"
   run d release --expect 0.10.2
   assert_failure 1

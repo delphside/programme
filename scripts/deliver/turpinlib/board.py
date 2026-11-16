@@ -29,6 +29,13 @@ def _import():
     return profile, release, repo, sources
 
 
+def shipping_module():
+    """The model's `shipping` module, which names the programme files the payload carries."""
+    _import()
+    from board import shipping
+    return shipping
+
+
 def repo_module():
     """The model's `repo` module."""
     return _import()[2]

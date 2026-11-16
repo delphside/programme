@@ -149,12 +149,29 @@ class AProgrammePinMove(unittest.TestCase):
         self.git(self.app, "commit", "-q", "-m", "move the pin")
         return self.git(self.app, "rev-parse", "HEAD")
 
-    def answers(self, head):
+    def env(self, opted):
+        """The technical profile the commands read: the fixture's, with `ships.carries_payload` or without."""
+        base = Path(os.environ["PROGRAMME_PROFILE"])
+        if not opted:
+            return None
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "app-profile.toml"
+        path.write_text(base.read_text().replace("[ships]\n", "[ships]\ncarries_payload = true\n", 1))
+        return {**os.environ, "PROGRAMME_PROFILE": str(path)}
+
+    def answers(self, head, opted=True):
         """Exit statuses of `range`, `commit` and `ships` for the move."""
-        codes = [run("board/board-shipping.py", "-C", str(self.app), "range", self.base, head).returncode,
-                 run("board/board-shipping.py", "-C", str(self.app), "commit", head).returncode,
-                 run("board/board-shipping.py", "-C", str(self.app), "ships", head).returncode]
-        return codes
+        env = self.env(opted)
+        return [run("board/board-shipping.py", "-C", str(self.app), cmd, *args, env=env).returncode
+                for cmd, args in (("range", (self.base, head)), ("commit", (head,)), ("ships", (head,)))]
+
+    def staged_paths(self, files, opted=True):
+        """What `paths` prints for a staged pin move over a programme commit changing `files`."""
+        self.programme_commit(files)
+        self.git(self.app, "add", "programme")
+        return run("board/board-shipping.py", "-C", str(self.app), "paths", stdin="programme\n",
+                   env=self.env(opted)).stdout.strip()
 
     def test_a_pin_move_changing_only_documents_ships_nothing(self):
         self.assertEqual([1, 1, 1], self.answers(self.moved({"docs/b.md": "two", "scripts/board/x.py": "x"})))
@@ -162,8 +179,26 @@ class AProgrammePinMove(unittest.TestCase):
     def test_a_pin_move_changing_the_payload_ships(self):
         self.assertEqual([0, 0, 0], self.answers(self.moved({"scripts/deliver/payload/deploy": "new"})))
 
-    def test_a_pin_move_changing_the_libraries_ships(self):
-        self.assertEqual([0, 0, 0], self.answers(self.moved({"scripts/deliver/lib/common.sh": "new"})))
+    def test_a_pin_move_changing_a_library_the_payload_carries_ships(self):
+        for name in ("common.sh", "toml.sh", "toml.awk"):
+            with self.subTest(name):
+                self.assertEqual([0, 0, 0], self.answers(self.moved({f"scripts/deliver/lib/{name}": name + "x"})))
+
+    def test_a_pin_move_changing_a_library_the_payload_does_not_carry_ships_nothing(self):
+        self.assertEqual([1, 1, 1], self.answers(self.moved({"scripts/deliver/lib/registry.sh": "new"})))
+
+    def test_without_the_key_the_profile_decides_the_pin_and_a_payload_move_ships_nothing(self):
+        head = self.moved({"scripts/deliver/payload/deploy": "new"})
+        self.assertEqual([1, 1, 1], self.answers(head, opted=False))
+
+    def test_the_pre_commit_paths_judge_the_staged_move_where_the_key_is_set(self):
+        self.assertEqual("programme", self.staged_paths({"scripts/deliver/payload/deploy": "new"}))
+
+    def test_the_pre_commit_paths_pass_a_staged_documents_move(self):
+        self.assertEqual("", self.staged_paths({"docs/b.md": "two"}))
+
+    def test_the_pre_commit_paths_without_the_key_pass_a_payload_move(self):
+        self.assertEqual("", self.staged_paths({"scripts/deliver/payload/deploy": "new"}, opted=False))
 
     def test_the_pin_move_alongside_a_shipping_path_still_ships_for_the_path(self):
         self.programme_commit({"docs/b.md": "two"})

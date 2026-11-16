@@ -685,6 +685,21 @@ class Payloads(unittest.TestCase):
                              payload.host_profile(everything))
             self.assertEqual("ops/backup.sh", carried["turpin"]["host_files"][0]["src"])
 
+    def test_the_payload_carries_the_libraries_the_board_model_names_and_no_others(self):          # T6
+        from turpinlib import board
+        with tempfile.TemporaryDirectory() as folder:
+            repo = Repo(Path(folder))
+            sha = repo.git("rev-parse", "HEAD", cwd=repo.work)
+            tree = Path(folder) / "tree"
+            repo.git("worktree", "add", "-q", "--detach", str(tree), sha, cwd=repo.work)
+            dest = Path(folder) / "payload"
+            payload.assemble(repo.work, tree, sha, dest)
+            self.assertEqual(sorted(board.shipping_module().LIB_FILES), sorted(os.listdir(dest / "lib")))
+            smaller = Path(folder) / "smaller"
+            with mock.patch.object(board.shipping_module(), "LIB_FILES", ("common.sh",)):
+                payload.assemble(repo.work, tree, sha, smaller)
+            self.assertEqual(["common.sh"], os.listdir(smaller / "lib"))
+
     def test_a_joined_file_the_commit_does_not_have_is_a_business_error(self):
         with tempfile.TemporaryDirectory() as folder:
             repo = Repo(Path(folder))

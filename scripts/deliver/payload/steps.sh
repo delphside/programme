@@ -127,26 +127,42 @@ restart_running() {
 # N's folder, with a copy of each in `host_files_old/` under the source's name. A first deploy's restore
 # puts those back and removes only what N put there. A file that cannot be copied fails the deploy.
 host_files_before() {
-  local src dest list="[]" old; old="$(deploy_dir "$1")/host_files_old"
-  while IFS=$'\t' read -r src dest; do
+  local src dest enable list="[]" units="{}" old unit on active; old="$(deploy_dir "$1")/host_files_old"
+  while IFS=$'\t' read -r src dest enable; do
     [[ -n "$dest" ]] || continue
     [[ -e "$(host_root)$dest" ]] || continue
     mkdir -p "$(dirname "$old/$src")" && cp -p "$(host_root)$dest" "$old/$src" || return 1
     list="$(jq -c --arg d "$dest" '. + [$d]' <<< "$list")"
-  done < <(jq -r '(.turpin.host_files // [])[] | [.src, .dest] | @tsv' "$(deploy_dir "$1")/payload/profile.json")
+    if [[ "$enable" == true ]]; then   # a unit the deploy enables and restarts: how it stood is kept
+      unit="$(basename "$dest")"; on=false; active=false
+      ! systemctl is-enabled --quiet "$unit" 2>/dev/null || on=true
+      ! systemctl is-active --quiet "$unit" 2>/dev/null || active=true
+      units="$(jq -c --arg u "$unit" --argjson e "$on" --argjson a "$active" '.[$u] = {enabled: $e, active: $a}' <<< "$units")"
+    fi
+  done < <(jq -r '(.turpin.host_files // [])[] | [.src, .dest, ((.enable // false) | tostring)] | @tsv' "$(deploy_dir "$1")/payload/profile.json")
+  printf '%s\n' "$units" > "$(deploy_dir "$1")/host_units_before.json"
   printf '%s\n' "$list" > "$(deploy_dir "$1")/host_files_before.json"
 }
 
-# host_files_put_back N: install again each file N overwrote, with the content it had. root-ops installs only
+# host_files_put_back N: install again each file N overwrote, with the content it had, reload systemd, and
+# return each of those units to whether it was enabled and whether it was running. root-ops installs only
 # a deploy's own host file at its allowlisted mode, so the copy goes over N's, which a failed N no longer needs.
 host_files_put_back() {
-  local dir src dest mode f; dir="$(deploy_dir "$1")"; f="$dir/host_files_before.json"
+  local dir src dest mode f unit on active put=0; dir="$(deploy_dir "$1")"; f="$dir/host_files_before.json"
   [[ -f "$f" ]] || return 0
   while IFS=$'\t' read -r src dest mode; do
     [[ -e "$dir/host_files_old/$src" ]] || continue
     cp "$dir/host_files_old/$src" "$dir/payload/host_files/$src" || return 1
     root_ops install "$dir/payload/host_files/$src" "$dest" "$mode" || return 1
+    put=1
   done < <(jq -r --slurpfile before "$f" '(.turpin.host_files // [])[] | select(.dest as $d | $before[0] | index($d)) | [.src, .dest, (.mode // "0644")] | @tsv' "$dir/payload/profile.json")
+  [[ $put -eq 1 ]] || return 0
+  root_ops systemctl daemon-reload || return 1
+  [[ -f "$dir/host_units_before.json" ]] || return 0
+  while IFS=$'\t' read -r unit on active; do
+    if [[ "$on" == true ]]; then root_ops systemctl enable "$unit" || return 1; else root_ops systemctl disable "$unit" || return 1; fi
+    if [[ "$active" == true ]]; then root_ops systemctl restart "$unit" || return 1; else root_ops systemctl stop "$unit" || return 1; fi
+  done < <(jq -r 'to_entries[] | [.key, (.value.enabled | tostring), (.value.active | tostring)] | @tsv' "$dir/host_units_before.json")
 }
 
 # host_files_added_by N: N's host files that were not on the host before N: all of N's where
@@ -217,8 +233,12 @@ restore() {
     # `save-state` stopped, which are started again. Only the host files this deploy put there are removed.
     if [[ -e "$(deploy_dir "$pend")/compose-up" ]]; then
       compose_run "$pend" down >/dev/null || { restore_failed "stopping the failed deploy's containers failed"; return 1; }
+      # shellcheck disable=SC2034 # payload/deploy and payload/rollback say it
+      FIRST_DEPLOY_RESTORED="the new containers are stopped"
     else
       restart_running "$pend" || { restore_failed "starting the containers the deploy stopped failed"; return 1; }
+      # shellcheck disable=SC2034 # payload/deploy and payload/rollback say it
+      FIRST_DEPLOY_RESTORED="the new containers were never started, and any the deploy stopped are running again"
     fi
     host_files_apply "" "$(host_files_added_by "$pend")" || { restore_failed "removing the host files the failed deploy added failed"; return 1; }
     host_files_put_back "$pend" || { restore_failed "putting back the host files the failed deploy overwrote failed"; return 1; }

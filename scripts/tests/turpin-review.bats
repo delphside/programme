@@ -320,7 +320,7 @@ setup() {
   assert_equal "$(grep -c 'POST repos/acme/acme/issues title=Retrospective' "$W/gh/log")" 1
   # another release: the issue is on page 2
   git -C "$W/work" pull -q --ff-only origin main
-  fake_production 0.10.2 "$(git -C "$W/work" rev-parse v0.10.2)"
+  fake_production 0.10.2 "$(git -C "$W/work" rev-parse "v0.10.2^{commit}")"
   ref_commit two 12; build_ok "$SHA"; gh_checks "$SHA" e2e=success; gh_milestone 0.10.3 "12|Requirement||0|"
   rm -f "$W/gh/state/issues-new"
   gh_issue_extra '{"number":901,"title":"filler","state":"closed"}'
