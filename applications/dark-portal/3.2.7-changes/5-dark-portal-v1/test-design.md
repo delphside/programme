@@ -4,7 +4,7 @@ Project: delphside/dark-portal#7 *#5 WP B Del 2 of 5: consumable profiles* · ty
 
 ## 1. Rules
 
-Taken from the design documents at b473b3d (`docs/5.x` on
+Taken from the design documents at 66d5492 (`docs/5.x` on
 `claude/project-thread-01pbpu`), delphside/dark-portal#7's body and its
 Decisions table. The documents are drafts for delphside/dark-portal#7's design.
 
@@ -34,7 +34,7 @@ Decisions table. The documents are drafts for delphside/dark-portal#7's design.
 | C0 | `dp collect` collects the *current hour*, fixed when it starts: the hour starting in which it runs, or the hour before where it starts within that hour's retry window (a run delayed to 11:10 takes 10:00). | 5.2.1 *The snapshot* |
 | C1 | If bronze holds the current hour's file, `dp collect` exits `0` at once. | 5.2.1 step 1 |
 | C2 | A cached token is reused while it has more than the token margin (1 h) left; a token lasts 24 h. A request refused (401) with a cached token takes a new token once. | 5.2.1 step 2, *When it fails*; 5.4.1 |
-| C3 | `GET …commodities?namespace=dynamic-eu`. If `last-modified`'s hour is before the current hour, wait the poll interval (2 min) and repeat until the retry window closes (:25 past the next hour); the hour is then a gap, recorded by `dp transform`. If it is after the current hour, exit `2`. | 5.2.1 steps 3–4; 5.4.1 |
+| C3 | `GET …commodities?namespace=dynamic-eu`. If `last-modified`'s hour is before the current hour, wait the poll interval (2 min) and repeat until the retry window closes (:25 past the next hour); the hour is then a gap, recorded by `dp transform`. If it is the hour after the current one, Blizzard has moved on: the current hour is a gap, exit `75`. If it is later still, the host's clock is wrong: exit `2`. | 5.2.1 steps 3–4; 5.4.1 |
 | C4 | The snapshot is parsed as a stream and written under a temporary name; `dp collect` then takes the lock and renames it to `bronze/commodities/eu/YYYY-MM-DDTHH.parquet`, with 5.4.2's columns. | 5.2.1 step 5; 5.4.2 |
 | C5 | An unknown listing field is logged as a warning naming it. | 5.2.1 |
 | C6 | `dp items` fetches each item ID in bronze's snapshot files with no response in bronze's item files (`static-eu`, `en_GB`), at 50 a second, and writes one `bronze/items/YYYY-MM-DDTHHMMSS.parquet` per run that fetched any, with `status`. A blip is retried with backoff and then left to the next run; a 401 takes a new token once and asks again, then is left to the next run; a 400, 403, 500, other status or unreadable body is left to the next run; each of these gives the step exit `3`. A 404 is data, not an error: written with status 404 and no body, logged as a warning, and asked again only by `dp daily`. The profile shows the item's ID until it has a response. | 5.2.1 *Item data*, *When it fails*; 5.4.1; 5.4.2; 5.4.5 |
@@ -51,23 +51,24 @@ Decisions table. The documents are drafts for delphside/dark-portal#7's design.
 | H7 | The hourly and daily jobs run DuckDB with `memory_limit` 1 GB and `threads` 1. Ad hoc: 1 thread, and 4 GB in production, 8 GB outside it. `DP_CONTAINER_MEMORY` is the ad hoc limit plus 1 GB: 5 GB and 9 GB. | 5.4.1 |
 | H8 | A `dp daily` run that exits `75` is restarted by its systemd service after the daily retry interval (15 min), until the daily retries end (03:00 UTC). | 5.1.1; 5.4.1 |
 | H9 | A reboot loses no hour that can still be fetched: a run missed while the host was down starts when it is back, and `dp collect` takes the current hour as C0 fixes it. | 5.1.1 *Restarts and recovery*; 5.2.1 |
+| H10 | `transform` and `export` of one hour finish inside the hourly processing bound, 5 min; a run over it is logged as a warning. | 5.4.1 |
 | P1 | Every commodity in the EU snapshot has a profile (about 10,500), filterable by name, class and subclass. | 5.2.3; delphside/dark-portal#7 decision 3 |
 | P2 | Lowest is the lowest unit price in the latest snapshot. | 5.2.3 |
 | P3 | Fill price for N is the average unit price of the cheapest N units, with the units it covers; where fewer than N are listed, it covers all and says how many; where none are, it is null. N below 1 is refused. It is held to two decimal places of copper, rounded half away from zero. | 5.2.3; 5.4.2; 5.4.5 |
-| P4 | Default N is the median hourly `sold_estimate_units` over the default N window (7 days) ending at the hour, rounded up, at least 1. | 5.2.3; 5.4.2; 5.4.1 |
+| P4 | Default N is the median hourly `sold_estimate_units` over the default N window (7 days) ending at the hour, rounded up, at least 1; where the window holds no hour to count, it is 1. A window ending at an hour holds that hour and the hours before it, to the window's length: 168 hours for 7 days. | 5.2.3 *The price now*; 5.4.2 `default_n`; 5.4.1 |
 | P5 | Prices are shown beside the vendor sell price, and beside the vendor buy price (`purchase_price`) where a vendor sells it, null otherwise. | 5.2.3; 5.4.5 |
 | P6 | The depth ladder runs from the lowest price up: units at the price, units at or below, and hours = units at or below ÷ the mean hourly sold estimate over the hours held in the 24 h turnover window; *no sales seen* where the window sold nothing. It stops at the first price whose hours reach 48, which it shows, or at the last price. | 5.2.3; 5.4.1 |
 | P7 | Flows per hour: posted (EV-1), sold floor (EV-2), sold estimate (floor + EV-3), expired (EV-5), cancelled (EV-6). Posted and the floor are lower bounds; R7's turnover per hour is shown as the sold floor, with the estimate beside it. | 5.2.3 *Flows* |
 | P8 | Hourly history for the hourly keep: lowest, fill price for any N, units listed, ladder and flows. | 5.2.3; delphside/dark-portal#7 decision 5 |
-| P9 | `dp daily` writes `item_day`: the lowest of any hour; the median hourly fill price at the default N at 00:00 that day (`DECIMAL(18, 2)`), over the hours with any listed, null where none had; posted, floor and estimate, each summing the day's hours that are not null; `hours_held`. A day is closed once each of its 24 hours is processed or recorded as a gap; `dp daily` closes every day that can be closed and is not. | 5.2.3; 5.4.2; 5.4.5 |
+| P9 | `dp daily` writes `item_day`: the lowest of any hour; the median hourly fill price at the default N at 00:00 that day (`DECIMAL(18, 2)`), over the hours with any listed, null where none had; posted, floor and estimate, each summing the day's hours that are not null; `hours_held`. A day is closed once each of its hours is processed or recorded as a gap; the hours before the first snapshot collected are not the day's, so the first day closes on the hours it has. `dp daily` closes every day that can be closed and is not. | 5.2.3 *History*; 5.4.2; 5.4.5 |
 | P10 | A missed hour shows as a gap, never as a zero. | 5.2.3 |
 | P11 | The `profile` view gives each item at the latest hour: reference columns, `lowest`, the fill price at default N, and each flow's total over the turnover window. | 5.4.2 |
 | P12 | The views and macros are defined once in `sql/profiles.sql` over the gold and reference table names; `dp` loads it over the lake; `export/profiles.sql` is views named as those tables over the export's files, then `sql/profiles.sql` unchanged, so a client computes nothing of its own. | 5.1.1; 5.4.2; 5.2.3 *Clients* |
 | P13 | An item with no listings in an hour, but listings the hour before, has an `item_hour` row with no lowest price (`lowest` null) and its flows. | 5.2.3 *History*; 5.4.5 |
-| P14 | A measure over hours counts only the hours held with a span of 1, since an hour after a gap holds the flows of several. | 5.2.3 *The price now*; 5.2.2 *Times* |
+| P14 | A median or a mean over hours (P4, P6) counts only the hours held with a span of 1, since an hour after a gap holds the flows of several. A total, a day's (P9) or the profile's (P11), takes every held hour. | 5.2.3 *The price now*; 5.2.2 *Times* |
 | X1 | Exit `0`: done, with at most warnings. | 1.10; 5.2.1 |
-| X2 | Exit `75`: a timeout, 429, 502, 503 or 504 when the retry window closes; `last-modified` still before the current hour when it closes; the lock wait running out. | 5.2.1 |
-| X3 | Exit `2`: a new token refused (401), including after a cached one was refused; 403 or 404 on the snapshot; `last-modified` after the current hour; disk full. | 5.2.1 |
+| X2 | Exit `75`: a timeout, 429, 502, 503 or 504 when the retry window closes; `last-modified` still before the current hour when it closes; `last-modified` in the hour after the current one, the current hour a gap; the lock wait running out. | 5.2.1 *When it fails* |
+| X3 | Exit `2`: a new token refused (401), including after a cached one was refused; 403 or 404 on the snapshot; `last-modified` more than an hour after the current hour; disk full. | 5.2.1 *When it fails* |
 | X4 | Exit `70`: Blizzard answers 400, 500 or another status, a body the parser cannot use, or no `last-modified`. | 5.2.1 |
 | X5 | Exit `3`: an item lookup (401 included, 404 not), the transform or the export failed after the pivot. | 5.2.1 |
 | X6 | Before the pivot a failure leaves no temporary or partial file. Usage errors exit `64`; a signal is unexpected; errors are 1.10's result object; a business error is logged at `INFO`, a technical one at `WARN`. | 1.10 |
@@ -79,16 +80,10 @@ Decisions table. The documents are drafts for delphside/dark-portal#7's design.
 | E1 | `dp export` writes, each under a temporary name then renamed: a `price_level_hour` and an `item_hour` file per committed hour within the hourly keep that the export lacks; `item_day.parquet` and `item.parquet` rewritten; `profiles.sql`. A copy taken mid-run may be uneven; the next copy levels it. | 5.4.2 *The export*; 5.1.1; delphside/dark-portal#7 decision 8 |
 | SEC | The client secret comes from `DP_BLIZZARD_CLIENT_SECRET_FILE` and never appears in logs, bronze or the export. | 5.4.1 |
 | REF | Reference is fetched once per item in stage 1; `reference.item` takes the latest response with status 200 per item from bronze. | 5.1.1; 5.4.2 |
-| BK | The backup is bronze and the daily history. After a lost host, `item_day` and `item` for what is older than bronze are restored from the bucket, and everything else is rebuilt from bronze. | 5.1.1 *Restarts and recovery*, *Data layers* |
+| BK | The backup is what the bucket holds and keeps: bronze, pushed by `dp daily` and kept a year, and the daily history (`daily/item_day.parquet`, `daily/item.parquet`), pushed by `dp daily` and kept indefinitely. The restore from it after a lost host, its steps and its drill, are delphside/dark-portal#38's. | 5.1.1 *Restarts and recovery*, *Data layers*; 5.4.2 *The bucket* |
 
 ### Checked for contradiction
 
-- **X-c6, measures over hours against the daily and profile sums.** P14 says a
-  measure over hours counts only span-1 held hours; 5.4.5 says a day's flows sum
-  every hour that is not null, which includes an hour after a gap, and P11's
-  totals over the turnover window are not said either way. I read P14 as
-  governing rates and medians (P4, P6), and the sums as covering every non-null
-  hour, so no event is dropped from a total. Open as G10.
 - **X-c7, the lock under `dp hourly`.** H1 says `collect` takes the lock only to
   rename and `dp hourly` "then holds it for the steps after". I read it as held
   without release from the rename to the end of `export`. Where `collect` exits
@@ -124,11 +119,13 @@ Decisions table. The documents are drafts for delphside/dark-portal#7's design.
 - **D9, the sequence** (complete): D9.1 first snapshot · D9.2 follows a held
   hour · D9.3 follows a gap.
 - **D10, `last-modified` against the current hour** (complete): D10.1 before it
-  · D10.2 equal, at :00:00, :31:40 or :59:59 · D10.3 after it · D10.4 missing ·
+  · D10.2 equal, at :00:00, :31:40 or :59:59 · D10.3 the hour after it, at
+  :00:00 or :59:59 · D10.4 missing ·
   D10.5 the host's time zone not UTC · D10.6 a run started inside the previous
   hour's retry window (11:10), that hour unfetched · D10.7 the same, that hour
   collected · D10.8 a run started after that window (11:30) · D10.9 a run in the
-  previous hour's window while Blizzard already serves the current hour (G34).
+  previous hour's window while Blizzard already serves the current hour · D10.10
+  two hours or more after it.
 - **D11, Blizzard's answer** (not complete): D11.1 200 · D11.2 timeout · D11.3
   429 · D11.4 502, 503, 504 · D11.5 500 · D11.6 an unusable body · D11.7 401 for
   a new token · D11.8 401 with a cached token, then a new token accepted · D11.9
@@ -161,11 +158,12 @@ Decisions table. The documents are drafts for delphside/dark-portal#7's design.
   units listed · D19.4 more than listed · D19.5 0 or negative · D19.6 default ·
   D19.7 an average with more than two decimals, below and at a half · D19.8
   nothing listed.
-- **D20, default N history** (complete but for G10): D20.1 168 held hours, odd
-  middle · D20.2 a .5 median · D20.3 all 0 · D20.4 48 hours held · D20.5 gaps in
-  the window · D20.6 an hour with span > 1 in the window · D20.7 the first hour
-  (span null) in the window · D20.8 the window's edges: the hour itself, and the
-  hour 168 before (G10) · D20.9 no span-1 hour in the window (G35).
+- **D20, default N history** (complete): D20.1 168 held hours, odd middle ·
+  D20.2 a .5 median · D20.3 all 0 · D20.4 48 hours held · D20.5 gaps in the
+  window · D20.6 an hour with span > 1 in the window · D20.7 the first hour
+  (span null) in the window · D20.8 the window's edges: the hour itself and the
+  hour 167 before, both in, and the hour 168 before, out · D20.9 no span-1 hour
+  in the window.
 - **D21, ladder** (complete): D21.1 ends at the last price · D21.2 reaches 48 h
   exactly · D21.3 crosses 48 h · D21.4 no sales in the window · D21.5 a single
   price · D21.6 fewer than 24 hours held in the window · D21.7 an hour with span
@@ -183,20 +181,20 @@ Decisions table. The documents are drafts for delphside/dark-portal#7's design.
 - **D26, export** (complete): D26.1 one hour · D26.2 catch-up of k hours · D26.3
   failure, then the next run · D26.4 a lacking hour older than the hourly keep ·
   D26.5 copied mid-run.
-- **D27, day** (not complete, G35): D27.1 24 hours held · D27.2 hours missed ·
-  D27.3 an hour neither processed nor a gap when `dp daily` runs · D27.4 that
-  hour processed before a retry · D27.5 not closable before 03:00, closed the
-  next night with the following day · D27.6 the first hour collected inside the
-  day (null flows) · D27.7 hours with nothing listed · D27.8 the first day,
-  starting mid-day (G35).
+- **D27, day** (complete): D27.1 24 hours held · D27.2 hours missed · D27.3 an
+  hour neither processed nor a gap when `dp daily` runs · D27.4 that hour
+  processed before a retry · D27.5 not closable before 03:00, closed the next
+  night with the following day · D27.6 the first hour collected inside the day
+  (null flows) · D27.7 hours with nothing listed · D27.8 the first day, starting
+  mid-day.
 - **D28, the error that stops a run** (complete): D28.1 usage · D28.2
   fundamental · D28.3 blip run out · D28.4 unexpected · D28.5 signal.
 - **D29, `dp daily`'s exit** (complete): D29.1 lock held past the wait · D29.2
   the day before not closable · D29.3 disk full · D29.4 unexpected · D29.5 a
   push fails · D29.6 a deletion fails · D29.7 an item retry fails · D29.8 an
   item answers 404 again · D29.9 all done.
-- **D30, a lost host** (complete for the design): D30.1 bronze covers every day
-  · D30.2 days older than bronze in the bucket.
+- **D30, an hour's `transform` and `export` time** (complete): D30.1 under 5
+  min · D30.2 exactly 5 min · D30.3 over 5 min.
 
 ## 3. Outcomes
 
@@ -259,9 +257,11 @@ Decisions table. The documents are drafts for delphside/dark-portal#7's design.
 | O55 | Hours with span > 1 or null are left out of default N and the ladder's mean. |
 | O56 | Null: the fill price with nothing listed; `median_fill_price` where no hour had any listed. |
 | O57 | The bucket holds the bronze files under their host paths and `daily/item_day.parquet` and `daily/item.parquet`, equal to the export's; host item files are never deleted. |
-| O58 | After a lost host, the restored and rebuilt lake gives the same `item_day` and `item` as before the loss. |
+| O58 | The first day is closed on the hours it has, by the first `dp daily` after its last hour, with `hours_held` counting them; the run exits `0` and pushes and deletes as on any night. |
 | O59 | No lock is held while polling; it is taken for the rename, and under `dp hourly` held until `export` ends. |
 | O60 | A run started inside the previous hour's window collects that hour, or exits `0` at step 1 if it is held; after the window, the current hour. |
+| O61 | `default_n` is 1 where the window holds no hour to count. |
+| O62 | No warning for an hour processed in 5 min or less; over it, a warning naming the hour and its time, and the run completes with exit `0`. |
 
 ## 4. Matrix
 
@@ -335,7 +335,7 @@ The datasets are in part 8.
 | S36 | `dp hourly`'s order and exit, after each collect result | D18 | O50, O53 |
 | S37 | Price now (TD-J) | D19.1–4, D19.7, D23 | O26, O27 (half away from zero) |
 | S38 | N = 0 and N = −1, then N = 1 | D19.5 | O51, then O27 |
-| S39 | Default N (TD-J, TD-J3) | D20.1–8 | O28, O55 |
+| S39 | Default N (TD-J, TD-J3, TD-J4) | D20.1–9 | O28, O55, O61 |
 | S40 | Ladder (TD-J, TD-J2, TD-J3) | D21 | O29, O55 |
 | S41 | Hidden sale; floor ≤ estimate | P7 | O30 |
 | S42 | Keep boundaries at `dp daily`, lake and export, by the row's or file's hour | D24 | O34 |
@@ -344,11 +344,11 @@ The datasets are in part 8.
 | S45 | Export: one hour, catch-up, failure then repair, an hour past the keep, a mid-run copy, and the `profiles.sql` cross-check | D26 | O36, O19 |
 | S46 | Host bronze and the daily history, by bucket state | D25 | O35, O57 |
 | S47 | Rebuild from bronze | L4 | O41 |
-| S48 | Profile view, filter, latest 200 response, missing reference, flows as totals over the window, turnover shown as floor | P1, P11 | O33 |
+| S48 | Profile view, filter, latest 200 response, missing reference, flows as totals over the window (an hour after a gap included), turnover shown as floor | P1, P11, P14 | O33, O30 |
 | S49 | Secret scan | SEC | O42 |
 | S50 | Unexpected error, signal, bad flag | D28 | O38 |
 | S51 | Cached token refused: a new token accepted; or refused too | D11.8–9 | O16; O17 |
-| S52 | Clock ahead, or 403 or 404 on the snapshot; then put right | D10.3, D11.10 | O45, then O13 |
+| S52 | Clock two hours or more ahead, or 403 or 404 on the snapshot; then put right | D10.10, D11.10 | O45, then O13 |
 | S53 | 429 with `Retry-After: 120` | D11.12 | O40 |
 | S54 | Item 404; hourly runs skip it; `dp daily` asks again: 404 again, then 200 | D14.4, D14.8–9 | O47; `dp daily` exits 0; then O20, the 200 winning in reference |
 | S55 | An ended ID reappears (TD-D4) | D1.5 | O44 |
@@ -357,9 +357,9 @@ The datasets are in part 8.
 | S58 | `collect` polls a late snapshot while another environment's transform runs; another job asks for the lock mid-`dp hourly` | D16.6–7 | O59 |
 | S59 | `dp daily`'s failures after the pivot, then the next run | D29.3–7, D29.9 | O54, then O32, O35 |
 | S60 | A day not closable until after 03:00 | D27.5 | O46, then O52 the next night |
-| S61 | Blizzard already serving hour 11 at 11:10, for a run taking hour 10 | D10.9 | exit `2` as written (G34) |
-| S62 | The first day, collection starting at 14:00 | D27.8, D20.9 | none stated (G35) |
-| S63 | A lost host, after bronze has expired (TT11) | D30 | O58, O41 |
+| S61 | Blizzard already serving hour 11 for a run taking hour 10: at 11:10, and at 10:35 served 11:00:00 or 11:59:59; the 11:35 run follows | D10.3, D10.9 | O15, O12; then O13 for hour 11 |
+| S62 | The first day, collection starting at 14:00 on D − 1 | D27.8, D20.9 | O58, O32, O61 |
+| S63 | An hour's `transform` and `export` under, at and over 5 min | D30 | O62 |
 
 ## 6. Refusals and successes
 
@@ -382,13 +382,14 @@ The datasets are in part 8.
 | S29: an item's new token is refused, exit 3 | the next run, with the right secret, fetches it |
 | S38: N = 0 and N = −1 refused | N = 1 answered |
 | S20: already collected, exit 0 | the next hour collects |
+| S61: Blizzard has moved on, exit 75, hour 10 a gap | the 11:35 run collects hour 11, exit 0 |
 
 ## 7. Coverage, both ways
 
 | Rule | Scenarios |
 | --- | --- |
 | R1 | S37, S48; UT1; PD1 |
-| R2 | S11, S42, S43, S60; UT3, UT4; PD2 |
+| R2 | S11, S42, S43, S60, S62; UT3, UT4; PD2, PD6 |
 | R7 | S40, S41, S48; UT2; PD3 |
 | R8v | S1, S2, S41; UT3; PD4 |
 | T1 | S17 |
@@ -407,7 +408,7 @@ The datasets are in part 8.
 | L1 | S1, S10, S11 |
 | L2 | S15 |
 | L3 | S10, S62 |
-| L4 | S47, S63; TT6 |
+| L4 | S47; TT6 |
 | C0 | S17, S20, S57, S61 |
 | C1 | S20 |
 | C2 | S18, S19, S29, S51 |
@@ -421,13 +422,14 @@ The datasets are in part 8.
 | H0 | S36 |
 | H1 | S31, S32, S44, S56, S58 |
 | H2 | S27, S29, S34, S36, S45 |
-| H3 | S11, S21, S33, S34 |
+| H3 | S11, S21, S33, S34, S61; PD5 |
 | H4 | S35 |
 | H5 | S11, S12 |
 | H6 | S1, S16 |
 | H7 | S32; TT3 |
 | H8 | S44, S60; TT8 |
 | H9 | S57; TT10 |
+| H10 | S63; TT3 |
 | P1 | S29, S48; UT1 |
 | P2 | S37 |
 | P3 | S3, S37, S38 |
@@ -437,14 +439,14 @@ The datasets are in part 8.
 | P7 | S1, S2, S41, S48 |
 | P8 | S42 |
 | P9 | S43, S60, S62 |
-| P10 | S11, S43 |
+| P10 | S11, S43; PD5 |
 | P11 | S48 |
 | P12 | S45; UT1 |
 | P13 | S3 |
-| P14 | S39, S40 |
+| P14 | S39, S40, S43, S48 |
 | X1 | S7, S22, S28 |
-| X2 | S21, S23, S31 |
-| X3 | S25, S27, S51, S52, S61 |
+| X2 | S21, S23, S31, S61 |
+| X3 | S25, S27, S51, S52 |
 | X4 | S26 |
 | X5 | S29, S34, S45 |
 | X6 | S27, S50 |
@@ -456,7 +458,7 @@ The datasets are in part 8.
 | E1 | S33, S45; TT7 |
 | SEC | S25, S49 |
 | REF | S18, S48, S54 |
-| BK | S63; TT11 |
+| BK | S46; TT8; PD6 |
 
 | Scenario | Rules |
 | --- | --- |
@@ -502,12 +504,12 @@ The datasets are in part 8.
 | S40 | P6, P14, R7 |
 | S41 | P7, R7, R8v |
 | S42 | K1, K3, P8, R2 |
-| S43 | P9, P10, R2 |
+| S43 | P9, P10, P14, R2 |
 | S44 | H1, H8, DX |
 | S45 | E1, P12, H2, X5 |
-| S46 | K2 |
+| S46 | K2, BK |
 | S47 | L4 |
-| S48 | P1, P7, P11, REF, R1, R7 |
+| S48 | P1, P7, P11, P14, REF, R1, R7 |
 | S49 | SEC |
 | S50 | X6 |
 | S51 | C2, X3 |
@@ -520,9 +522,9 @@ The datasets are in part 8.
 | S58 | H1, C4 |
 | S59 | DX, K2 |
 | S60 | P9, H8, DX, R2 |
-| S61 | C0, C3, X3 |
-| S62 | P9, P4, L3 |
-| S63 | BK, L4 |
+| S61 | C0, C3, H3, X2 |
+| S62 | P9, P4, L3, R2 |
+| S63 | H10 |
 
 ## 8. Approach
 
@@ -558,8 +560,9 @@ The datasets are in part 8.
 
 **How time is manipulated.** By an injected clock covering the run's start (the
 current hour), the poll, the :25 window, backoff and `Retry-After`, the token
-margin, the lock wait, 00:50, the 15-minute daily retry and 03:00. The documents
-name no clock seam (G19), left to Development.
+margin, the lock wait, an hour's processing time against its 5-minute bound,
+00:50, the 15-minute daily retry and 03:00. The documents name no clock seam
+(G19), left to Development.
 
 **What state each test starts from.**
 
@@ -655,9 +658,11 @@ name no clock seam (G19), left to Development.
   - A run at 11:10, bronze lacking `T10`, Blizzard serving 10:31:40: written as
     `T10`. With `T10` held: exit 0, no request. A run at 11:30: polls for hour
     11.
-  - G34: a run at 11:10 taking hour 10, Blizzard serving 11:05:00: exit 2 as
-    written.
-  - 10:00:00 and 10:59:59 both give `T10`; 11:00:00 exits 2 (S52).
+  - A run at 11:10 taking hour 10, Blizzard serving 11:05:00: Blizzard has
+    moved on, so exit 75 and no file; `dp transform` records hour 10 as a gap,
+    and the 11:35 run writes `T11` (S61).
+  - For a run at 10:35, 10:00:00 and 10:59:59 both give `T10`; 11:00:00 and
+    11:59:59 exit 75 with hour 10 a gap (S61); 12:00:00 exits 2 (S52).
   - A second run at 10:50 exits 0 with no request.
   - 2026-07-01 under `TZ=Europe/London` gives the UTC hour.
 - **TD-J, price now.**
@@ -670,7 +675,8 @@ name no clock seam (G19), left to Development.
     Vendor buy price 300, then null.
   - Default N over the 168 hours of the window ending at the hour: 83 values of
     2 and 85 of 3 give 3; 84 of each give 2.5, so 3; all 0 gives 1; 48 hours
-    held give the median of those 48; with 20 gaps, the median of the 148 held.
+    held give the median of those 48; with 20 gaps, the median of the 148 held;
+    with no hour held in the window, 1.
   - Ladder, total sold estimate 48 over 24 hours held (2 an hour): 1.5, 3.5 and
     5 hours, ending at the last price. Total 0: *no sales seen* at every level,
     ending at the last price.
@@ -684,9 +690,11 @@ name no clock seam (G19), left to Development.
   hours with estimate 2, one hour after a 3-hour gap (span 3) with estimate 30,
   and the first hour collected (span null): default N is 2, the span-3 and first
   hours left out. The ladder over a turnover window of 22 span-1 hours at 2 and
-  one span-3 hour at 9: the mean is 2 (44 ÷ 22), not 53 ÷ 23. Edge: an estimate
-  of 7 at the hour itself and 0 elsewhere moves the median only if the hour is
-  in the window (G10).
+  one span-3 hour at 9: the mean is 2 (44 ÷ 22), not 53 ÷ 23.
+- **TD-J4, the window's edges.** Span-1 hours from h − 168 to h, with estimate 0
+  at h − 168, 9 at h, and 84 of 2 and 83 of 3 between. The window is h − 167 to
+  h, 168 hours: the median is 2.5, so default N is 3. A window holding h − 168,
+  or leaving out h, gives 2.
 - **TD-K, band against span.** Gone listings behind an intact one, posting hour
   unknown, `duration` null in each:
   - `SHORT` and `MEDIUM` at span 1: expired.
@@ -697,7 +705,8 @@ name no clock seam (G19), left to Development.
     D 00:00)` 104.00 in 12 hours and 106.00 in 12: `lowest` 95,
     `median_fill_price` 105.00, `hours_held` 24.
   - The same day with 03:00 and 04:00 missed: `hours_held` 22, the median over
-    22.
+    22. 05:00 has span 3, and its flows count in the day's posted, floor and
+    estimate.
   - 23:00 failed in the transform at 00:35: `dp daily` at 00:50 exits 75 and
     does not close D, nor push or delete; its retries at 01:05 and 01:20 exit
     75; the 01:35 run processes 23:00 and the 01:50 retry closes D, exit 0.
@@ -705,8 +714,12 @@ name no clock seam (G19), left to Development.
     exits 75; the next night's run closes D and D + 1.
   - 06:00 to 08:00 have nothing listed: `median_fill_price` over the other 21; a
     day with nothing listed in any hour has it null.
-  - The first hour collected at 14:00 on D − 1 is summed as nothing: posted,
-    floor and estimate cover the later hours (and D − 1 itself is G35).
+  - The first hour collected is 14:00 on D − 1, and its flows are null. The
+    hours before it are not D − 1's, so `dp daily` at 00:50 on D closes D − 1 on
+    its 10 hours: `hours_held` 10, posted, floor and estimate over 15:00 to
+    23:00, and exit 0 with its push and deletions (S62). Its `default_n` at
+    D − 1 00:00, with no hour in the window, is 1; so is `default_n` at 14:00,
+    whose only hour has span null.
   - `dp daily` after closing D: a failed bucket push exits 3 with D closed; the
     next run pushes, exit 0. A full disk before the commit exits 2 with D not
     closed.
@@ -731,11 +744,12 @@ rules:
   processed or recorded as a gap.
 - TT2 (E5): the first `dp items` fetches about 10,500 items at 50 a second
   (about 3.5 min) with no 429.
-- TT3 (E5, load): each run's time and peak memory against 1 GB and 1 thread,
-  inside `DP_CONTAINER_MEMORY`, with an ad hoc query running at E5's
-  `DP_ADHOC_*`; per hour, `price_level_hour` and `listing_record` rows and
-  bytes, projected to 4 weeks and a year against the capacity plan. The time is
-  reported, not judged (G26).
+- TT3 (E5, load), with an ad hoc query running at E5's `DP_ADHOC_*`: passes
+  where every hour's `transform` and `export` finish inside 5.4.1's hourly
+  processing bound (5 min, H10) and the hourly run's peak memory stays inside
+  its 1 GB `memory_limit` (H7), and fails otherwise. Beside it, per hour,
+  `price_level_hour` and `listing_record` rows and bytes, projected to 4 weeks
+  and a year against delphside/dark-portal#5's figures and the capacity plan.
 - TT4 (E5): kill a run after the bronze file and before the commit: the next run
   processes both hours, matching an uninterrupted run.
 - TT5 (E5): stop the timer for two hours: the gaps are recorded, the next
@@ -756,9 +770,11 @@ rules:
   production's level, and the next hourly run lands. Reboot across :35, back
   before :25 past the next hour: the timer runs the missed job when the host is
   back and it collects the previous hour (S57).
-- TT11 (E5): a restore drill for BK: delete the lake and export, restore
-  `item_day` and `item` from `daily/` for days older than the bronze copied
-  back, rebuild the rest, and compare with the lake before (G36).
+
+A restore drill is not in this package: the restore's steps and its drill are
+delphside/dark-portal#38 *Restore Dark Portal after a lost host*. BK is tested
+here for what reaches the bucket and stays there (S46, TT8, PD6), and the
+rebuild from bronze by L4 (S47, TT6).
 
 **[PD]**, run from the export the owner pulls, since production reads are his;
 one row per requirement in delphside/dark-portal#7:
@@ -772,9 +788,10 @@ one row per requirement in delphside/dark-portal#7:
   within the hour, and shows hours of depth.
 - PD4 (R8v): every hour shows the sold floor and estimate for each item, the
   floor never above the estimate.
-- PD5: every `meta.gap` row is explained.
-- PD6 (K2): the bucket's lifecycle rule is 1 year, and host bronze holds no file
-  older than 7 days.
+- PD5 (gaps; H3, P10): every `meta.gap` row in the first week is explained:
+  the owner lists them, and Claude matches each to the run's log.
+- PD6 (keeps; R2, K2, BK): the bucket's lifecycle rule on `bronze/` is 1 year,
+  `daily/` has none, and host bronze holds no snapshot file older than 7 days.
 
 ## 9. Test names
 
@@ -827,7 +844,8 @@ All of these are **[AUTO]**.
 - `collect_polls_without_the_lock_and_takes_it_only_to_rename`
 - `stale_snapshot_is_polled_every_2_minutes_until_it_refreshes`
 - `snapshot_unrefreshed_by_25_past_exits_75_and_writes_nothing`
-- `last_modified_after_the_current_hour_exits_2`
+- `last_modified_in_the_hour_after_the_current_one_exits_75_as_a_gap`
+- `last_modified_two_or_more_hours_ahead_exits_2`
 - `missing_last_modified_exits_70`
 - `snapshot_403_or_404_exits_2`
 - `snapshot_400_or_an_unlisted_status_exits_70`
@@ -873,6 +891,8 @@ All of these are **[AUTO]**.
 - `next_run_reprocesses_a_failed_hour`
 - `reprocessing_a_committed_hour_changes_nothing`
 - `gold_hour_takes_prices_from_live_listings_and_flows_from_events`
+- `hour_processed_over_5_minutes_is_logged_as_a_warning`
+- `hour_processed_in_5_minutes_or_less_logs_no_warning`
 
 **Profiles**
 
@@ -885,8 +905,10 @@ All of these are **[AUTO]**.
 - `fill_price_refuses_n_below_one`
 - `default_n_is_the_rounded_up_median_over_the_hours_held_in_7_days`
 - `default_n_is_at_least_one`
-- `default_n_window_ends_at_the_hour`
-- `measures_over_hours_count_only_held_hours_with_span_1`
+- `default_n_is_1_where_the_window_holds_no_hour_to_count`
+- `default_n_window_holds_the_hour_and_the_167_before`
+- `medians_and_means_over_hours_count_only_held_hours_with_span_1`
+- `totals_over_hours_take_every_held_hour_including_one_after_a_gap`
 - `vendor_buy_price_is_null_where_blizzard_gives_none`
 - `depth_ladder_accumulates_units_at_or_below_each_price`
 - `depth_ladder_divides_by_the_mean_hourly_sold_estimate_over_hours_held`
@@ -904,6 +926,7 @@ All of these are **[AUTO]**.
 - `daily_median_fill_price_skips_hours_with_nothing_listed`
 - `daily_flows_sum_the_hours_that_are_not_null`
 - `day_closes_only_once_every_hour_is_processed_or_a_gap`
+- `first_day_closes_on_the_hours_from_the_first_snapshot`
 - `daily_closes_every_closable_day_not_yet_closed`
 - `profile_shows_every_item_at_the_latest_hour`
 - `profile_flows_are_totals_over_the_turnover_window`
@@ -951,12 +974,7 @@ need the owner's agreement.
 | Gap | What would make the missing test fail | What it would take to close it | Why it is acceptable for now |
 | --- | --- | --- | --- |
 | G7 A raised or re-priced ID | An ID in C with a higher quantity, or a different price, has no mark: neither intact nor reduced. | Give each a rule, such as a warning and treating it as intact. | Blizzard's model allows neither; only bad data shows it. |
-| G10 The window's edge, and sums over hours | "Ending at the hour" does not say whether the hour itself is in the window: TD-J3's edge case gives a different default N each way, and `default_n(item, D 00:00)` for `item_day` with it. P14 counts only span-1 hours in a measure over hours, while a day's flows sum every non-null hour and the profile's totals are not said either way (X-c6): a total after a gap differs by that hour's flows. | Say the window is the hour and the 167 before (or the 168 before); say P14 covers rates and medians and the totals take every held hour. | The tests assert the readings in X-c6 and part 8; either answer changes one expected value. |
 | G19 No clock seam | Every timed test (poll, :25, backoff, token margin, lock wait, 00:50, 03:00) needs the clock injected; none is named. | Name it in Development. | A Development matter; part 8 says what it must cover. |
-| G26 No bound on the hourly run | TT3 can only report a time. delphside/dark-portal#11's deploy window (:40 to :10) assumes one. | State a bound and its source (`DP_CP_2026_10`, or delphside/dark-portal#12's timing) in 5.4.1. | TT3 records the time; nothing fails meanwhile. |
 | G28 E3 to E6 are not yet built (delphside/dark-portal#11) | [AUTO], [UT] and [TT] have nowhere to run. | delphside/dark-portal#11's packages land first. | Designed; delphside/dark-portal#7's Development waits on delphside/dark-portal#11. |
 | G29 "Lower bound" | Not directly observable. | Accept the structural tests (`listing_posted_and_bought_between_snapshots_shows_in_no_flow`, floor ≤ estimate). | Inherent. |
 | G32 The indefinite keeps and the backup † (pending) | The bucket keeps `daily/item_day.parquet` and `daily/item.parquet` indefinitely, so R2's daily history survives a lost host; silver (kept indefinitely) still cannot be rebuilt beyond bronze's year. | The owner agrees the design, and that silver older than a year is lost with the host. | The owner's decision is pending; nothing is at risk until a year after go-live. |
-| G34 An early refresh read as a wrong clock | A run inside hour 10's retry window (a delayed 11:10 run, or the 10:35 run still polling at 11:20) takes hour 10; if Blizzard has already refreshed to hour 11, `last-modified` is after the current hour and the run exits `2`, "the host's clock is wrong", a fundamental error, though the clock is right and hour 10 is merely a gap. S61 asserts 2 as written. | Say that a `last-modified` in the hour after the current one makes the current hour a gap (exit `75`), and only a later one exits `2`. | Blizzard refreshes at about :31:40, after :25, so it needs an early refresh; the exit is loud and the 11:35 run collects hour 11. |
-| G35 The first day, and an empty window | Collection starting at 14:00 on D − 1 leaves 00:00 to 13:00 neither processed nor gaps, so D − 1 can never be closed: by DX, `dp daily` on D exits `75` until 03:00, and does no push or deletion that night (X-c8). Whether D − 1 gets an `item_day`, and what default N is with no span-1 hour in its window (the first hour, and `default_n(item, D − 1 00:00)` before any hour), is unstated. S62 has no outcome. | Say the hours before the first snapshot are not the day's (closable from its first held hour, or the first day is not closed), and that default N with no hour in the window is 1. | Once per environment; the second night's run closes D normally. |
-| G36 No restore procedure | BK says `item_day` and `item` older than bronze are restored from the bucket, but not by what (a `dp` subcommand, or by hand), nor how restored days meet the rebuilt ones, nor whether rebuilding `item` from bronze's item files keeps the restored items. TT11 cannot be written to steps. | Name the restore's steps or command, and the rule where restored and rebuilt rows meet. | Nothing is restored from `daily/` until bronze has expired, a year after go-live; with G32. |
