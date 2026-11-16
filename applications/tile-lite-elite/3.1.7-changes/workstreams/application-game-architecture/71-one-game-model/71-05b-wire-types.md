@@ -101,13 +101,16 @@ pub enum GameEventDto {
     Resigned      { seat: u8 },
     ForceResigned { seat: u8 },
     TimedOut      { seat: u8 },
-    SeatInvited   { seat: u8 },
-    InvitationPassed   { seat: u8 },
-    InvitationAccepted { seat: u8 },
-    InvitationDeclined { seat: u8 },
-    SeatWithdrawn { seat: u8 },
-    SeatAdded     { seat: u8 },
-    SeatsSwapped  { a: u8, b: u8 },
+    // Before the start, a seat is named by its id (SeatId), because a
+    // swap or the start renumbers it (71-04-seats.md, The seat).
+    Created,
+    InvitationPassed   { seat: u32 },
+    InvitationAccepted { seat: u32 },
+    InvitationDeclined { seat: u32 },
+    SeatWithdrawn { seat: u32 },
+    SeatAdded     { seat: u32 },
+    SeatsSwapped  { a: u32, b: u32 },
+    KeepRequested,
     SeatHidden    { seat: u8 },
     ReminderSent  { seat: u8 },
     Started, Aborted, Finished { winner: Option<u8> },
@@ -141,8 +144,8 @@ administrator's force-end after the start. A turn that ends the game says so in
 event, so a client reads the end from the state's `status`, not from one event.
 
 **`ForceResigned` does not say who did it.** Every client of the game receives
-the event, and which administrator acted is not theirs to know; the server's own
-log records it.
+the event, and which administrator acted is not theirs to know; the log row's
+`actor_id` records it ([*Database*](71-08-storage.md#database)).
 
 **Undo and redo are classified by what they undo**, not by being undo —
 undoing a placement is a board change, undoing a pass is a game change. That

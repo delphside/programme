@@ -128,8 +128,8 @@ Two simplifications, both deliberate. **Finished and Aborted share a box**
 because they do not differ in seat terms — either way the seats stop where they
 are, and this diagram is about seats. Where they differ is rating, which
 [Q1](71-journey-questions.md#q1-aborting-changes-nobodys-rating) covers. And
-**seats leaving the roster are not drawn** — removed by the creator, or dropped
-as spent when the game starts. They cease to exist rather than reaching a state.
+**seats leaving the roster are not drawn**: spent seats, declined or
+withdrawn, are dropped when the game starts. They cease to exist rather than reaching a state.
 
 Aborting gives up every seat (GAME-1) by making the game `Aborted`, not by
 moving any seat: every seat freezes as it stands, whether `Playing`,
@@ -239,8 +239,8 @@ moves every `Claimed` seat to `Playing`. A
 command is not an arrow; it is a set of them.
 
 **Several commands, one arrow.** Resigning through `/actions`, being
-force-resigned through its own route, and timing out through no command at all
-are one arrow, `Playing → Departed`. They differ only in `how`, which is
+force-resigned through its own route, and timing out through the server's own
+`TimeOut` are one arrow, `Playing → Departed`. They differ only in `how`, which is
 exactly why `Departure` is a field rather than three states.
 
 **Commands with no arrow at all.** Placing, passing, exchanging, reordering

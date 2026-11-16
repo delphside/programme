@@ -28,8 +28,8 @@ playing the same move both ways.
 
 ## The journeys and rules it covers
 
-[U2.1 Create and start a game](71-journeys-u1-u3.md#u21-create-and-start-a-game), [U3.1 Accept or decline an invitation](71-journeys-u1-u3.md#u31-accept-or-decline-an-invitation), [U4.1 Take a turn](71-journeys-u4-u6.md#u41-take-a-turn), [U4.4 Leave a game in play](71-journeys-u4-u6.md#u44-leave-a-game-in-play) and
-[U4.5 Abort a game](71-journeys-u4-u6.md#u45-abort-a-game), from [`71-functional.md`](71-functional.md): GAME-1 to GAME-4,
+[U1.2 Change my details](71-journeys-u1-u3.md#u12-change-my-details) as far as a rename reaches games, [U2.1 Create and start a game](71-journeys-u1-u3.md#u21-create-and-start-a-game), [U2.2 Arrange the seats](71-journeys-u1-u3.md#u22-arrange-the-seats), [U3.1 Accept or decline an invitation](71-journeys-u1-u3.md#u31-accept-or-decline-an-invitation), [U3.2 Take an open seat](71-journeys-u1-u3.md#u32-take-an-open-seat), [U3.3 Withdraw from my seat](71-journeys-u1-u3.md#u33-withdraw-from-my-seat), [U4.1 Take a turn](71-journeys-u4-u6.md#u41-take-a-turn), [U4.4 Leave a game in play](71-journeys-u4-u6.md#u44-leave-a-game-in-play) and
+[U4.5 Abort a game](71-journeys-u4-u6.md#u45-abort-a-game), and the server's side of [U4.3](71-journeys-u4-u6.md#u43-chat-in-a-game), [U4.6](71-journeys-u4-u6.md#u46-remind-the-player-on-turn), [U5.2](71-journeys-u4-u6.md#u52-remove-a-game-from-my-list) and [U6.1](71-journeys-u4-u6.md#u61-force-end-a-game) to [U6.4](71-journeys-u4-u6.md#u64-delete-a-game), from [`71-functional.md`](71-functional.md): GAME-1 to GAME-4,
 RATE-1 to RATE-3, TIME-3, DEL-2, DEL-3, and the tests the code review found
 missing (`71-test-approach.md`).
 
@@ -55,3 +55,19 @@ missing (`71-test-approach.md`).
 - [ ] **Claude** — G4: a bot list naming an account that does not exist, or an engine not compiled in, stops the server at start-up naming the setting, and deleting a listed bot's account is refused
 - [ ] **Claude** — G5: hiding a game and sending a reminder each log a row with the next `seq` and the version unchanged
 - [ ] **Claude** — G6: a bot's move whose save fails is submitted once more after `Retry-After` and applied if that save succeeds; a second failure leaves the seat on turn
+- [ ] **Claude** — the start drops spent seats, renumbers the rest and checks GAME-3 again after the drop, refusing a game left with fewer than two seats
+- [ ] **Claude** — every score change is a move record: a finishing turn's `GameEnd` carries one rack adjustment per seat it changes, and each seat's score equals the sum of its records' `score_delta`
+- [ ] **Claude** — ratings settle once, on `Finish::Played`; an abort, and a force-end after the start, change no rating
+- [ ] **Claude** — an abort cancels the game's pending invitations
+- [ ] **Claude** — a person's move whose save fails answers 503 with `Retry-After`, reloads the game and publishes nothing; a reader that finds `unsaved` reloads first; a failed reload answers 503 to every message until one succeeds
+- [ ] **Claude** — every applied change, and a game's creation, appends one `game_events` row with its version, and a duplicate (`game_id`, `seq`) is refused
+- [ ] **Claude** — a pre-start event in the log names the seat by its id, and still names the right seat after a swap and after the start
+- [ ] **Claude** — deleting a game deletes its seats, invitations and log rows, sets `rating_history.game_id` to null, and a rating point with no game reads as no game (#66)
+- [ ] **Claude** — a save after a game's deletion does nothing: the deleter holds the game's lock and sets `deleted`
+- [ ] **Claude** — DEL-2: deleting an account that any game names is refused
+- [ ] **Claude** — the migration keeps every rating row under its new (`player_id`, `edition`) key, writes `schema_version` 1, and fails on a foreign-key violation (#253, #302)
+- [ ] **Claude** — a rename reaches every game the player is in (#80), and moves each one's version
+- [ ] **Claude** — a keep sets `last_activity_at`; a chat, a hide and a rename do not (RET-3)
+- [ ] **Claude** — `engine_limit` bounds parallel searches, and a search's time starts once its permit is held (#429, D62)
+- [ ] **Claude** — each `ApplyError` maps to its `ErrorDto` code (D65)
+- [ ] **Claude** — a reconnect yields the game's current view, with no `because` (#142)
