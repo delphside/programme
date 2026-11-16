@@ -158,8 +158,9 @@ gains what this settles:
   is added, which is also when its invitation is sent
 - declining and withdrawing are final for that seat, and starting the game
   clears them
-- GAME-9 widens: a seat has one invitation, fixed when it is added and never
-  resent; a new or resent invitation takes a new seat (owner, 2026-11-16)
+- GAME-9 widens: a seat has one invitation, fixed when it is added; inviting
+  again takes a new seat, and a reminder of an unanswered invitation, were one
+  built, is the same invitation (owner, 2026-11-16)
 - bots hold accounts, and an external client authenticates as a person before
   assuming a bot
 - how many tiles each opponent holds is public
