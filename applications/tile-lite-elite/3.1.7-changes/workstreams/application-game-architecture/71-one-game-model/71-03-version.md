@@ -232,7 +232,7 @@ pub enum GameMessage {
     Start,
     SeatsSwapped { a: SeatId, b: SeatId },
     ChatPosted { player: PlayerId, body: String },
-    Hide { seat: SeatId },                // allowed before the start too (RET-3)
+    Hide { seat: Option<SeatId> },        // a finished or aborted game; None: a creator who holds no seat (U5.2)
 }
 
 /// In `server-game` only, so no client can build one.
@@ -472,10 +472,16 @@ refuses otherwise with `SubmitError::Refused` and its `ErrorDto` code:
 
 | Message | Who may send it |
 | --- | --- |
-| `Place`, `Pass`, `Exchange`, `Resign`, `Hide` | the seat's player |
+| `Place`, `Pass`, `Exchange`, `Resign` | the seat's player |
+| `Hide` | the seat's player, or with no seat the creator, once the game is `Finished` or `Aborted` (U5.2, DEL-5) |
 | `ForceResign`, `Abort`, `SeatAdded`, `SeatsSwapped`, `Start`, `KeepRequested` | the creator (GAME-6, RET-3) |
 | `SeatWithdrawn` | the creator, or the seat's player (GAME-9) |
-| `InvitationAccepted`, `InvitationDeclined` | as [*Who may accept*](71-04-seats.md#who-may-accept) says: the addressee, or for an open seat or an unclaimed link anyone signed in |
+| `InvitationAccepted` | the seat's addressee; on an `Open` seat, any signed-in player (GAME-10) |
+| `InvitationDeclined` | the seat's addressee only |
+
+A link with no addressee is claimed through `InvitationPassed`, the server's
+own message, and accepts nothing; only then may its new addressee accept or
+decline ([*Who may accept*](71-04-seats.md#who-may-accept); INV-2, INV-5).
 | `ChatPosted` | a seated player or the creator, as `player` (GAME-12) |
 
 It then
