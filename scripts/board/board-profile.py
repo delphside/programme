@@ -2,6 +2,7 @@
 """board-profile.py — the application's and the programme's facts, for shell scripts.
 
     board-profile.py get <key>            # one value; a list one item per line
+    board-profile.py has <table>          # prints true or false: whether the technical profile has that table
     board-profile.py version app|api      # the version the tree holds now
     board-profile.py registers            # the registers a new script is named in, one path per line
     board-profile.py json-string <text>   # the text as a JSON string literal, for splicing into a jq filter
@@ -49,6 +50,9 @@ def main(argv: list[str]) -> int:
     if argv[0] == "get" and len(argv) == 2:
         for line in profile.render(profile.lookup(argv[1])):
             print(line)
+        return 0
+    if argv[0] == "has" and len(argv) == 2:
+        print("true" if profile.technical().has_table(argv[1]) else "false")
         return 0
     if argv[0] == "json-string" and len(argv) == 2:
         print(json.dumps(argv[1]))

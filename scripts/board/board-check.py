@@ -52,7 +52,11 @@ from board.sources import (Unavailable, fetch, issues_by_number, issues_in_full,
 
 def _app_version() -> str | None:
     """The version being built, which names the milestone under construction:
-    read where the technical profile's `versions.app` says."""
+    read where the technical profile's `versions.app` says. An application whose profile
+    has no `versions.app` table has no milestone under construction: the sections
+    that name one are left out."""
+    if not profile.technical().has_table("versions.app"):
+        return None
     return profile.current_version("app")
 
 
