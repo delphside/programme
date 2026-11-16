@@ -271,6 +271,11 @@ as activity for RET-3. Each still logs its event (`SeatHidden`,
 `ReminderSent`), with a row keyed by the log's own sequence and not by version
 (G5 in [the life histories](71-life-histories.md#gaps-the-matrix-found)).
 
+**A player withdrawing from their own seat hides the game too** (#105; owner,
+2026-11-16). The `SeatWithdrawn` sent by the seat's player sets that seat's
+hide in the same change, so the game leaves their list at once; one sent by
+the creator does not, and the player may hide it later as above.
+
 **A rejected message changes nothing.** The handler validates against the game
 as it stands and applies only a message that will succeed, so a refused
 exchange or placement leaves the racks and the bag as they were.
