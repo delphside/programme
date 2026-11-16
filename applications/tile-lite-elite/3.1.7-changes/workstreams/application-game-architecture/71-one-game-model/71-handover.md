@@ -5,7 +5,8 @@ design authority for Application & Game Architecture, which runs #71
 because #71 dominates the workstream ([1.7](../../../../../../docs/1.7-roles-and-responsibilities.md)).
 This file says where the state is and what is open; the state itself is in the
 documents and issues it names. Written 2026-10-14, at the handover after the
-decision backlog was cleared.
+decision backlog was cleared, and brought up to date on 2026-11-16 for the v4
+thread.
 
 Issue numbers here are Tile Lite Elite's (`delphside/tile-lite-elite`) unless
 written otherwise.
@@ -26,12 +27,17 @@ written otherwise.
    work-package sections. The other technical files are read as the work needs
    them: [`71-03-version.md`](71-03-version.md),
    [`71-04-seats.md`](71-04-seats.md), [`71-05-wire.md`](71-05-wire.md),
+   [`71-05b-wire-types.md`](71-05b-wire-types.md),
    [`71-06-engine.md`](71-06-engine.md), [`71-06b-engine-bots.md`](71-06b-engine-bots.md), [`71-07-client.md`](71-07-client.md),
    [`71-08-storage.md`](71-08-storage.md),
    [`71-09-open-questions.md`](71-09-open-questions.md) and
    [`71-10-documents-changed.md`](71-10-documents-changed.md).
-4. [`71-delivery.md`](71-delivery.md): `release/1.0.0` for #268 and #269.
-5. Tile Lite Elite's [4.1.0 rules](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md),
+4. [`71-life-histories.md`](71-life-histories.md): the entity and event matrix
+   and the open G questions; [`71-impact.md`](71-impact.md); and the test
+   approach, [`71-test-approach.md`](71-test-approach.md) with one
+   `71-test-wp-*.md` per work package.
+5. [`71-delivery.md`](71-delivery.md): `release/1.0.0` for #268 and #269.
+6. Tile Lite Elite's [4.1.0 rules](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md),
    which the journeys cite.
 
 ## Where state lives
@@ -60,8 +66,27 @@ written otherwise.
 | The as-is design map (#406) is on Tile Lite Elite main (delphside/tile-lite-elite#523). Check-docs step 8 starts checking it when #522 moves the `programme/` pin; if it reports stale, regenerate with `programme/scripts/docs/design-map/design-map.py --write` | #522 |
 | [`71-map-change.md`](71-map-change.md) is a prototype: WP A and WP C only. The format's three gaps are closed (programme #41), and [`71-map-diagrams.md`](71-map-diagrams.md) is generated from it with `design-map.py --change`. WP A's to-be is drawn and designed (programme #60 and #62): the layering, per-game latest-state channels, `game-wire`'s two message enums, the seat list and the bot list ([71-06-engine.md](71-06-engine.md#the-model) and [71-06b-engine-bots.md](71-06b-engine-bots.md#the-bots-the-server-runs)). Tile Lite Elite runs the mode from `../programme` until its `programme/` pin moves past programme #41. A package's drawing shows only its own lines (owner, 2026-11-15) | — |
 | #538: the move generator finds only moves whose first tile is on an anchor (with AT on the board and B, O in the rack it offers OAT, misses BOAT). It affects bots, suggestions and opening moves, so WP A's engine design takes it into account once triaged | owner, triage of #538 |
-| A compiling sketch of `game-wire`'s types (links, both message enums, `Bot<L>`, engine levels) is in the project files at `notes/71/game-wire-sketch/`; WP A's code branch starts from it | WP A Development |
-| #542 entity life histories: WP A's matrix and runtime state tables are in [`71-life-histories.md`](71-life-histories.md). G1 and G4 were answered on 2026-11-15; G2, G3, G5, G6 and G7 are Claude's, and all seven go into the design files and WP A's tests once answered | Claude |
+| A compiling sketch of `game-wire`'s types (links, both message enums, `Bot<L>`, engine levels) is in the project files at `notes/71/game-wire-sketch/`; WP A's code branch starts from it. It predates 2026-11-15: it has no `SeatId`, only two `SystemMessage` variants and no `GameEnd`, so bring it into line with 71-03, 71-04 and 71-05b first | WP A Development |
+| #542 entity life histories: WP A's matrix and runtime state tables are in [`71-life-histories.md`](71-life-histories.md). G1 and G4 were answered on 2026-11-15 and are in the design. G2, G3, G5, G6 and G7 are Claude's: answer each, write it into the design files and WP A's tests, and mark it answered. This is the next piece of work | Claude |
+| WP A's to-be, after the G questions: the drawing exists (above); what remains is checking every design file against the answers and the matrix, so WP A can leave Design and Test Approach | Claude |
+| #585 *Hints, which make a game unrated*: in Triage | owner, triage of #585 |
+
+## Settled on 2026-11-15
+
+Each is written into the design (programme #189, #191, #194, #197), so the
+files are the authority; this list says only where to look.
+
+- Bot moves are paced by a capped client playback queue that plays only
+  moves ([71-07](71-07-client.md)).
+- Every score change is a move record, end-of-game rack adjustments included,
+  carried on the finishing turn's event ([71-05b](71-05b-wire-types.md)).
+- G1: a seat has a fixed `id` and a turn-order `number` ([71-04](71-04-seats.md)).
+- G4: an account on the bot list cannot be deleted, and a bad bot list stops
+  start-up ([71-06b](71-06b-engine-bots.md)).
+- `GameCommand` is split into `Player(GameMessage)` and
+  `System(SystemMessage)` ([71-03](71-03-version.md)).
+- A package's drawing shows only its own lines in a Component view
+  ([406's format](../406-architecture-views/406-map-format.md#a-packages-drawing)).
 
 ## A tooling defect met on the way
 
