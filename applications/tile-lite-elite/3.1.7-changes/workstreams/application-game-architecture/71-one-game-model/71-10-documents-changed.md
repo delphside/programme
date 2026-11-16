@@ -171,6 +171,8 @@ gains what this settles:
   2026-11-16)
 - aborting cancels every pending invitation, and nothing about a seat can be
   invited, accepted or claimed once the game has started
+- GAME-1's "whatever state" means Waiting or Active: an abort of a game already
+  over is refused, and the ratings it settled stand (owner, 2026-11-16)
 - inviting yourself by name gives your own seat, claimed (#106); your own
   address is invited like any other (owner, 2026-11-16)
 - a player withdrawing from their own seat hides the game from their list
