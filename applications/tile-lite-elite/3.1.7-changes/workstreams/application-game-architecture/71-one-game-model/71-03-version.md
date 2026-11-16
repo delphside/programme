@@ -488,7 +488,7 @@ refuses otherwise with `SubmitError::Refused` and its `ErrorDto` code:
 | `SeatWithdrawn` | the creator, or the seat's player (GAME-9) |
 | `InvitationAccepted` | the seat's addressee; on an `Open` seat, any signed-in player (GAME-10) |
 | `InvitationDeclined` | the seat's addressee only |
-| `ChatPosted` | the creator, or the player of a seat `Invited` (its addressee), `Claimed`, `Playing` or `Departed`; not of a seat `Declined` or `Withdrawn` (GAME-12; owner, 2026-11-16) |
+| `ChatPosted` | the creator, or the player of a seat `Invited` (its addressee), `Claimed`, `Playing` or `Departed`; not of a seat `Declined` or `Withdrawn` unless they hold another seat that qualifies (GAME-12; owner, 2026-11-16) |
 
 A link with no addressee is claimed through `InvitationPassed`, the server's
 own message, and accepts nothing; only then may its new addressee accept or
