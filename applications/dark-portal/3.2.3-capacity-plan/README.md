@@ -19,9 +19,9 @@ reviews it.
 | host memory, CPU and disk | [*How the host rows are measured*](#how-the-host-rows-are-measured) | the owner, over SSH |
 | Oracle Always Free, account-wide | the Oracle Cloud console | the owner |
 
-**What is planned here.** This plan carries Dark Portal's hosts against their
-ceilings, because no host is shared between applications, as well as Dark
-Portal's own rows. [Infrastructure's 3.3.3](../../infrastructure/3.3.3-capacity-plan/README.md)
+**What is planned here.** This plan carries Dark Portal's own rows and its
+hosts against their ceilings, as no host is shared between applications.
+[Infrastructure's 3.3.3](../../infrastructure/3.3.3-capacity-plan/README.md)
 indexes it.
 
 ## The rows of "What is consumed, against what ceiling"
@@ -38,7 +38,7 @@ indexes it.
 | **stored data in the bucket** | | one year of bronze once delphside/dark-portal#5's lifecycle rule exists; 20 GB Always Free | |
 | **Blizzard API quota** | | 36,000 requests an hour, 100 a second (Blizzard's published client limit) | |
 
-Held until Infrastructure plans them:
+Dark Portal's own host rows:
 
 | Resource | Consumed | Ceiling | Headroom |
 | --- | --- | --- | --- |
