@@ -104,6 +104,6 @@ verified addresses, and INV-4 is #439's.
 - [ ] **Claude** — `view_for` gives a viewer's own racks as `Visible` and every other as `Hidden` with its tile count, gives a seatless viewer no rack, and tells a hidden rack from an empty one
 - [ ] **Claude** — the migration deletes every game and its moves, messages, seats and invitations, keeps every `players`, `sessions` and `rating_history` row, moves each engine's rating rows to its new bot account, which the listed bot finds at start-up, and makes each player's existing rating English (International)'s, with other editions starting at 1500
 - [ ] **Claude** — the mixed roster: one game with an own seat, a bot, a named, an emailed and an open seat goes through creation, a resignation, a timeout, an abort and deletion in the lifecycle suite
-- [ ] **Claude** — #106: inviting yourself by name gives a `Claimed` seat, as the creator's own seat is (waits on an owner question)
+- [ ] **Claude** — #106: inviting yourself by name gives a `Claimed` seat, as the creator's own seat is ([71-04](71-04-seats.md#how-a-seat-is-filled))
 - [ ] **Claude** — #105: a player who withdraws can hide the game at once, and after the hide the game is gone from their list (waits on an owner question)
 - [ ] **Claude** — INV-8: a spent link shows who sent it and that it is no longer available and never who took it, and the account it passed to, signed in, opens it (waits on the owner's placement of the link page)
