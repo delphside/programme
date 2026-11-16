@@ -57,28 +57,35 @@ Google's guide. Write to it; the two document reviewers apply it.
 - **Every string the tooling matches literally** is in
   [1.6](../../../docs/1.6-github-project-board.md).
 
-## When two documents, or a document and the code, disagree
+## When documents or code disagree
 
 **Find how each side came about before changing either.** Each was written
 for a situation, and the fix keeps both intents only once both are known.
 
-1. Find the commit that added each side's wording, searching for a phrase
-   that sits on one line, since `-S` matches literal text:
+1. Make sure the history is all there. Where this prints `true`, the clone is
+   shallow and names its oldest commit as the one that added any phrase:
+
+   ```sh
+   git rev-parse --is-shallow-repository   # true: run git fetch --unshallow
+   ```
+
+2. Find the commit that wrote each side, searching for a phrase that sits on
+   one line, since `-S` matches literal text:
 
    ```sh
    git log --format='%h %ad %s' --date=short -S'<a phrase from that side>' -- CLAUDE.md docs .claude
    ```
 
-   For code, name its path instead of the documents, or follow a function
-   with `git log -L :<function>:<file>`. The programme repository carries the
-   history from its first commit, including the rules' time in Tile Lite
-   Elite under older names. Where `git rev-parse --is-shallow-repository`
-   prints `true`, run `git fetch --unshallow` first: a shallow clone names its
-   oldest commit as the one that added the phrase. In an application's
-   checkout, run the search for a programme document inside `programme/`.
-2. Read each commit's message (`git show -s <sha>`) and diff: what situation
+   - For code, end the command with the code's path, or follow a function
+     with `git log -L :<function>:<file>`.
+   - In an application's checkout, run the search for a programme document
+     inside `programme/`.
+
+   The programme repository carries the history from its first commit,
+   including the rules' time in Tile Lite Elite under older names.
+3. Read each commit's message (`git show -s <sha>`) and diff: what situation
    the change was written for, who decided it and which side changed last.
-3. Write the fix from both intents, and say in the commit message where each
+4. Write the fix from both intents, and say in the commit message where each
    side came from.
 
 ## Traps
