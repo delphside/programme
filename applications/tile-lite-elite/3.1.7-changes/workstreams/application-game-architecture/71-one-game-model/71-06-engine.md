@@ -57,7 +57,9 @@ engine out possible and where it runs. This file follows
   triggered it (`game_state.rs`).
 - **`suggest_move` does not use the engine crate.** It enumerates and validates
   every legal move inline in the async handler, under the write lock, with no
-  `spawn_blocking`, then calls `run_engine_turns` (`games.rs`).
+  `spawn_blocking`, plays the best one, against RATE-4, then calls
+  `run_engine_turns` (`games.rs`). No client calls it, and WP A removes it
+  ([the hint](71-09-open-questions.md#open-questions-about-the-shapes)).
 - **The contract has no level and no stop signal.**
 - **A slow receiver ends its socket.** `AppState.events` is a
   `broadcast::Sender<GameEventDto>` of capacity 64, and `stream_events`
@@ -335,8 +337,8 @@ change is what bounds it, and what happens when it fails.
 
 - **How many searches run at once is bounded.** Once a search holds no lock, N
   bot games on turn are N parallel searches, so every search takes an
-  `engine_limit` permit before it starts. A hint, which nothing offers today,
-  takes one too once it is built
+  `engine_limit` permit before it starts. A hint, which WP A removes until
+  #585 builds one, takes one too once it is built
   ([the hint](71-09-open-questions.md#open-questions-about-the-shapes)).
   `engine_limit` is `TILE_LITE_ELITE_ENGINE_CONCURRENCY`, default 2, the VM's
   core count, and it replaces the lock's accident [^d62]. This is the pattern
