@@ -71,3 +71,4 @@ missing (`71-test-approach.md`).
 - [ ] **Claude** — `engine_limit` bounds parallel searches, and a search's time starts once its permit is held (#429, D62)
 - [ ] **Claude** — each `ApplyError` maps to its `ErrorDto` code (D65)
 - [ ] **Claude** — a reconnect yields the game's current view, with no `because` (#142)
+- [ ] **Claude** — G7: `POST /games/{game_id}/suggest` is gone, answering 404, and nothing in the server calls the code it ran

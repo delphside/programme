@@ -179,8 +179,8 @@ the test client, which make any client possible; #10 then attaches
 **The gaps WP A's life histories found are answered there.** G1 to G6, from
 the seat id to resending a move that was not saved, are in
 [*Gaps the matrix found*](71-life-histories.md#gaps-the-matrix-found), each
-with the design file it is written in. G7, what WP A does with
-`suggest_move`, is the owner's.
+with the design file it is written in, and G7, which removes `suggest_move`
+in WP A, is the owner's (2026-11-16).
 
 ## Open questions about the shapes
 
@@ -245,8 +245,11 @@ later, using it makes the game unrated, and it may come from a different engine
 from the one playing. It is a server feature, so that the server knows to make
 the game unrated; that is
 [delphside/tile-lite-elite#585](https://github.com/delphside/tile-lite-elite/issues/585),
-outside #71. Until then #71 leaves `suggest_move` as it is, and a hint, once
-built, takes an `engine_limit` permit like any other search in the server.
+outside #71. **WP A removes `suggest_move` and its route** (owner,
+2026-11-16, G7): it plays the move, against RATE-4, and WP A's per-game lock
+and one handler replace what it is built on. The `rated` flag and the command
+a hint applies arrive with #585, and a hint, once built, takes an
+`engine_limit` permit like any other search in the server.
 
 **What paces the engine's moves?** Answered (owner, 2026-11-15): the client,
 as a playback queue that shows each move for a set interval, while the game

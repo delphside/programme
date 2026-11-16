@@ -74,8 +74,7 @@ the life of any entity here and is left out.
 ## The matrix
 
 C creates, U updates, D deletes, R reads, and — leaves the entity alone. A
-code in brackets, (G1) to (G7), names the gap whose answer fills the cell; a
-bold one, **G7**, marks a cell the design does not yet answer.
+code in brackets, (G1) to (G7), names the gap whose answer fills the cell.
 
 ### Stored entities
 
@@ -92,7 +91,7 @@ bold one, **G7**, marks a cell the design does not yet answer.
 | E9 | U | U `number`, both | — | C | — |
 | E10 | U `Active` | D spent; U renumbered; U `Claimed → Playing` | — (the record stays for DEL-2) | C | — |
 | E11 | U | U rack, score | — | C | — |
-| E12 | U unrated | — | — | **G7** | — |
+| E12 | — (not in WP A, G7) | — | — | — (not in WP A, G7) | — |
 | E13 | U | — | — | C | — |
 | E14 | U, version only | — | — | C | — |
 | E15 | U | U `Playing → Departed` | — | C | — |
@@ -125,7 +124,7 @@ bold one, **G7**, marks a cell the design does not yet answer.
 | E9 | U | U | — (a swap alters no `SeatRef`, G1) | U | U | — | — (it holds the seat's id, G1) | — |
 | E10 | U | U | U, the accounts of dropped seats (G3) | U, leaves a game the account no longer sits in | U | — | D dropped; renumbered ones kept (G1) | — |
 | E11 | U | U | — | U | U | — | U; acts if on turn | — |
-| E12 | U | U | — | U | U | — | — | C, then D when the hint returns |
+| E12 | — | — | — | — | — | — | — | — (not in WP A, G7; a hint, once built, takes a permit) |
 | E13 | U | U | — | U | U | — | — | — |
 | E14 | U | U | — | U | U | — | — | — |
 | E15 | U | U | — | U | U | — | — (never on turn again; ends with the game, G2) | — |
@@ -355,8 +354,12 @@ any other change.
 The design leaves `suggest_move` as it is until hints are built
 ([#585](https://github.com/delphside/tile-lite-elite/issues/585)), but WP A's
 per-game lock and one handler replace what it is built on, and today it plays
-the move, against RATE-4. So G7 is a scope question, put to the owner on
-2026-11-16: remove `suggest_move` in WP A, or build RATE-4's server half now.
+the move, against RATE-4. So G7 was a scope question for the owner.
+
+Answered (owner, 2026-11-16): WP A removes `suggest_move` and its route, and
+hints wait for #585, which adds the `rated` flag and the command a hint
+applies. E12 is then no event of WP A's
+([the hint](71-09-open-questions.md#open-questions-about-the-shapes)).
 
 Two answers are worth reading once:
 

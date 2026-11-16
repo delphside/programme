@@ -47,6 +47,10 @@ flowchart TD
 
 ### U4.2 Ask for a suggested move
 
+Not built by #71: WP A removes today's `suggest_move`, and
+[#585](https://github.com/delphside/tile-lite-elite/issues/585) builds hints
+when the owner decides (G7). The journey stands as RATE-4 describes it.
+
 ```mermaid
 flowchart TD
   s0((start)) --> p1["Player: asks for a suggestion on their turn"]
