@@ -129,6 +129,7 @@ Bot task (the glue), on each update from updates_for over every seated game:
         give it to the objects of that game
     an object that has ended:
         remember its SeatRef, and make no object for it again
+        until the list loses it
 ```
 
 **A bot object ends with its game.** A finished or aborted game keeps its seats
@@ -222,11 +223,12 @@ A seat is in an account's list while the account is its player, or, for an
 it or its game is deleted. The watch exists while it has a subscriber: the
 first builds it from the stored seats, and it is dropped with the last.
 `publish` writes the list of each account whose set of `SeatRef`s the change
-altered: a game created, a seat added, an invitation passed to another
-addressee, an open seat taken, or seats dropped at the start. A withdrawn or
+altered: a game created, a seat added, an invitation passed to its addressee
+(it had none before), an open seat taken, or seats dropped at the start. A withdrawn or
 declined seat stays in the list until the start drops it. A swap or the start's renumbering alters no `SeatRef`, because a
 `SeatRef` names the seat's `id` ([*The seat*](71-04-seats.md#the-seat)).
-Deleting a game writes the list of each account seated in it. The scope decides
+Deleting a game writes the list of each account its seats name, players and
+addressees alike. The scope decides
 what a subscriber receives:
 
 | Scope | Who subscribes | Receives |
@@ -288,7 +290,7 @@ sequenceDiagram
 
   D->>ES: delete the game
   ES->>GW: drop the sender
-  ES->>SW: write the new seat list of each account seated in it
+  ES->>SW: write the new seat list of each account its seats name
   GW--)U: the channel closes
   U--)BT: GameRemoved
   BT--)B: GameRemoved, and the link ends
