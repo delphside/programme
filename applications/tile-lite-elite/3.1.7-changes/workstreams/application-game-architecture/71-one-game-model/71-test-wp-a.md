@@ -49,3 +49,9 @@ missing (`71-test-approach.md`).
 - [ ] **Claude** — a scripted second client sees every change the first makes, invitations included, within one update
 - [ ] **Claude** — the same engine plays the same move through the glue and through the external transport
 - [ ] **Claude** — an engine refuses a level of 0 or above its maximum when its game starts, starts at its default when the bot list gives none, and one with a maximum of 1 plays at level 1
+- [ ] **Claude** — G1: a bot seat the start renumbers keeps its bot object and plays on its new number, and a swap writes no seat list
+- [ ] **Claude** — G2: a bot object ends on the first view that shows its game finished or aborted, and one made at start-up for a game already over ends on that game's first view
+- [ ] **Claude** — G3: an account subscribed over every seated game has an `Invited` seat in its list from the invitation, loses it when the invitation is passed on, and loses a spent seat at the start
+- [ ] **Claude** — G4: a bot list naming an account that does not exist, or an engine not compiled in, stops the server at start-up naming the setting, and deleting a listed bot's account is refused
+- [ ] **Claude** — G5: hiding a game and sending a reminder each log a row with the next `seq` and the version unchanged
+- [ ] **Claude** — G6: a bot's move whose save fails is submitted once more after `Retry-After` and applied if that save succeeds; a second failure leaves the seat on turn
