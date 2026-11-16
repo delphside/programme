@@ -665,6 +665,7 @@ class Payloads(unittest.TestCase):
                     self.assertNotIn("token", path.name.lower())
 
     def test_the_payload_carries_only_the_profile_keys_a_host_reads(self):                          # T6
+        from turpinlib import board
         with tempfile.TemporaryDirectory() as folder:
             repo = Repo(Path(folder))
             sha = repo.git("rev-parse", "HEAD", cwd=repo.work)
@@ -682,7 +683,7 @@ class Payloads(unittest.TestCase):
                           "turpin": {"candidates": "c", "fallback": "f", "host_files": [], "join": [], "ephemeral": {}}}
             self.assertEqual({"application": "a", "release": {"required_hooks": ["h"], "overridable": ["o"]},
                               "turpin": {"fallback": "f", "host_files": [], "join": [], "ephemeral": {}}},
-                             payload.host_profile(everything))
+                             board.shipping_module().host_profile(everything))
             self.assertEqual("ops/backup.sh", carried["turpin"]["host_files"][0]["src"])
 
     def test_the_payload_carries_the_libraries_the_board_model_names_and_no_others(self):          # T6

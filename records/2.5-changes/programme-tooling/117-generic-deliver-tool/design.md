@@ -618,6 +618,12 @@ It holds nothing secret; secrets stay in each host's `.env`.
   move, for the pre-commit hook), whatever `[ships].non_shipping` says of the path
   `programme`; where the submodule cannot say, it ships. Without the key the pin is a
   path like any other and `non_shipping` decides it.
+- The same key judges an edit to the profile file, `app-profile.toml`: it counts as
+  reaching the image only where the profile cut to the keys a host reads
+  (`HOST_READS`, the cut `profile.json` is made of) differs, as parsed data, between
+  the two commits, in every command as for the pin. A profile that cannot be read or
+  parsed at either commit ships. An edit to board keys alone ships nothing. Without
+  the key the profile is a path like any other.
 - Joined files come from the payload, never a working tree; an environment may
   name its own (Tile Lite Elite's preview joins `docker-compose.preview.yml`,
   `Caddyfile.preview`).
@@ -1149,7 +1155,7 @@ flowchart LR
 
 | Function | Rule it holds | Answers |
 | --- | --- | --- |
-| `gate(request)` | the tests-passed and milestone gates: `Refs` in the range, reverts, the work-package classification | passed or refused, with each finding; what the release carries (`work_packages`, `issues`, and `releases` with `dropped`), which goes into the record; with `--emergency`, the items left out |
+| `gate(request)` | the tests-passed and milestone gates: `Refs` in the range, reverts, the work-package classification | passed or refused, with each finding and note (an issue a commit names that has no milestone); what the release carries (`work_packages`, `issues`, and `releases` with `dropped`), which goes into the record; with `--emergency`, the items left out |
 | `settle(record, announcement, tag)` | [§12](#12-settling)'s table | does the table, skipping what is done; returns what is left, with a reason where the issues could not be read |
 | `open_next(version, move)` | step 7 of [§10](#10-the-release-and-its-record) | opens the next milestone and moves the left-out items into it |
 | `checks(sha, required)` | the `ci-passed` gate's read | each `required_checks` check's conclusion on the commit |
@@ -2053,7 +2059,7 @@ Each key is read from one of two profiles:
   the keys a host reads, carried in the payload with the hooks: `required_hooks`,
   `overridable`, `[turpin].fallback`, `join`, `[[turpin.host_files]]`,
   `[turpin.ephemeral]` and `application`. The payload's `profile.json` is the
-  commit's profile cut to those keys, named once in `payload.py`'s `HOST_READS`, so
+  commit's profile cut to those keys, named once in the board's `shipping.py` as `HOST_READS`, so
   a change to any other key (a board key, say) changes nothing the image carries;
 - the controller's working tree: every other key, including each
   environment's host, role, `login`, `host_files`, `pull_timeout` and `lock`.
@@ -2229,6 +2235,11 @@ production deploy, an error after the deploy's
   milestone, or that of a release made but not deployed whose tag is in the
   range. Other routes are left out: they deliver on date milestones (docs/1.2
   §2.15).
+- A check, not a gate: each open issue, parents aside, that a commit in the range
+  names (reverted ones excepted) and that has no milestone is reported as a note
+  in the release's output, and the release goes ahead. The rule is the board
+  model's (`milestone.py`'s `unmilestoned`); `turpin` only prints the notes. It is
+  not recorded, and it runs under `--set-aside milestone` too.
 - With `--emergency`, open issues evidenced only by commits on `main` are left
   out, and moved to the next milestone by [§10](#10-the-release-and-its-record)
   step 7.
