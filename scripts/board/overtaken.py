@@ -20,10 +20,11 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from .model import Issue, ParentProject, StandaloneProject, WorkPackage
+from .vocabulary import (PROJ_CLOSEDOWN, PROJ_POST_DEPLOYMENT)
 
 # Both phases a *shipped* project can sit in and rot: it still owes its review,
 # or it owes only its closing.
-SHIPPED_STEPS = ("Post-deployment", "Project Closedown")
+SHIPPED_STEPS = (PROJ_POST_DEPLOYMENT, PROJ_CLOSEDOWN)
 PROJECTS = (ParentProject, StandaloneProject, WorkPackage)
 
 

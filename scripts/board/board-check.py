@@ -8,6 +8,7 @@ than replacing them. Nothing retires until the model is trusted.
     programme/scripts/board/board-check.py --all           # every obligation, met or not
     programme/scripts/board/board-check.py 383             # one issue
     programme/scripts/board/board-check.py --exit-code     # non-zero if anything is missing
+    programme/scripts/board/board-check.py --vocabulary    # does each field and option the tooling matches still exist?
 
 Reports and does not refuse. Twenty-eight obligations exist and twelve are
 enforceable today; the rest answer **not checked**, which is not a pass. A
@@ -46,8 +47,12 @@ from board.release import render as render_tests
 from board.size import oversized, size_of
 from board.size import render as render_size
 from board.repo import last_release_at, mentions_on
-from board.sources import (Unavailable, fetch, issues_by_number, issues_in_full,
-                           remote_branches, step_ages)  # noqa: E402
+from board.vocabcheck import check as check_vocabulary
+from board.vocabcheck import render as render_vocabulary
+from board.sources import (Unavailable, fetch, issue_field_names, issues_by_number,
+                           issues_in_full, project_field_names, remote_branches,
+                           step_ages)  # noqa: E402
+from board.vocabulary import (PROJ_POST_DEPLOYMENT, TYPE_PULL_REQUEST)  # noqa: E402
 
 
 def _app_version() -> str | None:
@@ -58,6 +63,23 @@ def _app_version() -> str | None:
     if not profile.technical().has_table("versions.app"):
         return None
     return profile.current_version("app")
+
+
+def vocabulary_main(args) -> int:
+    """`--vocabulary`: the names the tooling matches, against the live fields.
+    Only this section runs: it reads fields, not the board. A source that does
+    not answer (GraphQL is refused to a cloud session) is *not checked*, exit 2,
+    as the report's other unreachable sources are; it is never a pass."""
+    try:
+        found = check_vocabulary(issue_field_names(), project_field_names())
+    except Unavailable as exc:
+        print(f"vocabulary: not checked — {exc}", file=sys.stderr)
+        return 2
+    text = render_vocabulary(found)
+    if args.no_colour:
+        text = re.sub(r"\x1b\[[0-9;]*m", "", text)
+    print(text)
+    return 1 if (args.exit_code and found) else 0
 
 
 def main(argv=None) -> int:
@@ -73,7 +95,13 @@ def main(argv=None) -> int:
                     help="exit non-zero when something is missing")
     ap.add_argument("--no-colour", action="store_true",
                     help="plain text, for a caller that captures the output")
+    ap.add_argument("--vocabulary", action="store_true",
+                    help="check each field and option name the tooling matches "
+                         "(board/vocabulary.py) still exists in GitHub, and nothing else")
     args = ap.parse_args(argv)
+
+    if args.vocabulary:
+        return vocabulary_main(args)
 
     started = time.time()
     try:
@@ -110,7 +138,7 @@ def main(argv=None) -> int:
         # is the same timeline read `step_ages` does.
         try:
             typed = [classify(raw) for raw in snapshot.issues]
-            wanted = [(i.number, PROJECT_STATE, "Post-deployment")
+            wanted = [(i.number, PROJECT_STATE, PROJ_POST_DEPLOYMENT)
                       for i in candidates(typed)]
             ages = step_ages(wanted) if wanted else {}
             now = time.time()
@@ -178,7 +206,7 @@ def main(argv=None) -> int:
         if not args.closed:
             bodies = [(r.title if r.title.startswith(f"#{r.number} ") else f"#{r.number} {r.title}",
                        size_of(r.body))
-                      for r in snapshot.issues if r.issue_type != "PullRequest"]
+                      for r in snapshot.issues if r.issue_type != TYPE_PULL_REQUEST]
             text += "\n\n" + render_size(oversized(bodies), "issue bodies")
 
     # Stripped at the boundary rather than threaded through the renderer:

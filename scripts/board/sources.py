@@ -24,6 +24,9 @@ from typing import Callable, Sequence
 from . import profile
 from .model import (PR_STATE, Comment, Link, MergedPull, Milestone, Observed,
                     OpenItem, RawBoardItem, RawIssue, RawPullRequest, RawSubIssue)
+from .vocabulary import (
+    PR_APPROVED, PR_AWAITING_REVIEW, PR_CHANGES_REQUESTED, PR_CLOSED,
+    PR_DRAFTING, PR_MERGED, TYPE_PROJECT, TYPE_PULL_REQUEST)
 
 
 def _repository() -> tuple[str, str]:
@@ -107,18 +110,18 @@ def pr_state(draft: bool, review: str | None, reviewers: int,
     draft, the review decision, and whether a review is requested.
     """
     if state == "MERGED":
-        return "Merged"
+        return PR_MERGED
     if state == "CLOSED":
-        return "Closed"
+        return PR_CLOSED
     if draft:
-        return "Drafting"
+        return PR_DRAFTING
     if review == "APPROVED":
-        return "Approved"
+        return PR_APPROVED
     if review == "CHANGES_REQUESTED":
-        return "Changes requested"
+        return PR_CHANGES_REQUESTED
     if reviewers:
-        return "Awaiting review"
-    return "Drafting"
+        return PR_AWAITING_REVIEW
+    return PR_DRAFTING
 
 
 class Unavailable(Exception):
@@ -322,7 +325,7 @@ def _pr_to_raw(node: dict) -> RawIssue:
         # A pull request carries no issue type -- GitHub does not offer one --
         # so the model supplies it. Without this the fourth type is a class
         # nothing ever instantiates.
-        issue_type="PullRequest",
+        issue_type=TYPE_PULL_REQUEST,
         fields={PR_STATE: state},
         sub_issues=(),
         parent=None,
@@ -949,15 +952,41 @@ def project_field_options(field: str) -> dict[str, str]:
     return _project_field(field)[1]
 
 
-def _project_field(field: str) -> tuple[str, dict[str, str]]:
-    """(field id, {option name: option id}) of a board single-select field."""
+def _project_selects() -> list[dict]:
+    """Every single-select field on the project board: id, name and options."""
     payload = _gh_graphql("""query($project:ID!) { node(id:$project) {
       ... on ProjectV2 { fields(first:50) { nodes {
         ... on ProjectV2SingleSelectField { id name options { id name } } } } } } }""",
                           project=_project_id())
     nodes = ((((payload.get("data") or {}).get("node") or {})
               .get("fields") or {}).get("nodes") or [])
-    chosen = next((f for f in nodes if f and f.get("name") == field), None)
+    return [f for f in nodes if f and f.get("name")]
+
+
+def project_field_names() -> dict[str, tuple[str, ...]]:
+    """{field name: option names} of the project board's single-select fields.
+    An absent field is simply not a key, which `project_field_options` raises on:
+    this is for the vocabulary check, which reports an absent one."""
+    return {f["name"]: tuple(o["name"] for o in f.get("options") or [])
+            for f in _project_selects()}
+
+
+def issue_field_names() -> dict[str, tuple[str, ...]]:
+    """{field name: option names} of the repository's single-select issue fields,
+    as the `issueFields` query returns them. Only single-selects have options to
+    read, so a text field is not a key; `vocabulary.TEXT_FIELDS` names those the
+    tooling matches."""
+    payload = _gh_graphql(_repository_query(
+        "issueFields(first:50) { nodes { ... on IssueFieldSingleSelect { id name options { id name } } } }"))
+    nodes = ((((payload.get("data") or {}).get("repository") or {})
+              .get("issueFields") or {}).get("nodes") or [])
+    return {f["name"]: tuple(o["name"] for o in f.get("options") or [])
+            for f in nodes if f and f.get("name")}
+
+
+def _project_field(field: str) -> tuple[str, dict[str, str]]:
+    """(field id, {option name: option id}) of a board single-select field."""
+    chosen = next((f for f in _project_selects() if f["name"] == field), None)
     if chosen is None or not chosen.get("options"):
         raise Unavailable(f"no {field!r} field on the project")
     return chosen["id"], {o["name"]: o["id"] for o in chosen["options"]}
@@ -1324,7 +1353,7 @@ def _rest_pull_requests(rest: _Rest, owner: str, repo: str, pr_states: str) -> l
         reviewers = len(p.get("requested_reviewers") or []) + len(p.get("requested_teams") or [])
         out.append(RawIssue(
             number=p["number"], title=p.get("title") or "", state=state,
-            body=p.get("body") or "", issue_type="PullRequest",
+            body=p.get("body") or "", issue_type=TYPE_PULL_REQUEST,
             fields={PR_STATE: pr_state(bool(p.get("draft")), decision, reviewers, state)},
             sub_issues=(), parent=None, milestone=(p.get("milestone") or {}).get("title"),
             labels=frozenset(label["name"] for label in p.get("labels") or []),
@@ -1627,7 +1656,7 @@ def _observe_issue(rest: _Rest, repo: str, n: dict) -> Observed:
         subs = tuple(RawSubIssue(s["number"], (s.get("type") or {}).get("name"))
                      for s in listed)
         open_packages = sum(1 for s in listed
-                            if (s.get("type") or {}).get("name") == "Project"
+                            if (s.get("type") or {}).get("name") == TYPE_PROJECT
                             and (s.get("state") or "").lower() == "open")
     links: tuple[Link, ...] = ()
     if (n.get("issue_dependencies_summary") or {}).get("total_blocked_by"):
@@ -1661,7 +1690,7 @@ def _observe_pull(rest: _Rest, repo: str, p: dict) -> Observed:
     milestone = p.get("milestone") or {}
     raw = RawIssue(
         number=p["number"], title=p.get("title") or "", state="OPEN",
-        body=p.get("body") or "", issue_type="PullRequest",
+        body=p.get("body") or "", issue_type=TYPE_PULL_REQUEST,
         fields={PR_STATE: pr_state(bool(p.get("draft")), decision, reviewers, "OPEN")},
         sub_issues=(), parent=None, milestone=milestone.get("title"),
         labels=frozenset(label["name"] for label in p.get("labels") or []),
