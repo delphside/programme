@@ -11,7 +11,7 @@ Beside it:
 
 - [questions.md](questions.md): the owner's answers, Q1 to Q6;
 - [test-design.md](test-design.md): the changes to #555's tests;
-- [turpin-gaps.md](turpin-gaps.md): Turpin's gaps T1 to T13.
+- [turpin-gaps.md](turpin-gaps.md): Turpin's gaps T1 to T14.
 
 ## Terms
 
@@ -368,8 +368,8 @@ profile's `[ships]`:
 - the host files' sources ship, though `non_shipping` matches `scripts/`,
   `docs/` and `.md`: the backup and log-check scripts, the systemd units and
   the log events schema document;
-- the `app-profile\.toml$` pattern leaves `non_shipping` once Turpin's T13 is
-  in, before #555 merges.
+- the `app-profile\.toml$` pattern leaves `non_shipping`, as Turpin's T13
+  judges its host-read keys.
 
 `deploy-rehearsal.sh reset` also changes, in #555, to `turpin-host compose ...
 down -v`, then `up -d`.
@@ -387,7 +387,7 @@ down -v`, then `up -d`.
 | R7 | the payload in the server image; Turpin refuses to reuse a version and pulls by digest, since the registry cannot make a tag immutable (#554) |
 | R8 | host files in #556, `verify.sh`'s `deploys` check in #555 (Q1) |
 | R9 | `turpin release` asks per issue, `[y/N]`, or `--confirm N`; the record keeps `carries.confirmed`; parents skipped (Q2) |
-| R10 | #555 (Q1) |
+| R10 | #555 (Q1); `turpin release` reports it (T14) |
 
 ## 3. Non-functional design
 
