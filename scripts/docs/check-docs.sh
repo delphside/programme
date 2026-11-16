@@ -217,6 +217,13 @@ echo
 bold "4. the document map"
 if (( PROGRAMME_ONLY )); then
   echo "  not applicable here: the map is an application's, read through its technical profile"
+  # The programme's own derived table, docs/1.6's vocabulary, from the board's source.
+  # Exit 1 is stale and 2 could not judge; either fails, and it says which.
+  if "$SELF/../board/board-vocabulary.py" --check "$HERE/docs/1.6-github-project-board.md"; then
+    echo "  docs/1.6's vocabulary table is current"
+  else
+    FAILED=1
+  fi
 elif MAP_OUT="$("$SELF/document-map.py" --check 2>&1)"; then
   echo "  the document map lists every heading in every document"
 elif [[ "$MAP_OUT" == *"is out of date"* ]]; then
