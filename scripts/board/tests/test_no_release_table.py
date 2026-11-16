@@ -50,7 +50,10 @@ class WithoutTheReleaseTable(Cases):
         with using(self.bare):
             self.expect("without", False, profile.technical().has_table("release"))
             self.expect("a table it has", True, profile.technical().has_table("versions"))
-            self.expect("a key is not a table", False, profile.technical().has_table("application"))
+        malformed = self.tmp / "malformed.toml"
+        malformed.write_text('application = "widget"\nrelease = "rel-"\n')
+        with using(malformed):
+            raises_naming(self, "release", lambda: profile.technical().has_table("release"))
 
     def test_no_tag_is_a_release_and_nothing_is_shipped_by_tag(self):
         with inside(self.top), using(self.bare):
@@ -95,11 +98,17 @@ class WithoutTheReleaseTable(Cases):
         bare.write_text('application = "widget"\n')
         with inside(self.top), using(bare):
             self.expect("no versions.app", None, check._app_version())
+        (self.top / "Cargo.toml").write_text('version = "1.2.3"\n')
+        with inside(self.top):
+            self.expect("with versions.app", "1.2.3", check._app_version())
 
     def test_the_shell_can_ask_whether_the_table_is_there(self):
         env = {**os.environ, "PROGRAMME_PROFILE": str(self.bare)}
-        self.expect("without", "false\n", run("board/board-profile.py", "has", "release", env=env).stdout)
-        self.expect("with", "true\n", run("board/board-profile.py", "has", "release").stdout)
+        # a yes/no answer is the exit status (docs/1.10): 0 yes, 1 no, and silent
+        without = run("board/board-profile.py", "has", "release", env=env)
+        self.expect("without", (1, ""), (without.returncode, without.stdout))
+        with_ = run("board/board-profile.py", "has", "release")
+        self.expect("with", (0, ""), (with_.returncode, with_.stdout))
 
 
 if __name__ == "__main__":
