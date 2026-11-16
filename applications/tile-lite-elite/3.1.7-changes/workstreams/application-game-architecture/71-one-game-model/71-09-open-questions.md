@@ -229,11 +229,16 @@ creates one account per engine with rating rows
 
 - **`email` and `password_hash` become nullable.** The rule is Rust's, not a
   database check: an account is a human, with an address and a hash, or a
-  bot, with neither, so a bot with an address cannot be represented.
+  bot, with neither, so a bot with an address cannot be represented. Reading a
+  row that breaks it is an error, and a password sign-in to a bot account
+  always fails.
 - **A bot's `display_name` is one no player can register**: it ends in
-  ` (bot)`, which registration and a rename refuse. So no engine's name can
-  clash with a player's, now or for a bot added later, and players can see who
-  is a bot.
+  ` (bot)`, compared in the folded form as names already are, which
+  registration and a rename refuse. So no engine's name can clash with a
+  player's, now or for a bot added later, and players can see who is a bot. A
+  player who already has such a name stops the migration before it commits,
+  naming the account; the rehearsal run on production's copy finds it first,
+  and renaming a real player would then come to the owner.
 - **The listed bot finds the migrated account by its name.** The migration
   names each engine's account `<engine> (bot)`, and `TILE_LITE_ELITE_BOTS`
   names accounts by display name, so the first start finds the account and its
