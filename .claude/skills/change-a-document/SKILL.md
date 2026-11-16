@@ -65,11 +65,10 @@ for a situation, and the fix keeps both intents only once both are known.
 1. Make sure the history is all there, in the repository you will search: for
    a programme document in an application's checkout, that is `programme/`.
    A shallow clone names its oldest commit as the one that added any phrase,
-   so where the first command prints `true`, run the second:
+   so this fetches the rest where the clone is shallow:
 
    ```sh
-   git rev-parse --is-shallow-repository
-   git fetch --unshallow
+   [ "$(git rev-parse --is-shallow-repository)" = true ] && git fetch --unshallow
    ```
 
 2. Find the commit that wrote each side, searching for a phrase that sits on
