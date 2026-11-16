@@ -97,6 +97,20 @@ JSON
   assert_line --regexp '^#2 '
 }
 
+# A profile with no `[release]` table (delphside/programme#199) announces no deploys:
+# the filter has no marker test, and so still lets every other comment through
+# rather than dropping all of them with a `startswith("")`.
+@test "a profile with no release table filters no marker" {
+  awk '/^\[/ {skip = ($0 == "[release]")} !skip' "$FAKES/app-profile.toml" > "$BATS_TEST_TMPDIR/bare.toml"
+  ! grep -q '^\[release\]' "$BATS_TEST_TMPDIR/bare.toml"
+  bare="$(PROGRAMME_PROFILE="$BATS_TEST_TMPDIR/bare.toml" "$BATS_TEST_DIRNAME/../../.claude/hooks/turn-check.sh" --print-filter)"
+  run grep -c startswith <<< "$bare"
+  assert_output 0
+  run jq -r "$bare" <<< "$(fixture)"
+  assert_success
+  assert_line --regexp '^#2 '
+}
+
 # The dev machine has no jq (#329): the comment filter must run inside `gh api
 # --jq`, which carries its own. A fake gh applies --jq with the test's jq, found
 # before the PATH is narrowed; the script itself must not call a jq.
