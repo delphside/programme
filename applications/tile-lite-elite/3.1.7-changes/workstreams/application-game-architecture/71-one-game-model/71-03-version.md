@@ -467,10 +467,18 @@ pub enum ApplyError {
 **Who sent a message is checked before `apply`, not in it.** `apply` is a
 function of the game and the message, and a `GameMessage` names no sender. The
 Game service's submit function, which every route handler and the in-process
-glue call with the caller's account, checks that the caller holds the seat a
-message names, and that a creator's message (`ForceResign`, `Abort`,
-`SeatAdded`, `SeatsSwapped`, `Start`, GAME-6) comes from the creator, and
-refuses otherwise with `SubmitError::Refused` and its `ErrorDto` code. It then
+glue call with the caller's account, checks the caller against this table and
+refuses otherwise with `SubmitError::Refused` and its `ErrorDto` code:
+
+| Message | Who may send it |
+| --- | --- |
+| `Place`, `Pass`, `Exchange`, `Resign`, `Hide` | the seat's player |
+| `ForceResign`, `Abort`, `SeatAdded`, `SeatsSwapped`, `Start`, `KeepRequested` | the creator (GAME-6, RET-3) |
+| `SeatWithdrawn` | the creator, or the seat's player (GAME-9) |
+| `InvitationAccepted`, `InvitationDeclined` | as [*Who may accept*](71-04-seats.md#who-may-accept) says: the addressee, or for an open seat or an unclaimed link anyone signed in |
+| `ChatPosted` | a seated player or the creator, as `player` (GAME-12) |
+
+It then
 calls `apply`, and passes the caller to `events::publish` with the `Applied`,
 which writes it to the log row's `actor_id`. A message to a game that has been
 deleted is answered as one to a game that does not exist.
