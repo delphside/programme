@@ -107,11 +107,16 @@ subscriber, a WebSocket or a bot, is its own task. The two loops are:
 Bot object, on each update from its link:   // the link holds the identity,
                                             // the object none
     GameUpdate::Game { view, .. }:
+        if view.status is Finished or Aborted:
+            the object ends                   // its seat is never on turn again
         let number = view.number_of(seat_id)  // the object holds its seat's id
         if view.status == Active
            && view.current_seat == number:
             if let Some(msg) = take_turn(player, &view, number, budget) {
-                link.submit(view.game_id, msg)
+                match link.submit(view.game_id, msg):
+                    NotSaved { retry_after }:  // 503: the game was reloaded
+                        after retry_after, submit msg once more
+                    anything else: wait for the next update
             }
     GameUpdate::GameRemoved(_):
         the link ends, and so does the object
@@ -122,7 +127,25 @@ Bot task (the glue), on each update from updates_for over every seated game:
         drop the object of each SeatRef the list loses
     GameUpdate::Game { .. } and GameUpdate::GameRemoved(_):
         give it to the objects of that game
+    an object that has ended:
+        remember its SeatRef, and make no object for it again
 ```
+
+**A bot object ends with its game.** A finished or aborted game keeps its seats
+until it is deleted, up to seven days later
+([RET-1](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md#retention)),
+so the object, and the engine player it holds, ends on the first view that
+shows the game over, rather than with the seat. At start-up the first view of
+a finished game ends the object made for it from `Seats`.
+
+**A move that was not saved is sent once more.** A failed save answers 503 with
+`Retry-After`, reloads the game and publishes nothing
+([the one handler](71-03-version.md#the-one-handler)), so no update would wake
+the object. It submits the same move once more after `Retry-After`, and then
+waits; a game whose reload also fails leaves the seat to the
+[move time limit](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md#move-time-limits),
+as a silent human's would be. Any other refusal is final, because the move it
+answers has been overtaken or was illegal.
 
 A person's move reaches both kinds of task and the bot replies (the arrows are
 those of
@@ -192,10 +215,19 @@ which holds only the latest state. `updates_for` creates a game's channel on its
 first subscriber and drops it with its last. `publish` writes the full,
 unredacted state to its game's channel only, so an event reaches the sockets of
 its game and no others, and the cost of a change grows with that game's
-receivers only. **Each account also has a `watch` of its full list of seats**, a
-`Vec<SeatRef>` ([the interface layer](71-05-wire.md#the-interface-layer)), which
-`publish` and the deletion of a game write. The scope decides what a subscriber
-receives:
+receivers only. **An account subscribed to every seated game also has a `watch` of its list of
+seats**, a `Vec<SeatRef>` ([the interface layer](71-05-wire.md#the-interface-layer)).
+A seat is in an account's list while the account is its player, or, for an
+`Invited` seat, its addressee, whatever the seat's state, until the start drops
+it or its game is deleted. The watch exists while it has a subscriber: the
+first builds it from the stored seats, and it is dropped with the last.
+`publish` writes the list of each account whose set of `SeatRef`s the change
+altered: a game created, a seat added, an invitation passed to another
+addressee, an open seat taken, or seats dropped at the start. A withdrawn or
+declined seat stays in the list until the start drops it. A swap or the start's renumbering alters no `SeatRef`, because a
+`SeatRef` names the seat's `id` ([*The seat*](71-04-seats.md#the-seat)).
+Deleting a game writes the list of each account seated in it. The scope decides
+what a subscriber receives:
 
 | Scope | Who subscribes | Receives |
 | --- | --- | --- |
@@ -238,8 +270,8 @@ ignores a version it has passed (`should_apply_update`,
   leaves that game's channel only when the list holds no seat in it.
 - A game deleted, in the capacity sweep or in `admin_delete_game`, takes its
   seats from every list, and its channel closes (the diagram).
-- A game finished keeps its seats, and a bot object takes a turn only in an
-  active game.
+- A game finished or aborted keeps its seats until it is deleted, but its bot
+  objects end on the first view that shows it over (the model, above).
 
 Deleting a game goes through the Event stream:
 
