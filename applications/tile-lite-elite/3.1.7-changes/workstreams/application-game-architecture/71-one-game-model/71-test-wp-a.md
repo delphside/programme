@@ -64,7 +64,7 @@ missing (`71-test-approach.md`).
 - [ ] **Claude** — a pre-start event in the log, a chat and a hide included, names the seat by its id, and still names the right seat after a swap and after the start
 - [ ] **Claude** — deleting a game deletes its seats, invitations and log rows, sets `rating_history.game_id` to null, and a rating point with no game reads as no game (#66)
 - [ ] **Claude** — a message to a game after its deletion is answered as for a game that does not exist and saves nothing: the deleter takes the game's lock and sets `deleted`
-- [ ] **Claude** — GAME-6: a force-resign, abort, seat change or start from anyone but the creator is refused by the Game service before `apply`, and the log row of an applied message records its sender in `actor_id`
+- [ ] **Claude** — the Game service refuses, before `apply`, every message from a caller its table does not allow: a force-resign, abort, seat change, start or keep from anyone but the creator (GAME-6, RET-3), a withdrawal by anyone but the creator or the seat's player (GAME-9), an accept or decline by anyone *Who may accept* excludes, and chat by anyone neither seated nor the creator (GAME-12); the addressee's accept and decline and the creator's withdrawal succeed; and the log row of an applied message records its sender in `actor_id`
 - [ ] **Claude** — DEL-2: deleting an account that any game names is refused
 - [ ] **Claude** — the migration keeps every rating row under its new (`player_id`, `edition`) key, writes `schema_version` 1, and fails on a foreign-key violation (#253, #302)
 - [ ] **Claude** — a rename reaches every game the player is in (#80), and moves each one's version
