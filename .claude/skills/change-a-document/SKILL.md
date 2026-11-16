@@ -57,24 +57,28 @@ Google's guide. Write to it; the two document reviewers apply it.
 - **Every string the tooling matches literally** is in
   [1.6](../../../docs/1.6-github-project-board.md).
 
-## When two rules disagree
+## When two documents, or a document and the code, disagree
 
-**Find where each came from before changing either.** Each was written for
-a situation, and the fix keeps both intents only once both are known.
+**Find how each side came about before changing either.** Each was written
+for a situation, and the fix keeps both intents only once both are known.
 
-1. Find the commit that added each rule's wording, searching for a phrase
+1. Find the commit that added each side's wording, searching for a phrase
    that sits on one line, since `-S` matches literal text:
 
    ```sh
    git log --format='%h %ad %s' --date=short -S'<a phrase from the rule>' -- CLAUDE.md docs
    ```
 
-   The programme repository carries the history from its first commit,
-   including the rules' time in Tile Lite Elite under older names.
+   For code, name its path instead of `CLAUDE.md docs`, or follow a function
+   with `git log -L :<function>:<file>`. The programme repository carries the
+   history from its first commit, including the rules' time in Tile Lite
+   Elite under older names. A shallow clone needs `git fetch --depth=200`
+   first, or the search finds nothing.
 2. Read each commit's message (`git show -s <sha>`) and diff: what situation
-   the rule was written for, and who decided it.
+   the change was written for, who decided it, and which side changed last.
 3. Write the fix from both intents, and say in the commit message where each
-   side came from.
+   side came from. A fix that changes an application's code still takes the
+   owner's review.
 
 ## Traps
 
