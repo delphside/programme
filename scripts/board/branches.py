@@ -25,6 +25,7 @@ from typing import Mapping, Sequence
 
 from . import refs
 from .model import RawIssue
+from .vocabulary import (TYPE_PROJECT)
 
 
 
@@ -83,7 +84,7 @@ def check(branches: Sequence[str],
                                "names #%d, which is closed — delete it once the release "
                                "that carries it has shipped" % number))
             continue
-        if raw.issue_type != "Project":
+        if raw.issue_type != TYPE_PROJECT:
             out.append(Finding(branch, number,
                                "names #%d, a %s — a branch belongs to a project (the programme's docs/1.2 §2.12)"
                                % (number, raw.issue_type or "typeless issue")))

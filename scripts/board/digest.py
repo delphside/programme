@@ -45,21 +45,25 @@ from . import profile, repo
 from .model import classify, none_owed as _none_owed, section
 from .sources import Snapshot
 from .turn import waiting_on_owner
+from .vocabulary import (
+    CHANGE_BUG, CHANGE_COSMETIC, CHANGE_DOCUMENTATION, CHANGE_FUNCTIONAL,
+    CHANGE_NON_FUNCTIONAL, CHANGE_TOOLING, TYPE_DECISION, TYPE_OF_CHANGE,
+    TYPE_PROJECT, TYPE_PULL_REQUEST)
 
 # The programme's docs/1.7's brake: programme overhead is these two types of change. Not the
 # type called `non-functional`, which is work on the application (owner,
 # 2026-09-27).
-OVERHEAD = ("tooling", "documentation")
+OVERHEAD = (CHANGE_TOOLING, CHANGE_DOCUMENTATION)
 
 # Every type, in the programme's docs/1.7's order and with its reading in the owner's words
 # (2026-09-27), so the digest counts them all rather than only the overhead.
 READINGS = (
-    ("functional", "constructive"),
-    ("cosmetic", "constructive"),
-    ("non-functional", "constructive if an enhancement"),
-    ("bug", "poor quality overhead"),
-    ("tooling", "programme overhead"),
-    ("documentation", "programme overhead"),
+    (CHANGE_FUNCTIONAL, "constructive"),
+    (CHANGE_COSMETIC, "constructive"),
+    (CHANGE_NON_FUNCTIONAL, "constructive if an enhancement"),
+    (CHANGE_BUG, "poor quality overhead"),
+    (CHANGE_TOOLING, "programme overhead"),
+    (CHANGE_DOCUMENTATION, "programme overhead"),
     ("decision", "a choice put to you"),
     ("unset", "not categorised"),
 )
@@ -68,9 +72,9 @@ READINGS = (
 def kind_of(raw) -> str:
     """An issue's `Type of change`. A Decision carries none (the programme's
     docs/1.2 §2.6), so it is counted as a decision rather than as uncategorised."""
-    if kind := (raw.fields or {}).get("Type of change"):
+    if kind := (raw.fields or {}).get(TYPE_OF_CHANGE):
         return kind
-    return "decision" if raw.issue_type == "Decision" else "unset"
+    return "decision" if raw.issue_type == TYPE_DECISION else "unset"
 
 
 # The share when D54 was agreed, kept so the observation says where it moved
@@ -264,7 +268,7 @@ def unlessoned_projects(closed_raw, start: str) -> list[tuple[int, str]]:
     """Projects closed in the window with no *Lessons learnt* section and no
     `Delegated to #` statement, which the programme's docs/1.2 accepts instead."""
     return sorted((raw.number, raw.title) for raw in closed_raw
-                  if (raw.closed_at or "")[:10] >= start and raw.issue_type == "Project"
+                  if (raw.closed_at or "")[:10] >= start and raw.issue_type == TYPE_PROJECT
                   and not section(raw.body, "Lessons learnt") and "Delegated to #" not in (raw.body or ""))
 
 
@@ -796,10 +800,10 @@ def build(open_snapshot: Snapshot, closed_snapshot: Snapshot | None,
         d.lines_removed = int(rm.group(1))
 
     everything = [classify(r) for r in open_snapshot.issues]
-    issues = [i for i in everything if i.raw.issue_type != "PullRequest"]
+    issues = [i for i in everything if i.raw.issue_type != TYPE_PULL_REQUEST]
     d.total = len(issues)
     d.by_type = collections.Counter(kind_of(i.raw) for i in issues)
-    d.tooling = d.by_type.get("tooling", 0)
+    d.tooling = d.by_type.get(CHANGE_TOOLING, 0)
 
     # Pull requests are in the snapshot for this: a review waiting is his.
     for issue in everything:

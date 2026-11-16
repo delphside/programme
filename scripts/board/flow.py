@@ -66,6 +66,11 @@ from .model import (
 )
 from .sources import Unavailable
 from .turn import waiting_on_owner
+from .vocabulary import (
+    PROJ_CLOSEDOWN, PROJ_DEPLOYMENT, PROJ_DESIGN, PROJ_DEVELOPMENT,
+    PROJ_POST_DEPLOYMENT, PROJ_USER_TESTING, PR_DRAFTING, REQ_ON_HOLD,
+    REQ_TRIAGE, TKT_PENDING, TKT_WAITING_ON_SENDER, TYPE_DECISION,
+    TYPE_PROJECT, TYPE_PULL_REQUEST, TYPE_REQUIREMENT, TYPE_TICKET)
 
 SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 SESSION_LINK = re.compile(r"https://claude\.ai/code/session_[A-Za-z0-9_-]+")
@@ -76,7 +81,7 @@ _REF = re.compile(r"(?:(?P<repo>[\w.-]+/[\w.-]+))?#(?P<n>\d+)\b"
 
 # The states a parent rests in while any of its work packages is open: it runs
 # Scope to Design and Test Approach, then waits on its packages (design.md).
-PARENT_RESTS = ("Design and Test Approach", "Development", "User testing", "Deployment")
+PARENT_RESTS = (PROJ_DESIGN, PROJ_DEVELOPMENT, PROJ_USER_TESTING, PROJ_DEPLOYMENT)
 DEPENDENCIES_HEADING = "Dependencies and related work"
 # The issue whose body each sweep rewrites, found in the programme repository by
 # this exact title (owner, 2026-11-13: a pinned issue). It is an identifier
@@ -434,13 +439,13 @@ def release_wait(obs: Observed, issue: Issue, ctx: Context,
     entry, so the first run may hold one release that closed in between: it
     under-reports, the safe direction."""
     raw = obs.raw
-    if issue.step == "Deployment":
+    if issue.step == PROJ_DEPLOYMENT:
         if not raw.milestone:
             return None
         if obs.milestone_state == "closed":
             return Reason(False, f"its release {raw.milestone} has closed")
         return Reason(True, f"waiting for release {raw.milestone}")
-    if issue.step == "Post-deployment" and RELEASE_CHECK in raw.labels:
+    if issue.step == PROJ_POST_DEPLOYMENT and RELEASE_CHECK in raw.labels:
         releases = sorted(((semver(m.title), m) for m in ctx.milestones(obs.repo)
                            if semver(m.title)), key=lambda pair: pair[0])
         own = semver(raw.milestone)
@@ -462,7 +467,7 @@ def hold_reason(obs: Observed, issue: Issue, ctx: Context,
                 entered: datetime | None = None) -> Reason:
     """Whether the item's `Hold` is valid: the first accepted reason that still
     holds, else why none does (S-G14)."""
-    if issue.step == "Waiting on sender":
+    if issue.step == TKT_WAITING_ON_SENDER:
         return Reason(True, "waiting on the sender")
     ended = []
     release = release_wait(obs, issue, ctx, entered)
@@ -519,9 +524,9 @@ def missed_move(obs: Observed, issue: Issue) -> str | None:
     `Post-deployment`. A merge is never moved here: see `merged_naming`."""
     if not isinstance(issue, (WorkPackage, StandaloneProject)):
         return None
-    if issue.step == "Deployment" and semver(obs.raw.milestone) \
+    if issue.step == PROJ_DEPLOYMENT and semver(obs.raw.milestone) \
             and obs.milestone_state == "closed":
-        return "Post-deployment"
+        return PROJ_POST_DEPLOYMENT
     return None
 
 
@@ -581,7 +586,7 @@ def judge_pull(obs: Observed, ctx: Context) -> Verdict:
     no issue field, and its claim is the thread its body links."""
     raw = obs.raw
     issue = classify(raw)
-    v = Verdict(obs, typ="PullRequest", state=issue.step)
+    v = Verdict(obs, typ=TYPE_PULL_REQUEST, state=issue.step)
     row = flow_row(issue)
     v.claim = pull_claim(raw.body)
     if row is None:
@@ -590,7 +595,7 @@ def judge_pull(obs: Observed, ctx: Context) -> Verdict:
         return v
     v.role, v.owes, v.bound = row.role, row.owes, row.bound
     v.turn = row.turn
-    if issue.step == "Drafting" and not obs.draft and owes_no_review(raw.body):
+    if issue.step == PR_DRAFTING and not obs.draft and owes_no_review(raw.body):
         # Ready, with no reviewer asked, and its body says none is owed: its
         # author merges it on green. GitHub's own state still reads `Drafting`.
         v.state, v.owes = NO_REVIEW_OWED, "merge it on green: no review is owed"
@@ -619,8 +624,8 @@ def judge_issue(obs: Observed, ctx: Context) -> Verdict:
     typ = raw.issue_type
     v.workstream = raw.fields.get(WORKSTREAM)
     if typ is None:
-        v.writes.append(Write(obs.repo, raw.number, "type", "Type", "Requirement"))
-        typ = "Requirement"
+        v.writes.append(Write(obs.repo, raw.number, "type", "Type", TYPE_REQUIREMENT))
+        typ = TYPE_REQUIREMENT
     v.typ = typ
     cur = raw.fields.get(TURN)
 
@@ -671,13 +676,13 @@ def judge_issue(obs: Observed, ctx: Context) -> Verdict:
 
     # Who holds it.
     role = row.role
-    if typ == "Requirement" and issue.step == "Triage" and not v.workstream:
+    if typ == TYPE_REQUIREMENT and issue.step == REQ_TRIAGE and not v.workstream:
         role = ROLE_OWNER                       # the triage queue is the owner's (R7)
     parent = isinstance(issue, ParentProject)
     resting_parent = parent and obs.open_packages > 0 and issue.step in PARENT_RESTS
-    if parent and (resting_parent or issue.step == "Project Closedown"):
+    if parent and (resting_parent or issue.step == PROJ_CLOSEDOWN):
         role = ROLE_DESIGN
-    if typ in ("Project", "Decision") and not v.workstream:
+    if typ in (TYPE_PROJECT, TYPE_DECISION) and not v.workstream:
         v.attention.append(Attention(NO_WORKSTREAM, ROLE_OWNER,
                                      "it has no workstream: give it one"))
     if malformed:
@@ -702,7 +707,7 @@ def judge_issue(obs: Observed, ctx: Context) -> Verdict:
     derived = role_turn(role)
     hold_applies = (row.hold in (HOLD_ON_NAMED, HOLD_ON_SENDER)
                     or (row.hold == HOLD_ON_RELEASE
-                        and (issue.step == "Deployment" or RELEASE_CHECK in raw.labels)))
+                        and (issue.step == PROJ_DEPLOYMENT or RELEASE_CHECK in raw.labels)))
     thread_hold = cur == TURN_HOLD and not sweep_set
     reason: Reason | None = None
     if hold_applies or thread_hold:
@@ -741,9 +746,9 @@ def judge_issue(obs: Observed, ctx: Context) -> Verdict:
     # How long it has sat.
     v.bound = row.bound
     start = since
-    if issue.step == "Development":
+    if issue.step == PROJ_DEVELOPMENT:
         start = _development_start(obs, ctx, since)
-    if issue.step == "Post-deployment" and RELEASE_CHECK in raw.labels and reason is not None \
+    if issue.step == PROJ_POST_DEPLOYMENT and RELEASE_CHECK in raw.labels and reason is not None \
             and not reason.valid and reason.ended_at:
         # The hold has ended: the review is due at once, and stalls 7 days
         # after the next release closed (design.md, Project table).
@@ -755,9 +760,9 @@ def judge_issue(obs: Observed, ctx: Context) -> Verdict:
         v.attention.append(Attention(NOT_VISIBLE, role, "its age could not be read"))
 
     v.resting = _resting(v, row, resting_parent)
-    if issue.step == "Pending" and typ == "Ticket":
+    if issue.step == TKT_PENDING and typ == TYPE_TICKET:
         _pending(v, obs, ctx)
-    elif issue.step == "On Hold" and typ == "Requirement":
+    elif issue.step == REQ_ON_HOLD and typ == TYPE_REQUIREMENT:
         _on_hold(v, obs, ctx)
     else:
         _stall(v)

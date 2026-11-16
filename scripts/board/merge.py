@@ -17,10 +17,13 @@ from typing import Iterable, Mapping
 from . import refs
 from .model import (PROJECT_STATE, RELEASE, Issue, StandaloneProject, WorkPackage,
                     delivered_by_merge)
+from .vocabulary import (
+    PROJ_DEPLOYMENT, PROJ_DEVELOPMENT, PROJ_POST_DEPLOYMENT,
+    PROJ_USER_TESTING, ROUTE)
 
 # Phases a merge moves on from. Anything later is left alone: a merge never
 # moves a Phase backwards, and one already past it has been moved by hand.
-BEFORE_MERGE = ("Development", "User testing")
+BEFORE_MERGE = (PROJ_DEVELOPMENT, PROJ_USER_TESTING)
 
 
 def named(branch: str, pr_title: str = "", pr_body: str = "") -> list[int]:
@@ -48,11 +51,11 @@ def next_phase(issue: Issue) -> str | None:
         return None
     if issue.state != "OPEN" or issue.field(PROJECT_STATE) not in BEFORE_MERGE:
         return None
-    route = issue.field("Route")
+    route = issue.field(ROUTE)
     if route == RELEASE:
-        return "Deployment"
+        return PROJ_DEPLOYMENT
     if delivered_by_merge(route):
-        return "Post-deployment"
+        return PROJ_POST_DEPLOYMENT
     return None
 
 

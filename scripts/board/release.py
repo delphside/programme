@@ -33,6 +33,7 @@ from .milestone import carried, unbuilt
 from .model import (PROJECT_STATE, RELEASE, Issue, ParentProject, PullRequest,
                     StandaloneProject, WorkPackage, classify, route_of)
 from .sources import Unavailable
+from .vocabulary import (PROJ_POST_DEPLOYMENT, ROUTE)
 
 DELIVERING = (StandaloneProject, WorkPackage)
 
@@ -106,7 +107,7 @@ def render(found: Sequence[Outstanding], milestone: str,
 # the gates (`board-release.py gate`)
 # --------------------------------------------------------------------------
 
-POST_DEPLOYMENT = "Post-deployment"
+POST_DEPLOYMENT = PROJ_POST_DEPLOYMENT
 
 
 def compact(value) -> str:
@@ -262,7 +263,7 @@ def _absent_work_packages(req: GateRequest, issues: Sequence[Issue], ev: set[int
         issue = by_number.get(n)
         if issue is None or not _delivered(issue):
             continue
-        if route_of(issue.field("Route")) != RELEASE:
+        if route_of(issue.field(ROUTE)) != RELEASE:
             continue
         if issue.raw.milestone != req.version and issue.raw.milestone not in earlier_versions:
             absent.append(n)
