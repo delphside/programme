@@ -27,6 +27,12 @@ answered.
 The issue, document or branch, the commit or stamp it runs from, and whether
 the review covers the whole of it or a diff range.
 
+## Cases to check
+
+For a change, the inputs or lifecycle cases it must handle, each a line the
+maker answers before handing back: handled, and where, or not applicable, and
+why. For a review, the same list, to check against the answers.
+
 ## Read as well
 
 Anything beyond the reading list in the agent's definition.
