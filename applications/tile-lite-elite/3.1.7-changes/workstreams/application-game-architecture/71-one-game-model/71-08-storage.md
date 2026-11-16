@@ -246,7 +246,7 @@ This migration breaks the rules of `migrations/README.md`. It is not additive
 `-- no-transaction` case the rules do not mention, so the README gains a line
 for each. An older image cannot roll back across it: it does not boot against
 the new schema
-([rolling back across a migration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#112-roll-back-across-a-migration)),
+([rolling back across a migration](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.6-when-a-release-goes-wrong.md#2-roll-back-across-a-migration)),
 and the games are gone.
 
 Under sqlx 0.9 the `_sqlx_migrations` row of a `-- no-transaction` file is
@@ -255,10 +255,10 @@ crash between the two re-runs the file at the next start, and it fails. The
 deploy's database snapshot is the recovery.
 
 This is a **breaking wire change**, so the api major version moves
-([deciding whether it moves](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#243-decide-whether-the-api-version-moves)):
+([deciding whether it moves](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.7-how-testing-and-release-work.md#43-decide-whether-the-api-version-moves)):
 an old client cannot read the new shapes. A tab learns of the new build from its
 build ID and reloads
-([how a client learns there is a new build](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#244-how-a-client-learns-there-is-a-new-build)).
+([how a client learns there is a new build](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.7-how-testing-and-release-work.md#44-how-a-client-learns-there-is-a-new-build)).
 
 ### So that this is the last deletion
 
