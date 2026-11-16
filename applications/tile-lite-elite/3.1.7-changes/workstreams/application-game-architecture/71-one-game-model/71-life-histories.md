@@ -116,7 +116,7 @@ bold one, **G7**, marks a cell the design does not yet answer.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | E1 | C, as each game is first used (#408) | C, as each bot subscription joins | C, per listed bot, from the stored seats (G3) | C, per listed bot: `Seats`, then each game's view | — | C, per listed bot; a bad list stops start-up (G4) | C, per seat in the first `Seats`; D on the first view of a game already over (G2) | — |
 | E2 | D | D | D | D | D | D | D | D, the search lost; E1 replays the turn |
-| E3 | C | — (no subscriber yet) | U, each subscribed account whose seats it adds, addressees included (G3) | — | — | — | C, per bot seat, as in E4 | — |
+| E3 | C | C, if a listed bot is seated: its subscription joins | U, each subscribed account whose seats it adds, addressees included (G3) | U, a seated bot's joins the game | — | U, routes the list | C, per bot seat, as in E4 | — |
 | E4 | U | U, if it exists | U, the seat's player's or addressee's, if it has one and is subscribed (G3) | U, joins the game if it is new to the account | U, sends a frame | U, routes the list | C, for a bot's seat | — |
 | E5 | U | U | U, the addressee's, if subscribed: a pass names one where there was none (G3) | U | U | — | — | — |
 | E6 | U | U | U, the claimant's for an open seat; — on accepting (G3) | U | U | — | — | — |
@@ -141,7 +141,7 @@ bold one, **G7**, marks a cell the design does not yet answer.
 | E25 | — | D, if it was the last | — | D | D | — | — | — |
 | E26 | — | — | — | U, skips to the newest state, `because` dropped | U, sends the newest | — | U, from its subscription | — |
 | E27 | — | — | — | — | — | — | U, submits or stays on turn | C before the search, D when the engine returns |
-| E28 | — | — | D | — | — | — (refused while the account is listed, G4) | — | — |
+| E28 | — | — | — (DEL-2: no game names it, so its list is empty; the watch goes with its last subscriber) | — | — | — (refused while the account is listed, G4) | — | — |
 
 The Seat-list watch column follows G3's answer, which is in
 [the Event stream](71-06-engine.md#how-the-event-stream-uses-watch).
@@ -221,6 +221,39 @@ stateDiagram-v2
 | --- | --- | --- | --- | --- |
 | absent | → open | — (nothing to write) | impossible | — |
 | open | — | — (the value replaced) | → absent | → absent, receivers closed |
+
+### Seat-list watch
+
+One per account with a subscriber over every seated game (G3).
+
+| state | first subscriber | a change alters the account's `SeatRef`s | a change alters none | last subscriber leaves |
+| --- | --- | --- | --- | --- |
+| absent | → open, built from the stored seats | — (nothing to write) | — | impossible |
+| open | — | — (the list rewritten) | — | → absent |
+
+### Game entry
+
+The `unsaved` flag and a failed reload, from
+[*The one handler*](71-03-version.md#the-one-handler) (D69).
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Clean: first used, loaded from its row (#408)
+    Clean --> Unsaved: apply sets the flag
+    Unsaved --> Clean: saved, then published
+    Unsaved --> Clean: save failed, reloaded from its row (503)
+    Unsaved --> Stuck: save failed, and the reload failed
+    Stuck --> Clean: a later reload succeeds
+    Clean --> [*]: the game deleted
+    Stuck --> [*]: the game deleted
+```
+
+| state | a message | the save succeeds | the save fails | a reader arrives | the game deleted |
+| --- | --- | --- | --- | --- | --- |
+| Clean | → Unsaved, applied under the lock | impossible | impossible | reads | → ended |
+| Unsaved | impossible: the lock is held | → Clean, published | reload: → Clean, or → Stuck if it fails; 503 either way | impossible: the lock is held | impossible: the lock is held |
+| Stuck | reload first: → Clean and applied, or 503 | impossible | impossible | reload first: → Clean, or 503 | → ended |
 
 ## Gaps the matrix found
 

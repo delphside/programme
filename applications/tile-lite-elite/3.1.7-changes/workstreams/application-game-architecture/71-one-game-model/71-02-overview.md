@@ -25,6 +25,7 @@ technical design, 71-01 to 71-10, of which this file is the second:
 | [`71-08-storage.md`](71-08-storage.md) | storage: as-is, the model, the SQLite, sqlx and serde technologies, migration, the database schema and the modules that change |
 | [`71-09-open-questions.md`](71-09-open-questions.md) | the open questions, and the ones settled |
 | [`71-10-documents-changed.md`](71-10-documents-changed.md) | the documents this changes, and the two diagrams that move into 1.2 |
+| [`71-life-histories.md`](71-life-histories.md) | WP A's entity and event matrix, the runtime state tables, and the gaps they found, G1 to G7 |
 
 Every file in this folder stays under about 25 KB (owner, 2026-11-11), and a
 topic that would not fit is split in reading order, as 71-06 and 71-06b are.
@@ -40,8 +41,11 @@ written to fit it.
 **Pending decisions.** Where the design is not final it says so and names
 the Decision issue that will settle it. They are answered in the order
 [docs/1.2](../../../../../../docs/1.2-change-lifecycle.md#decisions) sets.
-None is open as of 2026-10-14; the functional questions the journeys raise are
-in [`71-journey-questions.md`](71-journey-questions.md).
+The Decision issues are all answered. What is still open is in
+[*Open questions*](71-09-open-questions.md#open-questions) and the gaps in
+[`71-life-histories.md`](71-life-histories.md#gaps-the-matrix-found); the
+functional questions the journeys raise are in
+[`71-journey-questions.md`](71-journey-questions.md).
 
 The design map this project starts from is Tile Lite Elite's
 `docs/4.2.0-design-map.md`, in

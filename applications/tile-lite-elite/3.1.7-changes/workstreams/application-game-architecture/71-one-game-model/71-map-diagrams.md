@@ -8,7 +8,7 @@ Green is new, yellow changed, red removed. A relationship's label starts with
 its state too. Each work package is drawn alone: the packages it builds on are
 not applied.
 
-Sources hash: `53e3b7736dfb209d093bbb4ba34a1503cc8338471a785de0c131f18fd2e9d57d`.
+Sources hash: `28a4482993dead4b11cce414afad972fdbd3ad5318200fdeb5b94e900218c530`.
 
 ## WP A, #268 Core Game Lifecycle
 
@@ -64,8 +64,8 @@ graph TB
     16-. "<div>new: sends invitation messages to<br />apply</div><div style='font-size: 70%'></div>" .->22
     21-. "<div>new: sends due messages to apply</div><div style='font-size: 70%'></div>" .->22
     20-. "<div>new: sends force-resign and<br />force-end messages to apply</div><div style='font-size: 70%'></div>" .->22
-    14-. "<div>new: deletes old games and expired<br />sessions, records the<br />database size</div><div style='font-size: 70%'></div>" .->26
-    14-. "<div>new: publishes the game's state,<br />with its cause, to</div><div style='font-size: 70%'></div>" .->17
+    14-. "<div>new: deletes expired sessions,<br />records the database size</div><div style='font-size: 70%'></div>" .->26
+    14-. "<div>new: publishes the game's state,<br />with its cause, and deletes<br />old games through</div><div style='font-size: 70%'></div>" .->17
     15-. "<div>new: publishes the game's state,<br />with its cause, to</div><div style='font-size: 70%'></div>" .->17
     16-. "<div>new: publishes the game's state,<br />with its cause, to</div><div style='font-size: 70%'></div>" .->17
     21-. "<div>new: publishes the game's state,<br />with its cause, to</div><div style='font-size: 70%'></div>" .->17

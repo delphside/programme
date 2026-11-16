@@ -221,14 +221,13 @@ pub enum GameMessage {
     Exchange { seat: u8, tiles: Vec<Tile> },
     Resign { seat: u8 },
     Abort,
-    SeatAdded { .. },
-    SeatInvited { seat: u8, .. },
-    InvitationAccepted { seat: u8, .. },
-    InvitationDeclined { seat: u8 },
-    SeatWithdrawn { seat: u8 },
+    SeatAdded { .. },                     // an invited seat's invitation is sent with it
+    InvitationAccepted { seat: SeatId, .. },
+    InvitationDeclined { seat: SeatId },
+    SeatWithdrawn { seat: SeatId },
     KeepRequested,
     Start,
-    SeatsSwapped { a: u8, b: u8 },
+    SeatsSwapped { a: SeatId, b: SeatId },
     ChatPosted { player: PlayerId, body: String },
     Hide { seat: u8 },
 }
@@ -239,7 +238,7 @@ pub enum SystemMessage {
     ForceResign { seat: u8 },
     AdminForceEnd,
     ReminderSent { seat: u8 },
-    InvitationPassed { seat: u8, to: PlayerId },  // on a followed link or a verified address
+    InvitationPassed { seat: SeatId, to: PlayerId },  // on a followed link or a verified address
     UpdateUserDetails { player: PlayerId },       // on a rename
 }
 ```
@@ -249,6 +248,11 @@ A message the server alone issues is a `SystemMessage`, so a client cannot
 express a time-out or pass an invitation, and the Transport API has nothing to
 refuse.
 There is still one handler: it matches `Player` or `System`, then the message.
+
+**Creating a game is not a message**, because there is no game yet to send it
+to. The Game service builds it with `GameSession::new`, at version 1, and
+`events::publish` saves it, logs `Created` as its first row and writes the
+seat lists, as for any `Applied`; no game channel exists yet to publish to.
 
 `Start` deals the racks and drops the spent seats in one step. Undo and redo
 join the enum with #272. Anything that changes what a client of the game could
@@ -392,7 +396,8 @@ not a description.
 | a pass | ✓ | ✓ |
 | an exchange | ✓ | ✓ |
 | a chat message | ✓ | — |
-| an invitation sent, accepted, declined | ✓ | — |
+| an invitation passed, accepted, declined | ✓ | — |
+| a keep asked for | ✓ | — |
 | a rename (`UpdateUserDetails`) | ✓ | — |
 | a resignation, force-resign, timeout | ✓ | — |
 | a start, an abort, an admin force-end | ✓ | — |
@@ -405,7 +410,7 @@ not a description.
 | Category | What is in it | Changed by |
 | --- | --- | --- |
 | **board** | the tiles played on the board, and nothing else | a placement; undo or redo of one |
-| **the game** | the board, plus racks, scores, the turn, resignations and timeouts | everything in the board row, plus pass, exchange, resign, force-resign, timeout, start, abort |
+| **the game** | the board, plus racks, scores, the turn, the seats and their invitations, resignations and timeouts | everything not in the other two rows: pass, exchange, resign, force-resign, timeout, start, abort, a finish, a seat or invitation change, a keep, a rename |
 | **periphery** | chat messages | posting a message |
 
 **A category says what to redraw; `version` alone says what is stale.**
@@ -438,7 +443,12 @@ alongside it is the result:
 pub struct Applied {
     pub version: i64,          // the version this change produced
     pub event: GameEvent,      // what happened, structured — for the log and the client
-    pub finished: bool,        // the caller settles ratings and stats on the edge
+    pub finished: Option<Finish>,  // the caller settles stats, and ratings for Played, on the edge
+}
+
+pub enum Finish {
+    Played,                    // GAME-2's end: rated, as RATE-1 to RATE-3 say
+    ForceEnded,                // an administrator's force-end after the start: no rating changes
 }
 
 pub enum ApplyError {
