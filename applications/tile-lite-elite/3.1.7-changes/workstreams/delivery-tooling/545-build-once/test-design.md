@@ -23,9 +23,21 @@ Every test runs on rehearsal before the merge unless it says otherwise.
   rehearsal.
 - **A refused deploy restores**: `smoke` refusing, and the database restored
   (S33); `pre-deploy` refusing a database ahead of the build.
-- **The host files**: installed, the timers enabled (S34); a deploy with
-  `--wait` waiting for the backup's lock, and one without it refused (S37).
-- **The first deploy on an adopted host**, once Turpin's gap T7 is fixed. It
+- **The host files**: installed, the timers enabled (S34).
+- **The backup and the log check, on rehearsal**, through the local-folder
+  adapter (`TLE_UPLOAD=local`): started by hand, each leaves its marker in the
+  folder, and the backup's database copy opens and passes its integrity check;
+  with `TLE_UPLOAD=local-fail` each exits non-zero and leaves the marker
+  alone.
+- **The lock, with a real backup**: a deploy with `--wait` waits for a running
+  backup and goes on, and one without it is refused (S37).
+- **Applying a change and resetting**: `turpin-host compose` refuses where
+  there is no current deploy, and takes the environment's lock.
+- **R9's question**: `turpin release` asks `[y/N]` for an open issue in the
+  milestone that no commit names, and skips a parent; `--confirm N` answers
+  ahead and the record's `carries.confirmed` holds it. In CI, with Turpin's
+  release scenarios.
+- **The first deploy on an adopted host**. It
   runs before rehearsal's first Turpin deploy (design §4 step 4.3), on a
   rehearsal made to look like production: the backup and log-check files and
   timers installed by hand, as on production. A failure at `migrate` leaves
@@ -35,9 +47,14 @@ Every test runs on rehearsal before the merge unless it says otherwise.
   again a first one.
 - **The OCI CLI's memory peak** on the 1 GB host, during the instance-principal
   login, which nothing has measured.
-- **Preview**: a deploy starts from an empty database (functional, on
+- **Preview**: every deploy starts from an empty database (functional, on
   preview).
 - **The `.env`**: `rehearsal-access.sh grant` writes its key to the state
   folder's `.env` and applies it.
 - **The check names**: after the merge, `turpin release --check` passes the
   `ci-passed` gate.
+
+Not tried before production: the HTTP upload through the PAR, proven there
+already. #556's post-deployment row covers it: the owner starts the backup
+service once by hand after 0.10.2's deploy, and the marker is seen
+refreshed.

@@ -1,28 +1,26 @@
-# Turpin: what Tile Lite Elite cannot meet as written
+# Turpin: what Tile Lite Elite needed of it
 
 Found while designing delphside/tile-lite-elite#545, *Build once, promote
-through environments*, for its work packages #555, the deploy tooling, and
-the image, #556: Tile Lite Elite's adoption of Turpin
-(delphside/programme#117). Read against Turpin's design and its code at the
-programme commit 2f9c8e6. Each row is a gap in the tool: what Turpin does now,
-what Tile Lite Elite needs, and a simple fix. Tile Lite Elite's
-[design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md) assumes T7 and T10 are fixed, and stands in for T11
-by hand. Its [terms](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md#terms) define *the pivot*, *`current`* and
-*root-ops*. *A first deploy* is one to a host whose state has no `current`;
-*an adopted host* runs the application under another tool before Turpin's
-first deploy, as Tile Lite Elite's two VMs run its `deploy.sh`.
+through environments*, for Tile Lite Elite's adoption of Turpin
+(delphside/programme#117): gaps in the tool that Tile Lite Elite could not
+meet as written. All are closed by delphside/programme#233 *Turpin: close the
+gaps for Tile Lite Elite*, except T8, which Q5's answer made unnecessary. Tile
+Lite Elite's [design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md) defines *the pivot*, *`current`* and *root-ops*
+([terms](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md#terms)). *A first deploy* is one to a host whose state has no
+`current`; *an adopted host* ran the application under another tool before
+Turpin's first deploy, as Tile Lite Elite's two VMs ran its `deploy.sh`.
 
-| Gap | Turpin now | Tile Lite Elite needs | Simple fix |
-| --- | --- | --- | --- |
-| T1 | a deploy hook is told no deploy number (except `save-state` and `restore-state`), no deploy folder and no Compose invocation | `migrate` to run `server --migrate-only` with the volume and environment the compose file gives the server, without copying them | give every deploy hook `TURPIN_DEPLOY` and `TURPIN_DEPLOY_DIR`, and a `TURPIN_COMPOSE` command line that runs Compose as the deploy does |
-| T2 | nothing runs Compose against the current deploy for an operator or an application script | to apply a changed `.env` (`up -d web`) and to reset rehearsal (`down -v`, `up -d`) | `turpin-host compose APP ENV ARGS`, running Compose from `current`'s folder with the deploy's files and env files |
-| T3 | a hook is not told its environment's `url` | `smoke` and `post-deploy` to know the address to test | `TURPIN_URL` from the profile, empty where unset |
-| T4 | each environment names its `ssh` alias in `[environments.X].ssh` | one home for the alias, which `[hosts.X].ssh` already holds for `board-hosts.py` | read `[hosts.X].ssh` where the environment names none |
-| T5 | the default `build` hook passes labels only | a per-build argument, `TILE_LITE_ELITE_BUILD_ID`, the short SHA, without which `/health` reports no commit; so Tile Lite Elite writes its own hook, copying the default's labels and output form | let the profile name build arguments taken from `TURPIN_*`, such as `[turpin.build].args = {TILE_LITE_ELITE_BUILD_ID = "SHORT_SHA"}` |
-| T6 | the payload carries the whole profile, and the deploy steps from the `programme/` pin | that editing a board key in `app-profile.toml`, or moving the pin for a change outside the deploy steps, is not a change to the image, which would make it a Production Release | carry only the keys the host reads; and give `[ships]` a rule that a pin move ships only where it changes `scripts/deliver/payload/` or `scripts/deliver/lib/` |
-| T7 | a first deploy's restore removes the pending deploy's host files and runs `compose down` on the project | on an adopted host, a failure before `compose up` to leave the old service serving and its host files in place; one at `compose up` or after needs the application's way back, since the same Compose project name has recreated the containers in place. Before step 8 of Turpin's §11 (the host-file install), `save-state` has stopped the old server, which stays stopped, and `root-ops` refuses to remove the hand-installed files, so the restore fails and leaves `failed: the restore did not complete`. After step 8, the deploy has installed those files, so the restore removes them, the timers among them, and `compose down` stops the whole project | on a first deploy, the restore: leaves every file that existed before this deploy; runs `compose down` only where this deploy's `compose up` ran; and restarts a server the deploy stopped |
-| T8 | `turpin env create` makes a Linux user per ephemeral environment | a preview on the controller's machine, which pulls with the builder's `docker` login | let an ephemeral environment on the builder's machine run as the builder's user |
-| T9 | the milestone gate refuses, and `--set-aside milestone` sets aside the whole milestone | #545's R9: where an issue in the milestone is named by no commit, the release asks `Confirm that #N is in this build [y/N]` for that issue alone | `--confirm N`, repeatable, recorded in the record |
-| T10 | `turpin release` reads which release production runs from production's host state, and refuses where production has no `current`; `--set-aside` cannot pass it | to release 0.10.2 while production runs 0.10.1, deployed by `deploy.sh`; the release reaches production's `turpin-host` once `host-install` has run, which changes nothing that runs | where production has no Turpin state, read `/health` through `[versions.deployed]` and the environment's `url`, as the emergency gate does; and take the tag naming the commit `/health` reports, since 0.10.1 has two: `v0.10.1` names `5b66777`, which diverged from `main`, and `prod-0.10.1` names `2bbb957`, which production runs |
-| T11 | `turpin-host` makes the state folder as the deploy user, under `/var/lib/turpin`, which that user cannot write; nothing makes the environment's `.env` | the state folder and its `.env` in place before the first deploy | `host-install` makes `/var/lib/turpin/APP/ENV/` owned by the deploy user, mode 0700, and an empty `.env`, mode 0600 |
-| T12 | Turpin's design restates Tile Lite Elite's profile and hooks in §8 and its move in §14, and both are stale: `required_checks = ["e2e"]`, which matches no check name; `deploy_marker = "[turpin]"`; `required_hooks` without `build` or `bump`; a `build` hook that sets no build ID; production on 0.10.0 and a fallback to 0.10.0, where production runs 0.10.1 | one home for Tile Lite Elite's specifics | replace them with a link to Tile Lite Elite's [design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md) |
+| Gap | Tile Lite Elite needed | Status |
+| --- | --- | --- |
+| T1 | `migrate` to run `server --migrate-only` with the volume and environment the compose file gives the server | fixed: hooks from step 7 get `TURPIN_DEPLOY`, `TURPIN_DEPLOY_DIR` and `TURPIN_COMPOSE` |
+| T2 | to apply a changed `.env` and reset rehearsal against the current deploy | fixed: `turpin-host compose APP ENV ARGS...`, holding the environment's lock, refusing with no current deploy |
+| T3 | `smoke` and `post-deploy` to know the address to test | fixed: `TURPIN_URL` |
+| T4 | one home for the `ssh` alias, `[hosts.X].ssh` | fixed |
+| T5 | a per-build argument, `TILE_LITE_ELITE_BUILD_ID`, the short SHA | fixed: `[turpin.build].args` |
+| T6 | that a board-key edit in `app-profile.toml`, or a pin move outside the deploy steps, is not a change to the image | fixed: the payload carries only the profile keys a host reads, and where `[ships].carries_payload = true` a pin move ships only where it changes a file the payload carries |
+| T7 | on an adopted host, a failed first deploy to leave the old service serving and its host files in place | fixed: the restore returns the old files' content, the containers it stopped and each unit's enabled and active state |
+| T8 | a preview on the controller's machine | not needed: preview is a standing environment (Q5) |
+| T9 | R9's per-issue question, `Confirm that #N is in this build [y/N]` | fixed: the question per issue, `--confirm N` repeatable, `carries.confirmed` in the record, parents skipped, `--set-aside milestone REASON` kept |
+| T10 | to release 0.10.2 while production runs 0.10.1, deployed by `deploy.sh` | fixed: production's version comes from `/health`, and the release refuses where no tag of that version names the commit |
+| T11 | the state folder and its `.env` in place before the first deploy | fixed: `host-install` makes `/var/lib/turpin/APP` and `APP/ENV` (0700, owned by the login) and an empty `.env` (0600) |
+| T12 | one home for Tile Lite Elite's specifics | fixed: Turpin's design links to Tile Lite Elite's [design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md) |
