@@ -102,6 +102,9 @@ def parse_args(argv: Sequence[str], module) -> Args:
     low, high = getattr(module, "MIN_ARGS", 0), getattr(module, "MAX_ARGS", 0)
     if not low <= len(args.positional) <= high:
         raise UsageError("missing argument" if len(args.positional) < low else "too many arguments")
+    check = getattr(module, "check_args", None)     # what only the command can tell is wrong with its flags
+    if check is not None:
+        check(args)
     return args
 
 

@@ -1109,6 +1109,7 @@ old_server_runs() {
   assert_equal "$(host_state rehearsal rehearsal)" "failed, no previous deploy"
   assert_equal "$(cat "$W/hosts/rehearsal/opt/acme/backup.sh")" "by hand: /opt/acme/backup.sh"
   assert_equal "$(cat "$W/hosts/rehearsal/etc/systemd/system/acme-backup.timer")" "by hand: /etc/systemd/system/acme-backup.timer"
+  assert_output --partial "the new containers were never started"
   old_server_runs
   # compose up never ran, so nothing of the project is brought down
   run bash -c 'cat "$1" 2>/dev/null | grep -c "^compose down"' _ "$W/hosts/rehearsal/.docker/compose.log"
@@ -1123,6 +1124,7 @@ old_server_runs() {
   assert_equal "$(cat "$W/hosts/rehearsal/opt/acme/backup.sh")" "by hand: /opt/acme/backup.sh"   # the old content, not the deploy's
   [ -f "$W/hosts/rehearsal/opt/acme/backup.sh" ]                              # there before the deploy
   [ ! -e "$W/hosts/rehearsal/etc/systemd/system/acme-backup.timer" ]         # the deploy's own
+  assert_output --partial "the new containers are stopped"
   run bash -c 'cat "$1" 2>/dev/null | grep -c "^compose down"' _ "$W/hosts/rehearsal/.docker/compose.log"        # compose up ran, so it is brought down
   assert_output 1
 }
@@ -1136,6 +1138,29 @@ old_server_runs() {
   old_server_runs
   run bash -c 'cat "$1" 2>/dev/null | grep -c "^compose down"' _ "$W/hosts/rehearsal/.docker/compose.log"
   assert_output 0
+}
+
+@test "T7: a first deploy failing after the host files puts a hand-installed timer back, enabled and running as it was" {
+  adopted_host /etc/systemd/system/acme-backup.timer
+  mkdir -p "$W/hosts/rehearsal/.systemd"; : > "$W/hosts/rehearsal/.systemd/acme-backup.timer.enabled"; : > "$W/hosts/rehearsal/.systemd/acme-backup.timer.active"
+  STUB_COMPOSE_UP_FAIL=1 run d deploy rehearsal "$SHA" --off-level adopted
+  assert_failure 1
+  assert_equal "$(cat "$W/hosts/rehearsal/etc/systemd/system/acme-backup.timer")" "by hand: /etc/systemd/system/acme-backup.timer"
+  [ -e "$W/hosts/rehearsal/.systemd/acme-backup.timer.enabled" ]
+  [ -e "$W/hosts/rehearsal/.systemd/acme-backup.timer.active" ]
+  run tail -3 "$W/hosts/rehearsal/.systemctl.log"
+  assert_output "systemctl daemon-reload
+systemctl enable acme-backup.timer
+systemctl restart acme-backup.timer"
+}
+
+@test "T7: a hand-installed timer that was disabled and stopped is left disabled and stopped" {
+  adopted_host /etc/systemd/system/acme-backup.timer
+  STUB_COMPOSE_UP_FAIL=1 run d deploy rehearsal "$SHA" --off-level adopted
+  assert_failure 1
+  assert_equal "$(cat "$W/hosts/rehearsal/etc/systemd/system/acme-backup.timer")" "by hand: /etc/systemd/system/acme-backup.timer"
+  [ ! -e "$W/hosts/rehearsal/.systemd/acme-backup.timer.enabled" ]
+  [ ! -e "$W/hosts/rehearsal/.systemd/acme-backup.timer.active" ]
 }
 
 # ---- what a hook is told (T1, T3)
@@ -1196,7 +1221,7 @@ HOOK
   run d deploy rehearsal "$SHA"
   assert_success
   local h
-  for h in pre-deploy migrate smoke; do
+  for h in pre-deploy migrate smoke post-deploy; do       # post-deploy runs on the controller, the others on the host
     run hook_log_for "$h"
     assert_output --partial "TURPIN_URL=https://rehearsal.acme.test"
   done

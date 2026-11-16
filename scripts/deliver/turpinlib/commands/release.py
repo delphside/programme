@@ -45,8 +45,27 @@ from ..runlog import PASSED, REFUSED, REPORTED, SET_ASIDE, RunLog, expected_gate
 from .build import gate_failed, now_utc
 
 USAGE = ("usage: turpin release [--expect VERSION] [--commit REF] [--emergency REASON]\n"
-         "                      [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]\n")
+         "                      [--skip-rehearsal REASON] [--set-aside GATE REASON] [--confirm N]... [--check]\n")
 MIN_ARGS = MAX_ARGS = 0
+
+
+def confirm_numbers(texts) -> list[int]:
+    """The issue numbers `--confirm` named. A value that is not a number is a usage error."""
+    from ..cli import UsageError
+    found = []
+    for text in texts:
+        try:
+            found.append(int(text.lstrip("#")))
+        except ValueError:
+            raise UsageError(f"--confirm {text}: name an issue by its number") from None
+    return found
+
+
+def check_args(args) -> None:
+    """Refuse, as a usage error, what the flags cannot say before anything runs."""
+    confirm_numbers(args.repeated.get("--confirm", []))
+
+
 FLAGS = {"--expect": "value", "--commit": "value", "--confirm": "repeat", "--check": "switch"}
 GATE_FLAGS = ("--emergency", "--skip-rehearsal", "--set-aside")
 
@@ -234,7 +253,7 @@ class Release:
                 if running is None:
                     raise refused(log, "milestone", "cannot tell which release production runs: the carried range "
                                   "starts there")
-                start = gitrepo.tag_for_version(self.repo, prof, str(running[0]), running[1])
+                start = self.production_tag(running, "milestone")
                 if start is None:
                     raise refused(log, "milestone", f"no tag for production's release {running[0]}: the carried "
                                   f"range starts there")
@@ -243,7 +262,7 @@ class Release:
         running = production_runs(prof, log)
         if running is None:
             raise refused(log, "emergency-descent", "cannot tell which release production runs")
-        start = gitrepo.tag_for_version(self.repo, prof, str(running[0]), running[1])
+        start = self.production_tag(running, "emergency-descent")
         if start is None:
             raise refused(log, "emergency-descent", f"no tag for production's release {running[0]}")
         if not gitrepo.is_ancestor(self.repo, f"{start}^{{commit}}", plan.sha):
@@ -258,6 +277,14 @@ class Release:
         log.gate("emergency-descent", PASSED, f"cut from {start}")
         plan.carry_from = plan.prev = start
         plan.range, plan.main_range = f"{start}..{plan.sha}", f"{start}..origin/main"
+
+    def production_tag(self, running, gate: str) -> str | None:
+        """The tag of the release production runs, at the commit it runs; the gate refuses where the
+        release has tags and none is that commit."""
+        try:
+            return gitrepo.tag_for_version(self.repo, self.prof, str(running[0]), running[1])
+        except gitrepo.NoTagAtCommit as exc:
+            raise refused(self.log, gate, str(exc)) from None
 
     def ci_passed(self) -> None:
         required = list(self.cprof.required_checks)
@@ -364,15 +391,9 @@ class Release:
                 emergency=bool(self.emergency), milestone_set_aside=aside, confirmed=tuple(confirmed)))
 
     def confirmed_by_flags(self) -> list[int]:
-        """The issues `--confirm N` named, each a number (a leading # allowed)."""
-        found = []
-        for text in self.args.repeated.get("--confirm", []):
-            try:
-                found.append(int(text.lstrip("#")))
-            except ValueError:
-                raise BusinessError.make(Reason.BAD_VALUE, f"--confirm {text}: name an issue by its number",
-                                         metadata={"source": "--confirm"}) from None
-        return found
+        """The issues `--confirm N` named, each a number (a leading # allowed); `check_args` has
+        already refused any that is not."""
+        return confirm_numbers(self.args.repeated.get("--confirm", []))
 
     def ask_to_confirm(self, number: int) -> bool:
         """Ask whether an issue in the milestone, which no commit names, is in this build."""

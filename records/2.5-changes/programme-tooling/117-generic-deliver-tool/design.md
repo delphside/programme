@@ -609,12 +609,15 @@ It holds nothing secret; secrets stay in each host's `.env`.
   ([§8](#8-profile-and-hooks)), so an edit to any other key, a board key among them,
   changes nothing the image carries.
 - A move of an application's `programme` pin changes what the payload carries only
-  through the deploy steps and their libraries, `scripts/deliver/payload/` and
-  `scripts/deliver/lib/`. The board's shipping rule (`board/shipping.py`) therefore
-  counts a pin move as reaching the image only where those two folders differ
-  between the old pin and the new one, whatever the application's
-  `[ships].non_shipping` says of the path `programme`; where the submodule cannot
-  say, it ships.
+  through the files `payload.py` copies: `scripts/deliver/payload/` and the three
+  libraries `common.sh`, `toml.sh` and `toml.awk` of `scripts/deliver/lib/`. They are
+  named once, in the board's `shipping.py`, which `payload.py` reads. An application
+  whose image carries the payload sets `[ships].carries_payload = true`; the board
+  then counts a pin move as reaching the image only where one of those files differs
+  between the old pin and the new one, in every command (`paths` judges the staged
+  move, for the pre-commit hook), whatever `[ships].non_shipping` says of the path
+  `programme`; where the submodule cannot say, it ships. Without the key the pin is a
+  path like any other and `non_shipping` decides it.
 - Joined files come from the payload, never a working tree; an environment may
   name its own (Tile Lite Elite's preview joins `docker-compose.preview.yml`,
   `Caddyfile.preview`).
@@ -1954,8 +1957,9 @@ through `root-ops` ([privileges](#privileges)).
 
 **Profile.** The application's `app-profile.toml` keeps its sections and gains
 keys in them, never the registry address ([§3](#3-oci-registry-integration)). A
-generic example, for an application `acme`; Tile Lite Elite's own profile and
-hooks are in [its design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md):
+generic example, for an application `acme`, with Dark Portal's values in
+comments (`dp:`); Tile Lite Elite's own profile and hooks are in
+[its design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md):
 
 ```toml
 application = "acme"
@@ -1969,22 +1973,22 @@ required_hooks = ["pre-deploy", "save-state", "migrate", "smoke", "restore-state
 overridable = ["milestone"]
 
 [turpin]
-candidates = "acme/candidates"
-releases   = "acme/releases"
-images     = ["server", "web"]             # tag is SHA-IMAGE
+candidates = "acme/candidates"             # dp: "dark-portal/candidates"
+releases   = "acme/releases"               # dp: "dark-portal/releases"
+images     = ["server", "web"]             # dp: ["dp"]; tag is SHA-IMAGE
 payload_image = "server"
 join = ["docker-compose.yml"]
 
 login = "docker-config"                    # the controller's own login: reads candidates and releases
 
 [turpin.build]
-on    = "controller"                       # or an ssh alias: the machine that builds and removes candidates
-login = "docker-config"
+on    = "controller"                       # dp: ssh alias of the non-production VM; builds and removes candidates
+login = "docker-config"                    # dp: "oci-instance-principal"
 args  = { ACME_BUILD_ID = "SHORT_SHA" }    # build arguments, each taken from a TURPIN_* value of the build
 
 [turpin.release]
-copy_on    = "controller"                  # or an ssh alias: the machine that copies to releases
-copy_login = "docker-config"
+copy_on    = "controller"                  # dp: the non-production VM, user dp-release
+copy_login = "docker-config"               # dp: "oci-api-key"
 
 [[turpin.host_files]]
 src  = "ops/backup.sh"
@@ -2008,7 +2012,7 @@ url   = "https://rehearsal.acme.example"
 role  = "production"
 login = "oci-instance-principal"
 host_files = true                          # default: true for roles rehearsal and production
-# lock = "/var/lib/turpin/acme/vm.lock"    # one lock for environments that share a host
+# lock = "/var/lib/turpin/acme/vm.lock"    # dp: one lock for E3 to E6 and its heavy runs
 pull_timeout = 300
 
 [hosts.production]                         # the ssh alias has one home where board-hosts.py reads it
@@ -2146,17 +2150,19 @@ began ([§11](#11-on-the-host), *A restore*), after `restore-state` has run, so 
 data is restored before the server returns. On a host with a `current` the restore's
 `compose up` starts everything.
 
-| Hook | Kind | Component | Tile Lite Elite | Dark Portal |
-| --- | --- | --- | --- | --- |
-| `build` | step | builder | `docker buildx bake --builder turpin` from the compose file's `build:` blocks, to OCI layouts | `docker buildx bake --builder turpin`, arm64 and amd64, to OCI layouts |
-| `release-check` | gate | controller | no `functional` change in a patch | none |
-| `pre-deploy` | gate | deployer | database not ahead of the build's schema | window :40 to :10 (75 outside) |
-| `save-state` | step | deployer | stop server, snapshot database keyed to `TURPIN_DEPLOY`, keep it and `TURPIN_CURRENT`'s | copy DuckLake catalog aside, keyed the same way |
-| `migrate` | step | deployer | `server --migrate-only` | catalog migrations |
-| `smoke` | gate | deployer | `/health` shows `VERSION+SHA` within 60 s | release's own checks |
-| `restore-state` | step | deployer | restore `TURPIN_DEPLOY`'s snapshot, if complete | restore `TURPIN_DEPLOY`'s catalog copy, if complete; bronze untouched |
-| `post-deploy` | check | controller | list open `Release Check` issues | next collection, about :36, lands |
-| `env-create`, `env-destroy` | step | deployer | preview slot's volume | user, `/srv/dp/NAME` |
+Tile Lite Elite's hooks, one by one, are in [its design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md). Dark Portal's, as an example of another application's:
+
+| Hook | Kind | Component | Dark Portal |
+| --- | --- | --- | --- |
+| `build` | step | builder | `docker buildx bake --builder turpin`, arm64 and amd64, to OCI layouts |
+| `release-check` | gate | controller | none |
+| `pre-deploy` | gate | deployer | window :40 to :10 (75 outside) |
+| `save-state` | step | deployer | copy DuckLake catalog aside, keyed to `TURPIN_DEPLOY` |
+| `migrate` | step | deployer | catalog migrations |
+| `smoke` | gate | deployer | release's own checks |
+| `restore-state` | step | deployer | restore `TURPIN_DEPLOY`'s catalog copy, if complete; bronze untouched |
+| `post-deploy` | check | controller | next collection, about :36, lands |
+| `env-create`, `env-destroy` | step | deployer | user, `/srv/dp/NAME` |
 
 The optional `bump` step (neither application has one) runs in the worktree that
 bumps `main`, with `TURPIN_VERSION`, for a lockfile refresh the version pattern
@@ -2461,7 +2467,9 @@ writing their step to `state.json`:
    `systemctl daemon-reload`, enable and restart units marked `enable`, as root
    through `root-ops`. A host file in `installed_host_files` that `pending`
    lacks is removed. Before the first is installed, the host files that already
-   exist are written to `host_files_before.json`;
+   exist are written to `host_files_before.json` and copied to `host_files_old/`,
+   and for each such unit marked `enable` whether it was enabled and whether it
+   was running is written to `host_units_before.json`;
 9. mark `compose-up`, then run `compose up` from `pending`'s folder, then `smoke`, then add the time
    `smoke` passed (`deployed`) and its result to `pending`'s `meta.json`;
 10. the pivot, one write: `previous` becomes `current`, `current` becomes
@@ -2513,9 +2521,12 @@ what was on the host before the deploy stays. A restore runs `restore-state`, th
   one already running is untouched, one gone is left), since `save-state` may have
   stopped the old server and the deploy never replaced it. Nothing is brought
   down;
-- removes the host files `pending` installed that were not in `host_files_before.json`,
-  leaving every file that existed before the deploy and every file where the deploy
-  stopped before step 8 (there is no `host_files_before.json`), then,
+- removes the host files `pending` installed that were not in `host_files_before.json`
+  (stopping and disabling an enabled unit first), then puts back, from
+  `host_files_old/`, the content of each that was there and `pending` overwrote, runs
+  `systemctl daemon-reload`, and returns each such unit to the enabled and running
+  state `host_units_before.json` holds. Where the deploy stopped before step 8 there
+  is no `host_files_before.json` and every file is as it was. Then,
 
 in one write, clears `pending` and `target` and marks the state
 `failed, no previous deploy`, naming the fallback (`[turpin].fallback`). A restore that fails, either kind, marks
@@ -2734,14 +2745,72 @@ under way finish, starts none, and names the rerun.
 
 ## 14. Moving Tile Lite Elite to it
 
-Tile Lite Elite's move, its profile and hooks, its migration order and its
-fallback are in [its design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md), which this document does not restate. What an
-adopted host (one that runs the application under another tool before Turpin's first
-deploy) needs of Turpin is here: a first deploy's restore leaves what was
-there ([§11](#11-on-the-host), *A restore*), `turpin release` reads production's
-version from `/health` where production has no Turpin state
-([§9](#which-release-production-runs)), and `turpin host-install` makes an
-environment's state folder and `.env` ([§11](#11-on-the-host)).
+The steps below are an application's move to Turpin, from deploying by its own
+scripts. Tile Lite Elite is the first to take them; its move, its profile and
+hooks, its migration order, its fallback and what changes in it are in
+[its design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md),
+which this document does not restate.
+
+- **The Python client.** Before the application's work package starts, the
+  Python `turpin`, with its `OCIR` adapter
+  ([§5](#scripts-and-their-dependencies)), reaches the programme's `main` and
+  the application's `programme/` pin moves to it, so that work package is built
+  and tested against it.
+- **The builder's API key.** Before the first `prune`: make an API key for the
+  Oracle user the builder logs in as, with its private key and `config` in
+  `~/.oci/` on the builder's machine; install the OCI CLI there; set
+  `TURPIN_OCI_COMPARTMENT` in `~/.config/turpin/APP.env`
+  ([the registry address](#the-registry-address)).
+- **The builder's Buildx builder.** Before the first `turpin build`, check that
+  `docker buildx ls` lists a builder named `turpin` with the
+  `docker-container` driver ([§5](#the-components)). If it is absent, make it,
+  without `--use`, so the default builder, and any script that runs
+  `docker compose build`, are untouched:
+
+  ```sh
+  docker buildx create --name turpin --driver docker-container
+  ```
+
+- **The proof by hand.** Before `prune`, the owner removes one candidate by
+  hand on the builder's machine, with the builder's
+  [removal credential](#logins), under the policy conditioned on
+  `target.repo.name` ([policy](#policy)): an
+  `oci artifacts container image list` finding its OCID, then
+  `oci artifacts container image delete`. It shows both the lookup and the
+  delete work under that policy. The candidate is a multi-arch build, with an
+  index, so the proof also shows what the image list holds for one: if it
+  lists the platform and attestation manifests as images of their own,
+  `remove` deletes each one the index names, after the index, and the design
+  says so before the code relies on it.
+- **The call times.** Claude reads each registry API and Artifacts API call's
+  duration from the run logs of the first `turpin build`, release and `prune`,
+  and each `turpin-host status --json` call's from those of the first release,
+  `prune` and rehearsal deploy, with the owner's timing of the proof by hand,
+  and sets the timeouts and the retry numbers in `settings.py` from them
+  ([§13](#13-non-functional-design)).
+- **The logins.** Before the first `turpin` command: run `turpin login
+  controller`, `copier` and `builder` on the machine that holds each (each asks
+  for its Oracle user and auth token; a preview on the builder's machine
+  shares the builder's `docker` login); and `docker logout` of any login the
+  old release script left in that machine's `~/.docker`, so the builder's and
+  the preview's `docker` login is the builder user's alone.
+- **The first rehearsal cycle** has no production record to start from. It
+  starts from production's commit deployed by the application's own script, and
+  the first `turpin deploy` to rehearsal takes
+  `--off-level "first turpin deploy"`.
+- **The board** reads the release prefix as releases and keeps earlier prefixes
+  as history (`history_prefixes`); "running in production" comes from settle
+  and `/health`, not from the tag.
+- **An adopted host** (one that runs the application under another tool before
+  Turpin's first deploy) needs of Turpin this much: a first deploy's restore
+  leaves what was there, puts back what the deploy overwrote and starts again
+  what it stopped ([§11](#11-on-the-host), *A restore*); `turpin release` reads
+  production's version from `/health` where production has no Turpin state,
+  and the tag of that version at the commit `/health` reports
+  ([§9](#which-release-production-runs)); and `turpin host-install` makes the
+  application's state folder, each environment's and its `.env`
+  ([§11](#11-on-the-host)). The way back from a failure at or after
+  `compose up` is the application's own written procedure.
 
 The Python client, its `OCIR` adapter and the machines' tools ([§5](#scripts-and-their-dependencies),
 [§3](#3-oci-registry-integration)) reach the programme's `main` before an application's `programme/`

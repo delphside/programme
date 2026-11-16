@@ -78,12 +78,14 @@ def under_root(path: str) -> str:
 
 
 def state_files(prof: Profile, env: Environment, sudo: str) -> list[str]:
-    """The environment's state folder and its `.env` (design §11), made for the deploy user, who
-    cannot make them under `/var/lib/turpin`: the folder 0700 and owned by the user running this
+    """The application's state folder, the environment's inside it and its `.env` (design §11), made for
+    the deploy user, who cannot make them under `/var/lib/turpin`: each folder 0700 and owned by the user running this
     script, an empty `.env` 0600 where there is none. An existing `.env` is never touched."""
     folder = under_root(f"{STATE_DIR}/{prof.application}/{env.name}")
     owner = '-o "$(id -un)" -g "$(id -gn)"'
-    return [f"{sudo} install -d -m 0700 {owner} {folder}",
+    app_folder = under_root(f"{STATE_DIR}/{prof.application}")
+    return [f"{sudo} install -d -m 0700 {owner} {app_folder}",     # first: `install -d` makes a parent for root, and a lock shared by the application's environments is made here
+            f"{sudo} install -d -m 0700 {owner} {folder}",
             f'[ -e {folder}/.env ] || {sudo} install -m 0600 {owner} /dev/null {folder}/.env']
 
 

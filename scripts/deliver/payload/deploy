@@ -83,7 +83,7 @@ fail_deploy() {   # STEP
     exit 1
   fi
   if [[ -z "$CUR" ]]; then
-    warn "no previous deploy to go back to; the new containers are stopped. Fallback: $FALLBACK"
+    warn "no previous deploy to go back to; ${FIRST_DEPLOY_RESTORED:-nothing was changed}. Fallback: $FALLBACK"
   else
     warn "the previous deploy (#$CUR) is back"
   fi

@@ -122,6 +122,29 @@ EOF
   [ -n "$(cand "$SHA-server")" ]
 }
 
+@test "a custom build hook is given TURPIN_SHORT_SHA, the commit's first seven characters (T5)" {
+  commit_change one
+  cat > "$W/work/turpin/hooks/build" <<'EOF'
+#!/usr/bin/env bash
+echo "== build short=$TURPIN_SHORT_SHA" >> "$HOOKLOG"
+for i in $TURPIN_BUILD_IMAGES; do
+  docker buildx bake --builder turpin \
+    --set "$i.labels.org.opencontainers.image.revision=$TURPIN_SHA" \
+    --set "$i.labels.org.opencontainers.image.version=$TURPIN_VERSION" \
+    --set "$i.labels.org.opencontainers.image.created=$TURPIN_CREATED" \
+    --set "$i.output=type=oci,dest=out/$i,tar=false" "$i" >&2
+  echo "$i out/$i"
+done
+EOF
+  chmod +x "$W/work/turpin/hooks/build"
+  commit_all "add a build hook"
+  : > "$HOOKLOG"
+  run d build "$SHA"
+  assert_success
+  run grep -c "^== build short=${SHA:0:7}\$" "$HOOKLOG"
+  assert_output 1
+}
+
 @test "a build whose image lacks the revision label is refused and pushes nothing (R3, S111)" {
   commit_change one
   cat > "$W/work/turpin/hooks/build" <<'EOF'

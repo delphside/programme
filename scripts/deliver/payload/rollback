@@ -38,7 +38,7 @@ if [[ "$MODE" == restore ]]; then
     warn "the rollback did not complete: the state is left at '$(st state)'. Fallback: $FALLBACK"; exit 1
   fi
   if [[ -z "$CUR" ]]; then
-    warn "the failed first deploy is stopped and nothing is running. Fallback: $FALLBACK"
+    warn "no previous deploy to go back to; ${FIRST_DEPLOY_RESTORED:-nothing was changed}. Fallback: $FALLBACK"
   else
     say "rolled back to deploy #$CUR"
   fi

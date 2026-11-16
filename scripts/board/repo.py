@@ -306,6 +306,15 @@ def pin_move(base: str, head: str, path: str = "programme") -> tuple[str, str] |
     return (old, new) if old and new and old != new else None
 
 
+def staged_pin_move(path: str = "programme") -> tuple[str, str] | None:
+    """The pin at HEAD and as staged, where the two differ and both hold one; None otherwise."""
+    head = _git("ls-tree", "HEAD", path).split()
+    index = _git("ls-files", "-s", path).split()
+    old = head[2] if len(head) >= 3 and head[0] == "160000" else ""
+    new = index[1] if len(index) >= 2 and index[0] == "160000" else ""
+    return (old, new) if old and new and old != new else None
+
+
 def programme_paths_between(old: str, new: str, path: str = "programme") -> list[str] | None:
     """The paths that differ between two commits of the submodule at `path`, or None where it cannot
     say (the submodule is not checked out, or lacks one of the commits)."""

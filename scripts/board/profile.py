@@ -218,6 +218,18 @@ class Section:
             raise ProfileError(f"{self.source}: `{dotted}` must be a non-empty string")
         return value
 
+    def flag(self, dotted: str) -> bool:
+        """An optional yes-or-no key: false where it is absent, and a key that is there but is
+        not true or false is malformed."""
+        node: Any = self.data
+        for part in dotted.split("."):
+            if not isinstance(node, dict) or part not in node:
+                return False
+            node = node[part]
+        if not isinstance(node, bool):
+            raise ProfileError(f"{self.source}: `{dotted}` must be true or false")
+        return node
+
     def integer(self, dotted: str) -> int:
         value = self.get(dotted)
         if isinstance(value, bool) or not isinstance(value, int):

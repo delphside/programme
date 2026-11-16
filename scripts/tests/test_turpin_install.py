@@ -103,6 +103,8 @@ class Script(Isolated):
         self.assertEqual(0, done.returncode, done.stderr)
         folder = self.root / "var/lib/turpin/acme/production"
         self.assertEqual((0o700, os.getuid()), (folder.stat().st_mode & 0o777, folder.stat().st_uid))
+        app = folder.parent        # a lock shared by the application's environments is made here, by the deploy user
+        self.assertEqual((0o700, os.getuid()), (app.stat().st_mode & 0o777, app.stat().st_uid))
         env = folder / ".env"
         self.assertEqual(("", 0o600, os.getuid()), (env.read_text(), env.stat().st_mode & 0o777, env.stat().st_uid))
 

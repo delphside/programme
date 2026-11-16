@@ -32,11 +32,27 @@ from typing import Iterable, Sequence
 
 from . import profile, repo
 
-# A programme pin move reaches the image only through the deploy steps the payload carries
-# (design 117 §8, *The payload*): Turpin's `payload/` and `lib/`. It is judged here, by what the
-# move changes, whatever the profile's `ships.non_shipping` says of the path `programme`.
+# The programme pin is a path like any other, and `ships.non_shipping` decides it (Tile Lite Elite's
+# says `programme$`: the pin is not built into its image), **unless the application sets
+# `ships.carries_payload = true`**: its image then carries Turpin's deploy steps from the pinned
+# programme (design 117 §8, *The payload*), and a pin move ships exactly where it changes one of
+# the files `CARRIED` names, whatever `non_shipping` says of the path `programme`. These are the
+# files the payload is made of: `turpinlib/payload.py` reads them from here, so what is carried
+# and what ships are one list.
 PIN = "programme"
-DEPLOY_STEPS = ("scripts/deliver/payload/", "scripts/deliver/lib/")
+PAYLOAD_DIR = "scripts/deliver/payload"
+LIB_DIR = "scripts/deliver/lib"
+LIB_FILES = ("common.sh", "toml.sh", "toml.awk")
+
+
+def carried(path: str) -> bool:
+    """Whether a path in the programme is one the payload carries into the image."""
+    return path.startswith(PAYLOAD_DIR + "/") or path in {f"{LIB_DIR}/{name}" for name in LIB_FILES}
+
+
+def carries_payload() -> bool:
+    """Whether the application's image carries the payload (`ships.carries_payload`)."""
+    return profile.technical().flag("ships.carries_payload")
 
 
 @lru_cache(maxsize=8)
@@ -53,31 +69,49 @@ def reaches_image(path: str) -> bool:
     return not _non_shipping().match(path)
 
 
-def image_paths(paths: Iterable[str]) -> list[str]:
-    """The paths, of these, that reach the image, in the order given."""
+def image_paths(paths: Iterable[str], pin_ships: bool = False) -> list[str]:
+    """The paths, of these, that reach the image, in the order given. Where the application carries
+    the payload, the pin is judged by `pin_ships` (whether its move changes what is carried) and
+    not by `non_shipping`."""
+    if carries_payload():
+        return [p for p in paths if p and (pin_ships if p == PIN else reaches_image(p))]
     return [p for p in paths if p and reaches_image(p)]
 
 
 def pin_ships(old: str, new: str) -> bool:
-    """Whether moving the programme pin from `old` to `new` changes the deploy steps. Where the
-    submodule cannot say what changed, it ships: the safe direction."""
+    """Whether moving the programme pin from `old` to `new` changes a file the payload carries.
+    Where the submodule cannot say what changed, it does: the safe direction."""
     changed = repo.programme_paths_between(old, new, PIN)
-    return changed is None or any(p.startswith(DEPLOY_STEPS) for p in changed)
+    return changed is None or any(carried(p) for p in changed)
 
 
 def pin_move_ships(base: str, head: str) -> bool:
-    """Whether the programme pin moved between `base` and `head` in a way that ships."""
+    """Whether the pin moved between `base` and `head` in a way that ships. Never where the
+    application does not carry the payload."""
+    if not carries_payload():
+        return False
     moved = repo.pin_move(base, head, PIN)
     return moved is not None and pin_ships(*moved)
 
 
-def touches_image(paths: Iterable[str], pin_moved_the_steps: bool = False) -> bool:
-    """Whether a change to these paths reaches the image. The pin path is never one by itself:
-    `pin_moved_the_steps` says whether it moved so as to change the deploy steps.
+def staged_pin_ships() -> bool:
+    """The same for the pin move that is staged."""
+    if not carries_payload():
+        return False
+    moved = repo.staged_pin_move(PIN)
+    return moved is not None and pin_ships(*moved)
 
-    No paths is *no*: a change that touched nothing changed nothing.
+
+def touches_image(paths: Iterable[str], pin_moved_the_steps: bool = False) -> bool:
+    """Whether a change to these paths reaches the image.
+
+    No paths is *no*: a change that touched nothing changed nothing. `pin_moved_the_steps` counts
+    only where the application carries the payload.
     """
-    return bool(image_paths(p for p in paths if p != PIN)) or pin_moved_the_steps
+    paths = list(paths)
+    if carries_payload():
+        return bool(image_paths(paths, pin_moved_the_steps))
+    return bool(image_paths(paths))
 
 
 def application_tooling(paths: Iterable[str]) -> list[str]:

@@ -403,11 +403,12 @@ class Gates(World):
         self.rehearse(emergency)
         self.production = None
         real = subprocess.run
+        running = self.git("rev-parse", "v0.10.0^{commit}", cwd=self.work)[:7]
 
         def run(argv, *a, **kw):
             if argv and argv[0] == "curl":
                 self.assertIn("http://prod.test/health", argv)
-                return subprocess.CompletedProcess(argv, 0, '{"app_version":"0.10.0+abc1234"}', "")
+                return subprocess.CompletedProcess(argv, 0, json.dumps({"app_version": f"0.10.0+{running}"}), "")
             return real(argv, *a, **kw)
         with mock.patch("subprocess.run", side_effect=run):
             code, _, err = self.release("--expect", "0.10.2", "--commit", emergency, "--emergency", "outage")
@@ -466,6 +467,18 @@ class Gates(World):
             code, _, err = self.release("--expect", "0.10.2")
         self.assertEqual(0, code, err)
         self.assertEqual("v0.10.1", self.called("gate")[0][1][0].carry_from)
+
+    def test_a_commit_health_reports_that_no_tag_of_the_version_names_refuses_naming_the_tags(self):   # T10
+        self.two_tags_of_one_version()
+        self.production = None
+        with mock.patch("subprocess.run", side_effect=self.health_says("0.10.1+deadbee")):
+            code, _, err = self.release("--expect", "0.10.2")
+        self.assertEqual(1, code)
+        self.assertIn("deadbee", err)
+        self.assertIn("none of its tags names that commit", err)
+        self.assertIn("v0.10.1 names", err)
+        self.assertIn("prod-0.10.1 names", err)
+        self.assertEqual([], self.called("gate"))
 
     def test_a_required_check_that_is_not_green_refuses(self):                                       # S21, R18
         for ok, bad, text in ((False, ["check e2e is failure on abc"], "e2e is failure"),
@@ -633,8 +646,9 @@ class Gates(World):
         self.assertEqual(0, code, err)
         self.assertEqual((13, 14), self.called("gate")[0][1][0].confirmed)
         code, _, err = self.release("--expect", "0.10.2", "--confirm", "thirteen")
-        self.assertEqual(1, code)
+        self.assertEqual(64, code)
         self.assertIn("name an issue by its number", err)
+        self.assertIn("[--confirm N]...", err)
 
     def test_without_expect_each_unconfirmed_issue_is_asked_about_and_yes_confirms_it(self):        # T9
         self.board_asks_about_13()

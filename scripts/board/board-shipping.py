@@ -10,8 +10,9 @@
     board-shipping.py check                  # exit 0 if the profile holds what the others read
     board-shipping.py -C <dir> ...           # against the repository at <dir>
 
-A move of the programme pin ships only where it changes Turpin's `scripts/deliver/payload/` or
-`lib/` between the old pin and the new.
+Where the technical profile sets `ships.carries_payload = true`, a move of the programme pin ships
+only where it changes a file the payload carries (`shipping.carried`), and `paths` judges the staged
+move so; without the key the pin is a path like any other and `ships.non_shipping` decides it.
 
 The rule is `programme/scripts/board/shipping.py`'s. This is the command the bash tooling
 calls instead of keeping a copy of it: `shipping-paths.sh`'s functions, the
@@ -63,7 +64,7 @@ def main(argv: list[str]) -> int:
             print(path)
         return 0
     if cmd == "paths" and not args:
-        for path in shipping.image_paths(line.strip() for line in sys.stdin):
+        for path in shipping.image_paths((line.strip() for line in sys.stdin), shipping.staged_pin_ships()):
             print(path)
         return 0
     print(f"board-shipping.py: unknown or malformed command: {' '.join(argv)}\n{__doc__}",
