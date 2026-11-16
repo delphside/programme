@@ -98,7 +98,7 @@ code in brackets, (G1) to (G7), names the gap whose answer fills the cell.
 | E16 | U `Finished` | — (frozen) | — | C | U, settled; a bot playing only against itself nets zero |
 | E17 | U: an abort, or a force-end before the start, `Aborted`; a force-end after it `Finished`, no rating change | — (frozen) | U, pending ones cancelled | C | — |
 | E18 | U, version and `last_activity_at` | — | — | C | — |
-| E19 | U, saved, version unchanged | U `hidden_by_player` | — | C, keyed by `seq` (G5) | — |
+| E19 | U, saved, version unchanged; `hidden_by_creator` for a seatless creator | U `hidden_by_player`, for a seat's player | — | C, keyed by `seq` (G5) | — |
 | E20 | U, saved, version unchanged | U `reminder_sent_turn` | — | C, keyed by `seq` (G5) | — |
 | E21 | D | D | D | D | U, `game_id` set null; the history stays |
 | E22 | — | — | — | — | — |

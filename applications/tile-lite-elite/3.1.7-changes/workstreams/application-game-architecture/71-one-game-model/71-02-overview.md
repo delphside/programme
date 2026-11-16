@@ -188,7 +188,7 @@ client changes Core's server changes require.
 with every `GameCommand` variant, `Player` and `System`, except undo and redo;
 per-game locking; the seat model and its lifecycle;
 [*DTOs are invisible*](71-05-wire.md#dtos-are-invisible), including the opponent
-tile count and the shared error body (D65);
+tile count and adopting #402's shared error body (#606, which supersedes D65);
 [*The engine is a client*](71-06-engine.md#the-engine-is-a-client), with the
 in-process glue under the bot; the append-only game log (D61);
 [*Migration*](71-08-storage.md#migration), with the schema version, foreign keys
