@@ -176,6 +176,11 @@ the credentials to do so.[^d66]
 the test client, which make any client possible; #10 then attaches
 `engine-core`, signs in as a bot account and submits moves.
 
+**WP A's test client has a test-only engine mode** (owner, 2026-11-16): it
+attaches `engine-core`, signs in as a bot account and plays, so the engine is
+shown to be a client in WP A, on rehearsal, before #10 *Bot client harness*
+builds the harness people run.
+
 **The gaps WP A's life histories found are answered there.** G1 to G6, from
 the seat id to resending a move that was not saved, are in
 [*Gaps the matrix found*](71-life-histories.md#gaps-the-matrix-found), each
@@ -217,26 +222,25 @@ only while its game is selected, fixes the Remove `test.fixme` case in
 Options: (a) a status condition in `live_composition`; (b) a clear on a status
 change, which brings back the push model the design retires. Open, for #269.
 
-**What is a bot account's `players` row?** The migration creates one account
-per engine with rating rows ([*Migration*](71-08-storage.md#migration)), and
-the row must satisfy today's schema (migrations 0004 and 0006). Three parts
-need an answer:
+**A bot account's `players` row.** Answered (owner, 2026-11-16, for the
+first two; Claude, as the design authority, for the third). The migration
+creates one account per engine with rating rows
+([*Migration*](71-08-storage.md#migration)):
 
-- **`email` and `password_hash`** are `not null`, and a bot has neither.
-  Options: (a) a reserved address per engine and a hash nothing can match;
-  (b) make both nullable, with a check that only a bot account leaves them
-  empty.
-- **`display_name`** is `not null` and unique, and its folded form is unique
-  too (`idx_players_display_name_folded`). An engine's name can clash with a
-  player's, which would fail the migration. Options: (a) the migration checks
-  for a clash first; (b) a bot's name is one no player can register.
-- **Which listed bot inherits the rows.** Each listed bot has its own account
-  ([*The bots the server runs*](71-06b-engine-bots.md#the-bots-the-server-runs)),
-  so the list must find the account the migration made, or the first start
-  makes a second one and the migrated ratings belong to nobody.
+- **`email` and `password_hash` become nullable.** The rule is Rust's, not a
+  database check: an account is a human, with an address and a hash, or a
+  bot, with neither, so a bot with an address cannot be represented.
+- **A bot's `display_name` is one no player can register**: it ends in
+  ` (bot)`, which registration and a rename refuse. So no engine's name can
+  clash with a player's, now or for a bot added later, and players can see who
+  is a bot.
+- **The listed bot finds the migrated account by its name.** The migration
+  names each engine's account `<engine> (bot)`, and `TILE_LITE_ELITE_BOTS`
+  names accounts by display name, so the first start finds the account and its
+  migrated ratings rather than making a second one.
 
-`created_at` and `updated_at` take the migration's time. Open, for WP A; it
-sits beside G4, deleting a listed bot's account
+`created_at` and `updated_at` take the migration's time. It sits beside G4,
+deleting a listed bot's account
 ([71-life-histories](71-life-histories.md#gaps-the-matrix-found)).
 
 **What is the hint?** Answered (owner, 2026-11-11): nothing uses `suggest_move`
