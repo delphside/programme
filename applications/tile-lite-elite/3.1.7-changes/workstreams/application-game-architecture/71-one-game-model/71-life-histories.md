@@ -118,7 +118,7 @@ bold one, **G7**, marks a cell the design does not yet answer.
 | E2 | D | D | D | D | D | D | D | D, the search lost; E1 replays the turn |
 | E3 | C | — (no subscriber yet) | U, each subscribed account whose seats it adds, addressees included (G3) | — | — | — | C, per bot seat, as in E4 | — |
 | E4 | U | U, if it exists | U, the seat's player's or addressee's, if it has one and is subscribed (G3) | U, joins the game if it is new to the account | U, sends a frame | U, routes the list | C, for a bot's seat | — |
-| E5 | U | U | U, the old and the new addressee's, if subscribed (G3) | U | U | — | — | — |
+| E5 | U | U | U, the addressee's, if subscribed: a pass names one where there was none (G3) | U | U | — | — | — |
 | E6 | U | U | U, the claimant's for an open seat; — on accepting (G3) | U | U | — | — | — |
 | E7 | U | U | — (the seat stays until E10) | U | U | — | — | — |
 | E8 | U | U | — (the seat stays until E10) | U | U | — | — (idles until E10) | — |
@@ -224,8 +224,8 @@ stateDiagram-v2
 
 ## Gaps the matrix found
 
-Seven questions had no answer in the design. G1 and G4 are the owner's, as
-cards in the #71 thread; the rest are technical and Claude's as the design
+Seven questions had no answer in the design. G1, G4 and G7 are the owner's,
+as cards in the #71 thread; the rest are technical and Claude's as the design
 authority, recorded here for review.
 
 | | gap | cells | whose |
@@ -285,8 +285,9 @@ seat id, so a swap and the start's renumbering write no list
 **G4.** Two questions:
 
 1. **The bot list names an account that does not exist, or an engine not
-   compiled in.** Proposed: the server refuses to start, naming the setting,
-   as for any invalid setting.
+   compiled in.** Answered (2026-11-15): the server refuses to start,
+   naming the setting, as for any invalid setting
+   ([*The bots the server runs*](71-06b-engine-bots.md#the-bots-the-server-runs)).
 2. **An administrator deletes a listed bot's account while the server runs.**
    Answered (owner, 2026-11-15): refused while the account is on the bot list,
    as DEL-2 refuses one a game names, which adds a DEL rule
