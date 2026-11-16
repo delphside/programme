@@ -173,6 +173,9 @@ gains what this settles:
   invited, accepted or claimed once the game has started
 - GAME-1's "whatever state" means Waiting or Active: an abort of a game already
   over is refused, and the ratings it settled stand (owner, 2026-11-16)
+- GAME-12's "players seated": an invited addressee and a player who is or was
+  playing, resigned and timed out included, may chat; one who declined or
+  withdrew may not (owner, 2026-11-16)
 - inviting yourself by name gives your own seat, claimed (#106); your own
   address is invited like any other (owner, 2026-11-16)
 - a player withdrawing from their own seat hides the game from their list
