@@ -369,7 +369,7 @@ The datasets are in part 8.
 | S51: a cached token refused and the new one too, exit 2 | the right secret, exit 0 |
 | S26: 500, an unusable body or no `last-modified`, exit 70 | a good response, exit 0 |
 | S27: disk full, exit 2 | room, exit 0 |
-| S52: clock ahead or 403/404, exit 2 | the clock put right, a 200, exit 0 |
+| S52: the host's clock behind (a `last-modified` two hours or more after the current hour) or 403/404, exit 2 | the clock put right, a 200, exit 0 |
 | S21 and S23: exit 75 | the next hour, exit 0; the gap recorded |
 | S29: an item fails, exit 3 | the next run fetches it |
 | S54: an item answers 404, recorded | `dp daily` asks again and it answers 200 |
