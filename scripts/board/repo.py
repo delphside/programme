@@ -24,7 +24,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from . import profile, refs
-from .sources import Unavailable
+from .sources import Unavailable, _blip, run_detached
 
 # **`Refs #N` does not imply anything specific; `Closes #N` does.** Owner,
 # 2026-09-18. The convention (CLAUDE.md, docs/4.3.3 §393, the programme's docs/1.2 §1132) is that
@@ -96,7 +96,7 @@ def _bump_files() -> list[str]:
 
 def _git(*args: str) -> str:
     try:
-        out = subprocess.run(["git", *args], capture_output=True, text=True, timeout=60)
+        out = run_detached(["git", *args], capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return out.stdout if out.returncode == 0 else ""
@@ -423,8 +423,8 @@ def running_on(version: str | None, main: str = "origin/main") -> RunningOn | No
     full = _git("rev-parse", "-q", "--verify", f"{sha}^{{commit}}").strip()
     if not full:
         return None
-    if subprocess.run(["git", "merge-base", "--is-ancestor", full, main],
-                      capture_output=True).returncode == 0:
+    if run_detached(["git", "merge-base", "--is-ancestor", full, main],
+                    capture_output=True).returncode == 0:
         return RunningOn(on_main=True)
     main_name = main.removeprefix("origin/")
     at_tip = [line.strip().removeprefix("origin/") for line in
@@ -458,8 +458,8 @@ def ci_red_on_main() -> str | None:
     if not script.exists():
         return None
     try:
-        out = subprocess.run([str(script), *command[1:]], cwd=root,
-                             capture_output=True, text=True, timeout=60)
+        out = run_detached([str(script), *command[1:]], cwd=root,
+                           capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if out.returncode == 0:
@@ -505,11 +505,12 @@ _REVERT = re.compile(r"This reverts commit ([0-9a-f]{7,40})")
 
 def _git_must(*args: str) -> str:
     try:
-        out = subprocess.run(["git", *args], capture_output=True, text=True, timeout=120)
+        out = run_detached(["git", *args], capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Unavailable(f"git {args[0]} did not answer: {exc}") from exc
+        raise Unavailable(f"git {args[0]} did not answer: {exc}", transient=_blip(exc)) from exc
     if out.returncode != 0:
-        raise Unavailable(f"git {' '.join(args)} failed: {out.stderr.strip()[:200]}")
+        raise Unavailable(f"git {' '.join(args)} failed: {out.stderr.strip()[:200]}",
+                          transient=_blip(stderr=out.stderr))
     return out.stdout
 
 
@@ -600,10 +601,15 @@ def tag_version(tag: str, prefixes: list[str]) -> str:
     return tag
 
 
+class RecordVersionUnknown(Unavailable):
+    """A release record of a version this tool does not read."""
+
+
 def tag_record(tag: str) -> dict | None:
     """The record an annotated release tag carries as its message, or None for a
     release made before the tool (no JSON message: history only). A record of a
-    version this tool does not know raises `Unavailable`: a reader refuses it."""
+    version this tool does not know raises `RecordVersionUnknown` (an `Unavailable`):
+    a reader refuses it."""
     message = _git_must("tag", "--list", tag, "--format=%(contents)")
     try:
         record = json.loads(message)
@@ -612,8 +618,8 @@ def tag_record(tag: str) -> dict | None:
     if not isinstance(record, dict) or "record" not in record:
         return None
     if record["record"] != 1:
-        raise Unavailable(f"tag {tag} holds record version {record['record']}, "
-                          f"which this tool does not read")
+        raise RecordVersionUnknown(f"tag {tag} holds record version {record['record']}, "
+                                   f"which this tool does not read")
     return record
 
 

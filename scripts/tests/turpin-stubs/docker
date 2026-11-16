@@ -56,12 +56,17 @@ case "${1:-}" in
           *) jq -c '[.]' "$f" ;;
         esac ;;
       ls)
+        # STUB_LS_HOLD=FILE: wait while FILE exists, saying so in FILE.reached (a test closes the host's input meanwhile)
+        if [[ -n "${STUB_LS_HOLD:-}" && -e "$STUB_LS_HOLD" ]]; then
+          : > "$STUB_LS_HOLD.reached"; while [[ -e "$STUB_LS_HOLD" ]]; do sleep 0.1; done
+        fi
         for f in "$S/images"/*.json; do [[ -f "$f" ]] || continue
           rd="$(jq -r '.RepoDigests[0] // empty' "$f")"; [[ -n "$rd" ]] || continue
           printf '%s:<none> %s %s\n' "${rd%@*}" "sha256:$(hex "$rd")" "$(jq -r .Id "$f")"
         done ;;
     esac ;;
   rmi)
+    [[ -z "${STUB_RMI_FAIL:-}" ]] || { echo "Error: unable to remove $2 (simulated)" >&2; exit 1; }
     f="$(img_file_for "$2")" && rm -f "$f" "${f%.json}.payload" ;;
   create)
     f="$(img_file_for "$2")" || { echo "No such image: $2" >&2; exit 1; }
@@ -104,48 +109,80 @@ case "${1:-}" in
           [[ "$k" == TURPIN_IMAGE_* ]] || continue
           printf '%s\n' "$v" > "$S/compose/$proj.$k"
         done < "$last" ;;
-      down) rm -f "$S/compose/$proj".* ;;
+      down)
+        [[ -z "${STUB_COMPOSE_DOWN_FAIL:-}" ]] || { echo "compose down failed (simulated)" >&2; exit 1; }
+        rm -f "$S/compose/$proj".* ;;
     esac ;;
   buildx)
-    # docker buildx bake T... (--push|--load) --set T.tags=REF --set T.labels.K=V
-    shift 2; targets=(); sets=(); mode=push
+    # docker buildx bake --builder B T... [--load] --set T.labels.K=V --set T.tags=REF --set T.output=type=oci,dest=DIR,tar=false
+    # Under --load the image goes to the machine's local store. Otherwise it is written as an OCI image
+    # layout at DIR (relative to the working directory): one image, a manifest, or with STUB_ARCH=multi an
+    # index of two platform manifests and an attestation manifest each, the index being the image's digest.
+    shift 2; targets=(); sets=(); mode=oci
     while [[ $# -gt 0 ]]; do
       case "$1" in
-        --push) mode=push; shift ;;
+        --builder) shift 2 ;;
         --load) mode=load; shift ;;
         --set) sets+=("$2"); shift 2 ;;
         *) targets+=("$1"); shift ;;
       esac
     done
     [[ -z "${STUB_BAKE_FAIL:-}" ]] || { echo "bake failed" >&2; exit 1; }
+    blob_put() {   # DIR: stdin to DIR/blobs/sha256/HEX; prints HEX
+      local tmp h; tmp="$(mktemp)"; cat > "$tmp"; h="$(sha256sum < "$tmp" | cut -d' ' -f1)"
+      mkdir -p "$1/blobs/sha256"; mv "$tmp" "$1/blobs/sha256/$h"; printf '%s' "$h"
+    }
+    descriptor() {   # MEDIATYPE HEX DIR [EXTRA-JSON]
+      jq -nc --arg m "$1" --arg d "sha256:$2" --argjson n "$(stat -c %s "$3/blobs/sha256/$2")" --argjson x "${4:-{\}}" '{mediaType:$m,digest:$d,size:$n} + $x'
+    }
+    image_manifest() {   # DIR CONTENT LABELS TARGET ARCH: writes the layer, config and manifest; prints the manifest's HEX
+      local dir="$1" layer config
+      layer="$(printf '%s' "$2" | blob_put "$dir")"
+      config="$(jq -nc --argjson l "$3" --arg t "$4" --arg a "$5" --arg d "sha256:$layer" \
+        '{architecture:$a,os:"linux",config:{Labels:$l,Env:["IMAGE=\($t)"]},rootfs:{type:"layers",diff_ids:[$d]}}' | blob_put "$dir")"
+      jq -nc --argjson c "$(descriptor application/vnd.oci.image.config.v1+json "$config" "$dir")" \
+        --argjson l "$(descriptor application/vnd.oci.image.layer.v1.tar "$layer" "$dir")" \
+        '{schemaVersion:2,mediaType:"application/vnd.oci.image.manifest.v1+json",config:$c,layers:[$l]}' | blob_put "$dir"
+    }
     for t in "${targets[@]}"; do
-      tags=""; labels="{}"
+      tags=""; out=""; labels="{}"
       for s in "${sets[@]}"; do
         case "$s" in
           "$t.tags="*) tags="${s#*=}" ;;
+          "$t.output="*) out="$(sed -n 's/.*dest=\([^,]*\).*/\1/p' <<< "${s#*=}")" ;;
           "$t.labels."*) k="${s#"$t.labels."}"; labels="$(jq -c --arg k "${k%%=*}" --arg v "${k#*=}" '. + {($k):$v}' <<< "$labels")" ;;
         esac
       done
       content="$(cat src.txt 2>/dev/null)"
-      salt=""; [[ "${STUB_ARCH:-}" == multi ]] && salt="index-"
-      d="sha256:$(printf '%s%s|%s|%s' "$salt" "$content" "$t" "$(jq -r '.["org.opencontainers.image.revision"] // ""' <<< "$labels")" | sha256sum | cut -d' ' -f1)"
+      revision="$(jq -r '.["org.opencontainers.image.revision"] // ""' <<< "$labels")"
       if [[ "$mode" == load ]]; then
+        d="sha256:$(printf '%s|%s|%s' "$content" "$t" "$revision" | sha256sum | cut -d' ' -f1)"
         mkdir -p "$S/local"
         lf="$S/local/$(printf '%s' "$tags" | tr '/:' '__')"
         jq -nc --arg id "$d" --argjson l "$labels" '{Id:$id, RepoDigests:[], Config:{Labels:$l}}' > "$lf.json"
         [[ -d .turpin-payload ]] && { rm -rf "$lf.payload"; cp -a .turpin-payload "$lf.payload"; }
         continue
       fi
-      repo="${tags%:*}"; tag="${tags##*:}"
-      stub_auth_check docker push "$repo" write
-      if [[ -n "${STUB_WRITE_ONLY:-}" ]] && ! [[ "/${repo#*/}" =~ $STUB_WRITE_ONLY ]]; then
-        echo "denied: requested access to the resource is denied" >&2; exit 1
+      [[ -n "$out" ]] || { echo "bake stub: no OCI output for $t" >&2; exit 1; }
+      rm -rf "$out"; mkdir -p "$out"
+      if [[ "${STUB_ARCH:-}" == multi ]]; then
+        entries="[]"
+        for arch in amd64 arm64; do
+          m="$(image_manifest "$out" "$content" "$labels" "$t" "$arch")"
+          entries="$(jq -c --argjson e "$(descriptor application/vnd.oci.image.manifest.v1+json "$m" "$out" "{\"platform\":{\"architecture\":\"$arch\",\"os\":\"linux\"}}")" '. + [$e]' <<< "$entries")"
+          a="$(image_manifest "$out" "attestation of $content" '{}' "$t" unknown)"
+          entries="$(jq -c --argjson e "$(descriptor application/vnd.oci.image.manifest.v1+json "$a" "$out" '{"platform":{"architecture":"unknown","os":"unknown"},"annotations":{"vnd.docker.reference.type":"attestation-manifest"}}')" '. + [$e]' <<< "$entries")"
+        done
+        top="$(jq -nc --argjson m "$entries" '{schemaVersion:2,mediaType:"application/vnd.oci.image.index.v1+json",manifests:$m}' | blob_put "$out")"
+        topmedia=application/vnd.oci.image.index.v1+json
+      else
+        top="$(image_manifest "$out" "$content" "$labels" "$t" amd64)"
+        topmedia=application/vnd.oci.image.manifest.v1+json
       fi
-      mkdir -p "$R/$repo/tags" "$R/$repo/meta" "$R/$repo/payload"
-      echo "$d" > "$R/$repo/tags/$tag"
-      jq -nc --arg d "$d" --argjson l "$labels" '{Digest:$d, Labels:$l}' > "$R/$repo/meta/${d#sha256:}.json"
-      [[ -d .turpin-payload ]] && { rm -rf "$R/$repo/payload/${d#sha256:}"; cp -a .turpin-payload "$R/$repo/payload/${d#sha256:}"; }
-      echo "$t $tags" >> "${STUB_LOG_DIR}/bake.log"
+      jq -nc --argjson d "$(descriptor "$topmedia" "$top" "$out")" '{schemaVersion:2,manifests:[$d]}' > "$out/index.json"
+      printf '{"imageLayoutVersion":"1.0.0"}' > "$out/oci-layout"
+      [[ -d .turpin-payload ]] && cp -a .turpin-payload "$out/payload"
+      echo "$t $out" >> "${STUB_LOG_DIR}/bake.log"
     done ;;
   *) echo "docker stub: unsupported: $*" >&2; exit 9 ;;
 esac

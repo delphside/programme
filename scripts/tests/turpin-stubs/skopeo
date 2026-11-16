@@ -4,11 +4,19 @@
 # unknown" for an absent image, a failure for a registry that is down.
 #   <repo dir>/tags/<tag>        the digest the tag points at
 #   <repo dir>/meta/<hex>.json   {"Digest","Labels"}
-#   <repo dir>/oci/<tag>/        the OCI layout of a record image
+#   <repo dir>/oci/<tag>/        the OCI layout a tag was pushed from
+#   <repo dir>/blobs/<hex>       every blob of the layouts pushed: manifests, configurations, layers
+#   <repo dir>/payload/<hex>/    the payload of an image, by its digest
+# `inspect --raw` gives the manifest or index exactly as stored (its sha256 is the digest);
+# `inspect --config` the labels of meta/<hex>.json (a test edits them there); `inspect` alone the meta.
 set -uo pipefail
 R="${STUB_REGISTRY:?}"
 echo "skopeo $*" >> "${STUB_LOG_DIR:?}/skopeo.log"
 [[ -z "${STUB_REGISTRY_DOWN:-}" ]] || { echo "dial tcp: connection refused" >&2; exit 1; }
+# STUB_SKOPEO_HOLD=FILE: wait while FILE exists, saying so in FILE.reached (a test interrupts the caller meanwhile)
+if [[ -n "${STUB_SKOPEO_HOLD:-}" && -e "$STUB_SKOPEO_HOLD" ]]; then
+  : > "$STUB_SKOPEO_HOLD.reached"; while [[ -e "$STUB_SKOPEO_HOLD" ]]; do sleep 0.1; done
+fi
 
 # parse docker://host/ns/repo:tag or @digest -> REPODIR TAG|DIGEST
 parse() {
@@ -41,12 +49,20 @@ if [[ "$cmd" == login ]]; then
   exit 0
 fi
 # where each write ran: the machine's root (the ssh stub sets it) or the controller
-case "$cmd" in copy|delete) echo "$cmd ${TURPIN_HOST_ROOT##*/}" >> "${STUB_LOG_DIR}/where.log" ;; esac
+# (a copy into a local directory is a read of the registry, not a write)
+case "$cmd" in
+  copy) [[ "${*: -1}" == docker://* ]] && echo "$cmd ${TURPIN_HOST_ROOT##*/}" >> "${STUB_LOG_DIR}/where.log" ;;
+  delete) echo "$cmd ${TURPIN_HOST_ROOT##*/}" >> "${STUB_LOG_DIR}/where.log" ;;
+esac
 case "$cmd" in
   inspect)
     parse "${@: -1}"; stub_auth_check skopeo inspect "$P_REPO" read
     d="$(digest_of "$P_REPO" "$P_REF")" || unknown
-    cat "$R/$P_REPO/meta/${d#sha256:}.json" ;;
+    case " $* " in
+      *" --raw "*) cat "$R/$P_REPO/blobs/${d#sha256:}" ;;
+      *" --config "*) jq -c '{config:{Labels:.Labels}}' "$R/$P_REPO/meta/${d#sha256:}.json" ;;
+      *) cat "$R/$P_REPO/meta/${d#sha256:}.json" ;;
+    esac ;;
   list-tags)
     parse "${@: -1}"; stub_auth_check skopeo list-tags "$P_REPO" read
     [[ -d "$R/$P_REPO/tags" ]] || { echo "name unknown: repository name not known to registry" >&2; exit 1; }
@@ -63,21 +79,41 @@ case "$cmd" in
       parse "$src"; stub_auth_check skopeo pull-record "$P_REPO" read; d="$(digest_of "$P_REPO" "$P_REF")" || unknown
       mkdir -p "${dst#oci:}"; cp -a "$R/$P_REPO/oci/$P_REF/." "${dst#oci:}/"
     elif [[ "$src" == oci:* ]]; then
-      [[ -z "${STUB_FAIL_RECORD_PUSH:-}" ]] || { echo "error: simulated failure pushing the record" >&2; exit 1; }
-      parse "$dst"; stub_auth_check skopeo push-record "$P_REPO" write; deny_write "$P_REPO"
-      lay="${src#oci:}"; man="$(jq -r '.manifests[0].digest' "$lay/index.json")"
-      d="sha256:$(sha256sum < "$lay/blobs/sha256/${man#sha256:}" | cut -d' ' -f1)"
-      mkdir -p "$R/$P_REPO/tags" "$R/$P_REPO/meta" "$R/$P_REPO/oci/$P_REF"
+      [[ -z "${STUB_FAIL_RECORD_PUSH:-}" || "$dst" != *-record ]] || { echo "error: simulated failure pushing the record: i/o timeout" >&2; exit 1; }
+      parse "$dst"
+      lay="${src#oci:}"; d="$(jq -r '.manifests[0].digest' "$lay/index.json")"
+      [[ "$P_REF" == *-record ]] && op=push-record || op=push-layout
+      stub_auth_check skopeo "$op" "$P_REPO" write; deny_write "$P_REPO"
+      mkdir -p "$R/$P_REPO/tags" "$R/$P_REPO/meta" "$R/$P_REPO/blobs" "$R/$P_REPO/oci/$P_REF"
       cp -a "$lay/." "$R/$P_REPO/oci/$P_REF/"
+      cp -n "$lay"/blobs/sha256/* "$R/$P_REPO/blobs/" 2>/dev/null || true
+      # a meta file for each manifest and for the index: the labels of its own configuration, or for an
+      # index its first platform image's (an attestation manifest carries none)
+      labels_of() { local m="$R/$P_REPO/blobs/$1" c; c="$(jq -r '.config.digest // empty' "$m")"; [[ -n "$c" ]] && jq -c '.config.Labels // {}' "$R/$P_REPO/blobs/${c#sha256:}" || echo '{}'; }
+      first=""
+      for h in $(jq -r '.manifests[]? | select((.annotations["vnd.docker.reference.type"] // "") != "attestation-manifest") | .digest' "$R/$P_REPO/blobs/${d#sha256:}" 2>/dev/null); do
+        l="$(labels_of "${h#sha256:}")"; [[ -n "$first" ]] || first="$l"
+        jq -nc --arg d "$h" --argjson l "$l" '{Digest:$d, Labels:$l}' > "$R/$P_REPO/meta/${h#sha256:}.json"
+      done
+      for h in $(jq -r '.manifests[]? | select((.annotations["vnd.docker.reference.type"] // "") == "attestation-manifest") | .digest' "$R/$P_REPO/blobs/${d#sha256:}" 2>/dev/null); do
+        jq -nc --arg d "$h" '{Digest:$d, Labels:{}}' > "$R/$P_REPO/meta/${h#sha256:}.json"
+      done
+      [[ -n "$first" ]] || first="$(labels_of "${d#sha256:}")"
+      jq -nc --arg d "$d" --argjson l "$first" '{Digest:$d, Labels:$l}' > "$R/$P_REPO/meta/${d#sha256:}.json"
+      [[ -d "$lay/payload" ]] && { rm -rf "$R/$P_REPO/payload/${d#sha256:}"; mkdir -p "$R/$P_REPO/payload"; cp -a "$lay/payload" "$R/$P_REPO/payload/${d#sha256:}"; }
       echo "$d" > "$R/$P_REPO/tags/$P_REF"
-      jq -nc --arg d "$d" '{Digest:$d, Labels:{}}' > "$R/$P_REPO/meta/${d#sha256:}.json"
     else
       parse "$src"; SR="$P_REPO"; SREF="$P_REF"
       stub_auth_check skopeo copy-from "$SR" read
       d="$(digest_of "$SR" "$SREF")" || unknown
       parse "$dst"; stub_auth_check skopeo copy-to "$P_REPO" write; deny_write "$P_REPO"
-      mkdir -p "$R/$P_REPO/tags" "$R/$P_REPO/meta"
+      mkdir -p "$R/$P_REPO/tags" "$R/$P_REPO/meta" "$R/$P_REPO/blobs"
       cp "$R/$SR/meta/${d#sha256:}.json" "$R/$P_REPO/meta/${d#sha256:}.json"
+      # the image's manifests (an index's platform and attestation manifests) and every blob
+      for h in $(jq -r '.manifests[]?.digest' "$R/$SR/blobs/${d#sha256:}" 2>/dev/null); do
+        [[ -f "$R/$SR/meta/${h#sha256:}.json" ]] && cp "$R/$SR/meta/${h#sha256:}.json" "$R/$P_REPO/meta/${h#sha256:}.json"
+      done
+      cp -n "$R/$SR"/blobs/* "$R/$P_REPO/blobs/" 2>/dev/null || true
       [[ -d "$R/$SR/payload/${d#sha256:}" ]] && { mkdir -p "$R/$P_REPO/payload"; cp -a "$R/$SR/payload/${d#sha256:}" "$R/$P_REPO/payload/"; }
       [[ "$P_REF" == sha256:* ]] || echo "$d" > "$R/$P_REPO/tags/$P_REF"
       echo "$dst" >> "${STUB_LOG_DIR}/copies.log"

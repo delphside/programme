@@ -35,10 +35,19 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# STUB_GH_HOLD=FILE: the first write waits while FILE exists, saying so in FILE.reached (a test
+# interrupts the caller meanwhile), and then is done
+hold_write() {
+  if [[ -n "${STUB_GH_HOLD:-}" && -e "$STUB_GH_HOLD" ]]; then
+    : > "$STUB_GH_HOLD.reached"; while [[ -e "$STUB_GH_HOLD" ]]; do sleep 0.1; done
+  fi
+}
+
 if [[ "$path" == graphql ]]; then
   fail_if "graphql"
   case "$query" in
     *setIssueFieldValue*)
+      hold_write
       issue="$(sed -n 's/.*issueId:"\([^"]*\)".*/\1/p' <<< "$query" | head -1)"
       option="$(sed -n 's/.*singleSelectOptionId:"\([^"]*\)".*/\1/p' <<< "$query" | head -1)"
       echo "GRAPHQL setIssueFieldValue issue=$issue option=$option" >> "$G/log"
@@ -62,6 +71,7 @@ logline() { printf '%s %s' "$method" "$path" >> "$G/log"; for kv in "${fields[@]
 
 if [[ "$method" != GET ]]; then
   fail_if "$method $path"
+  hold_write
   logline
   case "$method $path" in
     "POST repos/"*"/milestones")

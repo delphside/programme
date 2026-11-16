@@ -32,7 +32,10 @@ world_new() {
   export TURPIN_REGISTRY_VALUE="reg.test/ns"
   export STUB_AUTH_ENFORCE=1
   mkdir -p "$HOME/.config/turpin"
-  printf 'TURPIN_REGISTRY=%s\n' "$TURPIN_REGISTRY_VALUE" > "$HOME/.config/turpin/acme.env"
+  # the builder also holds its removal credential: the compartment that holds candidates, and an API key
+  # (the oci stub reads the key's owner from `role=`)
+  printf 'TURPIN_REGISTRY=%s\nTURPIN_OCI_COMPARTMENT=ocid1.compartment.oc1..acme\n' "$TURPIN_REGISTRY_VALUE" > "$HOME/.config/turpin/acme.env"
+  mkdir -p "$HOME/.oci"; printf '[DEFAULT]\nrole=builder\n' > "$HOME/.oci/config"
   # each skopeo component's own auth file, made once as the owner would
   local c
   for c in controller builder copier; do seed_login "$HOME/.config/turpin/auth/acme/$c.json" "$c"; done
@@ -173,13 +176,19 @@ EOF
 # A stub hook: logs its name, its TURPIN_* environment and its arguments, then
 # exits as $HOOKCTL/<name> says: empty or absent = 0; "N" = exit N; "N COUNT" =
 # exit N for the first COUNT calls, then 0; "kill" = kill the parent (a deploy
-# interrupted at this step).
+# interrupted at this step); "hold" = say so in "$ctl.reached" and wait for "$ctl.release"
+# (a test acts, such as closing the host's input, while this step runs).
 name="$(basename "$0")"
 { echo "== $name $*"; env | grep '^TURPIN_' | grep -v '^TURPIN_REQUEST' | sort; } >> "${HOOKLOG:-/dev/null}"
 ctl="${HOOKCTL:-/nonexistent}/$name"
 [[ -s "$ctl" ]] || exit 0
 read -r mode count < "$ctl"
 if [[ "$mode" == kill ]]; then kill -9 "$PPID"; sleep 1; exit 137; fi
+if [[ "$mode" == hold ]]; then
+  : > "$ctl.reached"
+  for _ in $(seq 1 300); do [[ -e "$ctl.release" ]] && exit 0; sleep 0.1; done
+  exit 1
+fi
 if [[ -n "$count" ]]; then
   seen="$ctl.seen"; n=0; [[ -f "$seen" ]] && n="$(cat "$seen")"
   if (( n >= count )); then exit 0; fi
@@ -208,7 +217,9 @@ set_version() {   # VERSION: in app.toml (the work tree; not committed)
 }
 
 hook_exit() { printf '%s\n' "$2" > "$HOOKCTL/$1"; rm -f "$HOOKCTL/$1.seen"; }   # NAME "N [COUNT]" | kill
-hook_clear() { rm -f "$HOOKCTL/$1" "$HOOKCTL/$1.seen"; }
+hook_clear() { rm -f "${HOOKCTL:?}/$1" "${HOOKCTL:?}/$1.seen" "${HOOKCTL:?}/$1.reached" "${HOOKCTL:?}/$1.release"; }
+hook_hold() { hook_clear "$1"; printf 'hold\n' > "$HOOKCTL/$1"; }   # NAME: the step waits until hook_release
+hook_release() { : > "$HOOKCTL/$1.release"; }
 
 # ---- running the tool
 
@@ -228,9 +239,19 @@ rel() { reg_tag_digest acme/releases "$1"; }
 reg_meta() { cat "$W/registry/reg.test/ns/$1/meta/${2#sha256:}.json"; }       # REPO DIGEST
 
 host_state_dir() { printf '%s/hosts/%s/var/lib/turpin/acme/%s' "$W" "$1" "$2"; }   # HOST ENV
-host_state() { head -1 "$(host_state_dir "$1" "$2")/state" 2>/dev/null; }
-host_current() { basename "$(readlink "$(host_state_dir "$1" "$2")/current" 2>/dev/null)" 2>/dev/null; }
-host_previous() { basename "$(readlink "$(host_state_dir "$1" "$2")/previous" 2>/dev/null)" 2>/dev/null; }
+# the host's record is state.json (design §11); these read one field of it, empty where absent
+host_field() { jq -r --arg f "$3" '.[$f] // empty' "$(host_state_dir "$1" "$2")/state.json" 2>/dev/null; }   # HOST ENV FIELD
+host_state() { host_field "$1" "$2" state; }
+host_current() { host_field "$1" "$2" current; }
+host_previous() { host_field "$1" "$2" previous; }
+host_pending() { host_field "$1" "$2" pending; }
+host_target() { host_field "$1" "$2" target; }
+# host_record_set HOST ENV FILTER [jq args]: edit the record the way a test needs it left
+host_record_set() {
+  local f filter="$3"; f="$(host_state_dir "$1" "$2")/state.json"; shift 3
+  [[ -f "$f" ]] || echo '{}' > "$f"
+  jq -c "$@" "$filter" "$f" > "$f.new" && mv "$f.new" "$f"
+}
 
 hook_calls() { grep '^== ' "$HOOKLOG" | awk '{print $2}'; }
 hook_log_for() { awk -v n="$1" '/^== /{p=($2==n)} p' "$HOOKLOG"; }
@@ -242,7 +263,16 @@ run_log_gates() { jq -r 'select(.event=="gate") | .name' "$(run_log_latest "$1")
 snapshot() {
   {
     (cd "$W/registry" && find . -type f | sort | xargs -r sha256sum)
-    (cd "$W/hosts" && find . -path '*/.docker' -prune -o -path '*/log' -prune -o -type f -not -name '.systemctl.log' -not -name '.systemctl.failed' -not -name lock -print | sort | xargs -r sha256sum 2>/dev/null)
+    (cd "$W/hosts" && find . -path '*/.docker' -prune -o -path '*/log' -prune -o -type f -not -name '.systemctl.log' -not -name '.systemctl.failed' -not -name lock -not -name state.json -print | sort | xargs -r sha256sum 2>/dev/null)
+    # a request's temp files (payload.PID, request.PID, note.PID, interrupted.PID) are in the snapshot: a request that
+    # ends leaves none, so a leftover is a change
+    # the host's record, without `last_request` (a refusal after the lock records itself there,
+    # design section 11); a record that is nothing else is no record
+    local f norm
+    for f in $(cd "$W/hosts" && find . -name state.json | sort); do
+      norm="$(jq -cS 'del(.last_request)' "$W/hosts/$f")"
+      [[ "$norm" == "{}" ]] || printf '%s %s\n' "$f" "$norm"
+    done
     (cd "$W/hosts" && find . -path '*/.docker/compose/*' -type f | sort | xargs -r sha256sum 2>/dev/null)
     git -C "$W/work" for-each-ref
     git -C "$W/remote.git" for-each-ref
@@ -323,10 +353,15 @@ gh_project() {
 
 # ---- more helpers
 
-# expected_digest SHA IMAGE: what the stub's bake makes of the commit's own content.
-expected_digest() {
-  local content; content="$(git -C "$W/work" show "$1:src.txt")"
-  printf 'sha256:%s' "$(printf '%s|%s|%s' "$content" "$2" "$1" | sha256sum | cut -d' ' -f1)"
+# image_content SHA IMAGE: the content of the layer of the image the registry holds, which the stub's bake
+# writes from the build's own working directory (src.txt), as a real image's layer holds its files.
+image_content() {
+  local c="$W/registry/reg.test/ns/acme/candidates" top man
+  top="$(cand "$1-$2")"
+  man="$top"
+  # an index: its first platform image
+  [[ "$(jq -r '.manifests // empty | length' "$c/blobs/${top#sha256:}")" == "" ]] || man="$(jq -r '.manifests[0].digest' "$c/blobs/${top#sha256:}")"
+  cat "$c/blobs/$(jq -r '.layers[0].digest' "$c/blobs/${man#sha256:}" | sed 's/^sha256://')"
 }
 
 bake_count() { grep -c . "$W/logs/bake.log" 2>/dev/null || echo 0; }
@@ -377,14 +412,16 @@ fake_production() {
   local version="$1" sha="$2" d images record
   d="$(host_state_dir prod production)"
   mkdir -p "$d/deploys/1"
-  images="$(jq -nc --arg s "$(cand "$sha-server")" --arg w "$(cand "$sha-web")" '{server:$s,web:$w}')"
+  local ds dw; ds="$(cand "$sha-server" || true)"; dw="$(cand "$sha-web" || true)"   # a commit never built has no digest: any valid one
+  [[ -n "$ds" ]] || ds="sha256:$(printf '1%.0s' {1..64})"
+  [[ -n "$dw" ]] || dw="sha256:$(printf '2%.0s' {1..64})"
+  images="$(jq -nc --arg s "$ds" --arg w "$dw" '{server:$s,web:$w}')"
   if [[ -n "$version" ]]; then
-    record="$(jq -nc --arg v "$version" --arg c "$sha" --argjson i "$images" '{record:1,application:"acme",version:$v,commit:$c,images:$i}')"
+    record="$(jq -nc --arg v "$version" --arg c "$sha" --argjson i "$images" '{record:1,application:"acme",version:$v,commit:$c,images:$i,made:"2026-10-01T00:00:00Z"}')"
   else record=null; fi
   jq -nc --arg sha "$sha" --argjson i "$images" --argjson r "$record" --arg v "$version" \
     '{n:1,sha:$sha,version:$v,images:$i,role:"production",record:$r,join:[],host_files:false,deployed:"2026-10-01T00:00:00Z",smoke:"passed"}' > "$d/deploys/1/meta.json"
-  ln -sfn deploys/1 "$d/current"
-  printf 'finished\ndeploy=1\n' > "$d/state"
+  printf '{"state":"finished","current":1,"installed_host_files":[]}\n' > "$d/state.json"
 }
 
 # text_tag TAG COMMIT: a release made before the tool (no JSON message), pushed.
@@ -410,3 +447,64 @@ release_ready() {
   gh_checks "$RSHA" e2e=success
   gh_milestone 0.10.2 "$@"
 }
+
+# contract_hooks: save-state, migrate and restore-state that do what design §8 says of
+# them, on a "database" file $W/data/db: save-state removes any snapshot under
+# TURPIN_DEPLOY, takes the snapshot, marks it complete, then removes every snapshot but
+# TURPIN_DEPLOY's and TURPIN_CURRENT's; migrate (given no deploy number) appends m<pending> to the database;
+# restore-state restores TURPIN_DEPLOY's snapshot if it is complete, else does nothing.
+# Each logs as the stub hooks do and follows $HOOKCTL (`1` fails, `kill` kills the step);
+# save-state looks at its control after the snapshot is begun and before it is complete.
+contract_hooks() {
+  local hook
+  for hook in save-state migrate restore-state; do
+    {
+      cat <<'EOF2'
+#!/usr/bin/env bash
+name="$(basename "$0")"
+{ echo "== $name $*"; env | grep '^TURPIN_' | grep -v '^TURPIN_REQUEST' | sort; } >> "${HOOKLOG:-/dev/null}"
+data="$(dirname "$HOOKLOG")/data"; mkdir -p "$data/snaps"
+ctl() {
+  local f="${HOOKCTL:-/nonexistent}/$name" mode count seen n
+  [[ -s "$f" ]] || return 0
+  read -r mode count < "$f"
+  if [[ "$mode" == kill ]]; then kill -9 "$PPID"; sleep 1; exit 137; fi
+  if [[ -n "$count" ]]; then
+    seen="$f.seen"; n=0; [[ -f "$seen" ]] && n="$(cat "$seen")"
+    (( n >= count )) && return 0
+    echo $((n + 1)) > "$seen"
+  fi
+  exit "$mode"
+}
+EOF2
+      case "$hook" in
+        save-state) cat <<'EOF2'
+rm -rf "${data:?}/snaps/$TURPIN_DEPLOY"
+mkdir -p "$data/snaps/$TURPIN_DEPLOY"
+if [[ -f "$data/db" ]]; then cp "$data/db" "$data/snaps/$TURPIN_DEPLOY/db"; fi
+ctl
+touch "$data/snaps/$TURPIN_DEPLOY/complete"
+for s in "$data"/snaps/*; do
+  [[ "$(basename "$s")" == "$TURPIN_DEPLOY" || "$(basename "$s")" == "${TURPIN_CURRENT:-}" ]] || rm -rf "$s"
+done
+EOF2
+        ;;
+        migrate) cat <<'EOF2'
+echo "m$(jq -r .pending "$TURPIN_STATE/state.json")" >> "$data/db"
+ctl
+EOF2
+        ;;
+        restore-state) cat <<'EOF2'
+ctl
+s="$data/snaps/$TURPIN_DEPLOY"
+if [[ -f "$s/complete" ]]; then
+  if [[ -f "$s/db" ]]; then cp "$s/db" "$data/db"; else rm -f "$data/db"; fi
+fi
+EOF2
+        ;;
+      esac
+    } > "$W/work/turpin/hooks/$hook"
+    chmod +x "$W/work/turpin/hooks/$hook"
+  done
+}
+data_db() { cat "$W/data/db" 2>/dev/null | tr '\n' ' '; }   # the "database", on one line

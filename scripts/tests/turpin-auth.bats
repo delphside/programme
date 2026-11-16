@@ -42,7 +42,7 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   release_ready "12|Requirement||0|"
   run d release --expect 0.10.2; assert_success
   run d deploy production 0.10.2; assert_success
-  assert_equal "$(roles_of docker push)" "builder "
+  assert_equal "$(roles_of skopeo push-layout)" "builder "
   assert_equal "$(roles_of skopeo copy-to)" "copier "
   assert_equal "$(roles_of skopeo push-record)" "copier "
   assert_equal "$(roles_of docker pull)" "host "
@@ -81,15 +81,15 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   release_ready "12|Requirement||0|"
   mv "$AUTH/controller.json" "$AUTH/controller.away"
   run d release --expect 0.10.2
-  assert_failure 1
-  assert_output --partial "no registry login for the controller"
+  assert_failure 2
+  assert_output --partial "the controller has no registry login"
   assert_output --partial "turpin login controller"
   [ -z "$(git -C "$W/remote.git" tag -l v0.10.2)" ]
   mv "$AUTH/controller.away" "$AUTH/controller.json"
   # a login made for another role does not read for it: releases are the copier's and the hosts'
   seed_login "$AUTH/controller.json" builder
   run d release --expect 0.10.2
-  assert_failure 1
+  assert_failure 2
   seed_login "$AUTH/controller.json" controller
   run d release --expect 0.10.2; assert_success
 }
@@ -104,13 +104,13 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   assert_output --partial "removed $PA-server"
   [ -z "$(cand "$PA-server")" ] && [ -z "$(cand "$PA-web")" ]
   [ -n "$(cand "$PR-server")" ]
-  assert_equal "$(roles_of skopeo delete)" "builder "
+  assert_equal "$(roles_of oci delete)" "builder "
   run cat "$W/logs/where.log"; assert_output --partial "delete rehearsal"
   refute_output --partial "delete local"
-  run grep -c 'turpin-host delete' "$W/logs/ssh.log"; assert_output 1
-  # the controller's own calls were reads
+  run grep -c 'turpin remove' "$W/logs/ssh.log"; assert_output 1
+  # the controller's own calls were reads, and it never called the Artifacts API
   run grep -E '^skopeo (inspect|list-tags) .* controller$' "$W/logs/auth.log"; assert_success
-  run grep -E '^skopeo delete .* controller$' "$W/logs/auth.log"; assert_failure
+  run grep -E '^oci .* controller$' "$W/logs/auth.log"; assert_failure
 }
 
 @test "prune on the controller's own machine still deletes with the builder's login, not the controller's (R46, S68)" {
@@ -118,7 +118,7 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   : > "$W/logs/auth.log"
   run d prune; assert_success
   [ -z "$(cand "$PA-server")" ]
-  assert_equal "$(roles_of skopeo delete)" "builder "
+  assert_equal "$(roles_of oci delete)" "builder "
 }
 
 @test "prune --dry-run sends nothing to the builder and deletes nothing (R46, S69)" {
@@ -136,22 +136,43 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
 @test "the builder deletes a candidate only while it still has the digest the controller chose (R46, S69)" {
   prunable_world
   local d; d="$(cand "$PA-server")"
-  local req
-  req="$(jq -nc --arg d "sha256:$(printf 'other' | sha256sum | cut -d' ' -f1)" '{login:"docker-config",candidates:"acme/candidates",deletes:[{tag:"'"$PA"'-server",digest:$d}]}')"
-  run bash -c "printf '%s' '$req' | '$TURPIN_HOST' delete acme"
-  assert_failure
-  assert_output --partial "no longer points at the digest"
-  assert_equal "$(cand "$PA-server")" "$d"
-  req="$(jq -nc --arg d "$d" '{login:"docker-config",candidates:"acme/candidates",deletes:[{tag:"'"$PA"'-server",digest:$d},{tag:"gone-tag",digest:$d}]}')"
-  run bash -c "printf '%s' '$req' | '$TURPIN_HOST' delete acme"
+  local other="sha256:$(printf 'other' | sha256sum | cut -d' ' -f1)" gone; gone="$(printf 'a%.0s' {1..40})"
+  remove_request() { jq -nc --arg c "$1" --arg d "$2" '{login:"docker-config",candidates:"acme/candidates",removes:[{commit:$c,image:"server",digest:$d}],keep:[]}'; }
+  # the tag has moved to another digest than the one chosen: left, and no error
+  run bash -c "printf '%s\n' '$(remove_request "$PA" "$other")' | '$TURPIN' remove acme"
   assert_success
+  assert_output --partial "tag-moved $PA-server"
+  assert_equal "$(cand "$PA-server")" "$d"
+  # the digest chosen: removed; a tag already gone is done
+  run bash -c "printf '%s\n' '$(remove_request "$PA" "$d")' | '$TURPIN' remove acme"
+  assert_success
+  assert_output --partial "removed $PA-server"
   [ -z "$(cand "$PA-server")" ]
+  run bash -c "printf '%s\n' '$(remove_request "$gone" "$d")' | '$TURPIN' remove acme"
+  assert_success
+  assert_output --partial "already-gone $gone-server"
+  # a digest in the keep list is refused, an error: the call exits 3 and the image stays
+  local dr; dr="$(cand "$PR-server")"
+  run bash -c "printf '%s\n' '$(jq -nc --arg c "$PR" --arg d "$dr" '{login:"docker-config",candidates:"acme/candidates",removes:[{commit:$c,image:"server",digest:$d}],keep:[$d]}')' | '$TURPIN' remove acme"
+  assert_failure 3
+  assert_output --partial "1 of 1 candidates could not be removed"
+  assert_equal "$(cand "$PR-server")" "$dr"
+  # an image that carries a tag this prune does not remove is shared with a commit that is kept: left, no error
+  cp "$W/registry/reg.test/ns/acme/candidates/tags/$PR-server" "$W/registry/reg.test/ns/acme/candidates/tags/kept-tag"
+  run bash -c "printf '%s\n' '$(remove_request "$PR" "$dr")' | '$TURPIN' remove acme"
+  assert_success
+  assert_output --partial "shared $PR-server"
+  assert_equal "$(cand "$PR-server")" "$dr"
 }
 
-@test "the controller's login cannot delete: the registry refuses a delete made with it (R46, S68)" {
+@test "the controller's login cannot delete: the registry refuses a delete made with another's key (R46, S68)" {
   prunable_world
-  run bash -c "export REGISTRY_AUTH_FILE='$AUTH/controller.json'; skopeo delete docker://reg.test/ns/acme/candidates:$PA-server"
-  assert_failure
+  printf '[DEFAULT]\nrole=controller\n' > "$HOME/.oci/config"
+  local d; d="$(cand "$PA-server")"
+  run bash -c "printf '%s\n' '$(jq -nc --arg c "$PA" --arg d "$d" '{login:"docker-config",candidates:"acme/candidates",removes:[{commit:$c,image:"server",digest:$d}],keep:[]}')' | '$TURPIN' remove acme"
+  assert_failure 3
+  assert_output --partial "could not be removed"
+  assert_output --partial "policy"
   [ -n "$(cand "$PA-server")" ]
 }
 
@@ -198,7 +219,8 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   run bash -c "cd '$W/work'; printf 'host-user\n%s\n' '$canary' | '$TURPIN' login production 2>&1"
   assert_success
   assert_equal "$(jq -r .user "$W/hosts/prod/.docker/login.json")" host-user
-  run grep -c "turpin-host login" "$W/logs/ssh.log"; assert_output 2
+  run grep -c "turpin login builder" "$W/logs/ssh.log"; assert_output 1
+  run grep -c "turpin-host login" "$W/logs/ssh.log"; assert_output 1
   run grep -c "$canary" "$W/logs/ssh.log"; assert_output 0
 }
 
@@ -212,8 +234,8 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   rm -f "$AUTH/builder.json"
   commit_change one
   run d build "$SHA"
-  assert_failure 1
-  assert_output --partial "the builder's registry login (docker-config) failed"
+  assert_failure 2
+  assert_output --partial "the builder has no registry login"
   assert_output --partial "turpin login builder"
 }
 
@@ -222,8 +244,8 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   release_ready "12|Requirement||0|"
   seed_login "$AUTH/copier.json" builder
   run d release --expect 0.10.2
-  assert_failure 1
-  assert_output --partial "the registry refused access"
+  assert_failure 2
+  assert_output --partial "the registry refused the copier's login"
   assert_output --partial "turpin login copier"
   [ -z "$(git -C "$W/remote.git" tag -l v0.10.2)" ]
 }
