@@ -459,11 +459,21 @@ pub enum ApplyError {
     GameNotActive,
     GameNotWaiting,            // a seat message (add, accept, claim, swap) after the start
     InvitationNotAvailable,    // a link claimed after its seat found an addressee (INV-2)
-    NotCreator,                // a creator's message from anyone else (GAME-6)
     IllegalMove(rules_shared::MoveError),
     Unknown(String),
 }
 ```
+
+**Who sent a message is checked before `apply`, not in it.** `apply` is a
+function of the game and the message, and a `GameMessage` names no sender. The
+Game service's submit function, which every route handler and the in-process
+glue call with the caller's account, checks that the caller holds the seat a
+message names, and that a creator's message (`ForceResign`, `Abort`,
+`SeatAdded`, `SeatsSwapped`, `Start`, GAME-6) comes from the creator, and
+refuses otherwise with `SubmitError::Refused` and its `ErrorDto` code. It then
+calls `apply`, and passes the caller to `events::publish` with the `Applied`,
+which writes it to the log row's `actor_id`. A message to a game that has been
+deleted is answered as one to a game that does not exist.
 
 **A bot's turn is noticed from the game's channel, not from `Applied`.** Every
 change publishes the new state, which names the seat on turn, so a bot comes on
