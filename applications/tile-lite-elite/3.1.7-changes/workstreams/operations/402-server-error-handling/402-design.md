@@ -95,6 +95,7 @@ pub enum Reason {
     TooManyRequests,     // 429, technical, blip
     ServiceBusy,         // 503, technical, blip
     Internal,            // 500, unexpected
+    GameAlreadyStarted,  // 200, business, info: a keep after the start; #268 sends it
     // ... one per distinct refusal in 4.4.3's refusal tables
     #[serde(other)]
     Unknown,             // a reason a newer server sends; read by its status
@@ -107,6 +108,13 @@ impl Reason {
 }
 ```
 
+- **A reason can also inform.** `GameAlreadyStarted` is not a failure: a
+  keep sent after the game has started does nothing, and the answer is a
+  success, `outcome` `ok`, carrying the reason (1.10 *The result object*;
+  owner, 2026-11-16). Its status is the success's, and its type is
+  *business*, logged at `INFO` if at all. The Core package of #71
+  (delphside/tile-lite-elite#268) adds it with its other reasons
+  ([Coordination with #71](#coordination-with-71)).
 - **The match is the classification**, and the only one. The status code,
   the body, the log level and WP B's counters all read it.
 - **A call site writes `ApiProblem::new(Reason::NotGameCreator, message)`.**
@@ -395,7 +403,7 @@ The Core package of #71 (delphside/tile-lite-elite#268) designed an `ErrorDto`
 (`71-05b-wire-types.md`, *The error body, shared by every endpoint*, D65). Under
 decision 1, **this design supplies that body**; programme pull request #211
 changes 71-05b's section to link here and records D65 as superseded. Core
-needs three things of it, which 71-05b lists on that pull request, all
+needs four things of it, three of which 71-05b lists on that pull request, all
 met:
 
 | Core needs | Met by |
@@ -403,6 +411,7 @@ met:
 | a stable code per refusal, for `ApplyError`'s variants and the sender check | `Reason`: #268 adds one variant per `ApplyError` variant, replacing `MoveRefused` |
 | a failed save (71-life-histories.md's "not saved (503)") reads as a retryable blip | `ServiceBusy`: 503, *technical*, blip, with `Retry-After` |
 | a message to a deleted game reads as a 404 | `GameNotFound`, whether the game never existed or was deleted |
+| a keep after the start answers, not refuses (owner, 2026-11-16) | `GameAlreadyStarted`: an information reason on a success, `outcome` `ok` |
 
 `IllegalMove`'s `MoveError` detail, which the player sees, is the `detail`
 sentence.
