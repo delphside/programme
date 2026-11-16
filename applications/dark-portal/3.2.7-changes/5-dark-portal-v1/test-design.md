@@ -777,8 +777,7 @@ Portal after a lost host*. BK is tested here for what reaches the bucket and
 stays there (S46, TT8, PD6), and the rebuild from bronze by L4 (S47, TT6).
 
 **[PD]**, from the export the owner pulls and what he reads, since production
-reads are his;
-one row per requirement in delphside/dark-portal#7:
+reads are his; one per row of delphside/dark-portal#7's post-deployment checks:
 
 - PD1 (R1): the owner compares three commodities' lowest and fill price with the
   in-game auction house within the same hour.
