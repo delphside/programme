@@ -93,7 +93,7 @@ def headings_answered(*headings: str) -> Callable[[Issue], bool]:
     """
     def check(issue: Issue) -> bool:
         return all(
-            issue.has_heading(h) and _has_substance(issue.section(h))
+            issue.has_heading(h) and is_answer(issue.section(h))
             for h in headings
         )
 
@@ -111,20 +111,35 @@ def artefacts_answered(issue: Issue) -> bool:
                for h in ("Deliveries", "Impacted artefacts"))
 
 
-def _has_substance(body: str) -> bool:
-    # a table skeleton, a placeholder, or nothing at all is not an answer
-    stripped = re.sub(r"[|\-\s]", "", body).lower()
-    return bool(stripped) and stripped not in {"none", "n/a", "tbd", "tbc"}
+_SEPARATOR = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
+_PLACEHOLDERS = {"none", "n/a", "tbd", "tbc"}
+
+
+def is_answer(body: str) -> bool:
+    """Whether a section's text answers its heading: the one place for it.
+
+    A table's header row (the row directly above a separator row) and its
+    separator row are skeleton and dropped; a placeholder or nothing at all is
+    no answer either. Data rows and prose count.
+    """
+    lines = body.splitlines()
+    skeleton: set[int] = set()
+    def piped(i: int) -> bool:
+        return 0 <= i < len(lines) and "|" in lines[i]
+
+    for i, line in enumerate(lines):
+        # A separator is a table's second line: a piped row above it, and no
+        # piped row above that. A dashed data row lower down is data.
+        if ("|" in line and "-" in line and _SEPARATOR.match(line)
+                and piped(i - 1) and not piped(i - 2)):
+            skeleton.update((i - 1, i))
+    kept = "".join(text for i, text in enumerate(lines) if i not in skeleton)
+    stripped = re.sub(r"[|\-\s]", "", kept).lower()
+    return bool(stripped) and stripped not in _PLACEHOLDERS
 
 
 def section_has_text(heading: str) -> Callable[[Issue], bool]:
-    def check(issue: Issue) -> bool:
-        body = issue.section(heading)
-        # a heading with only a table skeleton or "none" under it is empty
-        stripped = re.sub(r"[|\-\s]", "", body).lower()
-        return bool(stripped) and stripped not in {"none", "n/a", "tbd"}
-
-    return check
+    return lambda issue: is_answer(issue.section(heading))
 
 
 def never(_: Issue) -> bool:
