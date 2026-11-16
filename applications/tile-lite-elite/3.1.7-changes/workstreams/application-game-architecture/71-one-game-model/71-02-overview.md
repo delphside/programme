@@ -197,7 +197,9 @@ routed from #460 to it. It takes #142, #80, #106, #105, #429 and the invitation
 that outlives its game, each true by construction here [^d67]. It removes
 `suggest_move` and its route, which play the move against RATE-4; hints wait
 for #585 (owner, 2026-11-16, G7). It also builds
-the `game-wire` crate and the test client.
+the `game-wire` crate and the test client, with its test-only engine mode. It
+builds the server's side of the spent-link page (INV-8) and of the list of
+games with an open seat (GAME-10); the pages are WP B's (owner, 2026-11-16).
 
 **Waits on**: delphside/tile-lite-elite#576, sqlx 0.9, because the migration
 needs `-- no-transaction` on SQLite
@@ -216,7 +218,8 @@ fills the seats (owner, 2026-10-14). Today the client adds seats, then sends the
 invitations, then starts. Instead each seat goes its own way: added and invited
 at once, then declined or withdrawn, and replaced by a new seat, independently
 of the others, until the creator has a set of claimed seats and starts the game.
-Ships with WP A.
+It builds the spent-link page (INV-8) and the list of games with an open seat
+(GAME-10) on WP A's answers (owner, 2026-11-16). Ships with WP A.
 
 **Waits on**: WP A's wire shapes. Its tests:
 [`71-test-wp-b.md`](71-test-wp-b.md).
