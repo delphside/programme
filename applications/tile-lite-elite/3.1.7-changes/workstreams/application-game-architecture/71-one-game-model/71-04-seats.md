@@ -186,6 +186,13 @@ name of whoever said no or walked away, if anybody had, and its invitation is
 never sent again. A creator who wants to invite anybody, the same person
 included, adds a new seat.
 
+**A seat has one invitation, for its whole life** (owner, 2026-11-16). The
+invitation is fixed when the seat is added: who or what it invites cannot be
+changed, and it is never resent. A new invitation, or the same one sent again,
+takes a new seat, and the old one is withdrawn if it is not wanted. So
+today's `POST /games/{game_id}/invite`, which sends or resends to an existing
+seat whoever the request names, goes.
+
 That is what lets `Claimed` carry nothing but the player. Nothing goes back, so
 nothing has to be remembered, and **the pre-start lifecycle is acyclic**: a seat
 only ever moves forward.
