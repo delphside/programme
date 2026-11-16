@@ -19,10 +19,10 @@ reviews it.
 | host memory, CPU and disk | [*How the host rows are measured*](#how-the-host-rows-are-measured) | the owner, over SSH |
 | Oracle Always Free, account-wide | the Oracle Cloud console | the owner |
 
-**What is planned here.** The host's memory, CPU and disk are
-Infrastructure's to plan
-([489 design](../../infrastructure/3.3.7-changes/489-shared-infrastructure/489-design.md#who-plans-which-capacity-both-at-different-levels));
-they are held here until Infrastructure has a capacity plan of its own.
+**What is planned here.** This plan carries Dark Portal's hosts against their
+ceilings, because no host is shared between applications, as well as Dark
+Portal's own rows. [Infrastructure's 3.3.3](../../infrastructure/3.3.3-capacity-plan/README.md)
+indexes it.
 
 ## The rows of "What is consumed, against what ceiling"
 

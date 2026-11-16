@@ -12,7 +12,7 @@ writes and reviews each plan is the `capacity-plan` activity in
 | Tile Lite Elite | [3.1.3](../../tile-lite-elite/3.1.3-capacity-plan/README.md) | production's memory, swap, CPU, disk and journal |
 | Dark Portal | [3.2.3](../../dark-portal/3.2.3-capacity-plan/README.md) | production's and non-production's memory, CPU and block storage, and Oracle's Always Free allowances across the account |
 
-Capacity is planned at two levels. Each application's plan has its host's rows
-and its own rows (rate limits, bottlenecks, what its users can drive it to). A
-hosts' plan of its own starts when a host is first shared by two applications,
-and takes each one's footprint from its plan.
+Each application's plan carries its own host against its ceiling, beside its
+own rows (rate limits, bottlenecks, what its users can drive it to). A hosts'
+plan of its own starts when a host is first shared by two applications, and
+takes each one's footprint from their plans.
