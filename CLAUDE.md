@@ -2,8 +2,8 @@
 
 This page owns the rules. The numbered documents own the procedures and the
 reasons, and issues own the arguments. If this page and a document disagree,
-one of them has a defect: fix it, don't work around it, once the commit
-history shows how they came apart (*Documentation* below).
+one of them has a defect: once the commit history shows how they came apart
+(under *Documentation*), fix it; do not work around it.
 
 **A Claude Code session on the web** (claude.ai/code) works without the local
 session's memory and outside its git hooks. It answers questions and comments
@@ -413,11 +413,9 @@ docs/1.6 records the app it works through.
 - One fact, one home. The rule lives in its owning document, the argument in
   the issue, and every other mention is a link.
 - **Where two documents disagree, or a document and the code, read the
-  commit history before resolving it** (owner, 2026-11-09 and 2026-11-16), to
-  learn how the discrepancy came about. Each side was written for a situation,
-  and a fix that keeps both intents needs both known. The commit message of
-  the fix says where each side came from. The change-a-document skill has the
-  commands.
+  commit history to learn how it came about before resolving it** (owner,
+  2026-11-09 and 2026-11-16). Each side was written for a situation, and the
+  fix keeps both intents. The change-a-document skill has the steps.
 - **Every setting is listed in the application's (3+n).4.1.** Deployment
   settings (addresses, keys, hosts) are environment variables; product
   settings (defaults, rate limits, retention, time limits) are one code module
