@@ -161,6 +161,11 @@ unresolvable name is refused wherever it comes from.
 on the spot, so they have no invitation and never pass through `Invited`. The
 `Option` says so once, instead of every caller checking for a seat kind.
 
+**Inviting yourself by name is your own seat** (#106; owner, 2026-11-16): a
+seat by name that names the creator is added as `Claimed`, with no invitation.
+Inviting your own address is not special: it answers and behaves as any other
+address does (INV-6), and the creator accepts it like anyone.
+
 **Every seat has a kind.** A seat is added as one of five kinds (the creator's
 own, a bot, by name, by email or open), and a human seat without one is refused
 outright: *"A human seat needs a claim: named, open, or email."*
