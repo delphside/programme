@@ -9,10 +9,10 @@ list of applications in [2.1](../../records/2.1-applications.md).
 
 | Record | Document |
 | --- | --- |
-| 3.3.1 | delivery log: not yet written |
-| 3.3.2 | artefact register: not yet written |
-| 3.3.3 | capacity plans: not yet written |
+| 3.3.1 | [delivery log](3.3.1-delivery-log.md) |
+| 3.3.2 | [artefact register](3.3.2-artefacts.md) |
+| 3.3.3 | [capacity plans](3.3.3-capacity-plan/README.md) |
 | 3.3.4 | [workstreams](3.3.4-workstreams.md) |
 | 3.3.5 | [role holders](3.3.5-roles.md) |
-| 3.3.6 | application profile: not yet written |
+| 3.3.6 | [application profile](3.3.6-profile.md) |
 | 3.3.7 | change documents: [the shared infrastructure design](3.3.7-changes/489-shared-infrastructure/489-design.md) |
