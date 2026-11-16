@@ -366,6 +366,8 @@ class Release:
             yes = [n for n in result.unconfirmed if self.ask_to_confirm(n)]
             if yes:
                 result = self.board_gate(aside, confirmed + yes)
+        for note in result.notes:
+            print(f"note: {note}")
         for verdict in result.gates:
             if not verdict.passed:
                 raise refused(log, verdict.name, verdict.message)
@@ -376,8 +378,6 @@ class Release:
                 print(f"check {verdict.name}: {verdict.message}")
             else:
                 log.gate(verdict.name, PASSED, verdict.message)
-        for note in result.notes:
-            print(f"note: {note}")
         plan.carries, plan.left_out = result.carries, list(result.left_out)
 
     def board_gate(self, aside: bool, confirmed: list[int]):

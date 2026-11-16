@@ -174,11 +174,10 @@ class TheMilestoneIsAShippingList(Cases):
             self.expect("no note", [], result.notes)
 
     def test_a_closed_issue_is_not_reported(self):                                             # T14
-        with History() as h, inside(h.path):
-            sha = h.commit("a feature\n\nRefs #12\n\nRefs #13")
-            with Board([raw(12)], others=[raw(13, milestone=None, state="CLOSED")]):
-                result = gate(request(sha, range=sha))
-            self.expect("no note", [], result.notes)
+        from board.milestone import unmilestoned
+        from board.model import classify
+        issues = [classify(raw(12, milestone=None)), classify(raw(13, milestone=None, state="CLOSED"))]
+        self.expect("only the open one", (12,), unmilestoned(issues, {12, 13}))
 
     def test_a_parent_and_an_issue_no_commit_names_are_not_reported(self):                    # T14
         with History() as h, inside(h.path):
