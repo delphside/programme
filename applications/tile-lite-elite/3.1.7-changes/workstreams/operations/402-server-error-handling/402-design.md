@@ -16,8 +16,8 @@ will not) or *unexpected* (a defect).
 - **Two choices this design makes**, [decisions](#decisions) 4 and 5: the
   reason, not a URI, is the machine code, and the reason decides the status.
   Decisions 1 to 3 are the owner's, answered on his cards of 2026-11-16.
-- **Three kinds of status change on existing paths, on 12 refusals**, which
-  keep the API a minor: [401 against 403](#401-against-403).
+- **Four kinds of status change on existing paths**, which keep the API a
+  minor: [401 against 403](#401-against-403).
 
 ## The work packages
 
@@ -290,6 +290,9 @@ The status changes, each a refusal on an existing path:
 - **401 with a rule's words, to `SignInRequired`**: reordering seats checks no
   session today, so a caller with none is told only the creator may; it checks
   the session first, as the other roster calls do.
+- **400 to 500, a defect**: an engine that panics, is unknown or has no id, on
+  start, actions or suggest, answers `ENGINE_FAILED`, *unexpected*, with the
+  one 500 sentence, and its words go to the log only.
 
 Over HTTP, a 403 shows the refusal on a read or a write and never ends the
 session. A browser cannot read a refused WebSocket handshake's status, so the
