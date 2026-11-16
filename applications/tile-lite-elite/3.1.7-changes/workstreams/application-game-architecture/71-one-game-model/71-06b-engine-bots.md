@@ -12,7 +12,7 @@ runs. It is followed by [`71-07-client.md`](71-07-client.md).
 
 ### What the engine gains: levels
 
-**An engine plays at a level, given when a seat's game starts.**[^levels]
+**An engine plays at a level, given when a bot object is made for a seat.**[^levels]
 Levels count from 1, the weakest; an engine whose `max_level` is 1 has one
 level. `start` refuses a level outside 1 to `max_level` and returns the player
 for that seat's game, which may keep what it learns between turns:
@@ -127,8 +127,10 @@ The server runs the bots its settings list.
 - All of a bot's objects share its identity and run under `engine_limit`
   ([the blocking pool](71-06-engine.md#how-the-engine-uses-the-blocking-pool)).
 - The list is the programme owner's, who is accountable for the bots on it.
-- A list naming an account that does not exist, or an engine not compiled in,
-  stops the server at start-up, naming the setting.
+- A list naming an account that does not exist, an engine not compiled in, or
+  a level outside 1 to that engine's `max_level`, stops the server at start-up,
+  naming the setting. So `start` never refuses a listed level once the server
+  runs.
 - An account on the list cannot be deleted (owner, 2026-11-15), as DEL-2
   refuses one a game refers to. WP A adds this as a DEL rule in
   [4.1.0](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.1.0-rules.md#deleting-an-account).

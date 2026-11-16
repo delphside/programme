@@ -98,8 +98,8 @@ workspace extends model.dsl {
         !element tle.server.scheduler {
             tags "changed" "wp:268"
         }
-        // 71-08-storage.md, "Modules" (app/admin.rs): force-resign and
-        // force-end become messages.
+        // 71-08-storage.md, "Modules" (app/admin.rs): force-end becomes a
+        // message.
         !element tle.server.adminApi {
             tags "changed" "wp:268"
         }
@@ -199,8 +199,8 @@ workspace extends model.dsl {
         }
 
         // games -> store: events::publish now saves each applied change
-        // (71-08-storage.md, "Modules"). Whether create_game still saves
-        // directly is not settled, so the new line states only what is certain.
+        // (71-08-storage.md, "Modules"), and a new game too
+        // (71-03-version.md, "One version, moved in one place").
         !relationships "tle.server.games -> tle.server.store" {
             tags "removed" "wp:268"
         }
@@ -238,16 +238,16 @@ workspace extends model.dsl {
         tle.server.scheduler -> tle.server.session "sends due messages to apply" {
             tags "new" "wp:268"
         }
-        tle.server.adminApi -> tle.server.session "sends force-resign and force-end messages to apply" {
+        tle.server.adminApi -> tle.server.session "sends force-end messages to apply" {
             tags "new" "wp:268"
         }
-        tle.server.games -> tle.server.store "deletes old games and expired sessions, records the database size" {
+        tle.server.games -> tle.server.store "deletes expired sessions, records the database size" {
             tags "new" "wp:268"
         }
 
         // The replacements for the five above, 71-06-engine.md, "How the
         // Event stream uses watch".
-        tle.server.games -> tle.server.events "publishes the game's state, with its cause, to" {
+        tle.server.games -> tle.server.events "publishes the game's state, with its cause, and deletes old games through" {
             tags "new" "wp:268"
         }
         tle.server.roster -> tle.server.events "publishes the game's state, with its cause, to" {
@@ -295,7 +295,7 @@ workspace extends model.dsl {
         }
 
         // 71-03-version.md, "The one handler" (what a failed save leaves)
-        // and "5 · Database" (game_events).
+        // and 71-08-storage.md, "Database" (game_events).
         tle.server.events -> tle.server.store "saves each applied change and appends it to the game log" {
             tags "new" "wp:268"
         }

@@ -101,18 +101,21 @@ pub enum GameEventDto {
     Resigned      { seat: u8 },
     ForceResigned { seat: u8 },
     TimedOut      { seat: u8 },
-    SeatInvited   { seat: u8 },
-    InvitationPassed   { seat: u8 },
-    InvitationAccepted { seat: u8 },
-    InvitationDeclined { seat: u8 },
-    SeatWithdrawn { seat: u8 },
-    SeatAdded     { seat: u8 },
-    SeatsSwapped  { a: u8, b: u8 },
-    SeatHidden    { seat: u8 },
+    // Before the start, a seat is named by its id (SeatId), because a
+    // swap or the start renumbers it (71-04-seats.md, The seat).
+    Created,
+    InvitationPassed   { seat: u32 },
+    InvitationAccepted { seat: u32 },
+    InvitationDeclined { seat: u32 },
+    SeatWithdrawn { seat: u32 },
+    SeatAdded     { seat: u32 },
+    SeatsSwapped  { a: u32, b: u32 },
+    KeepRequested,
+    SeatHidden    { seat: Option<u32> },  // by id: a withdrawn seat may hide before the start; None: a seatless creator
     ReminderSent  { seat: u8 },
     Started, Aborted, Finished { winner: Option<u8> },
     UserDetailsUpdated { player: String },
-    ChatPosted    { seat: Option<u8>, player: String },
+    ChatPosted    { seat: Option<u32>, player: String },  // by id: chat is allowed in any state (GAME-12)
 }
 
 impl GameEventDto {
@@ -140,16 +143,20 @@ administrator's force-end after the start. A turn that ends the game says so in
 `ended`, and a resignation or timeout that leaves one seat playing keeps its own
 event, so a client reads the end from the state's `status`, not from one event.
 
-**`ForceResigned` does not say who did it.** Every client of the game receives
-the event, and which administrator acted is not theirs to know; the server's own
-log records it.
+**`ForceResigned` does not say who did it**, though only the game's creator may
+(GAME-6). The log row's `actor_id` records it
+([*Database*](71-08-storage.md#database)).
 
 **Undo and redo are classified by what they undo**, not by being undo —
 undoing a placement is a board change, undoing a pass is a game change. That
 falls out if the event carries what it reversed, which it must anyway for the
 log to be readable.
 
-Seat numbers and player IDs, not sentences. The client renders them, which is
+Seat ids or numbers and player IDs, not sentences: an event that may come
+before the start names the seat by its id, and an event of play by its number,
+which is fixed once play starts. A client renders an id with the seat's current
+number and player; once the start has dropped the seat, the event is shown as
+one about a seat that has left. The client renders them, which is
 the only way any of it is readable in a language other than the one the server
 was written in — and this service already ships Spanish dictionaries.
 
@@ -187,22 +194,21 @@ it is not applied.
 
 ## The error body, shared by every endpoint
 
-One shape for every error any endpoint returns, designed here in Core because
-Core rewrites the contract anyway, so it changes once (#380 R8).[^d65] Today's
-`ApiError` body, `{ message, blocking_games }`, becomes one case of it.
+**The error body is #402's** (owner, 2026-11-16): RFC 9457 Problem Details,
+typed by docs/1.10's error scheme, delivered by
+[#606](https://github.com/delphside/tile-lite-elite/issues/606) before 1.0.0,
+and adopted here. Its fields, its `Reason` enum in `crates/api` and its
+headers are in [#402's design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/operations/402-server-error-handling/402-design.md), *The model*, *The body* and *Coordination
+with #71*. This design calls that body `ErrorDto` and adds only what Core
+refuses:
 
-```rust
-pub struct ErrorDto {
-    pub code: ErrorCode,                 // stable and machine-readable; the message may change
-    pub message: String,                 // for a person, never parsed
-    pub correlation_id: Option<String>,  // #402 fills it; Core only reserves the field
-    pub detail: Option<ErrorDetail>,     // e.g. the games blocking a deletion
-}
-```
+- **One `Reason` variant per `ApplyError` variant**, and one per refusal of the
+  Game service's sender check ([*The message*](71-03-version.md#the-message)),
+  replacing `MoveRefused`. `IllegalMove`'s `MoveError` is the body's `detail`.
+- **`SubmitError::NotSaved` is `ServiceBusy`**: 503, technical, a blip, with
+  `Retry-After` ([the interface layer](71-05-wire.md#the-interface-layer)).
+- **A deleted game is `GameNotFound`**, 404, and a live socket on it closes
+  with 4404.
 
-`ApplyError` maps onto `code`, so a client tells a stale submission from an
-illegal move without reading prose. Every response carries the same headers,
-the API version among them, and #402 adds the correlation ID to them.
-
-[^d65]: Decision #465 (D65): #71 Core designs the shared error body and
-    response header.
+D65 (#465) had Core design the body; that is superseded, and #268 waits
+on #606.

@@ -203,9 +203,11 @@ about every seat: no seat may be `Invited`, and everything that is not spent
 must be `Claimed`. One is never coming and the other might.
 
 **Start is the last moment renumbering is free.** Dropping seats renumbers the
-ones that remain, and seat numbers are the turn order. Before the start no
-move has been recorded against a seat number, so nothing refers to the old
-ones; a moment later the log does, and the same tidy-up would be a rewrite.
+ones that remain, and seat numbers are the turn order. Anything kept from
+before the start names a seat by its `id`: the log's pre-start events, the
+invitation row and the seat's own row ([*The seat*](#the-seat)). So nothing
+kept refers to an old number. After the start the numbers are fixed, and the
+events of play name seats by number.
 
 It follows that **a game must still have two seats left** (GAME-3), checked
 when it is created and again at start, after the spent seats are dropped. A
@@ -383,7 +385,7 @@ true of every seat in every state; the rest move into the state that owns them.
 pub struct Seat {
     pub id: SeatId,                       // a per-game counter, set when the seat is added and stored with it
     pub number: u8,                       // the turn order; the start renumbers it
-    pub player: Option<PlayerId>,         // resolved when the seat is created; a bot is a player
+    pub player: Option<PlayerId>,         // set when it is known: at creation for the creator's, a bot's or a named seat, else when the seat is claimed; a bot is a player
     pub invitation: Option<Invitation>,   // fixed at creation; None for own seat and bots
     pub state: SeatState,
     pub hidden_by_player: bool,           // "removed from my list" — per seat, not per game

@@ -69,7 +69,8 @@ Capacity, failure, limits and timeouts, secrets and access: each answered, or
 
 ## Dependencies and related work
 
-**waits on #nnn** — why. **is needed by #nnn** — why.
+**waits on #nnn** *title*: why.
+**is needed by #nnn** *title*: why.
 
 Each `waits on` and `is needed by` here is also set as a GitHub dependency link
 (`addBlockedBy`), one link serving both ends — the context header shows the

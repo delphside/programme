@@ -25,6 +25,7 @@ technical design, 71-01 to 71-10, of which this file is the second:
 | [`71-08-storage.md`](71-08-storage.md) | storage: as-is, the model, the SQLite, sqlx and serde technologies, migration, the database schema and the modules that change |
 | [`71-09-open-questions.md`](71-09-open-questions.md) | the open questions, and the ones settled |
 | [`71-10-documents-changed.md`](71-10-documents-changed.md) | the documents this changes, and the two diagrams that move into 1.2 |
+| [`71-life-histories.md`](71-life-histories.md) | WP A's entity and event matrix, the runtime state tables, and the gaps they found, G1 to G7 |
 
 Every file in this folder stays under about 25 KB (owner, 2026-11-11), and a
 topic that would not fit is split in reading order, as 71-06 and 71-06b are.
@@ -40,8 +41,11 @@ written to fit it.
 **Pending decisions.** Where the design is not final it says so and names
 the Decision issue that will settle it. They are answered in the order
 [docs/1.2](../../../../../../docs/1.2-change-lifecycle.md#decisions) sets.
-None is open as of 2026-10-14; the functional questions the journeys raise are
-in [`71-journey-questions.md`](71-journey-questions.md).
+The Decision issues are all answered. What is still open is in
+[*Open questions*](71-09-open-questions.md#open-questions) and the gaps in
+[`71-life-histories.md`](71-life-histories.md#gaps-the-matrix-found); the
+functional questions the journeys raise are in
+[`71-journey-questions.md`](71-journey-questions.md).
 
 The design map this project starts from is Tile Lite Elite's
 `docs/4.2.0-design-map.md`, in
@@ -114,7 +118,7 @@ states to mix.
 **Capacity.** One process on a two-core VM. Engine searches are the largest CPU
 cost the server carries, and moving them off the request path removes the
 accidental bound on them, so a bound replaces it: `engine_limit`, default 2
-because the VM has two cores [^d62], taken by every search and every hint.
+because the VM has two cores [^d62], taken by every search, and by every hint once #585 builds them.
 Memory is unchanged in kind: every live game is held in the map as today, one
 lock each. The whole-state-per-update wire costs a few kilobytes per message per
 connection, which is what is sent today. Each game has its own `watch` channel
@@ -184,13 +188,15 @@ client changes Core's server changes require.
 with every `GameCommand` variant, `Player` and `System`, except undo and redo;
 per-game locking; the seat model and its lifecycle;
 [*DTOs are invisible*](71-05-wire.md#dtos-are-invisible), including the opponent
-tile count and the shared error body (D65);
+tile count and adopting #402's shared error body, delivered by #606 (owner, 2026-11-16, superseding D65);
 [*The engine is a client*](71-06-engine.md#the-engine-is-a-client), with the
 in-process glue under the bot; the append-only game log (D61);
 [*Migration*](71-08-storage.md#migration), with the schema version, foreign keys
 and the rating key; the user-details lookup rule; and the code-review findings
 routed from #460 to it. It takes #142, #80, #106, #105, #429 and the invitation
-that outlives its game, each true by construction here [^d67]. It also builds
+that outlives its game, each true by construction here [^d67]. It removes
+`suggest_move` and its route, which play the move against RATE-4; hints wait
+for #585 (owner, 2026-11-16, G7). It also builds
 the `game-wire` crate and the test client.
 
 **Waits on**: delphside/tile-lite-elite#576, sqlx 0.9, because the migration

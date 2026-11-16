@@ -74,7 +74,7 @@ the life of any entity here and is left out.
 ## The matrix
 
 C creates, U updates, D deletes, R reads, and — leaves the entity alone. A
-bold code, **G1** to **G7**, marks a cell the design gives no answer for.
+code in brackets, (G1) to (G7), names the gap whose answer fills the cell.
 
 ### Stored entities
 
@@ -91,14 +91,14 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 | E9 | U | U `number`, both | — | C | — |
 | E10 | U `Active` | D spent; U renumbered; U `Claimed → Playing` | — (the record stays for DEL-2) | C | — |
 | E11 | U | U rack, score | — | C | — |
-| E12 | U unrated | — | — | **G7** | — |
+| E12 | — (not in WP A, G7) | — | — | — (not in WP A, G7) | — |
 | E13 | U | — | — | C | — |
 | E14 | U, version only | — | — | C | — |
 | E15 | U | U `Playing → Departed` | — | C | — |
 | E16 | U `Finished` | — (frozen) | — | C | U, settled; a bot playing only against itself nets zero |
 | E17 | U: an abort, or a force-end before the start, `Aborted`; a force-end after it `Finished`, no rating change | — (frozen) | U, pending ones cancelled | C | — |
 | E18 | U, version and `last_activity_at` | — | — | C | — |
-| E19 | U, saved, version unchanged | U `hidden_by_player` | — | C, keyed by `seq` (G5) | — |
+| E19 | U, saved, version unchanged; `hidden_by_creator` for a seatless creator | U `hidden_by_player`, for a seat's player | — | C, keyed by `seq` (G5) | — |
 | E20 | U, saved, version unchanged | U `reminder_sent_turn` | — | C, keyed by `seq` (G5) | — |
 | E21 | D | D | D | D | U, `game_id` set null; the history stays |
 | E22 | — | — | — | — | — |
@@ -113,40 +113,41 @@ bold code, **G1** to **G7**, marks a cell the design gives no answer for.
 
 | | Game entry | Game watch | Seat-list watch | Subscription | WebSocket task | Bot task | Bot object | Search permit |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| E1 | C, as each game is first used (#408) | C, as each bot subscription joins | C, per listed bot, **G3** | C, per listed bot: `Seats`, then each game's view | — | C, per listed bot; **G4** | C, per seat in the first `Seats` | — |
+| E1 | C, as each game is first used (#408) | C, as each bot subscription joins | C, per listed bot, from the stored seats (G3) | C, per listed bot: `Seats`, then each game's view | — | C, per listed bot; a bad list stops start-up (G4) | C, per seat in the first `Seats`; D on the first view of a game already over (G2) | — |
 | E2 | D | D | D | D | D | D | D | D, the search lost; E1 replays the turn |
-| E3 | C | — (no subscriber yet) | U, each subscribed account whose seats it adds, addressees included, **G3** | — | — | — | C, per bot seat, as in E4 | — |
-| E4 | U | U, if it exists | U, the seat's player's or addressee's, if it has one and is subscribed, **G3** | U, joins the game if it is new to the account | U, sends a frame | U, routes the list | C, for a bot's seat | — |
-| E5 | U | U | U, the addressee's, if subscribed, **G3** | U | U | — | — | — |
-| E6 | U | U | U, the claimant's for an open seat; — on accepting, **G3** | U | U | — | — | — |
+| E3 | C | C, if a listed bot is seated: its subscription joins | U, each subscribed account whose seats it adds, addressees included (G3) | U, a seated bot's joins the game | — | U, routes the list | C, per bot seat, as in E4 | — |
+| E4 | U | U, if it exists | U, the seat's player's or addressee's, if it has one and is subscribed (G3) | U, joins the game if it is new to the account | U, sends a frame | U, routes the list | C, for a bot's seat | — |
+| E5 | U | U | U, the addressee's, if subscribed: a pass names one where there was none (G3) | U | U | — | — | — |
+| E6 | U | U | U, the claimant's for an open seat; — on accepting (G3) | U | U | — | — | — |
 | E7 | U | U | — (the seat stays until E10) | U | U | — | — | — |
 | E8 | U | U | — (the seat stays until E10) | U | U | — | — (idles until E10) | — |
-| E9 | U | U | U, **G3** | U | U | — | D and C, **G1** | — |
-| E10 | U | U | U, dropped and renumbered seats' accounts, **G3** | U, leaves a game the account no longer sits in | U | — | D dropped; D and C renumbered, **G1** | — |
+| E9 | U | U | — (a swap alters no `SeatRef`, G1) | U | U | — | — (it holds the seat's id, G1) | — |
+| E10 | U | U | U, the accounts of dropped seats (G3) | U, leaves a game the account no longer sits in | U | — | D dropped; renumbered ones kept (G1) | — |
 | E11 | U | U | — | U | U | — | U; acts if on turn | — |
-| E12 | U | U | — | U | U | — | — | C, then D when the hint returns |
+| E12 | — | — | — | — | — | — | — | — (not in WP A, G7; a hint, once built, takes a permit) |
 | E13 | U | U | — | U | U | — | — | — |
 | E14 | U | U | — | U | U | — | — | — |
-| E15 | U | U | — | U | U | — | — (never on turn again), **G2** | — |
-| E16 | U | U | — (finishing keeps the seats) | U | U | — | **G2** | — |
-| E17 | U | U | — | U | U | — | **G2** | — |
+| E15 | U | U | — | U | U | — | — (never on turn again; ends with the game, G2) | — |
+| E16 | U | U | — (finishing keeps the seats) | U | U | — | D, on the first view that shows it over (G2) | — |
+| E17 | U | U | — | U | U | — | D, on the first view that shows it over (G2) | — |
 | E18 | U | U | — | U | U | — | — | — |
 | E19 | U | — (nothing published) | — | — | — | — | — | — |
 | E20 | U | — (nothing published) | — | — | — | — | — | — |
-| E21 | D | D, its receivers closed | U, each seated account's | U, yields `GameRemoved`, leaves | U, sends `GameRemoved`, then D | — | D | — |
+| E21 | D | D, its receivers closed | U, each account its seats name, players and addressees alike | U, yields `GameRemoved`, leaves | U, sends `GameRemoved`, then D | — | D | — |
 | E22 | — | — | — | — | — | — | — (re-validated on arrival, [the engine](71-06-engine.md#what-follows-from-the-engine-being-a-client)) | — |
-| E23 | U, `unsaved` cleared by the reload | — (nothing published) | — | — | — | — | **G6**, when the bot sent it | — |
+| E23 | U, `unsaved` cleared by the reload | — (nothing published) | — | — | — | — | U, when the bot sent it: it submits once more after `Retry-After` (G6) | — |
 | E24 | R | C, if it is the first | — | C, one game: its view, then each change | C | — | — | — |
 | E25 | — | D, if it was the last | — | D | D | — | — | — |
 | E26 | — | — | — | U, skips to the newest state, `because` dropped | U, sends the newest | — | U, from its subscription | — |
 | E27 | — | — | — | — | — | — | U, submits or stays on turn | C before the search, D when the engine returns |
-| E28 | — | — | D | — | — | **G4** | — | — |
+| E28 | — | — | — (DEL-2: no game names it, so its list is empty; the watch goes with its last subscriber) | — | — | — (refused while the account is listed, G4) | — | — |
 
-The Seat-list watch column shows G3's proposed answer, which differs from
-[the Event stream](71-06-engine.md#how-the-event-stream-uses-watch) in when a watch exists.
+The Seat-list watch column follows G3's answer, which is in
+[the Event stream](71-06-engine.md#how-the-event-stream-uses-watch).
 
 Every change that moves the version also sets and clears the Game entry's
-`unsaved` flag under its lock; that is the Game entry's U in E3 to E18. E19
+`unsaved` flag under its lock; that is the Game entry's U in E4 to E18, E12
+excepted, and part of its C in E3. E19
 and E20 save under the same lock without moving the version.
 
 ## State tables
@@ -167,17 +168,18 @@ stateDiagram-v2
     Waiting --> Searching: a view with this seat on turn, game Active
     Searching --> Submitted: the engine returns a move
     Searching --> Waiting: failure or search time limit, seat left on turn
-    Submitted --> Waiting: applied, refused, or not saved (G6)
-    Waiting --> [*]: GameRemoved, or Seats loses it
-    Searching --> [*]: GameRemoved, or Seats loses it
-    Submitted --> [*]: GameRemoved, or Seats loses it
+    Submitted --> Submitted: not saved, sent once more (G6)
+    Submitted --> Waiting: applied, refused, or not saved twice (G6)
+    Waiting --> [*]: game over (G2), GameRemoved, or Seats loses it
+    Searching --> [*]: game over (G2), GameRemoved, or Seats loses it
+    Submitted --> [*]: game over (G2), GameRemoved, or Seats loses it
 ```
 
 | state | on turn, Active | not on turn | engine returns a move | failure or search time limit | applied or refused | not saved (503) | game over | `Seats` loses it, or `GameRemoved` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Waiting | → Searching | — | impossible | impossible | impossible | impossible | **G2** | → ended |
-| Searching | — (the search goes on) | — (the search goes on) | → Submitted | → Waiting | impossible | impossible | **G2** | → ended, the search abandoned |
-| Submitted | — | — | impossible | impossible | → Waiting | → Waiting, **G6** | **G2** | → ended |
+| Waiting | → Searching | — | impossible | impossible | impossible | impossible | → ended (G2) | → ended |
+| Searching | — (the search goes on) | — (the search goes on) | → Submitted | → Waiting | impossible | impossible | → ended, the search abandoned (G2) | → ended, the search abandoned |
+| Submitted | — | — | impossible | impossible | → Waiting | the first: sent once more after `Retry-After`, still Submitted; the second: → Waiting (G6) | → ended (G2) | → ended |
 
 A move from a search the game has overtaken is refused on arrival
 ([the engine](71-06-engine.md#what-follows-from-the-engine-being-a-client)), so a newer view does not stop a search.
@@ -220,10 +222,45 @@ stateDiagram-v2
 | absent | → open | — (nothing to write) | impossible | — |
 | open | — | — (the value replaced) | → absent | → absent, receivers closed |
 
+### Seat-list watch
+
+One per account with a subscriber over every seated game (G3).
+
+| state | first subscriber | a change alters the account's `SeatRef`s | a change alters none | last subscriber leaves |
+| --- | --- | --- | --- | --- |
+| absent | → open, built from the stored seats | — (nothing to write) | — | impossible |
+| open | — | — (the list rewritten) | — | → absent |
+
+### Game entry
+
+The `unsaved` flag and a failed reload, from
+[*The one handler*](71-03-version.md#the-one-handler) (D69).
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Clean: first used, loaded from its row (#408)
+    Clean --> Unsaved: apply sets the flag
+    Unsaved --> Clean: saved, then published
+    Unsaved --> Clean: save failed, reloaded from its row (503)
+    Unsaved --> Stuck: save failed, and the reload failed
+    Stuck --> Clean: a later reload succeeds
+    Clean --> Deleted: the deleter takes the lock, sets deleted
+    Stuck --> Deleted: the deleter takes the lock, sets deleted
+    Deleted --> [*]: the last clone dropped
+```
+
+| state | a message | the save succeeds | the save fails | a reader arrives | the game deleted |
+| --- | --- | --- | --- | --- | --- |
+| Clean | → Unsaved, applied under the lock | impossible | impossible | reads | → Deleted |
+| Unsaved | impossible: the lock is held | → Clean, published | reload: → Clean, or → Stuck if it fails; 503 either way | impossible: the lock is held | impossible: the lock is held |
+| Stuck | reload first: → Clean and applied, or 503 | impossible | impossible | reload first: → Clean, or 503 | → Deleted |
+| Deleted (still held through a cloned `Arc`) | refused, nothing saved | impossible | impossible | — | impossible |
+
 ## Gaps the matrix found
 
-Seven questions had no answer in the design. G1 and G4 are the owner's, as
-cards in the #71 thread; the rest are technical and Claude's as the design
+Seven questions had no answer in the design. G1, G4 and G7 are the owner's,
+as cards in the #71 thread; the rest are technical and Claude's as the design
 authority, recorded here for review.
 
 | | gap | cells | whose |
@@ -234,7 +271,7 @@ authority, recorded here for review.
 | G4 | A listed bot with no account, or an unknown engine | E1, E28 × Bot task | owner |
 | G5 | Log rows are keyed by a version two messages leave alone | E19, E20 × Log row | Claude |
 | G6 | A bot whose move is not saved is never woken again | E23 × Bot object | Claude |
-| G7 | A suggestion changes the game with no `GameCommand` | E12 × Log row | Claude |
+| G7 | A suggestion changes the game with no `GameCommand` | E12 × Log row | owner, as scope |
 
 **G1.** `SeatRef` is a game and a seat number. A swap (E9) happens only before
 the start, when no object acts, so there the drop and remake does no harm. The
@@ -260,6 +297,11 @@ live until the game is deleted, up to seven days later (RET-1). Proposed: the
 glue drops a seat's object when a view shows its game `Finished` or `Aborted`,
 and makes none for such a game's seats in `Seats`.
 
+Answered (Claude, 2026-11-16, as the design authority): the object ends on the
+first view that shows its game over, and the glue remembers it so that it
+makes none for that seat again; at start-up the first view ends an object
+made for a finished game ([the model](71-06-engine.md#the-model)).
+
 **G3.** [The Event stream](71-06-engine.md#how-the-event-stream-uses-watch) gives every account a seat-list
 watch, written by `publish` and by deleting a game, and drops a seat when it is
 removed or its game deleted. It does not say whether an `Invited` seat is in its
@@ -271,11 +313,17 @@ also changes [the Event stream](71-06-engine.md#how-the-event-stream-uses-watch)
 exists while it has a subscriber and is built from the stored seats when the
 first subscribes, rather than for every account.
 
+Answered (Claude, 2026-11-16, as the design authority): as proposed, with G1's
+seat id, so a swap and the start's renumbering write no list
+([the Event stream](71-06-engine.md#how-the-event-stream-uses-watch)).
+
 **G4.** Two questions:
 
 1. **The bot list names an account that does not exist, or an engine not
-   compiled in.** Proposed: the server refuses to start, naming the setting,
-   as for any invalid setting.
+   compiled in.** Answered (owner, 2026-11-15), with a level outside 1 to the
+   engine's `max_level` added by Claude on 2026-11-16: the server refuses to start,
+   naming the setting, as for any invalid setting
+   ([*The bots the server runs*](71-06b-engine-bots.md#the-bots-the-server-runs)).
 2. **An administrator deletes a listed bot's account while the server runs.**
    Answered (owner, 2026-11-15): refused while the account is on the bot list,
    as DEL-2 refuses one a game names, which adds a DEL rule
@@ -298,10 +346,24 @@ leaves the seat on turn for the move time limit (TIME-3). A failed save answers
 move time limit although nothing was wrong with the move. Proposed: on a 503 the
 object retries once after `Retry-After`, then waits.
 
+Answered (Claude, 2026-11-16, as the design authority): as proposed; a second
+503 leaves the seat to the move time limit, as a silent human's would be
+([the model](71-06-engine.md#the-model)).
+
 **G7.** U4.2 makes the game unrated and moves the version, which the design
 says only a `GameCommand` may do, but no variant exists for it. Proposed:
 `SuggestionTaken { seat }`, applied before the hint is returned, logged like
 any other change.
+
+The design leaves `suggest_move` as it is until hints are built
+([#585](https://github.com/delphside/tile-lite-elite/issues/585)), but WP A's
+per-game lock and one handler replace what it is built on, and today it plays
+the move, against RATE-4. So G7 was a scope question for the owner.
+
+Answered (owner, 2026-11-16): WP A removes `suggest_move` and its route, and
+hints wait for #585, which adds the `rated` flag and the command a hint
+applies. E12 is then no event of WP A's
+([the hint](71-09-open-questions.md#open-questions-about-the-shapes)).
 
 Two answers are worth reading once:
 

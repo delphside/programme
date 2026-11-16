@@ -7,7 +7,7 @@ follows [`71-08-storage.md`](71-08-storage.md) and is followed by
 ## Open questions
 
 **Core writes the log; undo reads it later.**[^d61] Every `Applied` appends one
-row to `game_events (game_id, seq, version, event, created_at)`, written by
+row to `game_events (game_id, seq, version, event, actor_id, created_at)`, written by
 `publish` and never rewritten, and `game_moves` becomes what is read from it.
 The row holds the same serialised event that goes over the wire, so there is one
 serialisation rather than a second format to keep in step. Current state stays
@@ -176,9 +176,16 @@ the credentials to do so.[^d66]
 the test client, which make any client possible; #10 then attaches
 `engine-core`, signs in as a bot account and submits moves.
 
+**The gaps WP A's life histories found are answered there.** G1 to G6, from
+the seat id to resending a move that was not saved, are in
+[*Gaps the matrix found*](71-life-histories.md#gaps-the-matrix-found), each
+with the design file it is written in, and G7, which removes `suggest_move`
+in WP A, is the owner's (2026-11-16).
+
 ## Open questions about the shapes
 
-**Does `apply` persist, or does its caller?** Written as
+**Does `apply` persist, or does its caller?** Answered (Claude, 2026-11-16, as
+the design authority): the caller, as
 [*The one handler*](71-03-version.md#the-one-handler) has it: `apply` mutates in
 memory and returns `Applied`; `events::publish` persists and publishes. That
 keeps `GameSession` free of the database, and makes `apply` a pure function of
@@ -194,8 +201,11 @@ so it can save after a sweep or an admin delete has removed the game from the
 map, which inserts the row again. The live case is `Hide` on a finished game.
 Options: (a) the session carries a deleted flag that every save checks under
 the game's lock; (b) the deleter takes the game's lock, so a save in progress
-finishes first and a later one finds the flag. It may be #408's, which designs
-the map's loading and eviction.
+finishes first and a later one finds the flag. Answered (Claude, 2026-11-16,
+as the design authority): (b), which holds (a)'s flag too. The deleter takes the
+game's lock, sets `deleted`, and removes the game from the map, so a save
+already under the lock finishes first and a message that comes later finds the
+flag, is refused as one to a game that does not exist, and saves nothing. #408 keeps the map's loading and eviction.
 
 **Does a staged word survive onto a game that is over?** `live_composition`
 ([*The composition is keyed by game and seat*](71-07-client.md#the-composition-is-keyed-by-game-and-seat))
@@ -235,8 +245,11 @@ later, using it makes the game unrated, and it may come from a different engine
 from the one playing. It is a server feature, so that the server knows to make
 the game unrated; that is
 [delphside/tile-lite-elite#585](https://github.com/delphside/tile-lite-elite/issues/585),
-outside #71. Until then #71 leaves `suggest_move` as it is, and a hint, once
-built, takes an `engine_limit` permit like any other search in the server.
+outside #71. **WP A removes `suggest_move` and its route** (owner,
+2026-11-16, G7): it plays the move, against RATE-4, and WP A's per-game lock
+and one handler replace what it is built on. The `rated` flag and the command
+a hint applies arrive with #585, and a hint, once built, takes an
+`engine_limit` permit like any other search in the server.
 
 **What paces the engine's moves?** Answered (owner, 2026-11-15): the client,
 as a playback queue that shows each move for a set interval, while the game

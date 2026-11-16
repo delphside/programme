@@ -146,9 +146,11 @@ save of that game, which is the point of the rule in
 change has happened only once it is in the database.
 
 This project owns the map's shape; #408 designs its deadline index, loading and
-eviction on top of it [^d70]. A handler holding a cloned `Arc` can still save
-after a sweep or an admin delete has removed the game from the map, which
-inserts its row again
+eviction on top of it [^d70]. A handler holding a cloned `Arc` could save
+after a sweep or an admin delete has removed the game from the map, which would
+insert its row again. So the session carries a `deleted` flag: the deleter
+takes the game's lock, sets it and removes the game from the map, and the one
+handler refuses a message to a deleted game and saves nothing
 ([*Open questions about the shapes*](71-09-open-questions.md#open-questions-about-the-shapes)).
 
 ## Watch channels
@@ -220,26 +222,25 @@ pub enum GameMessage {
     Pass { seat: u8 },
     Exchange { seat: u8, tiles: Vec<Tile> },
     Resign { seat: u8 },
+    ForceResign { seat: u8 },             // the creator's only (GAME-6)
     Abort,
-    SeatAdded { .. },
-    SeatInvited { seat: u8, .. },
-    InvitationAccepted { seat: u8, .. },
-    InvitationDeclined { seat: u8 },
-    SeatWithdrawn { seat: u8 },
+    SeatAdded { .. },                     // an invited seat's invitation is sent with it
+    InvitationAccepted { seat: SeatId, .. },
+    InvitationDeclined { seat: SeatId },
+    SeatWithdrawn { seat: SeatId },
     KeepRequested,
     Start,
-    SeatsSwapped { a: u8, b: u8 },
+    SeatsSwapped { a: SeatId, b: SeatId },
     ChatPosted { player: PlayerId, body: String },
-    Hide { seat: u8 },
+    Hide { seat: Option<SeatId> },        // when allowed: The message's table; None: a creator who holds no seat
 }
 
 /// In `server-game` only, so no client can build one.
 pub enum SystemMessage {
     TimeOut { seat: u8 },
-    ForceResign { seat: u8 },
     AdminForceEnd,
     ReminderSent { seat: u8 },
-    InvitationPassed { seat: u8, to: PlayerId },  // on a followed link or a verified address
+    InvitationPassed { seat: SeatId, to: PlayerId },  // on a followed link or a verified address
     UpdateUserDetails { player: PlayerId },       // on a rename
 }
 ```
@@ -249,6 +250,11 @@ A message the server alone issues is a `SystemMessage`, so a client cannot
 express a time-out or pass an invitation, and the Transport API has nothing to
 refuse.
 There is still one handler: it matches `Player` or `System`, then the message.
+
+**Creating a game is not a message**, because there is no game yet to send it
+to. The Game service builds it with `GameSession::new`, at version 1, and
+`events::publish` saves it, logs `Created` as its first row and writes the
+seat lists, as for any `Applied`; no game channel exists yet to publish to.
 
 `Start` deals the racks and drops the spent seats in one step. Undo and redo
 join the enum with #272. Anything that changes what a client of the game could
@@ -367,6 +373,9 @@ pub struct GameSession {
     pub turn: i64,                        // was `turn_number`; game state, walks back under undo
     pub version: i64,                     // every change, of any kind. Never decreases
     pub last_scoring_turn: i64,           // replaces `consecutive_scoreless_turns`
+    hidden_by_creator: bool,                // a seatless creator's hide (U5.2); a seat's player hides on the seat
+    unsaved: bool,                        // set and cleared under the lock (The one handler)
+    deleted: bool,                        // set by the deleter under the lock
 }
 ```
 
@@ -392,7 +401,8 @@ not a description.
 | a pass | ✓ | ✓ |
 | an exchange | ✓ | ✓ |
 | a chat message | ✓ | — |
-| an invitation sent, accepted, declined | ✓ | — |
+| an invitation passed, accepted, declined | ✓ | — |
+| a keep asked for | ✓ | — |
 | a rename (`UpdateUserDetails`) | ✓ | — |
 | a resignation, force-resign, timeout | ✓ | — |
 | a start, an abort, an admin force-end | ✓ | — |
@@ -405,7 +415,7 @@ not a description.
 | Category | What is in it | Changed by |
 | --- | --- | --- |
 | **board** | the tiles played on the board, and nothing else | a placement; undo or redo of one |
-| **the game** | the board, plus racks, scores, the turn, resignations and timeouts | everything in the board row, plus pass, exchange, resign, force-resign, timeout, start, abort |
+| **the game** | the board, plus racks, scores, the turn, the seats and their invitations, resignations and timeouts | everything not in the other two rows: pass, exchange, resign, force-resign, timeout, start, abort, a finish, a seat or invitation change, a keep, a rename |
 | **periphery** | chat messages | posting a message |
 
 **A category says what to redraw; `version` alone says what is stale.**
@@ -438,18 +448,49 @@ alongside it is the result:
 pub struct Applied {
     pub version: i64,          // the version this change produced
     pub event: GameEvent,      // what happened, structured — for the log and the client
-    pub finished: bool,        // the caller settles ratings and stats on the edge
+    pub finished: Option<Finish>,  // the caller settles stats, and ratings for Played, on the edge
+}
+
+pub enum Finish {
+    Played,                    // GAME-2's end: rated, as RATE-1 to RATE-3 say
+    ForceEnded,                // an administrator's force-end after the start: no rating changes
 }
 
 pub enum ApplyError {
     NotYourTurn { seat: u8 },
     SeatNotPlaying { seat: u8 },
     GameNotActive,
-    GameNotWaiting,            // a seat message (invite, accept, claim) after the start
+    GameNotWaiting,            // a seat message (add, accept, claim, swap) after the start
+    InvitationNotAvailable,    // a link claimed after its seat found an addressee (INV-2)
     IllegalMove(rules_shared::MoveError),
     Unknown(String),
 }
 ```
+
+**Who sent a message is checked before `apply`, not in it.** `apply` is a
+function of the game and the message, and a `GameMessage` names no sender. The
+Game service's submit function, which every route handler and the in-process
+glue call with the caller's account, checks the caller against this table and
+refuses otherwise with `SubmitError::Refused` and its `ErrorDto` code:
+
+| Message | Who may send it |
+| --- | --- |
+| `Place`, `Pass`, `Exchange`, `Resign` | the seat's player |
+| `Hide` | the seat's player once they are no longer playing in it: the seat `Withdrawn`, `Declined` or `Departed`, or the game `Finished` or `Aborted`; with no seat, the creator once the game is `Finished` or `Aborted` (owner, 2026-11-16; U5.2, DEL-5) |
+| `ForceResign`, `Abort`, `SeatAdded`, `SeatsSwapped`, `Start`, `KeepRequested` | the creator (GAME-6, RET-3) |
+| `SeatWithdrawn` | the creator, or the seat's player (GAME-9) |
+| `InvitationAccepted` | the seat's addressee; on an `Open` seat, any signed-in player (GAME-10) |
+| `InvitationDeclined` | the seat's addressee only |
+| `ChatPosted` | a seated player or the creator, as `player` (GAME-12) |
+
+A link with no addressee is claimed through `InvitationPassed`, the server's
+own message, and accepts nothing; only then may its new addressee accept or
+decline ([*Who may accept*](71-04-seats.md#who-may-accept); INV-2, INV-5).
+
+It then
+calls `apply`, and passes the caller to `events::publish` with the `Applied`,
+which writes it to the log row's `actor_id`. A message to a game that has been
+deleted is answered as one to a game that does not exist.
 
 **A bot's turn is noticed from the game's channel, not from `Applied`.** Every
 change publishes the new state, which names the seat on turn, so a bot comes on
