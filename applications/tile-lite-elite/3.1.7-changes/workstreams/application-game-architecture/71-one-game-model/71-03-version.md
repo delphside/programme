@@ -467,7 +467,15 @@ pub enum Finish {
     Played,                    // GAME-2's end: rated, as RATE-1 to RATE-3 say
     ForceEnded,                // an administrator's force-end after the start: no rating changes
 }
+```
 
+**A force-end keeps a record of who did it, before the start as after.**
+After the start the record is `Finish::ForceEnded`, the `Finished` event and
+its log row. Before the start a force-end aborts the game: its record is the
+`Aborted` event's log row with the administrator in `actor_id`, which tells
+it apart from the creator's own abort, whose row names the creator (GAME-11).
+
+```rust
 pub enum ApplyError {
     NotYourTurn { seat: u8 },
     SeatNotPlaying { seat: u8 },
