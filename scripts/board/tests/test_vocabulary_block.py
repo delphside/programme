@@ -62,8 +62,10 @@ class TheBlock(Cases):
         self.expect("a block after a fence that shows the markers", True,
                     dataflow.is_current(dataflow.splice(fenced + _doc())))
         long_fence = f"````\n```\n{BEGIN}\n{END}\n````\n"
+        info_line = f"```\n```bash\n{BEGIN}\n{END}\n```\n"
         for name, text in (("fenced", fenced), ("in a sentence", quoted),
-                           ("a short fence line inside a longer fence", long_fence)):
+                           ("a short fence line inside a longer fence", long_fence),
+                           ("a fence line with an info string inside a fence", info_line)):
             with self.subTest(name), self.assertRaises(dataflow.BlockError):
                 dataflow.splice(text)
 
@@ -112,6 +114,22 @@ class TheCommand(Cases):
         self.expect("check does not write", _doc(), path.read_text())
         self.expect("write: exit 0", 0, self.run_it("--write", str(path))[0])
         self.expect("then check: exit 0", 0, self.run_it("--check", str(path))[0])
+
+    def test_a_write_that_fails_exits_2_not_1(self):
+        """write fails"""
+        path = self.file(_doc())
+        real_open = open
+
+        def refusing(file, mode="r", *args, **kwargs):
+            if "w" in mode:
+                raise PermissionError("refused")
+            return real_open(file, mode, *args, **kwargs)
+
+        with mock.patch("builtins.open", refusing):
+            status, _, err = self.run_it("--write", str(path))
+        self.expect("exit 2", 2, status)
+        self.expect("says it could not write", True, "cannot write" in err)
+        self.expect("the file is as it was", _doc(), path.read_text())
 
     def test_write_twice_leaves_the_file_as_the_first_left_it(self):
         """write twice"""
