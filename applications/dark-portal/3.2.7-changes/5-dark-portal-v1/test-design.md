@@ -4,9 +4,9 @@ Project: delphside/dark-portal#7 *#5 WP B Del 2 of 5: consumable profiles* · ty
 
 ## 1. Rules
 
-Taken from the design documents at 67c7ddf (`docs/5.x` on
-`claude/project-thread-01pbpu`), delphside/dark-portal#7's body and its Decisions table. The
-documents are drafts for delphside/dark-portal#7's design.
+Taken from the design documents at b473b3d (`docs/5.x` on
+`claude/project-thread-01pbpu`), delphside/dark-portal#7's body and its
+Decisions table. The documents are drafts for delphside/dark-portal#7's design.
 
 | ID | Rule | Source |
 | --- | --- | --- |
@@ -98,7 +98,6 @@ documents are drafts for delphside/dark-portal#7's design.
   `75` for an unclosable day as doing none of them that run.
 - **X-c4, the `unsold` state.** The diagram keeps the state; the prose says
   it is a step, not a state. Wording only.
-
 
 ## 2. Conditions, grouped into dimensions
 
@@ -530,9 +529,9 @@ The datasets are in part 8.
 **The kinds of test**, from docs/1.9:
 
 - **[AUTO]** is an automated component, integration or system test. It runs in
-  Dark Portal's own regression environment, E3, once delphside/dark-portal#11 builds it (delphside/dark-portal#11 designs it),
-  on `aarch64`. The crate's CI also builds
-  `x86_64` (delphside/dark-portal#7's artefacts).
+  Dark Portal's own regression environment, E3, once delphside/dark-portal#11
+  builds it, on `aarch64`. The crate's CI also builds `x86_64`
+  (delphside/dark-portal#7's artefacts).
 - **[UT]** is a functional user test, run by the owner on E4 Functional testing.
 - **[TT]** is a technical test, run by Claude on E5 Technical and load testing,
   or E6 Deployment rehearsal.
@@ -725,7 +724,8 @@ name no clock seam (G19), left to Development.
 - UT4: read one completed day's summary: lowest, median fill price, posted and
   sold units.
 
-**[TT]**, Claude's moves, from delphside/dark-portal#7's checkboxes and the rules:
+**[TT]**, Claude's moves, from delphside/dark-portal#7's checkboxes and the
+rules:
 
 - TT1 (E5): 72 hours hourly with E5's own Blizzard client, at :35: every hour
   processed or recorded as a gap.
@@ -752,10 +752,10 @@ name no clock seam (G19), left to Development.
   00:50: it exits 75 and its service restarts it every 15 min until 03:00.
 - TT9 (E5): a wrong client secret exits 2; a Blizzard outage past the retry
   window exits 75 with the hour recorded as a gap.
-- TT10 (E6): deploy by delphside/dark-portal#11's rehearsal path from production's level, and the
-  next hourly run lands. Reboot across :35, back before :25 past the next hour:
-  the timer runs the missed job when the host is back and it collects the
-  previous hour (S57).
+- TT10 (E6): deploy by delphside/dark-portal#11's rehearsal path from
+  production's level, and the next hourly run lands. Reboot across :35, back
+  before :25 past the next hour: the timer runs the missed job when the host is
+  back and it collects the previous hour (S57).
 - TT11 (E5): a restore drill for BK: delete the lake and export, restore
   `item_day` and `item` from `daily/` for days older than the bronze copied
   back, rebuild the rest, and compare with the lake before (G36).
