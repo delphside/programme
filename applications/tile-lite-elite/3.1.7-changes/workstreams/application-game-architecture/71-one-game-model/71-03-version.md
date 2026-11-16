@@ -232,7 +232,7 @@ pub enum GameMessage {
     Start,
     SeatsSwapped { a: SeatId, b: SeatId },
     ChatPosted { player: PlayerId, body: String },
-    Hide { seat: Option<SeatId> },        // a finished or aborted game; None: a creator who holds no seat (U5.2)
+    Hide { seat: Option<SeatId> },        // when allowed: The message's table; None: a creator who holds no seat
 }
 
 /// In `server-game` only, so no client can build one.
@@ -476,7 +476,7 @@ refuses otherwise with `SubmitError::Refused` and its `ErrorDto` code:
 | Message | Who may send it |
 | --- | --- |
 | `Place`, `Pass`, `Exchange`, `Resign` | the seat's player |
-| `Hide` | the seat's player, or with no seat the creator, once the game is `Finished` or `Aborted` (U5.2, DEL-5) |
+| `Hide` | the seat's player once they are no longer playing in it: the seat `Withdrawn`, `Declined` or `Departed`, or the game `Finished` or `Aborted`; with no seat, the creator once the game is `Finished` or `Aborted` (owner, 2026-11-16; U5.2, DEL-5) |
 | `ForceResign`, `Abort`, `SeatAdded`, `SeatsSwapped`, `Start`, `KeepRequested` | the creator (GAME-6, RET-3) |
 | `SeatWithdrawn` | the creator, or the seat's player (GAME-9) |
 | `InvitationAccepted` | the seat's addressee; on an `Open` seat, any signed-in player (GAME-10) |

@@ -111,7 +111,7 @@ pub enum GameEventDto {
     SeatAdded     { seat: u32 },
     SeatsSwapped  { a: u32, b: u32 },
     KeepRequested,
-    SeatHidden    { seat: Option<u32> },  // by id; None: a creator who holds no seat
+    SeatHidden    { seat: Option<u32> },  // by id: a withdrawn seat may hide before the start; None: a seatless creator
     ReminderSent  { seat: u8 },
     Started, Aborted, Finished { winner: Option<u8> },
     UserDetailsUpdated { player: String },
