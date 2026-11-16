@@ -1,13 +1,13 @@
 # Turpin: what Tile Lite Elite needed of it
 
-Found while designing delphside/tile-lite-elite#545, *Build once, promote
-through environments*, for Tile Lite Elite's adoption of Turpin
-(delphside/programme#117): gaps in the tool that Tile Lite Elite could not
-meet as written. All but T13 are closed by delphside/programme#233 *Turpin:
-close the gaps for Tile Lite Elite*, except T8, which Q5's answer made
-unnecessary. *A first deploy* is one to a host whose state has no `current`;
-*an adopted host* runs the application under another tool before Turpin's
-first deploy, as Tile Lite Elite's two VMs run its `deploy.sh`.
+Found while designing delphside/tile-lite-elite#545 *MAIN PROJECT: Build once,
+promote through environments*, for Tile Lite Elite's adoption of Turpin
+(delphside/programme#117): gaps in the tool that Tile Lite Elite could not meet
+as written. delphside/programme#233 *Turpin: close the gaps for Tile Lite Elite*
+closes T1 to T7 and T9 to T12; T8 is not needed (Q5); T13 is open. *A first
+deploy* is one to a host whose state has no `current`; *an adopted host* runs
+the application under another tool before Turpin's first deploy, as Tile Lite
+Elite's two VMs run its `deploy.sh`.
 
 | Gap | Tile Lite Elite needed | Status |
 | --- | --- | --- |

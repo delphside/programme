@@ -45,13 +45,12 @@ Every test runs on rehearsal before the merge unless it says otherwise.
   ahead and the record's `carries.confirmed` holds it. In CI, with Turpin's
   release scenarios.
 - **The first deploy on an adopted host**: it runs before rehearsal's first
-  Turpin deploy (design §4 step 4.3), on a
-  rehearsal made to look like production: the backup and log-check files and
-  timers installed by hand, as on production. A failure at `migrate` leaves
-  0.10.1 serving, with the server `save-state` stopped started again; a
-  failure at `smoke` leaves every host file that was there before. After each,
-  the way back is taken and the state folder cleared, so the next deploy is
-  again a first one.
+  Turpin deploy (design §4 step 4.3), on a rehearsal made to look like
+  production: the backup and log-check files and timers installed by hand, as
+  on production. A failure at `migrate` leaves 0.10.1 serving, with the server
+  `save-state` stopped started again; a failure at `smoke` leaves every host
+  file that was there before. After each, the way back is taken and the state
+  folder cleared, so the next deploy is again a first one.
 - **The OCI CLI's memory peak** on the 1 GB host, during the instance-principal
   login, which nothing has measured.
 - **Preview**: every deploy starts from an empty database (functional, on
@@ -61,5 +60,5 @@ Every test runs on rehearsal before the merge unless it says otherwise.
 - **The check names**: after the merge, `turpin release --check` passes the
   `ci-passed` gate.
 
-The upload through the PAR is first tried on production; [design §4 step
-8.4](design.md#4-migration-order) has the check.
+The upload through the PAR is first tried on production; [design §4
+step 8.4](design.md#4-migration-order) has the check.

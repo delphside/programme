@@ -51,8 +51,7 @@ milestone check informs rather than alarms. Where an issue in the release's
 milestone is named by no commit, it asks `Project tle#N has this milestone but
 is not explicitly mentioned in a commit. Confirm that #N is in this build
 [y/N]`, in place of today's claim that the issue "was not built"; and it skips a
-parent project with sub-projects. Turpin has it
-([T9](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/turpin-gaps.md)).
+parent project with sub-projects.
 
 1. **Accept Turpin's refusal.** `turpin release` refuses, naming each open issue
    in the milestone that no commit in the release names. The fix is a commit
@@ -100,8 +99,8 @@ check send every object through one upload function; `TLE_UPLOAD` in each host's
 `.env` chooses its adapter: production uploads through the PAR (`par`),
 rehearsal writes into `uploads/` in its state folder and reports success
 (`local`), or failure where a test sets `TLE_UPLOAD=local-fail`. The upload
-through the PAR is first tried on production; [design §4 step
-8.4](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md#4-migration-order)
+through the PAR is first tried on production; [design §4
+step 8.4](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md#4-migration-order)
 has the check.
 
 ## Q4. Applying a changed `.env`, and resetting rehearsal
@@ -129,10 +128,11 @@ and the old folder's compose file would start the old images.
 
 ## Q5. Preview's lifetime
 
-**Is preview a standing environment?** *Option 4* of #545 (agreed 2026-10-26): a
-preview is made from a branch's build when needed and destroyed after, so no
-preview inherits an earlier one's data; one exists at a time, on today's port.
-Turpin's ephemeral environments do not fit a preview on the laptop
+**Is preview a standing environment?** *Option 4* of #545 *MAIN PROJECT: Build
+once, promote through environments* (agreed 2026-10-26): a preview is made from
+a branch's build when needed and destroyed after, so no preview inherits an
+earlier one's data; one exists at a time, on today's port. Turpin's ephemeral
+environments do not fit a preview on the laptop
 ([T8](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/turpin-gaps.md)).
 
 1. **A standing environment whose every deploy starts empty**: the `save-state`
@@ -142,7 +142,8 @@ Turpin's ephemeral environments do not fit a preview on the laptop
    delphside/programme#117. Costs: a Turpin change; a Linux user per preview on
    the laptop.
 
-**Answer**: option 1 (the owner, 2026-11-16), T8 is not needed.
+**Answer**: option 1 (the owner, 2026-11-16); it meets #545's option 4 without
+a Turpin change, so T8 is not needed.
 
 ## Q6. The pin and the profile in the image
 
