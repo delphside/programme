@@ -276,6 +276,11 @@ as activity for RET-3. Each still logs its event (`SeatHidden`,
 hide in the same change, so the game leaves their list at once; one sent by
 the creator does not, and the player may hide it later as above.
 
+**A keep after the start is not an error** (owner, 2026-11-16). It does
+nothing: no change, no version, no log row. The Game service answers it with
+the game's state and an information notice that the game has already started,
+not a refusal.
+
 **A rejected message changes nothing.** The handler validates against the game
 as it stands and applies only a message that will succeed, so a refused
 exchange or placement leaves the racks and the bag as they were.
@@ -466,7 +471,7 @@ pub enum ApplyError {
     SeatNotPlaying { seat: u8 },
     GameNotActive,
     GameOver,                  // an abort or force-end of a game already Finished or Aborted (GAME-1, GAME-11)
-    GameNotWaiting,            // a seat message (add, accept, claim, swap) or a keep after the start
+    GameNotWaiting,            // a seat message (add, accept, claim, swap) after the start
     GameAborted,               // an accept, decline or claim on an aborted game: the player is told why
     InvitationNotAvailable,    // a link claimed after its seat found an addressee (INV-2)
     IllegalMove(rules_shared::MoveError),
