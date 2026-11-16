@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Iterator
 
 from . import settings
+from .model import Reason, TechnicalError
 
 SCRIPTS = Path(__file__).resolve().parents[2]   # scripts/, which holds the `board` package
 
@@ -47,8 +48,9 @@ def release_module():
     profile, release, repo, sources = _import()
     slug = os.environ.get(settings.ENV_GH_REPO) or repo.origin_slug()
     if not slug:
-        raise sources.Unavailable(
-            f"cannot tell the GitHub repository (set {settings.ENV_GH_REPO}=owner/name)")
+        raise TechnicalError.make(
+            Reason.BOARD_REPOSITORY_UNKNOWN,
+            f"the GitHub repository is not known: set {settings.ENV_GH_REPO}=owner/name")
     os.environ[profile.ENV_REPOSITORY] = slug
     if not os.environ.get(profile.ENV_CONFIG):
         own = SCRIPTS.parent / "config" / "programme.toml"
@@ -66,3 +68,9 @@ def in_repo(path: Path | str) -> Iterator[None]:
         yield
     finally:
         os.chdir(here)
+
+
+def profile_error():
+    """The model's `ProfileError`, a `SystemExit` it raises for a profile or programme file
+    missing or malformed (design §4): never an answer."""
+    return _import()[0].ProfileError

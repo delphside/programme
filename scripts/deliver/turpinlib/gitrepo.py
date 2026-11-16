@@ -7,11 +7,15 @@ the other release steps arrive with the `release` command.
 
 from __future__ import annotations
 
+import io
 import subprocess
+import tarfile
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Iterable
 
 from . import board, settings
-from .model import (BusinessError, FormError, Reason, ReleaseRecord, TechnicalError,
+from .model import (BusinessError, FormError, Profile, Reason, ReleaseRecord, TechnicalError,
                     UnexpectedError)
 
 # What git prints when a credential, a key or a host name is wrong: fundamental,
@@ -110,3 +114,40 @@ def record_of_tag(repo: Path | str, tag: str) -> ReleaseRecord | None:
 def bump_main(repo: Path | str, version: str) -> None:
     """Bump `main` to the next patch after the released version (design §10, step 6)."""
     raise NotImplementedError("bump_main arrives with the release command")
+
+
+def export_paths(repo: Path | str, sha: str, paths: Iterable[str], into: Path) -> bool:
+    """The commit's `paths`, written under `into` (`git archive`): the commit's own files, never
+    the working tree's. False where the commit is not in the repository or holds none of them."""
+    try:
+        git(repo, "cat-file", "-e", f"{sha}^{{commit}}")
+        done = subprocess.run(["git", "-C", str(repo), "archive", sha, *paths], capture_output=True,
+                              timeout=settings.GIT_CALL_TIMEOUT, stdin=subprocess.DEVNULL)
+        if done.returncode != 0:
+            return False
+        with tarfile.open(fileobj=io.BytesIO(done.stdout)) as archive:
+            archive.extractall(into, filter="data")
+    except (TechnicalError, tarfile.TarError, FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    return True
+
+
+def tag_for_version(repo: Path, prof: Profile, version: str) -> str | None:
+    """The tag naming `version` under any of the profile's prefixes, or None."""
+    for prefix in (prof.tag_prefix, *prof.history_prefixes):
+        if f"{prefix}{version}" in tags(repo, prefix):
+            return f"{prefix}{version}"
+    return None
+
+
+def _tag_made(repo: Path, tag: str) -> int:
+    return int(git(repo, "for-each-ref", f"refs/tags/{tag}", "--format=%(creatordate:unix)").strip() or 0)
+
+
+def newest_release_made(repo: Path, prof: Profile) -> str:
+    """When the newest release tag, of any prefix, was made, as the host writes `deployed`."""
+    newest = 0
+    for prefix in (prof.tag_prefix, *prof.history_prefixes):
+        for tag in tags(repo, prefix):
+            newest = max(newest, _tag_made(repo, tag))
+    return datetime.fromtimestamp(newest, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

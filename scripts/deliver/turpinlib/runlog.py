@@ -49,6 +49,16 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def state_root() -> Path:
+    """The controller's state folder, `turpin` under `$XDG_STATE_HOME` (else `~/.local/state`)."""
+    return Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "turpin"
+
+
+def state_folder(app: str) -> Path:
+    """An application's folder in it: its run logs and what its hooks keep."""
+    return state_root() / app
+
+
 class RunLog:
     """One run's log. With no file (`path` None) every call does nothing."""
 
@@ -60,9 +70,7 @@ class RunLog:
     @classmethod
     def start(cls, app: str, command: str, args: Sequence[str],
               expected: Sequence[str] = ()) -> RunLog:
-        folder = Path(os.environ.get(settings.ENV_LOG_DIR)
-                      or Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
-                      / "turpin") / app
+        folder = Path(os.environ.get(settings.ENV_LOG_DIR) or state_root()) / app
         try:
             folder.mkdir(parents=True, exist_ok=True)
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")

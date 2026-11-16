@@ -569,7 +569,7 @@ class Delegation(Isolated):
         legacy.chmod(0o755)
         return tool
 
-    ARGS = ["deploy", "rehearsal", "abc 123", "--set-aside", "milestone", "a reason", "", "--wait=5", "*"]
+    ARGS = ["host-install", "rehearsal", "abc 123", "--set-aside", "milestone", "a reason", "", "--wait=5", "*"]
 
     def test_the_entry_script_passes_its_arguments_through_unchanged(self):
         tool = self.copy_tool('#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "$OUT"\nexit 7\n')

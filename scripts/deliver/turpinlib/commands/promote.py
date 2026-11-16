@@ -22,8 +22,6 @@ It prints a line per tag, `copied TAG` or `kept TAG`.
 
 from __future__ import annotations
 
-import sys
-
 from .. import remote
 from ..cli import Args, Context
 from ..model import (Build, ComponentKind, FormError, ReleaseRecord, RepositoryKind, Result, Version)

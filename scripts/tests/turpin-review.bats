@@ -36,6 +36,7 @@ setup() {
 # F2 --------------------------------------------------------------------------
 @test "F2 a host's prune keeps every environment's current and previous images (R14)" {
   printf '\n[environments.checks]\nrole = "test"\nssh = "rehearsal"\nlogin = "docker-config"\n' >> "$W/work/app-profile.toml"
+  host_env rehearsal checks     # the environment's own .env, which the host reads its registry from
   commit_change a; local A="$SHA"; build_ok "$A"
   run d deploy checks "$A"; assert_success
   commit_change b; local B="$SHA"; build_ok "$B"; deploy_rehearsal "$B"; assert_success
@@ -213,7 +214,7 @@ setup() {
     sleep 1.5; kill "$LOCK_PID"
   ) &
   run d deploy rehearsal "$SHA" --off-level first --wait=4
-  assert_failure 1
+  assert_failure 75
   assert_output --partial "still not yet after waiting 4 minute(s)"
   # the minutes the lock took are the hook's too: it is asked 4 - used + 1 times
   local used; used="$(sed -n 's/^TURPIN_WAIT_USED=//p' "$HOOKLOG" | head -1)"

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import re
+import tempfile
 import tomllib
 from pathlib import Path
 from typing import Any, Mapping
@@ -20,7 +21,7 @@ from .model import (CONTROLLER, BusinessError, CredentialKind, Environment, Ephe
                     Profile, ProfileError, Reason, Role, TechnicalError, Version, read_input)
 
 __all__ = ["ProfileError", "parse", "read_working_tree", "read_at_commit",
-           "read_app_env", "require", "repo_dir", "profile_path", "version_in_tree"]
+           "read_app_env", "require", "repo_dir", "profile_path", "version_in_tree", "version_in_commit", "login_component"]
 
 _ASSIGNMENT = re.compile(r"(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)")
 
@@ -231,12 +232,8 @@ class _Reader:
 
 # ----------------------------------------------------------------- the version file
 
-def version_in_tree(tree: Path) -> Version:
-    """The application's version in a checked-out tree: the first line of the profile's
-    `versions.app.file` that matches `versions.app.pattern`, whose one group is the version
-    (design §8; the version file is the one a person edits). A key missing is a profile
-    error; a file with no match, or a value that is not semver, is a business error naming
-    the version file (R48)."""
+def _version_source(tree: Path) -> tuple[_Reader, str, str]:
+    """The profile's `versions.app` in `tree`: its reader, the version file and the pattern."""
     source = str(tree / settings.PROFILE_FILE)
     try:
         data = tomllib.loads((tree / settings.PROFILE_FILE).read_text())
@@ -245,8 +242,32 @@ def version_in_tree(tree: Path) -> Version:
                               source=source) from exc
     section = (data.get("versions") or {}).get("app") or {}
     reader = _Reader(data, source)
-    file = reader.get(section, "versions.app.file", str, "a string", required=True)
-    pattern = reader.get(section, "versions.app.pattern", str, "a string", required=True)
+    return (reader, reader.get(section, "versions.app.file", str, "a string", required=True),
+            reader.get(section, "versions.app.pattern", str, "a string", required=True))
+
+
+def version_in_commit(repo: Path, sha: str) -> str:
+    """The version the version file holds at commit `sha`, or '' where the commit has no profile,
+    no version file or no version in it (a build need not have one)."""
+    with tempfile.TemporaryDirectory() as scratch:
+        tree = Path(scratch)
+        try:
+            if not gitrepo.export_paths(repo, sha, [settings.PROFILE_FILE], tree):
+                return ""
+            if not gitrepo.export_paths(repo, sha, [_version_source(tree)[1]], tree):
+                return ""
+            return str(version_in_tree(tree))
+        except (TechnicalError, BusinessError):
+            return ""
+
+
+def version_in_tree(tree: Path) -> Version:
+    """The application's version in a checked-out tree: the first line of the profile's
+    `versions.app.file` that matches `versions.app.pattern`, whose one group is the version
+    (design §8; the version file is the one a person edits). A key missing is a profile
+    error; a file with no match, or a value that is not semver, is a business error naming
+    the version file (R48)."""
+    reader, file, pattern = _version_source(tree)
     try:
         wanted = re.compile(pattern, re.MULTILINE)
     except re.error as exc:
@@ -264,3 +285,9 @@ def version_in_tree(tree: Path) -> Version:
                                  f"the version file {file} has no line the pattern versions.app.pattern matches",
                                  metadata={"file": file})
     return read_input(f"the version file {file}", Version.parse, found.group(1))
+
+
+def login_component(prof: Profile, env: Environment) -> str:
+    """The component whose docker login `env`'s deployer uses: the builder's where the environment
+    is on the builder's machine (they share one login), else its own name (design §3 *Logins*)."""
+    return "builder" if env.machine == prof.build_on else env.name

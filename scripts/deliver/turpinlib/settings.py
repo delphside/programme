@@ -13,6 +13,8 @@ RETRY_BACKOFF_SECONDS = (2, 4)
 
 # A registry call times out after 300 seconds.
 REGISTRY_CALL_TIMEOUT = 300
+# A `docker image inspect` of a local build. A guess, as the others are.
+DOCKER_INSPECT_TIMEOUT = 60
 # A git call, `fetch` included. A guess, as the others are.
 GIT_CALL_TIMEOUT = 120
 

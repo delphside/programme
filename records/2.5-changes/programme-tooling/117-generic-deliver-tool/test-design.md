@@ -14,7 +14,7 @@ This specification derives the tests for `turpin` from its stated rules, without
 
 **(H)** marks a rule taken from the agreed handover rather than from a document.
 
-**†** marks a rule, scenario or test that reads production: its host state over ssh, or its `/health` where it has no `turpin` state. It is the source of production's level (R15) and of the release production runs (R17). The owner decided on 2026-10-29 that this read is a scripted check, named in each application's CLAUDE.md beside `verify.sh`, `check-hosts.sh` and the `/health` reads (X2).
+**†** marks a rule, scenario or test that reads production: its host state over ssh, or, for the emergency gate only, its `/health` where it has no `turpin` state. It is the source of production's level (R15) and of the release production runs (R17). The owner decided on 2026-10-29 that this read is a scripted check, named in each application's CLAUDE.md beside `verify.sh`, `check-hosts.sh` and the `/health` reads (X2).
 
 Each test has one of two kinds:
 
@@ -885,7 +885,7 @@ Still open, each a question for the owner:
 
 | gap | what it would take to close it | why it is acceptable for now |
 | --- | --- | --- |
-| X2 † Production's level, and the release production runs, are read from production's host state over ssh, or its `/health` where it has no `turpin` state. | Closed: the owner decided on 2026-10-29 that the read is a scripted check, named in each application's CLAUDE.md. | S17, S20, S39, S48, S49 and S50 (R15 and R17) stand as written. |
+| X2 † Production's level, and the release production runs, are read from production's host state over ssh; the emergency gate alone reads its `/health` where it has no `turpin` state. | Closed: the owner decided on 2026-10-29 that the read is a scripted check, named in each application's CLAUDE.md. | S17, S20, S39, S48, S49 and S50 (R15 and R17) stand as written. |
 | X9b A command "ending with a gate unrun refuses" cannot be provoked from outside, and §6 gives no per-command gate list beyond §9. | A test hook or a documented gate list. | The run log is asserted against §9 (O23). The self-check is reviewed, not tested. |
 | X9c `state.json` is replaced whole by rename, so a kill leaves the old record or the new one (design §11). | A way to kill the host between the write and the rename, or inside the rename. | The test is not provokable from outside. Reviewed, not tested; S13, S94 and S96 show a whole record after a kill. |
 | X14 The `oci-api-key` adapter (Dark Portal's copier) is exercised by no Tile Lite Elite test. | Dark Portal's adoption, delphside/dark-portal#15, carries the test: the key missing, then present, with the refusal shown before the success. | Dark Portal is out of scope here. |

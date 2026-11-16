@@ -49,7 +49,7 @@ second_deploy() {
   commit_change one
   run d deploy rehearsal "$SHA" --off-level first
   assert_failure 1                                  # no build yet
-  assert_output --partial "build-exists"
+  assert_output --partial "refused at gate ref: no build in candidates"
   build_ok "$SHA"
   # the operator's working tree is edited after the build: it must not be used
   printf '#!/usr/bin/env bash\ntouch "%s/TREE-HOOK-RAN"\n' "$W" > "$W/work/turpin/hooks/pre-deploy"
@@ -135,7 +135,7 @@ systemctl restart acme-backup.timer"
   assert_output --partial "refused at gate pre-deploy"
   hook_exit pre-deploy 75
   run d deploy rehearsal "$SHA" --off-level first
-  assert_failure 1
+  assert_failure 75                                 # not yet is a blip: the run stops, to be tried again
   assert_output --partial "use --wait"
   hook_exit pre-deploy "75 2"
   run d deploy rehearsal "$SHA" --off-level first --wait=5
@@ -150,7 +150,7 @@ systemctl restart acme-backup.timer"
   lock_hold rehearsal rehearsal
   local before; before="$(snapshot)"
   run d deploy rehearsal "$SHA" --off-level first --wait=1
-  assert_failure 1
+  assert_failure 75
   assert_output --partial "still held after waiting 1 minute(s)"
   assert_equal "$(snapshot)" "$before"
   lock_release
@@ -158,7 +158,7 @@ systemctl restart acme-backup.timer"
   hook_exit pre-deploy 75
   before="$(snapshot)"
   run d deploy rehearsal "$SHA" --off-level first --wait=1
-  assert_failure 1
+  assert_failure 75
   assert_output --partial "still not yet after waiting 1 minute(s) for hook pre-deploy"
   assert_equal "$(snapshot)" "$before"
   hook_clear pre-deploy
@@ -211,7 +211,7 @@ systemctl restart acme-backup.timer"
   assert_output --partial "does not list it in overridable"
   # a reason is needed
   run d deploy rehearsal "$SHA" --set-aside pre-deploy
-  assert_failure 1
+  assert_failure 64                                 # a usage error, nothing run
   assert_output --partial "needs a reason"
   hook_clear pre-deploy
 }
@@ -469,15 +469,15 @@ EOF
 
 @test "ambiguous_short_sha_refuses, and a longer prefix deploys (S58, R6)" {
   commit_change first; build_ok "$SHA"
-  local real="$SHA" fake six
-  six="${real:5:1}"; six="$([ "$six" = 0 ] && echo 1 || echo 0)"
-  fake="${real:0:5}${six}$(printf 'e%.0s' $(seq 34))"
+  local real="$SHA" fake other
+  other="${real:7:1}"; other="$([ "$other" = 0 ] && echo 1 || echo 0)"
+  fake="${real:0:7}${other}$(printf 'e%.0s' $(seq 32))"
   local c="$W/registry/reg.test/ns/acme/candidates"
   cp "$c/tags/$real-server" "$c/tags/$fake-server"; cp "$c/tags/$real-web" "$c/tags/$fake-web"
   local before; before="$(snapshot)"
-  run d deploy rehearsal "${real:0:5}" --off-level first
+  run d deploy rehearsal "${real:0:7}" --off-level first
   assert_failure 1
-  assert_output --partial "ref-unambiguous"
+  assert_output --partial "starts 2 builds"
   assert_output --partial "$real"
   assert_output --partial "$fake"
   assert_equal "$(snapshot)" "$before"
@@ -792,8 +792,8 @@ echo backup"
   commit_change b; build_ok "$SHA"; local sha2="$SHA"
   killed_in_step_6 "$sha2"
   assert_equal "$(host_state rehearsal rehearsal)" "preparing: deploy-folder"
-  # what the kill left is not the rollback's change: the next request sweeps it (turpin-protocol.bats)
-  rm -rf "${W:?}/hosts/rehearsal/var/lib/turpin/acme/rehearsal"/payload.* "${W:?}/hosts/rehearsal/var/lib/turpin/acme/rehearsal"/request.* "${W:?}/hosts/rehearsal/var/lib/turpin/acme/rehearsal"/note.*
+  # what the kill left (a killed deploy's temp files and its interrupted marker) is not the rollback's change: the next request sweeps it (turpin-protocol.bats)
+  rm -rf "${W:?}/hosts/rehearsal/var/lib/turpin/acme/rehearsal"/payload.* "${W:?}/hosts/rehearsal/var/lib/turpin/acme/rehearsal"/request.* "${W:?}/hosts/rehearsal/var/lib/turpin/acme/rehearsal"/note.* "${W:?}/hosts/rehearsal/var/lib/turpin/acme/rehearsal"/interrupted.*
   local before; before="$(snapshot)"
   run d rollback rehearsal
   assert_failure 1

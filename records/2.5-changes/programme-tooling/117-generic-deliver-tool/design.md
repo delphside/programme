@@ -2140,10 +2140,11 @@ production deploy, an error after the deploy's
 ### Which release production runs
 
 For rehearsal's level and the emergency gate, it is the record in production's
-host state, read over ssh. Only where the host has no `current` at all (a
-production deployed before the tool) is it read from `/health` through
-`[versions].deployed` and the environment's `url`. A `current` with no record
-(`--unrecorded`) makes the gate refuse.
+host state, read over ssh. Where production's host has no `current` at all (a
+production deployed before the tool), the rehearsal-level gate refuses and
+needs `--off-level`, and does not read `/health`; only the emergency gate reads
+it there, through `[versions].deployed` and the environment's `url`. A
+`current` with no record (`--unrecorded`) makes both gates refuse.
 
 ## 10. The release and its record
 
@@ -2534,6 +2535,14 @@ Each action skips what is done, so a rerun is harmless, and settle has no
 still run, the items left are named, and `settle`, or the deploy that ran it,
 exits 3, the message naming `turpin settle VERSION`.
 
+A tag with no record is a business error (exit 1), raised before any action.
+A profile with no announcement, a profile that cannot be read, or a repository
+the model cannot name is a fundamental error (exit 2), also before any action.
+A board that cannot be reached is a blip (exit 75), until the model names which
+of its errors are transient. An interruption names the rerun. It says the
+action under way finished and none started only once the model's `gh` runs in
+a process group of its own.
+
 ## 13. Non-functional design
 
 - **Capacity.** On Tile Lite Elite's 1 GB production host the instance-principal
@@ -2574,7 +2583,7 @@ exits 3, the message naming `turpin settle VERSION`.
   least access, and a token reaches `turpin login` at a hidden prompt, then
   standard input only. Nothing secret
   reaches a profile, record, tag or log. Reading production's host state or
-  `/health` (rehearsal's level, the emergency gate) is a scripted, bounded,
+  `/health` (the emergency gate, where production has no `turpin` state; rehearsal's level reads host state only) is a scripted, bounded,
   read-only check each application's CLAUDE.md names.
 
 ## 14. Moving Tile Lite Elite to it

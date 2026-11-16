@@ -113,7 +113,7 @@ def run(args: Args, ctx: Context) -> Result:
             raise BusinessError.make(Reason.LOGIN_UNKNOWN_COMPONENT,
                                      f"{name} is not controller, builder, copier or an environment of the "
                                      f"profile", metadata={"component": name})
-        if environment.machine == prof.build_on:
+        if profile.login_component(prof, environment) == "builder":
             raise BusinessError.make(Reason.LOGIN_SHARED_WITH_BUILDER,
                                      f"{name} shares the builder's docker login on this machine: "
                                      f"run turpin login builder", metadata={"component": name})
