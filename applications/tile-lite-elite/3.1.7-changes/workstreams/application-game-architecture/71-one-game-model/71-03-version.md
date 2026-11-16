@@ -277,9 +277,11 @@ hide in the same change, so the game leaves their list at once; one sent by
 the creator does not, and the player may hide it later as above.
 
 **A keep after the start is not an error** (owner, 2026-11-16). It does
-nothing: no change, no version, no log row. The Game service answers it with
-the game's state and an information notice that the game has already started,
-not a refusal.
+nothing: no change, no version, no log row, nothing published. The Game
+service answers it with `outcome` `ok`, the game's state and the information
+reason `GameAlreadyStarted` (docs/1.10's error scheme; #402 lists the reason),
+not a refusal. The sender check still runs first, so a keep from anyone but
+the creator is refused before it.
 
 **A rejected message changes nothing.** The handler validates against the game
 as it stands and applies only a message that will succeed, so a refused
