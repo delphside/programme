@@ -66,19 +66,20 @@ for a situation, and the fix keeps both intents only once both are known.
    that sits on one line, since `-S` matches literal text:
 
    ```sh
-   git log --format='%h %ad %s' --date=short -S'<a phrase from the rule>' -- CLAUDE.md docs
+   git log --format='%h %ad %s' --date=short -S'<a phrase from that side>' -- CLAUDE.md docs .claude
    ```
 
-   For code, name its path instead of `CLAUDE.md docs`, or follow a function
+   For code, name its path instead of the documents, or follow a function
    with `git log -L :<function>:<file>`. The programme repository carries the
    history from its first commit, including the rules' time in Tile Lite
-   Elite under older names. A shallow clone needs `git fetch --depth=200`
-   first, or the search finds nothing.
+   Elite under older names. Where `git rev-parse --is-shallow-repository`
+   prints `true`, run `git fetch --unshallow` first: a shallow clone names its
+   oldest commit as the one that added the phrase. In an application's
+   checkout, run the search for a programme document inside `programme/`.
 2. Read each commit's message (`git show -s <sha>`) and diff: what situation
-   the change was written for, who decided it, and which side changed last.
+   the change was written for, who decided it and which side changed last.
 3. Write the fix from both intents, and say in the commit message where each
-   side came from. A fix that changes an application's code still takes the
-   owner's review.
+   side came from.
 
 ## Traps
 
