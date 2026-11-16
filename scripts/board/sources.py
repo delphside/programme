@@ -915,6 +915,25 @@ def pull_request_for(branch: str) -> tuple[int, str, str] | None:
     return node["number"], node.get("title") or "", node.get("body") or ""
 
 
+def _issue_selects() -> list[dict]:
+    """The organisation's single-select issue fields: id, name and options (id
+    and name). The one read of `issueFields`: `set_field` and the vocabulary
+    check both use it. A field that is not a single-select comes back as an
+    empty node and is dropped."""
+    payload = _gh_graphql(f"""{{ organization(login:"{profile.organisation()}") {{ issueFields(first:50) {{
+      nodes {{ ... on IssueFieldSingleSelect {{ id name options {{ id name }} }} }} }} }} }}""")
+    nodes = ((((payload.get("data") or {}).get("organization") or {})
+              .get("issueFields") or {}).get("nodes") or [])
+    return [f for f in nodes if f and f.get("name")]
+
+
+def issue_field_names() -> dict[str, tuple[str, ...]]:
+    """{field name: option names} of the single-select issue fields. A text field
+    is not a key; `vocabulary.TEXT_FIELDS` names those the tooling matches."""
+    return {f["name"]: tuple(o["name"] for o in f.get("options") or [])
+            for f in _issue_selects()}
+
+
 def set_field(number: int, field: str, value: str) -> None:
     """Set an issue field by NAME and option NAME.
 
@@ -922,11 +941,7 @@ def set_field(number: int, field: str, value: str) -> None:
     caller -- the rule this module exists to keep. A name that does not exist
     raises, rather than setting nothing and looking as if it worked.
     """
-    fields = _gh_graphql(f"""{{ organization(login:"{profile.organisation()}") {{ issueFields(first:30) {{
-      nodes {{ ... on IssueFieldSingleSelect {{ id name options {{ id name }} }} }} }} }} }}""")
-    nodes = ((((fields.get("data") or {}).get("organization") or {})
-              .get("issueFields") or {}).get("nodes") or [])
-    chosen = next((f for f in nodes if f and f.get("name") == field), None)
+    chosen = next((f for f in _issue_selects() if f["name"] == field), None)
     if chosen is None:
         raise Unavailable(f"no issue field named {field!r}")
     option = next((o for o in chosen["options"] if o["name"] == value), None)
@@ -969,19 +984,6 @@ def project_field_names() -> dict[str, tuple[str, ...]]:
     this is for the vocabulary check, which reports an absent one."""
     return {f["name"]: tuple(o["name"] for o in f.get("options") or [])
             for f in _project_selects()}
-
-
-def issue_field_names() -> dict[str, tuple[str, ...]]:
-    """{field name: option names} of the repository's single-select issue fields,
-    as the `issueFields` query returns them. Only single-selects have options to
-    read, so a text field is not a key; `vocabulary.TEXT_FIELDS` names those the
-    tooling matches."""
-    payload = _gh_graphql(_repository_query(
-        "issueFields(first:50) { nodes { ... on IssueFieldSingleSelect { id name options { id name } } } }"))
-    nodes = ((((payload.get("data") or {}).get("repository") or {})
-              .get("issueFields") or {}).get("nodes") or [])
-    return {f["name"]: tuple(o["name"] for o in f.get("options") or [])
-            for f in nodes if f and f.get("name")}
 
 
 def _project_field(field: str) -> tuple[str, dict[str, str]]:

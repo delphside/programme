@@ -301,17 +301,8 @@ class Observed:
         return f"{self.repo}#{self.raw.number}"
 
 
-# --------------------------------------------------------------------------
-# Routes: the Route field's names are in `vocabulary.py`
-# --------------------------------------------------------------------------
-
-# --------------------------------------------------------------------------
-# the state fields: every issue type's journey is `<type> State`
-# --------------------------------------------------------------------------
-# Owner, 2026-09-30: the four lifecycle fields share one word, and `State`
-# needed the fewest renames. `Stage` and `Phase` were renamed in GitHub.
-
-# The names are in `vocabulary.py`, once; imported at the top of this file.
+# The field and option names are in `vocabulary.py`, once; imported at the top
+# of this file.
 
 # Issues may carry the old Route names until the field's options are renamed in
 # GitHub, so both are read.
@@ -889,9 +880,17 @@ def role_turn(role: str | None) -> str | None:
 def flow_type(issue) -> str:
     """The flow table's type for a classified issue: its three project kinds
     are one."""
+    # By class, not by `kind`, which is a Python name that only happens to equal
+    # GitHub's: renaming a type in GitHub must not move an issue's flow.
     if isinstance(issue, Project):
         return TYPE_PROJECT
-    return issue.kind
+    if isinstance(issue, Decision):
+        return TYPE_DECISION
+    if isinstance(issue, Ticket):
+        return TYPE_TICKET
+    if isinstance(issue, PullRequest):
+        return TYPE_PULL_REQUEST
+    return TYPE_REQUIREMENT
 
 
 def flow_row(issue) -> Flow | None:

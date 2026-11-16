@@ -56,18 +56,23 @@ def check(issue_fields: Mapping[str, Sequence[str]],
     return found
 
 
-def render(found: Sequence[Missing], colour: bool = True) -> str:
-    """One line per name missing, or an ok line; and what it did not look at."""
+def render(found: Sequence[Missing], colour: bool = True, verbose: bool = False) -> str:
+    """One line per name missing. **Nothing at all when none is**, unless
+    `verbose`: the quiet case says nothing (#326's test approach). `verbose` also
+    says what the check did not look at."""
     paint = (lambda code, t: f"\033[{code}m{t}\033[0m") if colour else (lambda code, t: t)
     n_options = sum(len(o) for o in vocabulary.FIELDS.values())
-    out = [f"{paint('1', 'VOCABULARY')}  "
-           + paint('2', f"{len(vocabulary.FIELDS)} fields and {n_options} options the tooling matches, "
-                        "against GitHub's")]
-    if not found:
+    out = []
+    if found or verbose:
+        out.append(f"{paint('1', 'VOCABULARY')}  "
+                   + paint('2', f"{len(vocabulary.FIELDS)} fields and {n_options} options the "
+                                "tooling matches, against GitHub's"))
+    if verbose and not found:
         out.append(f"  {paint('32', 'ok')} " + paint('2', "every one exists"))
     for m in found:
         out.append(f"  {paint('33', '!')} {m}")
-    out.append(paint('2', "  not checked: " + ", ".join(vocabulary.TEXT_FIELDS)
-                     + " (not a single-select, so the query shows no options); "
-                       "labels and issue types"))
+    if verbose:
+        out.append(paint('2', "  not checked: " + ", ".join(vocabulary.TEXT_FIELDS)
+                         + " (not a single-select, so the query shows no options); "
+                           "labels and issue types"))
     return "\n".join(out)

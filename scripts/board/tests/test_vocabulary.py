@@ -95,13 +95,14 @@ class TheCheck(Cases):
     def test_the_report_names_the_finding_and_what_it_did_not_look_at(self):
         """the report"""
         found = [vocabcheck.Missing(vocabulary.TURN, vocabulary.TURN_HOLD, "issue fields")]
-        text = vocabcheck.render(found, colour=False)
+        text = vocabcheck.render(found, colour=False, verbose=True)
         self.expect("it names the option and its field", True,
                     "option 'Hold' is not on 'Turn'" in text)
-        self.expect("it says what it did not check", True, "not checked: Claimed by" in text)
+        self.expect("verbose says what it did not check", True, "not checked: Claimed by" in text)
         self.expect("and says ok only when nothing is missing", True,
-                    "ok every one exists" in vocabcheck.render([], colour=False))
+                    "ok every one exists" in vocabcheck.render([], colour=False, verbose=True))
         self.expect("not beside a finding", False, "ok every one exists" in text)
+        self.expect("a pass says nothing at all", "", vocabcheck.render([], colour=False))
 
 
 def _board_check():
@@ -117,7 +118,7 @@ class TheCommand(Cases):
     def run_it(self, issue, project, exit_code=False):
         module = _board_check()
         out, err = io.StringIO(), io.StringIO()
-        args = SimpleNamespace(no_colour=True, exit_code=exit_code)
+        args = SimpleNamespace(no_colour=True, exit_code=exit_code, verbose=False)
         with mock.patch.object(module, "issue_field_names", issue), \
                 mock.patch.object(module, "project_field_names", project), \
                 redirect_stdout(out), redirect_stderr(err):
@@ -129,7 +130,7 @@ class TheCommand(Cases):
         issue, project = _live()
         status, out, _ = self.run_it(lambda: issue, lambda: project, exit_code=True)
         self.expect("exit 0", 0, status)
-        self.expect("says ok", True, "ok every one exists" in out)
+        self.expect("prints nothing", "", out)
 
     def test_a_finding_exits_non_zero_only_when_asked(self):
         """a finding"""
@@ -152,7 +153,7 @@ class TheCommand(Cases):
             status, out, err = self.run_it(issue, proj, exit_code=True)
             self.expect(f"{name}: exit 2, as the report's other unreachable sources", 2, status)
             self.expect(f"{name}: says not checked", True, "not checked" in err)
-            self.expect(f"{name}: never says ok", False, "ok" in out)
+            self.expect(f"{name}: prints nothing to stdout, so no pass", "", out)
 
 
 class TheDataFlow(Cases):
@@ -179,3 +180,49 @@ class TheDataFlow(Cases):
         self.expect("with an edge from a field to an option", True,
                     '["Project State"]' in chart and "F1 --- O" in chart)
         self.expect("and one to a module", True, "--> M_turn" in chart)
+
+
+def _stub_graphql(payload):
+    import board.sources as sources
+    return mock.patch.object(sources, "_gh_graphql", lambda *a, **k: payload)
+
+
+class TheLiveReads(Cases):
+    """Parsing what GitHub answers. `_gh_graphql` is stubbed."""
+
+    def test_issue_fields_keep_single_selects_and_drop_empty_nodes(self):
+        """issueFields"""
+        import board.sources as sources
+        payload = {"data": {"organization": {"issueFields": {"nodes": [
+            {"id": "1", "name": "Turn", "options": [{"id": "a", "name": "Owner"},
+                                                    {"id": "b", "name": "Hold"}]},
+            {},
+            None,
+            {"id": "2", "name": "Route", "options": []}]}}}}
+        with _stub_graphql(payload), mock.patch.object(sources.profile, "organisation",
+                                                       lambda: "org"):
+            got = sources.issue_field_names()
+            chosen = [f["name"] for f in sources._issue_selects()]
+        self.expect("names and options of the single-selects", {
+            "Turn": ("Owner", "Hold"), "Route": ()}, got)
+        self.expect("set_field reads the same nodes", ["Turn", "Route"], chosen)
+
+    def test_project_fields_keep_single_selects_and_drop_empty_nodes(self):
+        """the Projects board"""
+        import board.sources as sources
+        payload = {"data": {"node": {"fields": {"nodes": [
+            {"id": "1", "name": "PR State", "options": [{"id": "a", "name": "Drafting"}]},
+            {}]}}}}
+        with _stub_graphql(payload), mock.patch.object(sources, "_project_id", lambda: "P"):
+            got = sources.project_field_names()
+        self.expect("the single-select's options", {"PR State": ("Drafting",)}, got)
+
+    def test_an_empty_answer_is_no_fields_not_a_pass_by_itself(self):
+        """empty"""
+        import board.sources as sources
+        with _stub_graphql({"data": {"organization": None}}), \
+                mock.patch.object(sources.profile, "organisation", lambda: "org"):
+            self.expect("no fields", {}, sources.issue_field_names())
+        issue, project = _live()
+        self.expect("and the check then reports every field missing",
+                    True, len(vocabcheck.check({}, project)) > 0)

@@ -9,11 +9,17 @@ than replacing them. Nothing retires until the model is trusted.
     programme/scripts/board/board-check.py 383             # one issue
     programme/scripts/board/board-check.py --exit-code     # non-zero if anything is missing
     programme/scripts/board/board-check.py --vocabulary    # does each field and option the tooling matches still exist?
+    programme/scripts/board/board-check.py --vocabulary -v # the same, saying so when all do, and what it skipped
 
 Reports and does not refuse. Twenty-eight obligations exist and twelve are
 enforceable today; the rest answer **not checked**, which is not a pass. A
 gate refuses and work stops; a check reports and a person decides, and this is
 the second until the diff against the old scripts has been quiet.
+
+Exit statuses. 0: the report ran (with `--exit-code`, nothing missing). 1: with
+`--exit-code`, something is missing. 2: a source did not answer, so nothing was
+checked, which is not a pass. `--vocabulary` follows the same three and prints
+nothing on a pass unless `-v`; 70 is a profile that cannot be read (`profile.run`).
 
 Design: programme/records/2.5-changes/programme-tooling/383-one-board-model/
 """
@@ -71,14 +77,19 @@ def vocabulary_main(args) -> int:
     not answer (GraphQL is refused to a cloud session) is *not checked*, exit 2,
     as the report's other unreachable sources are; it is never a pass."""
     try:
-        found = check_vocabulary(issue_field_names(), project_field_names())
+        issue_fields = issue_field_names()
+        if not issue_fields:
+            # An unreadable list and an empty one look the same from here.
+            raise Unavailable("GitHub returned no issue fields")
+        found = check_vocabulary(issue_fields, project_field_names())
     except Unavailable as exc:
         print(f"vocabulary: not checked — {exc}", file=sys.stderr)
         return 2
-    text = render_vocabulary(found)
+    text = render_vocabulary(found, verbose=args.verbose)
     if args.no_colour:
         text = re.sub(r"\x1b\[[0-9;]*m", "", text)
-    print(text)
+    if text:
+        print(text)
     return 1 if (args.exit_code and found) else 0
 
 
@@ -95,6 +106,8 @@ def main(argv=None) -> int:
                     help="exit non-zero when something is missing")
     ap.add_argument("--no-colour", action="store_true",
                     help="plain text, for a caller that captures the output")
+    ap.add_argument("-v", "--verbose", action="store_true",
+                    help="with --vocabulary: say so when every name exists, and what was not checked")
     ap.add_argument("--vocabulary", action="store_true",
                     help="check each field and option name the tooling matches "
                          "(board/vocabulary.py) still exists in GitHub, and nothing else")

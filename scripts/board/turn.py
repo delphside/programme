@@ -44,8 +44,10 @@ from .model import (
     Box,
     Decision,
     Issue,
+    ParentProject,
     Recurring,
     PullRequest,
+    Requirement,
     StandaloneProject,
     WorkPackage,
     classify,
@@ -56,7 +58,7 @@ from .sources import Snapshot, step_ages, token_days_left
 from .vocabulary import (
     DEC_ASKED, PROJ_CLOSEDOWN, PROJ_DEPLOYMENT, PROJ_DESIGN,
     PROJ_POST_DEPLOYMENT, PROJ_USER_TESTING, PR_AWAITING_REVIEW,
-    PR_CHANGES_REQUESTED, TYPE_DECISION, TYPE_PULL_REQUEST, TYPE_REQUIREMENT)
+    PR_CHANGES_REQUESTED)
 
 DELIVERING = (WorkPackage, StandaloneProject)
 
@@ -69,15 +71,15 @@ DELIVERING = (WorkPackage, StandaloneProject)
 # Requirement never qualifies: its `What would show it works` boxes describe
 # evidence a future delivery will produce, not work waiting on anybody today.
 DUE_AT: dict[str, tuple[str, ...]] = {
-    "ParentProject": (PROJ_USER_TESTING, PROJ_DEPLOYMENT, PROJ_POST_DEPLOYMENT,
+    ParentProject.__name__: (PROJ_USER_TESTING, PROJ_DEPLOYMENT, PROJ_POST_DEPLOYMENT,
                       PROJ_CLOSEDOWN),
-    "WorkPackage": (PROJ_USER_TESTING, PROJ_DEPLOYMENT, PROJ_POST_DEPLOYMENT,
+    WorkPackage.__name__: (PROJ_USER_TESTING, PROJ_DEPLOYMENT, PROJ_POST_DEPLOYMENT,
                     PROJ_CLOSEDOWN),
-    "StandaloneProject": (PROJ_USER_TESTING, PROJ_DEPLOYMENT, PROJ_POST_DEPLOYMENT,
+    StandaloneProject.__name__: (PROJ_USER_TESTING, PROJ_DEPLOYMENT, PROJ_POST_DEPLOYMENT,
                           PROJ_CLOSEDOWN),
-    TYPE_DECISION: (DEC_ASKED,),
-    TYPE_PULL_REQUEST: (PR_AWAITING_REVIEW, PR_CHANGES_REQUESTED),
-    TYPE_REQUIREMENT: (),
+    Decision.__name__: (DEC_ASKED,),
+    PullRequest.__name__: (PR_AWAITING_REVIEW, PR_CHANGES_REQUESTED),
+    Requirement.__name__: (),
 }
 
 
@@ -104,7 +106,7 @@ DUE_SECTIONS: dict[str, tuple[str, ...]] = {
 POST_DEPLOYMENT_HEADING = "Post-deployment checks against requirements"
 POST_DEPLOYMENT_DUE_AT = (PROJ_POST_DEPLOYMENT, PROJ_CLOSEDOWN)
 
-PROJECTS = ("ParentProject", "WorkPackage", "StandaloneProject")
+PROJECTS = (ParentProject.__name__, WorkPackage.__name__, StandaloneProject.__name__)
 
 
 # **A recurrence is due on its date, whatever phase its issue is in.** #291 R2.

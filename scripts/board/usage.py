@@ -32,12 +32,19 @@ ALLOWED: dict[tuple[str, str], str] = {
 }
 
 
-# The modules that are about the vocabulary, not users of it.
-META = ("vocabulary.py", "usage.py", "dataflow.py", "vocabcheck.py", "__init__.py")
+# Not scanned: the vocabulary itself, and this module, whose allow-list names the
+# values it allows. Every other module, `dataflow.py` and `vocabcheck.py` too, is
+# a user of the vocabulary and is scanned.
+META = ("vocabulary.py", "usage.py", "__init__.py")
+
+
+# Scanned for literals, but not counted as readers: they iterate the whole
+# vocabulary to report on it, which says nothing about what the board reads.
+ABOUT_THE_VOCABULARY = ("dataflow.py", "vocabcheck.py")
 
 
 def sources() -> list[Path]:
-    """The board's modules and entry scripts, not its tests, `vocabulary.py` or the modules in `META`."""
+    """The board's modules and entry scripts, not its tests, `vocabulary.py` or this module."""
     return sorted(p for p in BOARD.glob("*.py")
                   if p.name not in META)
 
@@ -143,6 +150,8 @@ def readers() -> dict[Name, set[str]]:
     """(field, option) -> the modules that read it; option "" is the field."""
     out: dict[Name, set[str]] = {}
     for path in sources():
+        if path.name in ABOUT_THE_VOCABULARY:
+            continue
         for _, pair in references(path):
             out.setdefault(pair, set()).add(path.name)
     return out
