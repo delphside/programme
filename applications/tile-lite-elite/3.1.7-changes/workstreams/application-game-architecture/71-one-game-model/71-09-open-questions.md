@@ -232,8 +232,8 @@ creates one account per engine with rating rows
   bot, with neither, so a bot with an address cannot be represented. Reading a
   row that breaks it is an error, and a password sign-in to a bot account
   always fails.
-- **A bot's `display_name` is one no player can register**: it ends in
-  ` (bot)`, compared in the folded form as names already are, which
+- **A bot's `display_name` is one no player can register**: it ends in a
+  space and `(bot)`, compared in the folded form, trailing spaces trimmed, which
   registration and a rename refuse. So no engine's name can clash with a
   player's, now or for a bot added later, and players can see who is a bot. A
   player who already has such a name stops the migration before it commits,

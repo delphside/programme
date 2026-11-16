@@ -176,7 +176,7 @@ gains what this settles:
 - GAME-12's "players seated": an invited addressee and a player who is or was
   playing, resigned and timed out included, may chat; one who declined or
   withdrew may not (owner, 2026-11-16)
-- a display name ending in ` (bot)` is a bot's: registration and a rename
+- a display name ending in a space and `(bot)` is a bot's: registration and a rename
   refuse one (owner, 2026-11-16)
 - RET-3's keep matters only before the start; after it, a keep does nothing
   and the creator is told the game has already started, not given an error
