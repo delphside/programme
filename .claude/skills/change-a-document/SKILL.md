@@ -1,6 +1,6 @@
 ---
 name: change-a-document
-description: Find the section that owns a fact before adding it to a document, CLAUDE.md or a skill, so each fact has one home. Use before writing to any document.
+description: Find the section that owns a fact before adding it to a document, CLAUDE.md or a skill, so each fact has one home, and find how two documents, or a document and the code, came to disagree before fixing either. Use before writing to any document.
 ---
 
 # Changing a document
@@ -62,13 +62,14 @@ Google's guide. Write to it; the two document reviewers apply it.
 **Find how each side came about before changing either.** Each was written
 for a situation, and the fix keeps both intents only once both are known.
 
-1. Make sure the history is all there, in the repository you will search: for
-   a programme document in an application's checkout, that is `programme/`.
-   A shallow clone names its oldest commit as the one that added anything older,
-   so this fetches the rest where the clone is shallow:
+1. Make sure the history is all there in each side's repository. From an
+   application's checkout, a programme document's is `programme/` and a
+   record's is the live checkout. A shallow clone names its oldest commit as
+   the one that added anything older, so this fetches the rest where the clone
+   is shallow:
 
    ```sh
-   [ "$(git rev-parse --is-shallow-repository)" = true ] && git fetch --unshallow
+   if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --unshallow; fi
    ```
 
 2. Find the commit that wrote each side, searching for a phrase that sits on
@@ -78,7 +79,7 @@ for a situation, and the fix keeps both intents only once both are known.
    git log --format='%h %ad %s' --date=short -S'<a phrase from that side>' -- CLAUDE.md docs .claude
    ```
 
-   For code, end the command with the code's path, or follow a function with
+   For code, put the code's path after `--`, or follow a function with
    `git log -L :<function>:<file>`.
 
    The programme repository carries the history from its first commit,
@@ -86,7 +87,8 @@ for a situation, and the fix keeps both intents only once both are known.
 3. Read each commit's message (`git show -s <sha>`) and diff: what situation
    the change was written for, who decided it and which side changed last.
 4. Write the fix from both intents, and say in the commit message where each
-   side came from.
+   side came from. A fix that changes a rule, or an application, owes what
+   `CLAUDE.md` *The work* says it owes the owner.
 
 ## Traps
 

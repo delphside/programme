@@ -43,8 +43,9 @@ headings:
   says how they came apart where `git log` shows it: the commit that wrote
   each side, and which changed last. Where
   `git rev-parse --is-shallow-repository` prints `true` in the repository
-  searched, the history is **could not check**, since a shallow clone names
-  its oldest commit as the author of everything older.
+  searched, the history is **could not check**
+  ([the change-a-document skill](skills/change-a-document/SKILL.md#when-documents-or-code-disagree)
+  says why).
 - **Each finding** gives the file and line, what is wrong, what would be right
   and whether you **verified** it in place or **inferred** it. Where your own
   file grades findings, it says how.
