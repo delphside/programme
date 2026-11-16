@@ -372,6 +372,8 @@ player whose verification passed it before they used the link.
 2026-11-16). Accepting, declining or claiming a seat of an `Aborted` game is
 refused with `GameAborted`, not the general `GameNotWaiting`, and the
 invitation's page and the accept answer tell the player the game was aborted.
+The abort is checked first: a seat already declined, or a link already
+claimed by someone else, still answers `GameAborted` once its game is aborted.
 Only the #71 flow does this; today's code is not changed for it.
 
 **Withdrawing an invitation spends its seat** with `SeatWithdrawn`, which
