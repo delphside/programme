@@ -17,7 +17,7 @@ import subprocess
 import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Sequence
+from typing import Callable, Sequence
 
 from . import profile
 from .model import (PR_STATE, OpenItem, RawBoardItem, RawIssue, RawPullRequest,
@@ -150,10 +150,17 @@ def _blip(exc: BaseException | None = None, stderr: str = "") -> bool:
     return exc is None and bool(_TRANSIENT.search(stderr or ""))
 
 
+# A caller that holds a Ctrl+C (`turpin settle`) sets this to say that no further `gh` or `git`
+# is to be started: the call under way ends, and the actions after it are left for a rerun.
+refuse_new_calls: Callable[[], bool] = lambda: False
+
+
 def run_detached(args, **kwargs) -> subprocess.CompletedProcess:
     """`subprocess.run` for every `gh` and `git` the board model starts, in a session
     (and so a process group) of its own: a Ctrl+C reaches `turpin` alone, and the call
     already running runs to its end (design §4, §6 *Interruption*)."""
+    if refuse_new_calls():
+        raise Unavailable("interrupted: no further call is started")
     return subprocess.run(args, start_new_session=True, **kwargs)
 
 

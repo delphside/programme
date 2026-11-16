@@ -132,6 +132,40 @@ two_builds() {   # P (production's) and Q (another)
   : "$before"
 }
 
+@test "list shows each release record beside what the environment runs, and marks the one it runs (S46, R40)" {
+  ref_commit "a feature" 12
+  build_ok "$SHA"; local a="$SHA"
+  gh_checks "$a" e2e=success
+  gh_milestone 0.10.2 "12|Requirement||0|"
+  deploy_rehearsal "$a"; assert_success
+  run d release --expect 0.10.2
+  assert_success
+  text_tag v0.10.1 HEAD     # a release made before the tool
+  # rehearsal runs the released build; a build made since is not the record's
+  run d list rehearsal
+  assert_success
+  assert_output --regexp "^0\\.10\\.1  \\(history: no record\\)"
+  assert_output --regexp "0\\.10\\.2  ${a:0:12}  20[0-9-]+T[0-9:]+Z  <- rehearsal runs this$"
+  git -C "$W/work" pull -q --ff-only origin main
+  commit_change later; build_ok "$SHA"
+  run d deploy rehearsal "$SHA" --off-level "shown against the record"
+  assert_success
+  run d list rehearsal
+  assert_success
+  assert_output --regexp "0\\.10\\.2  ${a:0:12}  20[0-9-]+T[0-9:]+Z$"
+  refute_output --partial "runs this"
+}
+
+@test "list shows a record version it does not read as such, and leaves out a tag that is no version (S46, R40)" {
+  commit_change one; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  git -C "$W/work" tag -a -m '{"record":2,"version":"0.10.5","commit":"x","images":{}}' v0.10.5 HEAD
+  git -C "$W/work" tag -a -m 'notes' vnext HEAD
+  git -C "$W/work" push -q origin refs/tags/v0.10.5 refs/tags/vnext
+  run d list rehearsal
+  assert_success
+  assert_output "0.10.5  (a record this tool does not read)"
+}
+
 @test "skip_rehearsal_records_reason_and_raises_retrospective (S19, R16, R30)" {
   ref_commit "a feature" 12
   build_ok "$SHA"

@@ -362,7 +362,7 @@ class RollbackCommand(CommandsBase):
     GATES = ["@gate lock passed", "@gate rollback-target passed"]
 
     def test_both_commands_are_registered(self):
-        self.assertEqual({"status", "rollback"}, set(commands.COMMANDS) & {"status", "rollback", "list"})
+        self.assertLessEqual({"status", "rollback"}, set(commands.COMMANDS))
 
     def test_the_request_names_its_id_the_role_s_repository_and_the_fallback(self):
         self.text = self.text.replace('images = ["server", "web"]', 'images = ["server", "web"]\nfallback = "stop it"')

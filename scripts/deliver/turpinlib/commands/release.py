@@ -26,20 +26,16 @@ commit and these digests.
 
 from __future__ import annotations
 
-import io
 import json
-import os
 import shlex
 import subprocess
 import sys
-import tarfile
 import tempfile
-import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from .. import board, gates, gitrepo, hooks, hosts, payload, profile, remote, runlog, settings
+from .. import board, gates, gitrepo, hooks, hosts, payload, profile, remote, runlog
 from ..cli import Args, Context
 from ..model import (BusinessError, ComponentKind, Digest, Environment, FormError, ProgrammeError, Reason,
                      ReleaseRecord, Repository, RepositoryKind, Result, Role, TechnicalError, Version)
@@ -448,7 +444,7 @@ class Release:
     def step_copy_and_tag(self, record: ReleaseRecord) -> None:
         """Before the pivot: the copier copies the images and pushes `VERSION-record`; then the
         tag, whose push spends the version."""
-        plan, prof = self.plan, self.prof
+        prof = self.prof
         text = json.dumps(record.to_json(), separators=(",", ":"))
         state = runlog.state_folder(prof.application)
         try:

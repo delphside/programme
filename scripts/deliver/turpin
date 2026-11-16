@@ -4,7 +4,7 @@
 The generic tool of delphside/programme#117; its design is
 records/2.5-changes/programme-tooling/117-generic-deliver-tool/design.md and
 docs/1.1 has its row. This is the entry script: the work is in `turpinlib/`
-beside it. A command not yet ported runs in `turpin-legacy`.
+beside it.
 """
 
 import sys

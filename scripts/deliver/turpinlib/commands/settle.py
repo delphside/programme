@@ -24,7 +24,8 @@ FLAGS: dict[str, str] = {}
 
 
 def settle_version(repo: Path, prof: Profile, version: str, log: RunLog) -> Result:
-    """Settle `version` from its tag's record. OK where the board is as the record says;
+    """Settle `version` from its tag's record. A Ctrl+C lets the action under way finish, starts
+    no other and raises `KeyboardInterrupt`. OK where the board is as the record says;
     a business error (1) where the tag has no record, a profile error (2) where the profile names no
     announcement, an error result (exit 3) where an action failed. A read
     of the board that cannot be made at all is raised, by its type."""
@@ -49,17 +50,20 @@ def settle_version(repo: Path, prof: Profile, version: str, log: RunLog) -> Resu
     if not prof.announcement:
         raise ProfileError.at(Reason.SETTLE_NO_ANNOUNCEMENT, "settle: the profile has no release.announcement: set it",
                               tag=tag)
-    try:
-        with board.in_repo(repo):
-            module = board.release_module()
-            done = module.settle(record.to_json(), prof.announcement, tag)
-    except board.profile_error() as exc:
-        raise TechnicalError.make(Reason.PROFILE_UNREADABLE,
-                                  "the board model could not read the profile or the programme file: fix it",
-                                  metadata={"exit": str(exc)}) from exc
-    except board.unavailable() as exc:
-        raise board.board_unavailable(exc) from exc
+    with board.held_interrupt() as pressed, board.no_new_calls(pressed):
+        try:
+            with board.in_repo(repo):
+                module = board.release_module()
+                done = module.settle(record.to_json(), prof.announcement, tag)
+        except board.profile_error() as exc:
+            raise TechnicalError.make(Reason.PROFILE_UNREADABLE,
+                                      "the board model could not read the profile or the programme file: fix it",
+                                      metadata={"exit": str(exc)}) from exc
+        except board.unavailable() as exc:
+            raise board.board_unavailable(exc) from exc
     log.event("settle", version=version, done=done.get("done", []), left=done.get("left", []))
+    if pressed:     # the action under way finished, and none was started after it
+        raise KeyboardInterrupt("interrupted while settling")
     if done["settled"]:
         print(f"settled {version}")
         return Result.ok()

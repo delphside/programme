@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import signal
 import subprocess
 import sys
 import threading
@@ -72,7 +73,8 @@ def turpin_command() -> str:
 
 def _argv(machine: str, args: Sequence[str], program: str = HOST_COMMAND,
           extra: Mapping[str, str] | None = None) -> tuple[list[str], dict[str, str]]:
-    """The command that runs `PROGRAM ARGS` on `machine`, and its environment. On this
+    """The command that runs `PROGRAM ARGS` on `machine` (`turpin-host`, `turpin`, or another
+    program such as `bash`, found on the path), and its environment. On this
     machine the child sets its own registry login, not the controller's auth file, and finds
     its libraries beside `turpin` (`ssh` carries no environment, so a remote host finds its own,
     and `extra` is written before the program, as the design's examples show)."""
@@ -80,7 +82,12 @@ def _argv(machine: str, args: Sequence[str], program: str = HOST_COMMAND,
     env.setdefault("TURPIN_LIB", str(Path(__file__).resolve().parents[1] / "lib"))
     extra = dict(extra or {})
     if machine == CONTROLLER or not machine:
-        local = host_command() if program == HOST_COMMAND else turpin_command()
+        if program == HOST_COMMAND:
+            local = host_command()
+        elif program == TURPIN_COMMAND:
+            local = turpin_command()
+        else:
+            local = program
         return [local, *args], {**env, **extra}
     words = shlex.join([program, *args])
     prefix = "".join(f"{key}={shlex.quote(value)} " for key, value in extra.items())
@@ -334,6 +341,27 @@ def call_host(machine: str, args: Sequence[str], *, log: RunLog,
                       reason=exc.result.reason, wait=wait)
             _sleep(wait)
     raise AssertionError("unreachable")   # the loop returns or raises
+
+
+def call_attached(args: Sequence[str], stopped: str, program: str = HOST_COMMAND) -> HostCall:
+    """Run `PROGRAM ARGS` on this machine with the person's own terminal and no session of its
+    own, for a command that asks for something there: a hidden prompt (`turpin env`) or a `sudo`
+    password (`turpin host-install` on this machine). Nothing is read or held back here; a
+    Ctrl+C reaches the program as it does this process, and its end is waited for. `stopped`
+    names the command in the message of an interruption."""
+    argv, env = _argv(CONTROLLER, args, program)
+    child = subprocess.Popen(argv, env=env)
+    pressed = False
+    while True:
+        try:
+            code = child.wait()
+            break
+        except KeyboardInterrupt:
+            pressed = True
+    if pressed or code in (130, -signal.SIGINT):     # a Ctrl+C whatever the program then exits with
+        raise KeyboardInterrupt(f"interrupted: {stopped} was stopped part-way; "
+                                f"look at what it left, then run it again")
+    return raise_for(CONTROLLER, HostCall(code=code), program)
 
 
 # ------------------------------------------------------------------- status

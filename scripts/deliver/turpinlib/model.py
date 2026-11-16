@@ -80,7 +80,6 @@ class Reason(enum.Enum):
     # the run (§6)
     GATES_UNRUN = "GATES_UNRUN"
     UNEXPECTED_EXCEPTION = "UNEXPECTED_EXCEPTION"
-    NOT_PORTED = "NOT_PORTED"
     # the registry (§3): its port and every adapter
     REQUEST_INVALID = "REQUEST_INVALID"
     SHORT_SHA_NO_BUILD = "SHORT_SHA_NO_BUILD"

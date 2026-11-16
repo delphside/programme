@@ -5,8 +5,7 @@ business error; 2 a fundamental technical error; 75 a blip that kept failing;
 70 an unexpected error, its text in the run log; 3 done with errors; 64 a usage
 error; 130 interrupted.
 
-A subcommand with no module in `commands.COMMANDS` is run by `turpin-legacy`,
-with the original arguments.
+A subcommand with no module in `commands.COMMANDS` is a usage error.
 """
 
 from __future__ import annotations
@@ -14,20 +13,17 @@ from __future__ import annotations
 import importlib
 import json
 import os
-import signal
 import sys
 import traceback
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Sequence
 
 from . import commands, settings
 from .model import (EXIT_INTERRUPTED, FormError, EXIT_OK, EXIT_USAGE, Outcome, ProgrammeError, Reason,
-                    Result, TechnicalError, UnexpectedError, exit_status)
+                    Result, UnexpectedError, exit_status)
 from .runlog import RunLog
 
-# The usage text is owned here. `turpin-legacy`'s header carries its own copy until
-# T8 (delphside/programme#117) deletes it.
+# The usage text is owned here.
 USAGE = """\
 usage: turpin build [REF] [--local]
        turpin deploy ENV REF [--wait[=MIN]] [--check] [--set-aside GATE REASON]
@@ -37,7 +33,7 @@ usage: turpin build [REF] [--local]
        turpin settle VERSION       turpin rollback ENV      turpin status ENV
        turpin list ENV             turpin prune [--dry-run]
        turpin login COMPONENT      (controller, builder, copier, or an ENV)
-       turpin env create|destroy NAME      turpin host-install ENV
+       turpin env create|destroy NAME      turpin host-install ENV|COPIER|BUILDER
        turpin promote APP      turpin remove APP
                        (called by release and prune: a request on standard input)
 
@@ -45,17 +41,10 @@ exit: 0 done; 1 refused or failed; 2 fundamental technical error; 3 done with
 errors; 64 usage; 70 unexpected; 75 try again later; 130 interrupted
 """
 
-# Every subcommand, so a misspelt one is a usage error and a real one not yet
-# ported is passed to `turpin-legacy`.
-KNOWN_COMMANDS = ("build", "deploy", "release", "settle", "rollback", "status", "list",
-                  "prune", "login", "host-install", "env", "promote", "remove")
-
 # The flags that set a gate aside (design §6): each takes a reason, and
 # `--set-aside` a gate and then a reason.
 GATE_FLAGS = {"--emergency": 1, "--skip-rehearsal": 1, "--unrecorded": 1,
               "--off-level": 1, "--set-aside": 2}
-
-LEGACY = Path(__file__).resolve().parents[1] / "turpin-legacy"
 
 
 class UsageError(Exception):
@@ -155,39 +144,6 @@ def _unexpected(exc: BaseException, ctx: Context | None) -> int:
     return report(error.result, ctx)
 
 
-def _restore_for_exec() -> None:
-    """Hand `turpin-legacy` the process state the caller gave us. Python ignores
-    SIGPIPE and SIGXFSZ at start, and an ignored signal survives `exec`, so a Bash
-    pipeline would not see a closed pipe as it does elsewhere; and PEP 538 sets
-    `LC_CTYPE` where the locale was C, so the original is put back from the
-    environment `exec` gave us (Linux; elsewhere it is left)."""
-    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
-    signal.signal(signal.SIGXFSZ, signal.SIG_DFL)
-    try:
-        initial = Path("/proc/self/environ").read_bytes().split(b"\0")
-    except OSError:
-        return
-    for entry in initial:
-        name, _, value = entry.partition(b"=")
-        if name == b"LC_CTYPE":
-            os.environ["LC_CTYPE"] = os.fsdecode(value)
-            return
-    os.environ.pop("LC_CTYPE", None)
-
-
-def delegate(argv: Sequence[str]) -> int:
-    """Run the Bash `turpin-legacy` in this process's place, with the arguments
-    unchanged."""
-    try:
-        _restore_for_exec()
-        os.execv(LEGACY, [str(LEGACY), *argv])
-    except OSError as exc:
-        return report(TechnicalError.make(
-            Reason.NOT_PORTED, f"cannot run {LEGACY.name}: it is missing or not executable",
-            metadata={"exception": str(exc)}).result)
-    return EXIT_OK   # execv does not return; reached only where a test replaces it
-
-
 def main(argv: Sequence[str]) -> int:
     if not argv:
         print(USAGE, file=sys.stderr, end="")
@@ -198,8 +154,6 @@ def main(argv: Sequence[str]) -> int:
         return EXIT_OK
     module_name = commands.COMMANDS.get(command)
     if module_name is None:
-        if command in KNOWN_COMMANDS:
-            return delegate(argv)
         print(f"turpin: unknown command {command}\n{USAGE}", file=sys.stderr, end="")
         return EXIT_USAGE
     ctx: Context | None = None

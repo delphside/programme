@@ -33,17 +33,6 @@ login_docker() {
 # One adapter per vendor method, named for the vendor (design §3). Another
 # registry adds an adapter here and changes nothing else.
 
-login_adapters() { printf '%s\n' docker-config oci-api-key oci-instance-principal; }
-
-login_tools() {    # ADAPTER -> the commands it needs on the machine
-  case "$1" in
-    docker-config) : ;;
-    oci-api-key) printf '%s\n' oci ;;
-    oci-instance-principal) printf '%s\n' oci ;;
-    *) return 1 ;;
-  esac
-}
-
 login_run() { _login_adapter "$1"; }          # the machine user's docker login
 
 # _login_adapter ADAPTER: make the login valid. The adapters read credentials the
@@ -52,6 +41,7 @@ login_run() { _login_adapter "$1"; }          # the machine user's docker login
 # TURPIN_OCI_TOKEN_CMD names the command that prints a registry auth token (`oci`
 # CLI call chosen on the host, since the CLI's flags are the host's business,
 # #554); the user is TURPIN_REGISTRY_USER.
+# shellcheck disable=SC2034  # REG_ERR is read by turpin-host, which sources this file
 _login_adapter() {
   local adapter="${1:-docker-config}"
   case "$adapter" in

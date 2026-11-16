@@ -127,6 +127,19 @@ def held_interrupt() -> Iterator[list[bool]]:
 
 
 @contextlib.contextmanager
+def no_new_calls(pressed: list[bool]) -> Iterator[None]:
+    """While a Ctrl+C is held (`pressed` is not empty) the model starts no further `gh` or `git`:
+    the call under way ends, and each action after it is left undone for a rerun. `settle` runs
+    inside this, so an interruption finishes the action under way and starts no other."""
+    sources = _import()[3]
+    sources.refuse_new_calls = lambda: bool(pressed)
+    try:
+        yield
+    finally:
+        sources.refuse_new_calls = lambda: False
+
+
+@contextlib.contextmanager
 def calling(what: str, log: RunLog, interrupted: str) -> Iterator[None]:
     """Around a call into the board model (design §4, §6): what it raises becomes a result,
     and a Ctrl+C is held until the call ends.
