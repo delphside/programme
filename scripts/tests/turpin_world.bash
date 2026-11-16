@@ -414,7 +414,7 @@ fake_production() {
   mkdir -p "$d/deploys/1"
   images="$(jq -nc --arg s "$(cand "$sha-server")" --arg w "$(cand "$sha-web")" '{server:$s,web:$w}')"
   if [[ -n "$version" ]]; then
-    record="$(jq -nc --arg v "$version" --arg c "$sha" --argjson i "$images" '{record:1,application:"acme",version:$v,commit:$c,images:$i}')"
+    record="$(jq -nc --arg v "$version" --arg c "$sha" --argjson i "$images" '{record:1,application:"acme",version:$v,commit:$c,images:$i,made:"2026-10-01T00:00:00Z"}')"
   else record=null; fi
   jq -nc --arg sha "$sha" --argjson i "$images" --argjson r "$record" --arg v "$version" \
     '{n:1,sha:$sha,version:$v,images:$i,role:"production",record:$r,join:[],host_files:false,deployed:"2026-10-01T00:00:00Z",smoke:"passed"}' > "$d/deploys/1/meta.json"

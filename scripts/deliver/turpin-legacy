@@ -186,7 +186,6 @@ board_refusal() {
 
 # ------------------------------------------------------------------ hosts
 
-env_role()  { local r; r="$(env_q "$1" role)"; [[ -n "$r" ]] || die "environment $1 has no role in the profile"; printf '%s' "$r"; }
 env_exists() { [[ -n "$(jq -r --arg e "$1" '.environments[$e] // empty | tostring' <<< "$PJ")" ]]; }
 
 env_of_role() {    # ROLE -> first environment name with it
@@ -219,15 +218,6 @@ run_turpin_host() {
   fi
 }
 
-# T4 shim: removed at T8. The host protocol of the Python controller (design section 6): a
-# request line carrying a request_id and `repeat`, held open for the call's life, as
-# turpin-host's watcher reads the end of the input as an interruption.
-host_request_input() {   # REQUEST: the line, then a blank line a second until the reader is gone
-  printf '%s\n' "$1"
-  while :; do sleep 1; printf '\n' || exit 0; done
-}
-host_request_id() { python3 -c 'import uuid; print(uuid.uuid4())'; }   # T4 shim: removed at T8
-
 # host_files_conflict ENV: refuse when another environment of this application on the same
 # machine also installs host files: each deploy removes the files the other installed.
 host_files_conflict() {
@@ -241,11 +231,6 @@ host_files_conflict() {
     die "environments ${names[*]} share a machine and all install host files, so each would remove the other's: set host_files = false on all but one"
   fi
 }
-# builder_machine -> the builder's machine in env_machine's form
-builder_machine() { local on; on="$(pq .turpin.build.on)"; if [[ -z "$on" ]] || is_controller "$on"; then printf controller; else printf 'ssh:%s' "$on"; fi; }
-# login_component ENV -> the component whose docker login ENV's deployer uses: the
-# builder's where the environment is on the builder's machine, else the environment's
-login_component() { if [[ "$(env_machine "$1")" == "$(builder_machine)" ]]; then printf builder; else printf '%s' "$1"; fi; }
 env_machine() { local h; h="$(env_q "$1" host)"; is_controller "$h" && printf 'controller' || printf 'ssh:%s' "$(env_q "$1" ssh)"; }
 env_installs_host_files() {
   case "$(env_q "$1" host_files)" in
@@ -330,104 +315,7 @@ candidate_digests() {   # SHA -> IMAGES_JSON; refuses on none, some, or a failed
   IMAGES_JSON="$out"
 }
 
-resolve_sha() {         # SHORT-or-full hex -> SHA (full) refuses if ambiguous or absent
-  local ref="$1" tags t img sha found=()
-  if [[ "${#ref}" -eq 40 ]]; then SHA="$ref"; return; fi
-  tags="$(reg_list_tags "$CANDIDATES")" || gate_fail "store-query" "cannot list candidates"
-  while read -r t; do
-    for img in "${IMAGES[@]}"; do
-      [[ "$t" == *-"$img" ]] || continue
-      sha="${t%-"$img"}"
-      [[ "$sha" == "$ref"* && "$sha" =~ ^[0-9a-f]{40}$ ]] && found+=("$sha")
-    done
-  done <<< "$tags"
-  mapfile -t found < <(printf '%s\n' "${found[@]}" | sort -u | sed '/^$/d')
-  case ${#found[@]} in
-    0) gate_fail "build-exists" "no candidate matches $ref: run turpin build" ;;
-    1) SHA="${found[0]}" ;;
-    *) gate_fail "ref-unambiguous" "$ref matches ${#found[@]} candidates: $(printf '%s ' "${found[@]}" | sed 's/ $//')" ;;
-  esac
-}
-
-# resolve_ref ROLE REF: sets SHA VERSION IMAGES_JSON RECORD_JSON.
-resolve_ref() {
-  local role="$1" ref="$2" tag code=0
-  SHA=""; VERSION=""; IMAGES_JSON="{}"; RECORD_JSON=""
-  g fetch -q --tags origin 2>/dev/null || true
-  if [[ "$ref" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    VERSION="${ref#v}"
-    tag="$(tag_for_version "$VERSION")"
-    if [[ -n "$tag" ]]; then
-      RECORD_JSON="$(record_of_tag "$tag")" || code=$?
-      if [[ $code -eq 2 ]]; then gate_fail "record" "tag $tag carries a record version this tool does not know"; fi
-    fi
-    if [[ -n "$RECORD_JSON" ]]; then
-      SHA="$(jq -r .commit <<< "$RECORD_JSON")"; IMAGES_JSON="$(jq -c .images <<< "$RECORD_JSON")"
-      use_commit_profile "$SHA"
-      return
-    fi
-    if [[ "$role" == production ]]; then
-      gate_fail "production-record" "no record for version $VERSION: production deploys only rehearsed releases (turpin release makes the record); --unrecorded takes a full SHA"
-    fi
-    [[ -n "$tag" ]] || gate_fail "ref" "no tag or record for version $VERSION"
-    SHA="$(g rev-parse "$tag^{commit}")"      # a release made before the tool: by its commit's build
-    RECORD_JSON=""
-    use_commit_profile "$SHA"
-    candidate_digests "$SHA"
-    return
-  fi
-  if [[ "$ref" =~ ^[0-9a-f]{4,40}$ ]]; then
-    if [[ "$role" == production ]]; then
-      if [[ "${#ref}" -ne 40 || -z "$OPT_UNRECORDED" ]]; then
-        gate_fail "production-record" "production takes a version with a record; a raw SHA needs --unrecorded REASON and a full SHA"
-      fi
-    fi
-    resolve_sha "$ref"
-    use_commit_profile "$SHA"
-    candidate_digests "$SHA"
-    VERSION="$(version_at "$SHA" 2>/dev/null || true)"
-    return
-  fi
-  gate_fail "ref" "$ref is neither a SHA nor a version"
-}
-OPT_UNRECORDED=""
-
 # ------------------------------------------------------------------ payload
-
-# assemble_payload TREE DIR: the deploy steps, hooks and joined files the image
-# carries at /turpin/. Nothing secret.
-assemble_payload() {
-  local tree="$1" dir="$2" sha="$3" f tooldir toollib pinned toolwork=""
-  # the steps and libraries are the programme's, at the commit the application
-  # pins at SHA, so a deploy runs what that commit was built and tested with
-  pinned="$(g ls-tree "$sha" programme 2>/dev/null | awk '$2=="commit"{print $3}')"
-  if [[ -n "$pinned" ]]; then
-    git -C "$REPO/programme" cat-file -e "$pinned^{commit}" 2>/dev/null \
-      || die "the programme submodule does not hold the commit ${pinned:0:12} that ${sha:0:12} pins: run git submodule update --init"
-    toolwork="$(mktemp -d)"
-    git -C "$REPO/programme" archive "$pinned" scripts/deliver/payload scripts/deliver/lib | tar -x -C "$toolwork" \
-      || { rm -rf "$toolwork"; die "cannot read the tool from the programme at ${pinned:0:12}"; }
-    tooldir="$toolwork/scripts/deliver"; toollib="$tooldir/lib"
-  else
-    tooldir="$HERE"; toollib="$TURPIN_LIB"
-  fi
-  rm -rf "$dir"; mkdir -p "$dir/lib" "$dir/join" "$dir/host_files" "$dir/hooks"
-  cp -R "$tooldir/payload/." "$dir/"
-  cp "$toollib/common.sh" "$toollib/toml.sh" "$toollib/toml.awk" "$dir/lib/"
-  [[ -z "$toolwork" ]] || rm -rf "$toolwork"
-  [[ -d "$tree/turpin/hooks" ]] && cp -R "$tree/turpin/hooks/." "$dir/hooks/"
-  toml_to_json "$tree/app-profile.toml" > "$dir/profile.json" || die "cannot read the profile at the commit"
-  local joins
-  joins="$(jq -r '[(.turpin.join // [])[], (.environments[]? | (.join // [])[])] | unique[]' "$dir/profile.json")"
-  while read -r f; do [[ -n "$f" ]] || continue
-    [[ -e "$tree/$f" ]] || die "profile joins $f, which the commit does not have"
-    (cd "$tree" && cp --parents "$f" "$dir/join/")
-  done <<< "$joins"
-  while read -r f; do [[ -n "$f" ]] || continue
-    [[ -e "$tree/$f" ]] || die "profile lists host file $f, which the commit does not have"
-    (cd "$tree" && cp --parents "$f" "$dir/host_files/")
-  done < <(jq -r '(.turpin.host_files // [])[].src' "$dir/profile.json")
-}
 
 # tool_programme SHA: the programme commit the application pins at SHA (its
 # `programme` submodule), else the commit of the tool being run.
@@ -446,141 +334,6 @@ version_in_tree() {   # TREE -> version from the profile's version file in a che
   jq -Rrs --arg p "$pattern" 'try (match($p).captures[0].string) catch empty' < "$1/$file"
 }
 
-# ------------------------------------------------------------------ deploy
-
-cmd_deploy() {
-  local env="" ref="" off_level=""
-  while [[ $# -gt 0 ]]; do
-    parse_common_flag "$@" && { shift "$PARSED"; continue; }
-    case "$1" in
-      --unrecorded) reason_ok "${2:-}" || die "--unrecorded needs a reason"; OPT_UNRECORDED="$2"; OVERRIDES+=("unrecorded"$'\t'"$2"); shift 2 ;;
-      --off-level)  reason_ok "${2:-}" || die "--off-level needs a reason"; off_level="$2"; OVERRIDES+=("off-level"$'\t'"$2"); shift 2 ;;
-      -*) die "deploy: unknown flag $1" ;;
-      *) if [[ -z "$env" ]]; then env="$1"; elif [[ -z "$ref" ]]; then ref="$1"; else die "deploy: too many arguments"; fi; shift ;;
-    esac
-  done
-  [[ -n "$env" && -n "$ref" ]] || die "usage: turpin deploy ENV REF"
-  TURPIN_SUBCOMMAND=deploy; load_profile
-  registry_require; controller_auth
-  env_exists "$env" || die "the profile has no environment $env"
-  local role; role="$(env_role "$env")"
-  case "$role" in preview|test|rehearsal|production) ;; *) die "environment $env has an unknown role $role" ;; esac
-  host_files_conflict "$env"
-  run_log_event deploy "env=$env" "role=$role" "ref=$ref"
-  local sa; for sa in "${SET_ASIDE[@]}"; do run_log_event override "flag=set-aside:${sa%%$'\t'*}" "reason=${sa#*$'\t'}"; done
-  [[ -z "$OPT_UNRECORDED" ]] || run_log_event override "flag=unrecorded" "reason=$OPT_UNRECORDED"
-  [[ -z "$OPT_UNRECORDED" || "$role" == production ]] || die "--unrecorded is for the production role"
-  [[ -z "$off_level" || "$role" == rehearsal ]] || die "--off-level is for the rehearsal role"
-
-  local expected=(ref)
-  [[ "$role" == production ]] && expected+=(production-record)
-  [[ "$role" == rehearsal ]] && expected+=(rehearsal-level)
-  expected+=(lock state digests hooks-present pre-deploy)
-  [[ $OPT_CHECK -eq 0 ]] && expected+=(smoke)
-  gates_expect "${expected[@]}"
-
-  # resolve the REF to digests, checked against the role
-  local local_build=0 local_images="{}"
-  if [[ "$role" == preview ]] && is_controller "$(env_q "$env" host)" && ! [[ "$ref" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    local lsha; lsha="$(g rev-parse --verify -q "$ref^{commit}" 2>/dev/null || true)"
-    [[ -z "$lsha" ]] || use_commit_profile "$lsha"
-    if [[ -n "$lsha" ]] && docker image inspect "turpin-local/$APP-${IMAGES[0]}:$lsha" >/dev/null 2>&1; then
-      local_build=1; SHA="$lsha"; VERSION="$(version_at "$SHA" 2>/dev/null || true)"; RECORD_JSON=""
-      local img; for img in "${IMAGES[@]}"; do
-        local_images="$(jq -c --arg i "$img" --arg d "$(docker image inspect "turpin-local/$APP-$img:$SHA" --format '{{.Id}}')" '. + {($i): $d}' <<< "$local_images")"
-      done
-      IMAGES_JSON="$local_images"
-    fi
-  fi
-  if [[ $local_build -eq 0 ]]; then
-    resolve_ref "$role" "$ref"
-  fi
-  gate_ok ref "resolved ${SHA:0:12} ${VERSION:+(version $VERSION)}"
-
-  if [[ "$role" == production ]]; then
-    if [[ -n "$RECORD_JSON" ]]; then
-      local img d
-      for img in "${IMAGES[@]}"; do
-        d="$(jq -r --arg i "$img" '.images[$i] // empty' <<< "$RECORD_JSON")"
-        [[ -n "$d" ]] || gate_fail "production-record" "the record names no image $img"
-        reg_inspect "$RELEASES" "$d" >/dev/null || gate_fail "production-record" "the record's $img digest is not in releases"
-      done
-      gate_ok production-record "record for $VERSION"
-    else
-      # --unrecorded: the release copier puts SHA-IMAGE into releases; no version is spent
-      if [[ $OPT_CHECK -eq 0 ]]; then
-        copy_to_releases "$SHA" || gate_fail "production-record" "the copy to releases failed: $REG_ERR"
-      fi
-      gate_ok production-record "unrecorded: $OPT_UNRECORDED"
-    fi
-  fi
-
-  [[ "$role" == rehearsal ]] && rehearsal_level_gate "$env" "$off_level"
-
-  local source_repo="$CANDIDATES"; [[ "$role" == production ]] && source_repo="$RELEASES"
-  local request
-  # T4 shim: removed at T8 (the request's request_id, repeat and lock_wait are the Python controller's to set)
-  request="$(jq -nc --arg app "$APP" --arg env "$env" --arg role "$role" --arg sha "$SHA" --arg version "$VERSION" \
-    --argjson images "$IMAGES_JSON" --arg repo "$source_repo" --arg login "$(env_q "$env" login)" --arg lc "$(login_component "$env")" \
-    --arg timeout "$(env_q "$env" pull_timeout)" --arg lock "$(env_q "$env" lock)" --arg payload "$PAYLOAD_IMAGE" \
-    --arg project "$(env_q "$env" project)" --arg wait "$OPT_WAIT" --argjson check "$OPT_CHECK" \
-    --argjson local "$local_build" --argjson record "${RECORD_JSON:-null}" --arg rid "$(host_request_id)" \
-    --argjson set_aside "$(printf '%s\n' "${SET_ASIDE[@]}" | jq -Rn '[inputs | select(length>0) | split("\t") | {gate: .[0], reason: .[1]}]')" \
-    --argjson host_files "$(case "$(env_q "$env" host_files)" in true) echo true ;; false) echo false ;; *) echo null ;; esac)" \
-    --argjson join "$(env_qa "$env" join | jq -Rn '[inputs]')" \
-    '{request_id:$rid,repeat:false,app:$app,env:$env,role:$role,sha:$sha,version:$version,images:$images,repo:$repo,login:$login,login_component:$lc,
-      pull_timeout:($timeout|if .=="" then null else tonumber end),lock:$lock,payload_image:$payload,project:$project,
-      wait:($wait|if .=="" then null else tonumber end),lock_wait:($wait|if .=="" then null else tonumber end),check:($check==1),local:($local==1),record:$record,
-      set_aside:$set_aside,host_files:$host_files,env_join:$join}')"
-
-  # the hooks that run on the controller come from the commit, never the tree
-  local errfile code=0
-  errfile="$(mktemp)"
-  # T4 shim: removed at T8 (the held-open input)
-  run_on_host "$env" deploy "$APP" "$env" < <(host_request_input "$request") 2>"$errfile" || code=$?
-  replay_host_stderr "$errfile"; rm -f "$errfile"
-  if [[ $code -ne 0 ]]; then
-    run_log_event deploy-failed "code=$code"
-    exit 1
-  fi
-  if [[ $OPT_CHECK -eq 1 ]]; then gates_finish; say "check: every gate passed; nothing changed"; return 0; fi
-  gates_finish
-
-  local final=0
-  if [[ "$role" == production && -n "$RECORD_JSON" ]]; then
-    settle_version "$VERSION" || final=$EXIT_PARTIAL
-  fi
-  run_post_deploy "$env" "$role" || true
-  exit "$final"
-}
-
-# the host's gate lines (`@gate NAME result`) go into this run's log and out of the screen
-replay_host_stderr() {
-  local line name res
-  while IFS= read -r line; do
-    if [[ "$line" == "@gate "* ]]; then
-      read -r _ name res _ <<< "$line"
-      GATES_RAN+=("$name"); run_log_event gate "name=$name" "result=$res" "where=host"
-    elif [[ "$line" == "@result "* ]]; then
-      :   # T4 shim: the host's result object is the Python controller's to read
-    else
-      printf '%s\n' "$line" >&2
-    fi
-  done < "$1"
-}
-
-run_post_deploy() {   # ENV ROLE: the check hook, from the commit; its failure is reported only
-  local tmp; tmp="$(mktemp -d)"
-  if g cat-file -e "$SHA^{commit}" 2>/dev/null && g archive "$SHA" turpin/hooks 2>/dev/null | tar -x -C "$tmp" 2>/dev/null; then
-    H_APP="$APP" H_ENV="$1" H_ROLE="$2" H_SHA="$SHA" H_VERSION="$VERSION" H_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/turpin/$APP" \
-      H_IMAGES="$(jq -r 'to_entries[] | "\(.key)=\(.value)"' <<< "$IMAGES_JSON")"
-    HOOKS_DIR="$tmp/turpin/hooks"
-    local code=0; hook_run post-deploy || code=$?
-    if [[ $code -ne 0 ]]; then warn "check post-deploy reported exit $code (the deploy stands)"; run_log_event check-failed "name=post-deploy" "code=$code"; fi
-  fi
-  rm -rf "$tmp"
-}
-
 # copy_to_releases PREFIX: each image by digest into releases as PREFIX-IMAGE, on the release copier.
 copy_to_releases() {
   local prefix="$1" img copies="[]"
@@ -588,26 +341,6 @@ copy_to_releases() {
     copies="$(jq -c --arg i "$img" --arg d "$(jq -r --arg i "$img" '.[$i]' <<< "$IMAGES_JSON")" --arg dest "$prefix-$img" '. + [{digest:$d,dest:$dest}]' <<< "$copies")"
   done
   copier_run "$copies"
-}
-
-rehearsal_level_gate() {
-  local env="$1" off="$2" st made_unix made first=1 prod_env pst rec
-  st="$(host_status "$env")"
-  made_unix="$(release_tags | while read -r t; do [[ -n "$t" ]] && g for-each-ref "refs/tags/$t" --format='%(creatordate:unix)'; done | sort -n | tail -1)"
-  made="1970-01-01T00:00:00Z"; [[ -n "$made_unix" ]] && made="$(date -u -d "@$made_unix" +%Y-%m-%dT%H:%M:%SZ)"
-  if jq -e --arg m "$made" '[.deploys[]? | select(.deployed >= $m)] | length > 0' >/dev/null <<< "$st"; then first=0; fi
-  if [[ $first -eq 0 ]]; then gate_ok rehearsal-level "a later deploy of the cycle"; return; fi
-  if [[ -n "$off" ]]; then gate_ok rehearsal-level "off level: $off"; run_log_event override "flag=off-level" "reason=$off"; return; fi
-  prod_env="$(env_of_role production)"; [[ -n "$prod_env" ]] || gate_fail rehearsal-level "the profile has no production environment to start from"
-  pst="$(host_status "$prod_env")"
-  [[ "$(jq -r '.current // empty' <<< "$pst")" != "" ]] || gate_fail rehearsal-level "production has no turpin state; a first cycle needs --off-level REASON"
-  rec="$(jq -c '.current.record // empty' <<< "$pst")"
-  [[ -n "$rec" ]] || gate_fail rehearsal-level "production runs a build with no record (deployed before the tool); needs --off-level REASON"
-  if jq -e --argjson want "$(jq -c .images <<< "$rec")" --argjson have "$IMAGES_JSON" '$want == $have' >/dev/null <<< "null"; then
-    gate_ok rehearsal-level "starts from production's record $(jq -r .version <<< "$rec")"
-  else
-    gate_fail rehearsal-level "a cycle starts from production's current record ($(jq -r .version <<< "$rec")); this deploy is not it. Use --off-level REASON"
-  fi
 }
 
 # ------------------------------------------------------------------ list
@@ -941,36 +674,6 @@ bump_main() {
   return $rc
 }
 
-# ------------------------------------------------------------------ settle
-
-cmd_settle() {
-  [[ $# -eq 1 ]] || die "usage: turpin settle VERSION"
-  TURPIN_SUBCOMMAND=settle; load_profile
-  gates_expect
-  g fetch -q --tags origin 2>/dev/null || true
-  settle_version "${1#v}" || exit "$EXIT_PARTIAL"
-}
-
-# settle_version VERSION: the board model acts on exactly what the record carries
-# (design §12) and skips what is done. Returns 1 with the items left listed when
-# something failed.
-settle_version() {
-  local version="$1" tag rec out code=0
-  tag="$(tag_for_version "$version")"
-  [[ -n "$tag" ]] || { warn "settle: no tag for $version"; return 1; }
-  rec="$(record_of_tag "$tag")" || { warn "settle: $tag has no record this tool reads: nothing to settle"; return 1; }
-  [[ -n "$ANNOUNCEMENT" ]] || { warn "settle: the profile has no release.announcement"; return 1; }
-  out="$(board_release settle --announcement "$ANNOUNCEMENT" --tag "$tag" <<< "$rec")" || code=$?
-  case $code in
-    0) say "settled $version" ;;
-    3) warn "settle of $version failed; left to do: $(jq -r '.left | join(" ")' <<< "$out"); rerun turpin settle $version"
-       jq -r '.why // empty' <<< "$out" | sed 's/^/  because: /' >&2
-       return 1 ;;
-    70) die "settle: board-release.py hit a profile error (exit 70); see above" ;;
-    *) warn "settle of $version failed: $(jq -r '.refused // "board-release.py failed"' <<< "$out" 2>/dev/null)"; return 1 ;;
-  esac
-}
-
 # ------------------------------------------------------------------ prune, host-install, env
 
 cmd_host_install() {
@@ -1038,9 +741,7 @@ main() {
   local sub="$1"; shift
   TURPIN_SUBCOMMAND="$sub"; TURPIN_ARGS=("$@")
   case "$sub" in
-    deploy) cmd_deploy "$@" ;;
     release) cmd_release "$@" ;;
-    settle) cmd_settle "$@" ;;
     list) cmd_list "$@" ;;
     host-install) cmd_host_install "$@" ;;
     env) cmd_env "$@" ;;
