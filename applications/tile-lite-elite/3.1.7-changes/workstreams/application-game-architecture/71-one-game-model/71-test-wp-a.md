@@ -81,6 +81,7 @@ verified addresses, and INV-4 is #439's.
 - [ ] **Claude** — GAME-3 at creation: a create with one seat, or none, is refused and creates nothing, and with two it succeeds
 - [ ] **Claude** — GAME-9: a create or an added seat naming an account that does not exist is refused and leaves no game or seat behind, and naming an existing account succeeds
 - [ ] **Claude** — GAME-9: a spent seat stays spent: accept, decline and withdraw on a `Declined` or `Withdrawn` seat are refused, and inviting the same player again adds a new `Invited` seat
+- [ ] **Claude** — GAME-9, one invitation per seat: no message changes who an `Invited` or `Open` seat invites or sends its invitation again, `POST /games/{game_id}/invite` answers 404, and a new seat for the same person carries a new invitation while the first seat's stays as it was
 - [ ] **Claude** — the start is refused while any seat is `Invited` and succeeds once it is answered or withdrawn; a second start is refused; after the drop the turn order is the swapped order
 - [ ] **Claude** — once a game has left `Waiting` (Active, Finished, Aborted), adding, accepting, declining, claiming, withdrawing and swapping a seat are each refused with `GameNotWaiting`, and each succeeds on a `Waiting` game
 - [ ] **Claude** — GAME-8: a creator holding no seat adds, withdraws, swaps, starts, force-resigns, keeps, chats and aborts, and the view shows the creator to the players (GAME-12)
