@@ -1,11 +1,12 @@
 ---
 name: change-a-document
-description: Find the section that owns a fact before adding it to a document, CLAUDE.md or a skill, so each fact has one home, and find how two documents, or a document and the code, came to disagree before fixing either. Use before writing to any document.
+description: Find the section that owns a fact before adding it to a document, CLAUDE.md or a skill, so each fact has one home, and find how two documents, or a document and the code, came to disagree before fixing either. Use before writing to any document, and when documents or code disagree.
 ---
 
 # Changing a document
 
-**Read this before adding text to a document, `CLAUDE.md` or a skill.**
+**Read this before adding text to a document, `CLAUDE.md` or a skill, and
+when documents or code disagree.**
 
 *One fact, one home* is a rule about where a fact belongs, and it is unusable
 without knowing all the homes. There are hundreds of sections, so *"where does
@@ -79,8 +80,8 @@ for a situation, and the fix keeps both intents only once both are known.
    git log --format='%h %ad %s' --date=short -S'<a phrase from that side>' -- CLAUDE.md docs .claude
    ```
 
-   For code, put the code's path after `--`, or follow a function with
-   `git log -L :<function>:<file>`.
+   For code or a record, put its path after `--`. A function in code can be
+   followed instead with `git log -L :<function>:<file>`.
 
    The programme repository carries the history from its first commit,
    including the rules' time in Tile Lite Elite under older names.
