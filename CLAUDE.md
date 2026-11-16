@@ -391,6 +391,16 @@ docs/1.6 records the app it works through.
   then look at one neighbouring standard. A name only this repository knows is a
   cost paid by every future reader, and *we named it ourselves* is never the
   reason to keep one.
+- **An issue or pull request is named by its number and its title**, as
+  `#N *title*`, wherever Claude names one: in a document, a comment, a pull
+  request, a decision card or a chat message (owner, 2026-11-16). A bare
+  number makes the reader look it up.
+  - The repository goes before the number where it is another repository's,
+    and always in the chat, which spans every application.
+  - A project's or work package's title drops its own leading `#N`.
+  - A line the tooling reads keeps its form: a `Refs #N` trailer, and one
+    `waits on #N` or `is needed by #N` per line, its title after it.
+  - Text written before 2026-11-16 takes the form when it is next edited.
 - One fact, one home. The rule lives in its owning document, the argument in
   the issue, and every other mention is a link.
 - **Every setting is listed in the application's (3+n).4.1.** Deployment
