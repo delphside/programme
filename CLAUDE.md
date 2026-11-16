@@ -408,7 +408,7 @@ docs/1.6 records the app it works through.
     *title*: why` or `**is needed by #N** *title*: why`. A dependency on
     another repository's issue takes its repository, as
     `**waits on delphside/programme#N** *title*: why`, and `board-check.py`
-    checks only this repository's.
+    checks only those in the issue's own repository for a GitHub link.
   - A paragraph written before 2026-11-16 takes the form when it is next
     edited; records, closed issues and posted comments stay as they are.
 - One fact, one home. The rule lives in its owning document, the argument in
