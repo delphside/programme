@@ -201,12 +201,15 @@ class Section:
         that is there but is not a table is malformed, and fails rather than reading as
         absent."""
         node: Any = self.data
+        walked: list[str] = []
         for part in dotted.split("."):
-            if not isinstance(node, dict) or part not in node:
+            if part not in node:
                 return False
             node = node[part]
-        if not isinstance(node, dict):
-            raise ProfileError(f"{self.source}: `{self.prefix}{dotted}` must be a table")
+            walked.append(part)
+            if not isinstance(node, dict):
+                raise ProfileError(f"{self.source}: `{self.prefix}{'.'.join(walked)}` must be a table "
+                                   f"(asked for `{self.prefix}{dotted}`)")
         return True
 
     def string(self, dotted: str) -> str:

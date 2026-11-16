@@ -54,6 +54,10 @@ class WithoutTheReleaseTable(Cases):
         malformed.write_text('application = "widget"\nrelease = "rel-"\n')
         with using(malformed):
             raises_naming(self, "release", lambda: profile.technical().has_table("release"))
+        nested = self.tmp / "nested.toml"
+        nested.write_text('application = "widget"\nversions = "x"\n')
+        with using(nested):
+            raises_naming(self, "versions", lambda: profile.technical().has_table("versions.app"))
 
     def test_no_tag_is_a_release_and_nothing_is_shipped_by_tag(self):
         with inside(self.top), using(self.bare):
