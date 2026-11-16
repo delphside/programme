@@ -186,13 +186,14 @@ never sent again. A creator who wants to invite anybody, the same person
 included, adds a new seat.
 
 **A seat has one invitation, for its whole life** (owner, 2026-11-16). The
-seat's `Invitation` and its invitation ID are fixed when the seat is added
-and never change; a link claim or a verification sets only its addressee
-(INV-2, INV-4). A seat never gets a second invitation, meaning a new ID or a
-new `game_invitations` row: inviting again, such as the same person after they
+seat's `Invitation` and its invitation ID are fixed when the seat is added and
+never change; a link claim or a verification sets only its addressee (INV-2,
+INV-4). A seat never gets a second invitation, meaning a new ID or a new
+`game_invitations` row: inviting again, such as the same person after they
 declined, takes a new seat. A reminder of an invitation still unanswered would
-be the same invitation on the same seat; none is built or required today. So today's `POST /games/{game_id}/invite`, which sends or
-resends to an existing seat whoever the request names, goes.
+be the same invitation on the same seat; none is built or required today. So
+today's `POST /games/{game_id}/invite`, which sends or resends to an existing
+seat whoever the request names, goes.
 
 That is what lets `Claimed` carry nothing but the player. Nothing goes back, so
 nothing has to be remembered, and **the pre-start lifecycle is acyclic**: a seat
