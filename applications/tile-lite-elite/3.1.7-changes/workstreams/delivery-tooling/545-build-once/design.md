@@ -368,8 +368,7 @@ profile's `[ships]`:
 - the host files' sources ship, though `non_shipping` matches `scripts/`,
   `docs/` and `.md`: the backup and log-check scripts, the systemd units and
   the log events schema document;
-- the `app-profile\.toml$` pattern leaves `non_shipping`, as Turpin's T13
-  judges its host-read keys.
+- the `app-profile\.toml$` pattern leaves `non_shipping` (T13).
 
 `deploy-rehearsal.sh reset` also changes, in #555, to `turpin-host compose ...
 down -v`, then `up -d`.
