@@ -22,11 +22,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import profile, repo
-from .model import RELEASE, ParentProject, Requirement, StandaloneProject, WorkPackage, classify
+from .model import RELEASE, ParentProject, PullRequest, Requirement, StandaloneProject, WorkPackage, classify
 from .sources import Snapshot
 from .vocabulary import (
     PROJ_DESIGN, PROJ_POST_DEPLOYMENT, PROJ_Q1, PROJ_Q2, PROJ_Q3,
-    PROJ_SCOPE, ROUTE, TYPE_PULL_REQUEST)
+    PROJ_SCOPE, ROUTE)
 
 DELIVERING = (WorkPackage, StandaloneProject)
 
@@ -235,7 +235,7 @@ def render(snapshot: Snapshot, got: repo.Commits, colour: bool = True) -> str:
     out.append(paint(BOLD, "Environments"))
     prs = {i.raw.head_ref: (i.number, i.title) for i in
            (classify(r) for r in snapshot.issues)
-           if i.kind == TYPE_PULL_REQUEST and i.raw.head_ref and i.state == "OPEN"}
+           if isinstance(i, PullRequest) and i.raw.head_ref and i.state == "OPEN"}
     for name, version, behind, meaning in environments():
         out.append(f"  {name:<12}{version:<20}{behind:<34}{paint(DIM, meaning)}")
         extra = branch_line(repo.running_on(version), prs)

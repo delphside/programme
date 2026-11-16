@@ -149,10 +149,9 @@ TYPE_PULL_REQUEST = "PullRequest"   # the model's own type for a pull request
 # done yet". Without it a Release Check project nags for a review for ever,
 # which is #310.
 RELEASE_CHECK = "Release Check"
-LABEL_FOLDED = "folded"
 
 ISSUE_TYPES = (TYPE_REQUIREMENT, TYPE_PROJECT, TYPE_DECISION, TYPE_TICKET)
-LABELS = (RELEASE_CHECK, LABEL_FOLDED)
+LABELS = (RELEASE_CHECK,)
 
 # --------------------------------------------------------------------------
 # the table
