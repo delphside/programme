@@ -9,4 +9,5 @@ A subcommand absent here runs in `turpin-legacy`. A command module offers
 
 COMMANDS: dict[str, str] = {"status": "status", "rollback": "rollback", "build": "build",
                             "promote": "promote", "remove": "remove", "prune": "prune", "login": "login",
-                            "deploy": "deploy", "settle": "settle"}
+                            "deploy": "deploy", "settle": "settle",
+                            "release": "release"}

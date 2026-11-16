@@ -23,14 +23,6 @@ MIN_ARGS = MAX_ARGS = 1
 FLAGS: dict[str, str] = {}
 
 
-def board_unavailable(exc: Exception) -> TechnicalError:
-    """The one place a board that cannot answer becomes our error: a blip (75), until the model
-    says which of its failures are transient. (A repository it cannot name is configuration, and
-    `board.release_module` raises that itself, exit 2.)"""
-    return TechnicalError.make(Reason.BOARD_UNAVAILABLE, "the board could not be read for the settle: try again later",
-                               metadata={"tool_text": str(exc)}, blip=True)
-
-
 def settle_version(repo: Path, prof: Profile, version: str, log: RunLog) -> Result:
     """Settle `version` from its tag's record. OK where the board is as the record says;
     a business error (1) where the tag has no record, a profile error (2) where the profile names no
@@ -66,7 +58,7 @@ def settle_version(repo: Path, prof: Profile, version: str, log: RunLog) -> Resu
                                   "the board model could not read the profile or the programme file: fix it",
                                   metadata={"exit": str(exc)}) from exc
     except board.unavailable() as exc:
-        raise board_unavailable(exc) from exc
+        raise board.board_unavailable(exc) from exc
     log.event("settle", version=version, done=done.get("done", []), left=done.get("left", []))
     if done["settled"]:
         print(f"settled {version}")

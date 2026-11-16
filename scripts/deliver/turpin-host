@@ -8,9 +8,6 @@
 #   turpin-host rollback APP ENV < request.json
 #   turpin-host status APP ENV --json
 #   turpin-host env create|destroy NAME
-#   turpin-host copy APP < request.json   the release copier's work: copy images
-#                                           from candidates to releases by digest
-#                                           and push the record image
 #   turpin-host delete APP < request      the builder's work for prune: delete the
 #                                           candidates the controller chose
 #   turpin-host login APP COMPONENT [ENV] < user, token   the owner's one login
@@ -458,46 +455,6 @@ cmd_allowlist() {
   done
 }
 
-# copy APP < request: runs on the release copier (design sections 2 and 4), with
-# that machine's own registry configuration and credential. The request:
-#   {login, candidates, releases, copies:[{digest, dest}], record:{tag, body}|null}
-# A copy already in releases with the same digest is a no-op; with another digest
-# it refuses. The record image is pushed only where its tag is absent.
-cmd_copy() {
-  local app="$1" req conf
-  req="$(cat)"
-  jq -e . >/dev/null 2>&1 <<< "$req" || die "the request is not JSON"
-  conf="${TURPIN_CONFIG_DIR:-$HOME/.config/turpin}/$app.env"
-  if [[ -f "$conf" ]]; then set -a; . "$conf"; set +a; fi
-  [[ -n "${TURPIN_REGISTRY:-}" ]] || die "TURPIN_REGISTRY is not set for the release copier: put it in $conf"
-  local login candidates releases digest dest have code
-  login="$(jq -r '.login // empty' <<< "$req")"
-  candidates="$(jq -r .candidates <<< "$req")"; releases="$(jq -r .releases <<< "$req")"
-  APP="$app"; auth_use "$(auth_file_of copier)" copier
-  auth_login "release copier" "$login" skopeo
-  while IFS=$'\t' read -r digest dest; do
-    [[ -n "$digest" ]] || continue
-    code=0; reg_digest "$releases" "$dest" >/dev/null || code=$?; have="$REG_DIGEST"
-    case $code in
-      0) [[ "$have" == "$digest" ]] && continue; die "releases already holds $dest with another digest" ;;
-      1) ;;
-      *) die "the registry could not be queried: $REG_ERR" ;;
-    esac
-    reg_copy "$candidates" "$digest" "$releases" "$dest" || die "the copy of $dest to releases failed: $REG_ERR"
-  done < <(jq -r '(.copies // [])[] | [.digest, .dest] | @tsv' <<< "$req")
-  local rtag; rtag="$(jq -r '.record.tag // empty' <<< "$req")"
-  if [[ -n "$rtag" ]]; then
-    local tmp; tmp="$(mktemp)"; jq -c '.record.body' <<< "$req" > "$tmp"
-    code=0; reg_inspect "$releases" "$rtag" >/dev/null || code=$?
-    case $code in
-      0) ;;
-      1) record_push "$releases" "$rtag" "$tmp" || { rm -f "$tmp"; die "pushing the record failed: $REG_ERR"; } ;;
-      *) rm -f "$tmp"; die "the registry could not be queried: $REG_ERR" ;;
-    esac
-    rm -f "$tmp"
-  fi
-}
-
 # login APP deployer ENV < "user, newline, token, closing line": the owner's one login for
 # an environment's deployer, made on its machine. The token goes straight to
 # `docker login --password-stdin` for the machine user. (The controller's, builder's and
@@ -750,10 +707,9 @@ main() {
     status) [[ $# -ge 2 ]] || die "usage: turpin-host status APP ENV --json"; cmd_status "$@" ;;
     allowlist) [[ $# -ge 1 ]] || die "usage: turpin-host allowlist APP < lines"; cmd_allowlist "$@" ;;
     login) [[ $# -ge 2 ]] || die "usage: turpin-host login APP COMPONENT [ENV] < user-and-token"; cmd_login "$@" ;;
-    copy) [[ $# -ge 1 ]] || die "usage: turpin-host copy APP < request"; cmd_copy "$@" ;;
     root-ops) cmd_root_ops "$@" ;;
     env) cmd_env "$@" ;;
-    *) die "usage: turpin-host deploy|rollback|status|copy|login|allowlist|env|root-ops" ;;
+    *) die "usage: turpin-host deploy|rollback|status|login|allowlist|env|root-ops" ;;
   esac
 }
 main "$@"

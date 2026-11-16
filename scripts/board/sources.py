@@ -12,6 +12,7 @@ each — `status.sh` spends 46s building a picture this builds in under five.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import time
 from dataclasses import dataclass, replace
@@ -110,7 +111,15 @@ def pr_state(draft: bool, review: str | None, reviewers: int,
 
 class Unavailable(Exception):
     """A source did not answer. Never returns a default — a gate that cannot
-    see the data must refuse, not report that it found no problem."""
+    see the data must refuse, not report that it found no problem.
+
+    `transient` is true for a failure that may pass by itself: a timeout, a
+    connection error, rate limiting or a 5xx (`_blip`). `turpin` exits 75 for it
+    and 2 for the rest (design §4)."""
+
+    def __init__(self, message: str = "", transient: bool = False):
+        super().__init__(message)
+        self.transient = transient
 
 
 class Refused(Unavailable):
@@ -120,6 +129,32 @@ class Refused(Unavailable):
     route for the same facts may take it on this and on nothing else, and REST
     must then answer or raise: a read that could not be made at all stays
     `Unavailable`."""
+
+
+# What `gh` and `git` print for a failure that may pass by itself: a connection
+# that failed or timed out, rate limiting, or a server error.
+_TRANSIENT = re.compile(
+    r"HTTP (?:5\d\d|429)|rate limit|timed? ?out|timeout|connection (?:reset|refused|closed|error)|"
+    r"dial tcp|no such host|could not resolve host(?!name)|network is unreachable|"
+    r"error connecting to \S+|check your internet connection|"
+    r"temporary failure|TLS handshake|unexpected EOF|broken pipe", re.IGNORECASE)
+# (`Could not resolve hostname` is ssh's, for a host name wrong in a configuration: not a blip.)
+
+
+def _blip(exc: BaseException | None = None, stderr: str = "") -> bool:
+    """Whether a failure of `gh` or `git` is transient: it timed out, or its text says
+    the connection, the rate limit or the server failed. A tool that is missing, or
+    refuses (401, 403, 404, 422), is not."""
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return True
+    return exc is None and bool(_TRANSIENT.search(stderr or ""))
+
+
+def run_detached(args, **kwargs) -> subprocess.CompletedProcess:
+    """`subprocess.run` for every `gh` and `git` the board model starts, in a session
+    (and so a process group) of its own: a Ctrl+C reaches `turpin` alone, and the call
+    already running runs to its end (design §4, §6 *Interruption*)."""
+    return subprocess.run(args, start_new_session=True, **kwargs)
 
 
 @dataclass(frozen=True)
@@ -163,22 +198,22 @@ def _gh_graphql(query: str, partial: bool = False, **variables) -> dict:
             continue
         args += ["-F" if isinstance(value, (int, bool)) else "-f", f"{key}={value}"]
     try:
-        out = subprocess.run(args, capture_output=True, text=True, timeout=120)
+        out = run_detached(args, capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Unavailable(f"GitHub did not answer: {exc}") from exc
+        raise Unavailable(f"GitHub did not answer: {exc}", transient=_blip(exc)) from exc
     if out.returncode != 0:
         if partial and out.stdout.strip():
             try:
                 payload = json.loads(out.stdout)
             except json.JSONDecodeError:
-                raise Refused(f"GitHub refused: {out.stderr.strip()[:300]}") from None
+                raise Refused(f"GitHub refused: {out.stderr.strip()[:300]}", transient=_blip(stderr=out.stderr)) from None
             if payload.get("data"):
                 return payload
-        raise Refused(f"GitHub refused: {out.stderr.strip()[:300]}")
+        raise Refused(f"GitHub refused: {out.stderr.strip()[:300]}", transient=_blip(stderr=out.stderr))
     try:
         return json.loads(out.stdout)
     except json.JSONDecodeError as exc:
-        raise Unavailable(f"GitHub returned no JSON: {exc}") from exc
+        raise Unavailable(f"GitHub returned no JSON: {exc}", transient=_blip(exc)) from exc
 
 
 def _split_links(links) -> tuple[frozenset[int], frozenset[tuple[str, int, str]]]:
@@ -456,16 +491,16 @@ def comments_since(since_iso: str) -> tuple[Remark, ...]:
     ):
         jq = comment_jq(url_key)
         try:
-            run = subprocess.run(
+            run = run_detached(
                 ["gh", "api",
                  f"repos/{'/'.join(_repository())}/{endpoint}"
                  f"?since={since_iso}&sort=updated&direction=asc&per_page=100",
                  "--paginate", "--jq", jq],
                 capture_output=True, text=True, timeout=90)
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise Unavailable(f"could not read {endpoint}: {exc}") from exc
+            raise Unavailable(f"could not read {endpoint}: {exc}", transient=_blip(exc)) from exc
         if run.returncode != 0:
-            raise Unavailable(f"could not read {endpoint}: {run.stderr.strip()[:200]}")
+            raise Unavailable(f"could not read {endpoint}: {run.stderr.strip()[:200]}", transient=_blip(stderr=run.stderr))
         for line in run.stdout.splitlines():
             if not line.strip():
                 continue
@@ -490,14 +525,14 @@ def comments_on(number: int) -> tuple[Remark, ...]:
     """
     jq = comment_jq("issue_url")
     try:
-        run = subprocess.run(
+        run = run_detached(
             ["gh", "api", f"repos/{'/'.join(_repository())}/issues/{number}/comments?per_page=100",
              "--paginate", "--jq", jq],
             capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Unavailable(f"could not read comments on #{number}: {exc}") from exc
+        raise Unavailable(f"could not read comments on #{number}: {exc}", transient=_blip(exc)) from exc
     if run.returncode != 0:
-        raise Unavailable(f"could not read comments on #{number}: {run.stderr.strip()[:200]}")
+        raise Unavailable(f"could not read comments on #{number}: {run.stderr.strip()[:200]}", transient=_blip(stderr=run.stderr))
     out = []
     for line in run.stdout.splitlines():
         parts = line.split("\t")
@@ -537,14 +572,14 @@ def reports_since(since_iso: str) -> tuple[Report, ...]:
     query = (f"repo:{'/'.join(_repository())} is:issue author:app/{bot} "
              f"updated:>={since_iso[:10]}")
     try:
-        run = subprocess.run(
+        run = run_detached(
             ["gh", "api", "-X", "GET", "search/issues", "-f", f"q={query}",
              "--jq", '.items[] | [.number, .state, .updated_at[0:16], .title] | @tsv'],
             capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Unavailable(f"could not search for reports: {exc}") from exc
+        raise Unavailable(f"could not search for reports: {exc}", transient=_blip(exc)) from exc
     if run.returncode != 0:
-        raise Unavailable(f"could not search for reports: {run.stderr.strip()[:200]}")
+        raise Unavailable(f"could not search for reports: {run.stderr.strip()[:200]}", transient=_blip(stderr=run.stderr))
     out = []
     for line in run.stdout.splitlines():
         parts = line.split("\t")
@@ -629,13 +664,13 @@ def _search_merged(repos: Sequence[str], since: str) -> tuple[list[MergedPullReq
     out: list[MergedPullRequest] = []
     for page in range(1, _SEARCH_PAGES + 1):
         try:
-            run = subprocess.run(
+            run = run_detached(
                 ["gh", "api", "-X", "GET", "search/issues", "-f", f"q={query}",
                  "-f", "per_page=100", "-f", f"page={page}",
                  "--jq", ".items[] | [.repository_url, .number, .title, (.body // \"\"), .user.type == \"Bot\"] | @json"],
                 capture_output=True, text=True, timeout=60)
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise Unavailable(f"could not search for merged pull requests: {exc}") from exc
+            raise Unavailable(f"could not search for merged pull requests: {exc}", transient=_blip(exc)) from exc
         if run.returncode != 0:
             return None, run.stderr.strip()[:200]
         lines = run.stdout.splitlines()
@@ -694,7 +729,7 @@ def _rest_merged_pull_requests(repos: Sequence[str], since: str,
                         (p.get("user") or {}).get("type") == "Bot"))
     except Unavailable as exc:
         raise Unavailable(f"could not search for merged pull requests ({refusal}), "
-                          f"nor list them over REST: {exc}") from None
+                          f"nor list them over REST: {exc}", transient=exc.transient) from None
     return out
 
 
@@ -937,7 +972,7 @@ def organisation_repositories() -> tuple[str, ...]:
                   nodes { name } pageInfo { hasNextPage endCursor } } } }""",
                                   org=profile.organisation(), cursor=cursor)
         except Unavailable as exc:
-            raise Unavailable(f"the organisation's repositories: {exc}") from None
+            raise Unavailable(f"the organisation's repositories: {exc}", transient=exc.transient) from None
         block = (((payload.get("data") or {}).get("organization") or {})
                  .get("repositories"))
         if block is None:
@@ -965,7 +1000,7 @@ def open_items(repo: str) -> list[OpenItem]:
                                       owner=profile.organisation(), repo=repo, cursor=cursor)
             except Unavailable as exc:
                 # Name the read, so a refused token says which repository it lacks.
-                raise Unavailable(f"{repo}'s {connection}: {exc}") from None
+                raise Unavailable(f"{repo}'s {connection}: {exc}", transient=exc.transient) from None
             block = (((payload.get("data") or {}).get("repository") or {})
                      .get(connection))
             if block is None:
@@ -1029,13 +1064,13 @@ def remote_branches(remote: str = "origin") -> tuple[str, ...]:
     module does: no branches and could-not-ask must not read alike.
     """
     try:
-        run = subprocess.run(["git", "ls-remote", "--heads", remote],
-                             capture_output=True, text=True, timeout=60)
+        run = run_detached(["git", "ls-remote", "--heads", remote],
+                           capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Unavailable(f"could not list branches on {remote}: {exc}") from exc
+        raise Unavailable(f"could not list branches on {remote}: {exc}", transient=_blip(exc)) from exc
     if run.returncode != 0:
         raise Unavailable(f"could not list branches on {remote}: "
-                          f"{run.stderr.strip()[:200]}")
+                          f"{run.stderr.strip()[:200]}", transient=_blip(stderr=run.stderr))
     names = []
     for line in run.stdout.splitlines():
         _, _, ref = line.partition("\t")
@@ -1061,8 +1096,8 @@ def token_days_left() -> int | None:
     countdown is out by one -- which is exactly when the test caught it.
     """
     try:
-        out = subprocess.run(["gh", "api", "-i", "user", "--silent"],
-                             capture_output=True, text=True, timeout=30)
+        out = run_detached(["gh", "api", "-i", "user", "--silent"],
+                           capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired):
         return None
     for line in (out.stdout + out.stderr).splitlines():
@@ -1105,15 +1140,15 @@ class _Rest:
 
     def _read(self, path: str, url: str):
         try:
-            run = subprocess.run(["gh", "api", url], capture_output=True, text=True, timeout=120)
+            run = run_detached(["gh", "api", url], capture_output=True, text=True, timeout=120)
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise Unavailable(f"GitHub did not answer: {exc}") from exc
+            raise Unavailable(f"GitHub did not answer: {exc}", transient=_blip(exc)) from exc
         if run.returncode != 0:
-            raise Unavailable(f"GitHub refused {path}: {run.stderr.strip()[:300]}")
+            raise Unavailable(f"GitHub refused {path}: {run.stderr.strip()[:300]}", transient=_blip(stderr=run.stderr))
         try:
             data = json.loads(run.stdout)
         except json.JSONDecodeError as exc:
-            raise Unavailable(f"GitHub returned no JSON for {path}: {exc}") from exc
+            raise Unavailable(f"GitHub returned no JSON for {path}: {exc}", transient=_blip(exc)) from exc
         self.pages += 1
         return data
 
@@ -1328,17 +1363,17 @@ def rest_get(path: str):
     """One REST GET as JSON. None only when GitHub answers 404; any other
     failure raises `Unavailable`, so *absent* and *unreadable* are never merged."""
     try:
-        run = subprocess.run(["gh", "api", path], capture_output=True, text=True, timeout=120)
+        run = run_detached(["gh", "api", path], capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Unavailable(f"GitHub did not answer: {exc}") from exc
+        raise Unavailable(f"GitHub did not answer: {exc}", transient=_blip(exc)) from exc
     if run.returncode != 0:
         if "HTTP 404" in run.stderr or "Not Found" in run.stderr:
             return None
-        raise Unavailable(f"GitHub refused {path}: {run.stderr.strip()[:300]}")
+        raise Unavailable(f"GitHub refused {path}: {run.stderr.strip()[:300]}", transient=_blip(stderr=run.stderr))
     try:
         return json.loads(run.stdout) if run.stdout.strip() else {}
     except json.JSONDecodeError as exc:
-        raise Unavailable(f"GitHub returned no JSON for {path}: {exc}") from exc
+        raise Unavailable(f"GitHub returned no JSON for {path}: {exc}", transient=_blip(exc)) from exc
 
 
 def _rest_write(method: str, path: str, **fields) -> None:
@@ -1351,11 +1386,11 @@ def _rest_write(method: str, path: str, **fields) -> None:
         else:
             args += ["-f", f"{key}={value}"]
     try:
-        run = subprocess.run(args, capture_output=True, text=True, timeout=120)
+        run = run_detached(args, capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Unavailable(f"GitHub did not answer: {exc}") from exc
+        raise Unavailable(f"GitHub did not answer: {exc}", transient=_blip(exc)) from exc
     if run.returncode != 0:
-        raise Unavailable(f"GitHub refused {method} {path}: {run.stderr.strip()[:300]}")
+        raise Unavailable(f"GitHub refused {method} {path}: {run.stderr.strip()[:300]}", transient=_blip(stderr=run.stderr))
 
 
 def _repo_path(tail: str) -> str:
@@ -1431,8 +1466,8 @@ def create_release(tag: str, notes_start_tag: str | None) -> None:
     if notes_start_tag:
         args += ["--notes-start-tag", notes_start_tag]
     try:
-        run = subprocess.run(args, capture_output=True, text=True, timeout=180)
+        run = run_detached(args, capture_output=True, text=True, timeout=180)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Unavailable(f"GitHub did not answer: {exc}") from exc
+        raise Unavailable(f"GitHub did not answer: {exc}", transient=_blip(exc)) from exc
     if run.returncode != 0:
-        raise Unavailable(f"GitHub refused the Release {tag}: {run.stderr.strip()[:300]}")
+        raise Unavailable(f"GitHub refused the Release {tag}: {run.stderr.strip()[:300]}", transient=_blip(stderr=run.stderr))

@@ -855,9 +855,11 @@ class SettleCommand(Stubbed):
         self.assertIn("release.announcement", err)
         self.board.settle.assert_not_called()
 
-    def test_a_board_that_cannot_be_asked_exits_75_and_a_bad_profile_exits_2(self):
-        self.board.settle.side_effect = board.unavailable()("the board did not answer")
+    def test_a_board_that_cannot_be_asked_exits_75_if_transient_else_2_and_a_bad_profile_exits_2(self):
+        self.board.settle.side_effect = board.unavailable()("the board did not answer", transient=True)
         self.assertEqual(75, self.run_main(["settle", "0.10.2"])[0])
+        self.board.settle.side_effect = board.unavailable()("gh: HTTP 401")      # a refusal is not a blip
+        self.assertEqual(2, self.run_main(["settle", "0.10.2"])[0])
         self.board.settle.side_effect = board.profile_error()("programme file missing")
         self.assertEqual(2, self.run_main(["settle", "0.10.2"])[0])
 
