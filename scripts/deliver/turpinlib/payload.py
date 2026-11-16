@@ -27,7 +27,7 @@ from .model import BusinessError, Reason, TechnicalError
 TOOL = Path(__file__).resolve().parents[1]      # scripts/deliver: the running tool's own steps
 
 
-def _pinned_programme(repo: Path, sha: str) -> str | None:
+def pinned_programme(repo: Path, sha: str) -> str | None:
     """The commit the application pins its `programme` submodule at, in commit `sha`."""
     found = gitrepo.git(repo, "ls-tree", sha, "programme").split()
     return found[2] if len(found) >= 3 and found[1] == "commit" else None
@@ -35,7 +35,7 @@ def _pinned_programme(repo: Path, sha: str) -> str | None:
 
 def _tool_files(repo: Path, sha: str, into: Path) -> Path:
     """The folder holding `payload/` and `lib/` of the tool this commit was built with."""
-    pinned = _pinned_programme(repo, sha)
+    pinned = pinned_programme(repo, sha)
     if pinned is None:
         return TOOL
     programme = repo / "programme"

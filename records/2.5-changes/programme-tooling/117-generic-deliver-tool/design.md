@@ -1163,11 +1163,17 @@ never read as refused or as empty:
 `turpin` catches the board model's `ProfileError`, otherwise unexpected (70),
 and exits 2. The board model's `Unavailable` (`sources.py`) carries `transient`,
 true for a connection error, a timeout, 429 or a 5xx, which `turpin` maps to 75,
-and otherwise 2. The board model starts each `gh` and `git` it runs in a process
+and otherwise 2; the model sets it from a timeout, or from `gh`'s or `git`'s text
+naming HTTP 429 or 5xx, a rate limit, a timeout, or a connection or name-resolution
+failure (`gh`'s `error connecting to HOST`, `check your internet connection`, `Could not
+resolve host`). It does not take ssh's `Could not resolve hostname`, a host name wrong in a
+configuration, so name resolution is transient for `gh` only. The board model starts each `gh` and `git` it runs in a process
 group of its own (`start_new_session`), so a Ctrl+C reaches `turpin` alone
 ([interruption](#interruption)); both are changes to the board model, which is
 otherwise reused. Around the call, it redirects the board model's standard error
-to the run log, so the operator sees one message.
+to the run log, so the operator sees one message. It also holds a Ctrl+C until
+the call returns, because `subprocess.run` kills its child on one, and then stops
+with exit 130, before the pivot or after it, as [interruption](#interruption) says.
 
 **The revert rule** ([the milestone gate](#the-milestone-gate)) is in
 `repo.py`, so `board-check.py`'s pre-flight counts reverts as the gate does.
@@ -1314,14 +1320,14 @@ reading the profile with `tomllib` (hence Python 3.11 or later; 3.11.4 for the t
 | `runlog.py` | the run log, and the gates each command expects to run |
 | `gates.py` | the [§9](#9-gates-and-checks) gates that are not the board model's |
 | `hooks.py` | running the application's hooks, with their environment and exit 75 |
-| `gitrepo.py` | fetching, tags, the bump of `main`; `record_of_tag`, which calls the board model's `repo.tag_record`, the one parser of a record ([§10](#10-the-release-and-its-record)) |
+| `gitrepo.py` | fetching, the release tags and the ancestry gates read, the tag a release pushes, the bump of `main`; `record_of_tag`, which calls the board model's `repo.tag_record`, the one parser of a record ([§10](#10-the-release-and-its-record)) |
 | `hosts.py` | `turpin-host`, on this machine or by `ssh`: the requests, and `Deployed` from `status`; it logs each call's duration, maps `ssh`'s 255 for itself and for `remote.py`, and retries `ssh`'s blips where a retry is safe ([interruption](#interruption)) |
 | `remote.py` | a `turpin` command on another component's machine, by `ssh`: `build`, `promote`, `remove` and `login` passed on (the calling side); and, on the called side, reading its request, the end of its input as the caller's interruption, and the data a login reads |
 | `layout.py` | the labels of each platform image in an OCI layout the `build` hook wrote, read before any push |
 | `oci.py` | what the OCI image format fixes (the label keys, an attestation manifest, a layout's first entry), shared by `layout.py` and the registry adapter's translators |
 | `settings.py` | the client's product settings: the retry limit and backoff, shared by registry calls and `ssh` calls, and the timeout of each ([§13](#13-non-functional-design)); and the names of the environment variables `turpin` reads between its own calls: `TURPIN_CALLED`, `TURPIN_ON_BUILD_HOST`, and `TURPIN_BIN`, the program a call to `turpin` runs (default: the entry script beside `turpinlib`) |
 | `payload.py` | assembling the payload and its `profile.json` |
-| `board.py` | the board model's `release` module, imported from `scripts/board/`; before calling it, sets what `board-release.py`'s `_environment()` sets: `BOARD_REPOSITORY` from `TURPIN_GH_REPO` or the origin URL, and `PROGRAMME_CONFIG` where it is unset |
+| `board.py` | the board model's `release` module, imported from `scripts/board/`; before calling it, sets what `board-release.py`'s `_environment()` sets: `BOARD_REPOSITORY` from `TURPIN_GH_REPO` or the origin URL, and `PROGRAMME_CONFIG` where it is unset; `calling`, which turns what the model raises into a result and holds a Ctrl+C until the call returns |
 | `registry/` | the registry port and the `OCIR` adapter ([the registry adapter](#the-registry-adapter)); `connect.py`, the one place a command makes the port for a component's credentials |
 | `commands/` | one module per command: `build`, `deploy` (and `rollback`), `release`, `settle`, `status` (and `list`), `prune`, `promote`, `remove`, `login`, `host_install`, `env` |
 
@@ -1515,6 +1521,12 @@ Then, on a Ctrl+C:
 
 1. A tool, a hook or a data-reading call already running runs to its end,
    within its time limit, however often Ctrl+C is pressed.
+   `subprocess.run` kills its child on a Ctrl+C, so `turpin` holds one for the
+   length of every `git` call it makes and each board-model call (one mechanism,
+   `board.held_interrupt`), and raises the interruption once the call has
+   returned. The tag push is such a call: it is spent if and only if `origin`
+   holds the tag, which `turpin` asks of `origin` after an interruption, and
+   its message says which.
 2. `turpin` closes the input of each call that has one held open.
 3. The called side reads the end of its input as the interruption at its next
    step or while it waits (the lock, a hook's *not yet*). `turpin-host rollback`
@@ -1530,6 +1542,8 @@ Then, on a Ctrl+C:
      not done, for a rerun that retries what is not done;
    - in any other command with no pivot, has its message say which steps are
      done and what to run next.
+   - A call into the board model counts as one step: it is held to its end
+     (item 1), and every action `settle` makes through it is safe to run again.
 5. A called side that read the interruption exits 130, which comes back over
    the `ssh` connection, still open. Once every call has returned, `turpin`
    exits 130, except for a rollback that held the lock (step 3).
@@ -2157,10 +2171,11 @@ The release step ([stages](#stages), stage 5) puts what cannot be undone last:
    no-op, another digest refuses;
 3. push the record as a scratch image `VERSION-record`;
 4. push the annotated tag `vVERSION`, whose message is the record. **The version
-   is spent here**, the release's [pivot](#errors-results-and-the-pivot): a
-   rerun checks the tag's record and resumes at 5;
-5. the GitHub Release, notes from the previous release tag of any prefix
-   ([§4](#4-github-integration));
+   is spent here**, the release's [pivot](#errors-results-and-the-pivot), once
+   `origin` holds the tag: a push that fails or is interrupted deletes the local
+   tag again, and a rerun that finds the tag only here pushes it before it resumes at 5;
+5. the GitHub Release, notes from the previous release tag of any prefix lower
+   than this release's own ([§4](#4-github-integration)), on a resume too;
 6. bump `main` to the next patch after the released version, skipped if `main`
    already holds that or higher, with the version-only change `[versions.bump]`
    allows (and the `bump` hook), a subject from `versions.stamp_form` and
@@ -2168,15 +2183,23 @@ The release step ([stages](#stages), stage 5) puts what cannot be undone last:
 7. open the next milestone and, after an emergency, move into it the issues the
    milestone gate left out.
 
-The record is made once, at step 1, and kept in the controller's state. A rerun
+The record is made once, at step 1, and kept in the controller's state (the file
+`release-VERSION.json` beside the run logs, which keeps `made` across a rerun). Steps
+2 and 3 are one `turpin promote`, which copies the images and then pushes the record,
+and an error from it before the tag names `turpin release` as the rerun. A rerun
 after a failure:
 
 | Failure point | Outcome |
 | --- | --- |
 | before step 4 | the run stops, exit by type, and nothing is spent; a rerun reuses the images and any `VERSION-record` whose commit and digests match, else refuses |
-| after step 4 | an error; the later steps still run, exit 3, the message naming `turpin release`, which resumes |
+| after step 4 | an error; the later steps still run, exit 3, the message naming the rerun, `turpin release` with the flags of the run (`--expect`, `--commit`, `--emergency`, `--skip-rehearsal`, `--set-aside`), which resumes |
 | a tag with a different record | refuses |
-| all steps done | exits 0 |
+| all steps done | exits 0, saying every step is already done |
+
+A rerun that resumes passes the rehearsal gate on the tag's record, even where
+rehearsal has since deployed another commit, and does not run the milestone gate again, so the issues an
+emergency left out are not known to it: the first run's step 7 moves them, and one
+that failed is moved by hand, each named in the exit-3 message.
 
 **The retrospective issue.** Once the tag is pushed, `--skip-rehearsal` raises
 `Retrospective: VERSION released with rehearsal skipped`, which names the reason
@@ -2266,7 +2289,9 @@ evidence, never the list: an issue only referenced is never carried. The range:
 
 `set_aside` lists each `--set-aside` gate with its reason, and is empty where
 none was. `rehearsal.deployed` is the last finished rehearsal deploy of these
-digests, from the rehearsal host's state. The owner's judgement that rehearsal
+digests, from the rehearsal host's state; its `smoke` is `passed` when the host
+recorded the time the deploy finished (`deployed` in `meta.json`, written with
+`smoke`). The owner's judgement that rehearsal
 passed is step 1's confirmation; the tool reads no test report.
 
 ## 11. On the host

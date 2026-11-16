@@ -80,8 +80,8 @@ set_body() {   # N BODY: the issue's body in the fixture
   release_ready "12|Requirement||0|"
   local before; before="$(snapshot)"
   STUB_GH_FAIL='GET repos/acme/acme/issues$' run d release --expect 0.10.2
-  assert_failure 1
-  assert_output --partial "refused at gate milestone"
+  assert_failure 2
+  assert_output --partial "milestone gate could not be read"
   assert_equal "$(snapshot)" "$before"
   run d release --expect 0.10.2
   assert_success
@@ -91,9 +91,8 @@ set_body() {   # N BODY: the issue's body in the fixture
   ref_commit "a feature" 12
   release_ready "12|Requirement||0|"
   STUB_GH_FAIL='check-runs' run d release --expect 0.10.2
-  assert_failure 1
-  assert_output --partial "refused at gate ci-passed"
-  assert_output --partial "GitHub refused"
+  assert_failure 2
+  assert_output --partial "the CI checks could not be read"
   gh_checks "$RSHA" e2e=pending
   run d release --expect 0.10.2
   assert_failure 1

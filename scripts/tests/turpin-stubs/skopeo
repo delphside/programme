@@ -45,7 +45,11 @@ if [[ "$cmd" == login ]]; then
   exit 0
 fi
 # where each write ran: the machine's root (the ssh stub sets it) or the controller
-case "$cmd" in copy|delete) echo "$cmd ${TURPIN_HOST_ROOT##*/}" >> "${STUB_LOG_DIR}/where.log" ;; esac
+# (a copy into a local directory is a read of the registry, not a write)
+case "$cmd" in
+  copy) [[ "${*: -1}" == docker://* ]] && echo "$cmd ${TURPIN_HOST_ROOT##*/}" >> "${STUB_LOG_DIR}/where.log" ;;
+  delete) echo "$cmd ${TURPIN_HOST_ROOT##*/}" >> "${STUB_LOG_DIR}/where.log" ;;
+esac
 case "$cmd" in
   inspect)
     parse "${@: -1}"; stub_auth_check skopeo inspect "$P_REPO" read
@@ -71,7 +75,7 @@ case "$cmd" in
       parse "$src"; stub_auth_check skopeo pull-record "$P_REPO" read; d="$(digest_of "$P_REPO" "$P_REF")" || unknown
       mkdir -p "${dst#oci:}"; cp -a "$R/$P_REPO/oci/$P_REF/." "${dst#oci:}/"
     elif [[ "$src" == oci:* ]]; then
-      [[ -z "${STUB_FAIL_RECORD_PUSH:-}" || "$dst" != *-record ]] || { echo "error: simulated failure pushing the record" >&2; exit 1; }
+      [[ -z "${STUB_FAIL_RECORD_PUSH:-}" || "$dst" != *-record ]] || { echo "error: simulated failure pushing the record: i/o timeout" >&2; exit 1; }
       parse "$dst"
       lay="${src#oci:}"; d="$(jq -r '.manifests[0].digest' "$lay/index.json")"
       [[ "$P_REF" == *-record ]] && op=push-record || op=push-layout

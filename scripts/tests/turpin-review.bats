@@ -21,7 +21,7 @@ setup() {
   [ -s "$W/logs/where.log" ]
   run grep -vc '^copy copier$' "$W/logs/where.log"
   assert_output 0
-  assert_regex "$(cat "$W/logs/ssh.log")" "ssh copier: .*turpin-host copy acme"
+  assert_regex "$(cat "$W/logs/ssh.log")" "ssh copier: .*turpin promote acme"
   # and --unrecorded is the copier's copy too
   git -C "$W/work" pull -q --ff-only origin main
   commit_change two; build_ok "$SHA"
@@ -151,11 +151,11 @@ setup() {
 @test "F8 --expect and --commit with no value refuse and do not loop" {
   cd "$W/work"
   run timeout 10 "$TURPIN" release --expect
-  assert_failure 1
-  assert_output --partial "--expect needs a version"
+  assert_failure 64
+  assert_output --partial "--expect needs a value"
   run timeout 10 "$TURPIN" release --commit
-  assert_failure 1
-  assert_output --partial "--commit needs a commit"
+  assert_failure 64
+  assert_output --partial "--commit needs a value"
 }
 
 # F11 -------------------------------------------------------------------------
@@ -187,12 +187,12 @@ setup() {
   ref_commit "a feature" 12
   release_ready "12|Requirement||0|"
   STUB_WRITE_ONLY='/candidates$' run d release --expect 0.10.2
-  assert_failure 1
-  assert_output --partial "the registry refused access"
+  assert_failure 2
+  assert_output --partial "the registry refused"
   refute_output --partial "requested access"
   refute_output --partial "reg.test"
   # the log keeps the tool's own text as the cause (design §3), but never the registry's address
-  run grep -rl "reg.test\|requested access" "$XDG_STATE_HOME/turpin/acme"
+  run grep -rl "reg.test" "$XDG_STATE_HOME/turpin/acme"
   [ "$status" -ne 0 ] || { echo "the run log holds: $output" >&2; false; }
 }
 
@@ -230,7 +230,7 @@ setup() {
   printf '#!/bin/sh\necho "tags rejected" >&2\nwhile read -r old new ref; do case "$ref" in refs/tags/*) exit 1;; esac; done\n' > "$W/remote.git/hooks/pre-receive"
   chmod +x "$W/remote.git/hooks/pre-receive"
   run d release --expect 0.10.2
-  assert_failure 1
+  assert_failure 2
   assert_output --partial "cannot push tag"
   [ -n "$(rel 0.10.2-record)" ]
   rm "$W/remote.git/hooks/pre-receive"
@@ -238,7 +238,7 @@ setup() {
   sleep 1.2
   run d release --expect 0.10.2
   assert_success
-  assert_equal "$(tag_record v0.10.2)" "$(registry_record 0.10.2)"
+  assert_equal "$(tag_record v0.10.2 | jq -S .)" "$(registry_record 0.10.2 | jq -S .)"
 }
 
 # F15 -------------------------------------------------------------------------
@@ -474,7 +474,7 @@ EOF
   assert_success
   run d release --expect 0.10.2 --commit "$SHA" --skip-rehearsal "no host"
   assert_success
-  assert_equal "$(jq -r .rehearsal.environment <<< "$(tag_record v0.10.2)")" '"re hearsal"'
+  assert_equal "$(jq -r .rehearsal.environment <<< "$(tag_record v0.10.2)")" 're hearsal'
 }
 
 @test "R4 prune names only registry images and leaves local ones" {

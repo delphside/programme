@@ -235,11 +235,7 @@ class _Reader:
 def _version_source(tree: Path) -> tuple[_Reader, str, str]:
     """The profile's `versions.app` in `tree`: its reader, the version file and the pattern."""
     source = str(tree / settings.PROFILE_FILE)
-    try:
-        data = tomllib.loads((tree / settings.PROFILE_FILE).read_text())
-    except (OSError, tomllib.TOMLDecodeError) as exc:
-        raise ProfileError.at(Reason.PROFILE_UNREADABLE, f"cannot read the profile at {source}",
-                              source=source) from exc
+    data = profile_data(tree)
     section = (data.get("versions") or {}).get("app") or {}
     reader = _Reader(data, source)
     return (reader, reader.get(section, "versions.app.file", str, "a string", required=True),
@@ -261,12 +257,8 @@ def version_in_commit(repo: Path, sha: str) -> str:
             return ""
 
 
-def version_in_tree(tree: Path) -> Version:
-    """The application's version in a checked-out tree: the first line of the profile's
-    `versions.app.file` that matches `versions.app.pattern`, whose one group is the version
-    (design §8; the version file is the one a person edits). A key missing is a profile
-    error; a file with no match, or a value that is not semver, is a business error naming
-    the version file (R48)."""
+def version_source(tree: Path) -> tuple[str, re.Pattern]:
+    """The version file and the compiled pattern whose one group is the version."""
     reader, file, pattern = _version_source(tree)
     try:
         wanted = re.compile(pattern, re.MULTILINE)
@@ -274,6 +266,26 @@ def version_in_tree(tree: Path) -> Version:
         raise reader.bad("versions.app.pattern", "a regular expression") from exc
     if wanted.groups < 1:
         raise reader.bad("versions.app.pattern", "a regular expression with one group, the version")
+    return file, wanted
+
+
+def profile_data(tree: Path) -> dict[str, Any]:
+    """The profile of a checked-out tree as parsed TOML, for the keys no `Profile` field holds."""
+    source = str(tree / settings.PROFILE_FILE)
+    try:
+        return tomllib.loads((tree / settings.PROFILE_FILE).read_text())
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ProfileError.at(Reason.PROFILE_UNREADABLE, f"cannot read the profile at {source}",
+                              source=source) from exc
+
+
+def version_in_tree(tree: Path) -> Version:
+    """The application's version in a checked-out tree: the first line of the profile's
+    `versions.app.file` that matches `versions.app.pattern`, whose one group is the version
+    (design §8; the version file is the one a person edits). A key missing is a profile
+    error; a file with no match, or a value that is not semver, is a business error naming
+    the version file (R48)."""
+    file, wanted = version_source(tree)
     try:
         text = (tree / file).read_text()
     except OSError as exc:

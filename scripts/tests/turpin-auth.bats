@@ -81,15 +81,15 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   release_ready "12|Requirement||0|"
   mv "$AUTH/controller.json" "$AUTH/controller.away"
   run d release --expect 0.10.2
-  assert_failure 1
-  assert_output --partial "no registry login for the controller"
+  assert_failure 2
+  assert_output --partial "the controller has no registry login"
   assert_output --partial "turpin login controller"
   [ -z "$(git -C "$W/remote.git" tag -l v0.10.2)" ]
   mv "$AUTH/controller.away" "$AUTH/controller.json"
   # a login made for another role does not read for it: releases are the copier's and the hosts'
   seed_login "$AUTH/controller.json" builder
   run d release --expect 0.10.2
-  assert_failure 1
+  assert_failure 2
   seed_login "$AUTH/controller.json" controller
   run d release --expect 0.10.2; assert_success
 }
@@ -244,8 +244,8 @@ roles_of() { awk -v t="$1" -v o="$2" '$1 == t && $2 == o {print $4}' "$W/logs/au
   release_ready "12|Requirement||0|"
   seed_login "$AUTH/copier.json" builder
   run d release --expect 0.10.2
-  assert_failure 1
-  assert_output --partial "the registry refused access"
+  assert_failure 2
+  assert_output --partial "the registry refused the copier's login"
   assert_output --partial "turpin login copier"
   [ -z "$(git -C "$W/remote.git" tag -l v0.10.2)" ]
 }

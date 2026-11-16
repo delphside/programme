@@ -35,7 +35,7 @@ setup() {
     assert_regex "$gates" "(^| )$g( |$)"
   done
   # the exit is in the log, and so are the arguments
-  run jq -r 'select(.event=="exit") | .code' "$(run_log_latest release)"
+  run jq -r 'select(.event=="result") | .exit' "$(run_log_latest release)"
   assert_output 0
 }
 
@@ -44,8 +44,8 @@ setup() {
   release_ready "12|Requirement||0|"
   # the builder's credential writes candidates only
   STUB_WRITE_ONLY='/candidates$' run d release --expect 0.10.2
-  assert_failure 1
-  assert_output --partial "the copy to releases failed"
+  assert_failure 2
+  assert_output --partial "the registry refused the copier's login"
   [ -z "$(git -C "$W/remote.git" tag -l v0.10.2)" ]
   [ -z "$(rel 0.10.2-server)" ]
   # the copier's credential writes releases only

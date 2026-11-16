@@ -412,7 +412,10 @@ fake_production() {
   local version="$1" sha="$2" d images record
   d="$(host_state_dir prod production)"
   mkdir -p "$d/deploys/1"
-  images="$(jq -nc --arg s "$(cand "$sha-server")" --arg w "$(cand "$sha-web")" '{server:$s,web:$w}')"
+  local ds dw; ds="$(cand "$sha-server" || true)"; dw="$(cand "$sha-web" || true)"   # a commit never built has no digest: any valid one
+  [[ -n "$ds" ]] || ds="sha256:$(printf '1%.0s' {1..64})"
+  [[ -n "$dw" ]] || dw="sha256:$(printf '2%.0s' {1..64})"
+  images="$(jq -nc --arg s "$ds" --arg w "$dw" '{server:$s,web:$w}')"
   if [[ -n "$version" ]]; then
     record="$(jq -nc --arg v "$version" --arg c "$sha" --argjson i "$images" '{record:1,application:"acme",version:$v,commit:$c,images:$i,made:"2026-10-01T00:00:00Z"}')"
   else record=null; fi
