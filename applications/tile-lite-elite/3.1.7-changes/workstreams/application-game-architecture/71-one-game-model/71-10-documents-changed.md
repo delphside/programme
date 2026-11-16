@@ -171,7 +171,5 @@ gains what this settles:
   address is invited like any other (owner, 2026-11-16)
 - a player withdrawing from their own seat hides the game from their list
   (#105; owner, 2026-11-16)
-- RATE-2: resigners rank by when they left, the last to leave highest, all
-  below everyone who finished (owner, 2026-11-16)
 
 Undo's rules wait for the undo work itself.
