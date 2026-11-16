@@ -118,7 +118,7 @@ alone and the record must say which did.
 ## An emergency
 
 The owner runs it, from the application's release document (Tile Lite Elite's
-`docs/4.3.3` §1.13):
+`docs/4.3.6` §3):
 
 1. Roll back first, where going back can help: it takes seconds and needs no
    build.
