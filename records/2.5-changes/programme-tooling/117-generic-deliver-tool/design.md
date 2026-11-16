@@ -2164,7 +2164,7 @@ Tile Lite Elite's hooks, one by one, are in [its design](https://github.com/delp
 | `post-deploy` | check | controller | next collection, about :36, lands |
 | `env-create`, `env-destroy` | step | deployer | user, `/srv/dp/NAME` |
 
-The optional `bump` step (neither application has one) runs in the worktree that
+The optional `bump` step runs in the worktree that
 bumps `main`, with `TURPIN_VERSION`, for a lockfile refresh the version pattern
 cannot do.
 
@@ -2249,8 +2249,10 @@ the rehearsal-level gate refuse.
 The release's tag for that version is the one naming that commit, so where two
 tags carry one version (Tile Lite Elite's `prod-0.10.1` names the commit
 production runs and `v0.10.1` one that diverged from `main`) the range starts at the
-right one. With no commit to go by, the first by prefix order is taken: the release prefix, then each
-history prefix.
+right one. Where a commit is reported and no tag of its version names it, the
+release refuses, naming each tag and its commit, even where the version has
+only one tag. With no commit to go by, the first by prefix order is taken: the
+release prefix, then each history prefix.
 
 ## 10. The release and its record
 
