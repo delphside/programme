@@ -167,5 +167,11 @@ gains what this settles:
   2026-11-16)
 - aborting cancels every pending invitation, and nothing about a seat can be
   invited, accepted or claimed once the game has started
+- inviting yourself by name gives your own seat, claimed (#106); your own
+  address is invited like any other (owner, 2026-11-16)
+- a player withdrawing from their own seat hides the game from their list
+  (#105; owner, 2026-11-16)
+- RATE-2: resigners rank by when they left, the last to leave highest, all
+  below everyone who finished (owner, 2026-11-16)
 
 Undo's rules wait for the undo work itself.
