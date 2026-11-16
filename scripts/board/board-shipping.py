@@ -10,6 +10,9 @@
     board-shipping.py check                  # exit 0 if the profile holds what the others read
     board-shipping.py -C <dir> ...           # against the repository at <dir>
 
+A move of the programme pin ships only where it changes Turpin's `scripts/deliver/payload/` or
+`lib/` between the old pin and the new.
+
 The rule is `programme/scripts/board/shipping.py`'s. This is the command the bash tooling
 calls instead of keeping a copy of it: `shipping-paths.sh`'s functions, the
 pre-commit hook, `deploy.sh`, `verify.sh` and CI (#421). An unknown commit
@@ -42,11 +45,12 @@ def main(argv: list[str]) -> int:
         return 0
     cmd, args = argv[0], argv[1:]
     if cmd == "commit" and len(args) == 1:
-        return 0 if shipping.touches_image(changed_paths(args[0])) else 1
+        return 0 if shipping.touches_image(changed_paths(args[0]), shipping.pin_move_ships(args[0] + "^", args[0])) else 1
     if cmd == "range" and len(args) == 2:
-        return 0 if shipping.touches_image(changed_paths_between(*args)) else 1
+        return 0 if shipping.touches_image(changed_paths_between(*args), shipping.pin_move_ships(*args)) else 1
     if cmd == "ships" and len(args) == 1:
-        return 0 if shipping.ships(changed_paths(args[0]), version_lines(args[0])) else 1
+        return 0 if shipping.ships(changed_paths(args[0]), version_lines(args[0]),
+                                   shipping.pin_move_ships(args[0] + "^", args[0])) else 1
     if cmd == "version-bump" and args == ["--staged"]:
         return 0 if shipping.version_bump_only(*staged()) else 1
     if cmd == "check" and not args:

@@ -7,7 +7,8 @@ Dockerfile to copy to `/turpin/` in the payload image. It holds nothing secret.
   `git archive`, so a deploy runs what that commit was built and tested with;
 - the hooks, the joined files and the host files come from the built commit's tree, never
   the operator's working tree;
-- `profile.json` is the commit's profile, for the host's `turpin-host env`.
+- `profile.json` is the commit's profile cut to the keys a host reads (`HOST_READS`), so a change to
+  any other key (a board key, say) changes nothing the image carries.
 """
 
 from __future__ import annotations
@@ -25,6 +26,23 @@ from . import gitrepo
 from .model import BusinessError, Reason, TechnicalError
 
 TOOL = Path(__file__).resolve().parents[1]      # scripts/deliver: the running tool's own steps
+
+
+# The profile keys a host reads, and the one place they are named: `payload/steps.sh` (required_hooks,
+# overridable, fallback, host_files, join), `turpin-host` (host_files for the allowlist, and `env`'s
+# application and ephemeral) and nothing else. A host that needs another key adds it here.
+HOST_READS = {"release": ("required_hooks", "overridable"),
+              "turpin": ("fallback", "host_files", "join", "ephemeral")}
+
+
+def host_profile(profile: dict) -> dict:
+    """`profile` cut to the keys in `HOST_READS` (and `application`), as the payload carries it."""
+    cut: dict = {"application": profile["application"]} if "application" in profile else {}
+    for table, keys in HOST_READS.items():
+        kept = {key: (profile.get(table) or {})[key] for key in keys if key in (profile.get(table) or {})}
+        if kept:
+            cut[table] = kept
+    return cut
 
 
 def pinned_programme(repo: Path, sha: str) -> str | None:
@@ -84,7 +102,7 @@ def assemble(repo: Path, tree: Path, sha: str, dest: Path) -> None:
             shutil.copy2(tool / "lib" / name, dest / "lib" / name)
     if (tree / "turpin" / "hooks").is_dir():
         shutil.copytree(tree / "turpin" / "hooks", dest / "hooks", dirs_exist_ok=True)
-    (dest / "profile.json").write_text(json.dumps(profile, default=str))
+    (dest / "profile.json").write_text(json.dumps(host_profile(profile), default=str))
     turpin = profile.get("turpin") or {}
     joins = set(turpin.get("join") or [])
     for env in (profile.get("environments") or {}).values():

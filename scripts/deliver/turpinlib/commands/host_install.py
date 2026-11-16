@@ -43,6 +43,7 @@ LIBRARIES = (("lib/common.sh", "0644"), ("lib/toml.sh", "0644"), ("lib/toml.awk"
              ("lib/registry.sh", "0644"))
 LIB_DIR = "/usr/local/lib/turpin"
 SUDOERS = "/etc/sudoers.d/turpin-host"
+STATE_DIR = "/var/lib/turpin"
 
 # The commands a credential kind needs on the machine (design §3 *Logins*).
 TOOLS = {CredentialKind.DOCKER_CONFIG: (), CredentialKind.OCI_API_KEY: ("oci",),
@@ -76,6 +77,16 @@ def under_root(path: str) -> str:
     return f'"$R"{shlex.quote(path)}'
 
 
+def state_files(prof: Profile, env: Environment, sudo: str) -> list[str]:
+    """The environment's state folder and its `.env` (design §11), made for the deploy user, who
+    cannot make them under `/var/lib/turpin`: the folder 0700 and owned by the user running this
+    script, an empty `.env` 0600 where there is none. An existing `.env` is never touched."""
+    folder = under_root(f"{STATE_DIR}/{prof.application}/{env.name}")
+    owner = '-o "$(id -un)" -g "$(id -gn)"'
+    return [f"{sudo} install -d -m 0700 {owner} {folder}",
+            f'[ -e {folder}/.env ] || {sudo} install -m 0600 {owner} /dev/null {folder}/.env']
+
+
 def root_files(prof: Profile, sudo: str) -> list[str]:
     """What `root-ops` decides by (design §11): the host-file destinations and the ephemeral user
     prefix, from the profile as it is now, so a changed `host_files` list owes a rerun of this
@@ -103,9 +114,9 @@ def root_files(prof: Profile, sudo: str) -> list[str]:
     ]
 
 
-def script_for(prof: Profile, login: CredentialKind, environment: bool, local: bool = False) -> str:
-    """The script the machine runs. `environment` is false for a copier or a builder, which
-    gets the command and its libraries and none of the root-owned files.
+def script_for(prof: Profile, login: CredentialKind, env: Environment | None, local: bool = False) -> str:
+    """The script the machine runs. `env` is None for a copier or a builder, which gets the command
+    and its libraries and none of the root-owned files nor a state folder.
 
     It is one function called at the end, so `bash -s` has read all of it before it runs any.
     A tool or a right that is missing is fundamental (docs/1.10): every failure, a `sudo` that
@@ -120,8 +131,9 @@ def script_for(prof: Profile, login: CredentialKind, environment: bool, local: b
     for tool in TOOLS[login]:
         body.append(f'command -v {tool} >/dev/null 2>&1 || {{ echo "{tool} is missing '
                     f'(needed by the {login.value} login)" >&2; exit 2; }}')
-    if environment:
+    if env is not None:
         body += root_files(prof, sudo)
+        body += state_files(prof, env, sudo)
     body.append('echo "turpin-host installed"')
     lines = ["main() {", "  set -euo pipefail", '  R="${TURPIN_HOST_ROOT:-}"',
              "  trap 'c=$?; echo \"turpin host-install: stopped at: $BASH_COMMAND\" >&2; "
@@ -160,9 +172,9 @@ def run(args: Args, ctx: Context) -> Result:
     name = args.positional[0]
     if machine in (hosts.CONTROLLER, ""):
         # attached to the person's terminal, so `sudo` can ask for a password; Ctrl+C there is 130
-        run_here(script_for(prof, login, env is not None, local=True), name)
+        run_here(script_for(prof, login, env, local=True), name)
         return Result.ok()
-    hosts.call_host(machine, ["-s"], log=ctx.log, data=script_for(prof, login, env is not None),
+    hosts.call_host(machine, ["-s"], log=ctx.log, data=script_for(prof, login, env),
                     program="bash", retry=True, timeout=settings.HOST_INSTALL_TIMEOUT,
                     where=f"run turpin host-install {name} again")
     return Result.ok()

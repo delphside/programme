@@ -181,7 +181,17 @@ class _Reader:
             deployed_path=self.get(deployed, "versions.deployed.path", str, "a string"),
             deployed_field=self.get(deployed, "versions.deployed.field", str, "a string"),
             environments={name: self.environment(name, table)
-                          for name, table in self.table(d, "environments").items()})
+                          for name, table in self.table(d, "environments").items()},
+            build_args=self.build_args(build))
+
+    def build_args(self, build: Mapping[str, Any]) -> dict[str, str]:
+        """`[turpin.build].args`: each build argument named for one of the `TURPIN_*` values a build
+        has (`settings.BUILD_ARG_SOURCES`, without the prefix)."""
+        args = self.get(build, "turpin.build.args", dict, "a table of build arguments to sources", default={})
+        for name, source in args.items():
+            if source not in settings.BUILD_ARG_SOURCES:
+                raise self.bad(f"turpin.build.args.{name}", "one of " + ", ".join(settings.BUILD_ARG_SOURCES))
+        return dict(args)
 
     def host_files(self, turpin: Mapping[str, Any]) -> tuple[HostFile, ...]:
         entries = self.get(turpin, "turpin.host_files", list, "a list of tables", default=[])
@@ -217,7 +227,10 @@ class _Reader:
         if host is not None and self.machine(host) == CONTROLLER:
             machine = CONTROLLER
         else:
-            machine = self.get(table, f"{where}.ssh", str, "a string", required=True)
+            # the alias has one home where the profile keeps it for `board-hosts.py`: `[hosts.NAME].ssh`
+            alias = self.get(self.table(self.table(self.data, "hosts"), f"hosts.{name}"), f"hosts.{name}.ssh",
+                             str, "a string")
+            machine = self.get(table, f"{where}.ssh", str, "a string", required=alias is None, default=alias)
         return Environment(
             name=name, role=role, machine=machine, login=self.login(table, f"{where}.login"),
             project=self.get(table, f"{where}.project", str, "a string"),

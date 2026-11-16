@@ -532,6 +532,23 @@ class TheDefaultHook(CommandCase):
         self.assertTrue(any(s.startswith("server.tags=turpin-local/acme-server:") for s in sets))
         self.assertFalse(any(".output=" in s for s in sets))
 
+    def test_the_default_hook_passes_the_profiles_build_arguments_taken_from_turpin_values(self):     # T5
+        text = PROFILE.replace('[turpin.build]\non = "controller"',
+                               '[turpin.build]\non = "controller"\nargs = {ACME_BUILD_ID = "SHORT_SHA", ACME_COMMIT = "SHA", ACME_V = "VERSION"}')
+        (self.repo.work / "app-profile.toml").write_text(text)
+        seen, code, err = self.run_default(local=False)
+        sets = [seen[0][i + 1] for i, word in enumerate(seen[0]) if word == "--set"]
+        self.assertIn(f"server.args.ACME_BUILD_ID={self.sha_built[:7]}", sets)
+        self.assertIn(f"server.args.ACME_COMMIT={self.sha_built}", sets)
+        self.assertIn("server.args.ACME_V=0.10.2", sets)
+        self.assertTrue(any(s.startswith("web.args.ACME_BUILD_ID=") for s in [seen[1][i + 1] for i, w in enumerate(seen[1]) if w == "--set"]))
+        seen, _, _ = self.run_default(local=True)                                     # and under --local
+        self.assertIn(f"server.args.ACME_BUILD_ID={self.sha_built[:7]}", [seen[0][i + 1] for i, w in enumerate(seen[0]) if w == "--set"])
+
+    def test_a_profile_without_build_arguments_passes_none(self):                                   # T5
+        seen, _, _ = self.run_default(local=False)
+        self.assertFalse(any(".args." in word for word in seen[0]))
+
     def test_the_default_hook_reads_nothing_of_the_operators_tree(self):
         seen, _, _ = self.run_default(local=False)
         self.assertTrue(seen)          # run in the worktree, which `_run_docker` is given as its first argument
@@ -646,6 +663,27 @@ class Payloads(unittest.TestCase):
             for path in dest.rglob("*"):
                 if path.is_file():
                     self.assertNotIn("token", path.name.lower())
+
+    def test_the_payload_carries_only_the_profile_keys_a_host_reads(self):                          # T6
+        with tempfile.TemporaryDirectory() as folder:
+            repo = Repo(Path(folder))
+            sha = repo.git("rev-parse", "HEAD", cwd=repo.work)
+            tree = Path(folder) / "tree"
+            repo.git("worktree", "add", "-q", "--detach", str(tree), sha, cwd=repo.work)
+            dest = Path(folder) / "payload"
+            payload.assemble(repo.work, tree, sha, dest)
+            carried = json.loads((dest / "profile.json").read_text())
+            self.assertEqual({"application", "turpin"}, set(carried))      # not versions, release, environments
+            self.assertEqual({"host_files", "join"}, set(carried["turpin"]))
+            for key in ("candidates", "releases", "images", "payload_image", "build"):
+                self.assertNotIn(key, carried["turpin"])
+            everything = {"application": "a", "versions": {"x": 1}, "environments": {"p": {}},
+                          "release": {"tag_prefix": "v", "required_hooks": ["h"], "overridable": ["o"]},
+                          "turpin": {"candidates": "c", "fallback": "f", "host_files": [], "join": [], "ephemeral": {}}}
+            self.assertEqual({"application": "a", "release": {"required_hooks": ["h"], "overridable": ["o"]},
+                              "turpin": {"fallback": "f", "host_files": [], "join": [], "ephemeral": {}}},
+                             payload.host_profile(everything))
+            self.assertEqual("ops/backup.sh", carried["turpin"]["host_files"][0]["src"])
 
     def test_a_joined_file_the_commit_does_not_have_is_a_business_error(self):
         with tempfile.TemporaryDirectory() as folder:

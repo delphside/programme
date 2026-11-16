@@ -8,6 +8,8 @@ host_ctx_load() {   # reads the request and the payload's profile into shell var
   REQ="$TURPIN_REQUEST"
   H_APP="$(jq -r .app "$REQ")"; H_ENV="$(jq -r .env "$REQ")"; H_ROLE="$(jq -r .role "$REQ")"
   H_SHA="$(jq -r '.sha // ""' "$REQ")"; H_VERSION="$(jq -r '.version // ""' "$REQ")"
+  # shellcheck disable=SC2034 # lib/common.sh (hook_env_export) reads it
+  H_URL="$(jq -r '.url // ""' "$REQ")"
   H_STATE="$ENVDIR"
   # each image by digest, as the compose file and the hooks name it
   if [[ "$(jq -r '.local' "$REQ")" == true ]]; then
@@ -45,8 +47,6 @@ finished_request() {
       result: {outcome: "ok", type: null, blip: null, reason: "", domain: "turpin", message: $m, metadata: {}, violations: []}}'
 }
 
-deploy_dir()  { printf '%s/deploys/%s' "${ENVDIR:?}" "$1"; }
-
 # next_n: one above the highest folder in deploys/ (1 where there is none). Pruned
 # folders keep their meta.json, so a number is never used twice.
 next_n() {
@@ -60,24 +60,6 @@ next_n() {
 }
 
 drop_dir()    { local d="${1:?}"; [[ -d "$d" ]] && rm -rf -- "$d"; return 0; }
-
-compose_args() {  # N -> prints the base arguments for the deploy folder, NUL separated
-  local dir; dir="$(deploy_dir "$1")"
-  local args=(compose -p "$PROJECT" --project-directory "$dir")
-  [[ -f "$ENVDIR/.env" ]] && args+=(--env-file "$ENVDIR/.env")
-  args+=(--env-file "$dir/turpin.env")
-  local f
-  while read -r f; do
-    case "$f" in *.yml|*.yaml) args+=(-f "$dir/$f") ;; esac
-  done < <(jq -r '.join[]' "$dir/meta.json")
-  printf '%s\0' "${args[@]}"
-}
-compose_run() {   # N ARGS...
-  local n="$1"; shift
-  local base=() a
-  while IFS= read -r -d '' a; do base+=("$a"); done < <(compose_args "$n")
-  docker "${base[@]}" "$@"
-}
 
 # running_digests: the image digests of the project's running containers (their RepoDigests)
 running_digests() {
@@ -98,12 +80,13 @@ verify_running() {   # N: every digest of the deploy is what runs
   [[ -z "$missing" ]] || { warn "the running containers do not match the deploy's digests: $missing"; return 1; }
 }
 
-# hook_numbered NAME DEPLOY [CURRENT]: save-state and restore-state get deploy numbers
-# (design §8); the other hooks never see them.
+# hook_numbered NAME DEPLOY [CURRENT]: save-state and restore-state are told which deploy they are for
+# (design §8), which may not be the one the other hooks of this run are told; `save-state` is also given
+# `current`'s number.
 hook_numbered() {
-  local code=0
+  local code=0 outer="${H_DEPLOY:-}"
   H_DEPLOY="$2" H_CURRENT="${3:-}" hook_step "$1" || code=$?
-  H_DEPLOY="" H_CURRENT=""
+  H_DEPLOY="$outer" H_CURRENT=""
   return "$code"
 }
 
@@ -119,6 +102,59 @@ host_files_of() {
   local dir; dir="$(deploy_dir "$1")"
   if [[ "$(jq -r '.host_files' "$dir/meta.json")" != true ]]; then printf '[]'; return 0; fi
   jq -c '[(.turpin.host_files // [])[] | {dest: .dest, enable: (.enable // false)}]' "$dir/payload/profile.json"
+}
+
+# running_save N: the project's running containers, one id a line, kept in N's folder before
+# `save-state` can stop one. A first deploy's restore starts them again where `compose up` never
+# ran (design §11, *A restore*).
+running_save() { docker ps -q --filter "label=com.docker.compose.project=$PROJECT" > "$(deploy_dir "$1")/running"; }
+
+# restart_running N: start each container N's `running` lists. A container already running is
+# started again harmlessly; one that is gone is left, since nothing can start it.
+restart_running() {
+  local id f; f="$(deploy_dir "$1")/running"
+  [[ -f "$f" ]] || return 0
+  while read -r id; do
+    [[ -n "$id" ]] || continue
+    docker start "$id" >/dev/null 2>&1 && continue
+    docker inspect "$id" >/dev/null 2>&1 || { warn "container $id is gone, so it is not started again"; continue; }
+    return 1
+  done < "$f"
+  return 0
+}
+
+# host_files_before N: which of N's host files are on the host before N installs any, as JSON, kept in
+# N's folder, with a copy of each in `host_files_old/` under the source's name. A first deploy's restore
+# puts those back and removes only what N put there. A file that cannot be copied fails the deploy.
+host_files_before() {
+  local src dest list="[]" old; old="$(deploy_dir "$1")/host_files_old"
+  while IFS=$'\t' read -r src dest; do
+    [[ -n "$dest" ]] || continue
+    [[ -e "$(host_root)$dest" ]] || continue
+    mkdir -p "$(dirname "$old/$src")" && cp -p "$(host_root)$dest" "$old/$src" || return 1
+    list="$(jq -c --arg d "$dest" '. + [$d]' <<< "$list")"
+  done < <(jq -r '(.turpin.host_files // [])[] | [.src, .dest] | @tsv' "$(deploy_dir "$1")/payload/profile.json")
+  printf '%s\n' "$list" > "$(deploy_dir "$1")/host_files_before.json"
+}
+
+# host_files_put_back N: install again each file N overwrote, with the content it had. root-ops installs only
+# a deploy's own host file at its allowlisted mode, so the copy goes over N's, which a failed N no longer needs.
+host_files_put_back() {
+  local dir src dest mode f; dir="$(deploy_dir "$1")"; f="$dir/host_files_before.json"
+  [[ -f "$f" ]] || return 0
+  while IFS=$'\t' read -r src dest mode; do
+    [[ -e "$dir/host_files_old/$src" ]] || continue
+    cp "$dir/host_files_old/$src" "$dir/payload/host_files/$src" || return 1
+    root_ops install "$dir/payload/host_files/$src" "$dest" "$mode" || return 1
+  done < <(jq -r --slurpfile before "$f" '(.turpin.host_files // [])[] | select(.dest as $d | $before[0] | index($d)) | [.src, .dest, (.mode // "0644")] | @tsv' "$dir/payload/profile.json")
+}
+
+# host_files_added_by N: N's host files that were not on the host before N: all of N's where
+# `host_files_before` never ran (the deploy stopped before step 8), so none.
+host_files_added_by() {
+  local f; f="$(deploy_dir "$1")/host_files_before.json"
+  [[ -f "$f" ]] || { printf '[]'; return 0; }
+  host_files_of "$1" | jq -c --slurpfile before "$f" '[.[] | select(.dest as $d | ($before[0] | index($d)) | not)]'
 }
 
 # host_files_apply N REMOVE: make the host's installed files N's set (N empty: install
@@ -176,9 +212,16 @@ restore() {
   # on data that was not restored
   hook_numbered restore-state "$pend" || { restore_failed "restore-state failed; the saved state may need restoring by hand"; return 1; }
   if [[ -z "$cur" ]]; then
-    # a first deploy: nothing to go back to
-    compose_run "$pend" down >/dev/null || { restore_failed "stopping the failed deploy's containers failed"; return 1; }
-    host_files_apply "" "$(host_files_of "$pend")" || { restore_failed "removing the failed deploy's host files failed"; return 1; }
+    # a first deploy: nothing to go back to, and what was there before it stays. Where `compose up`
+    # ran, its containers are stopped; where it never did, the old ones are untouched, less any that
+    # `save-state` stopped, which are started again. Only the host files this deploy put there are removed.
+    if [[ -e "$(deploy_dir "$pend")/compose-up" ]]; then
+      compose_run "$pend" down >/dev/null || { restore_failed "stopping the failed deploy's containers failed"; return 1; }
+    else
+      restart_running "$pend" || { restore_failed "starting the containers the deploy stopped failed"; return 1; }
+    fi
+    host_files_apply "" "$(host_files_added_by "$pend")" || { restore_failed "removing the host files the failed deploy added failed"; return 1; }
+    host_files_put_back "$pend" || { restore_failed "putting back the host files the failed deploy overwrote failed"; return 1; }
     st_put 'del(.pending, .target) | .state = "failed, no previous deploy"'
     return 0
   fi

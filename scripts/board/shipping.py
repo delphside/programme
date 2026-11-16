@@ -30,7 +30,13 @@ import re
 from functools import lru_cache
 from typing import Iterable, Sequence
 
-from . import profile
+from . import profile, repo
+
+# A programme pin move reaches the image only through the deploy steps the payload carries
+# (design 117 §8, *The payload*): Turpin's `payload/` and `lib/`. It is judged here, by what the
+# move changes, whatever the profile's `ships.non_shipping` says of the path `programme`.
+PIN = "programme"
+DEPLOY_STEPS = ("scripts/deliver/payload/", "scripts/deliver/lib/")
 
 
 @lru_cache(maxsize=8)
@@ -52,12 +58,26 @@ def image_paths(paths: Iterable[str]) -> list[str]:
     return [p for p in paths if p and reaches_image(p)]
 
 
-def touches_image(paths: Iterable[str]) -> bool:
-    """Whether a change to these paths reaches the image.
+def pin_ships(old: str, new: str) -> bool:
+    """Whether moving the programme pin from `old` to `new` changes the deploy steps. Where the
+    submodule cannot say what changed, it ships: the safe direction."""
+    changed = repo.programme_paths_between(old, new, PIN)
+    return changed is None or any(p.startswith(DEPLOY_STEPS) for p in changed)
+
+
+def pin_move_ships(base: str, head: str) -> bool:
+    """Whether the programme pin moved between `base` and `head` in a way that ships."""
+    moved = repo.pin_move(base, head, PIN)
+    return moved is not None and pin_ships(*moved)
+
+
+def touches_image(paths: Iterable[str], pin_moved_the_steps: bool = False) -> bool:
+    """Whether a change to these paths reaches the image. The pin path is never one by itself:
+    `pin_moved_the_steps` says whether it moved so as to change the deploy steps.
 
     No paths is *no*: a change that touched nothing changed nothing.
     """
-    return bool(image_paths(paths))
+    return bool(image_paths(p for p in paths if p != PIN)) or pin_moved_the_steps
 
 
 def application_tooling(paths: Iterable[str]) -> list[str]:
@@ -98,9 +118,9 @@ def version_bump_only(files: Sequence[str], changed_lines: Sequence[str]) -> boo
     return bool(lines) and all(line_pattern.match(line) for line in lines)
 
 
-def ships(files: Sequence[str], changed_lines: Sequence[str]) -> bool:
+def ships(files: Sequence[str], changed_lines: Sequence[str], pin_moved_the_steps: bool = False) -> bool:
     """Whether a change carries anything to release: it reaches the image, and it
     is more than the version moving. After a release `main` holds the next
     version's bump and nothing else, which ships nothing."""
-    return touches_image(files) and not version_bump_only(files, changed_lines)
+    return touches_image(files, pin_moved_the_steps) and not version_bump_only(files, changed_lines)
 

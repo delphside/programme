@@ -75,3 +75,8 @@ ENV_BIN = "TURPIN_BIN"                # `turpin` on this machine, else the entry
 
 # Over `ssh`, a login: the same limit as a host's (design §13).
 LOGIN_CALL_TIMEOUT = HOST_CALL_TIMEOUT
+
+# The `TURPIN_*` values a build argument may be taken from (`[turpin.build].args`), named without the
+# prefix: the commit, its first seven characters, the version and the time the build started.
+BUILD_ARG_SOURCES = ("SHA", "SHORT_SHA", "VERSION", "CREATED")
+SHORT_SHA_LENGTH = 7

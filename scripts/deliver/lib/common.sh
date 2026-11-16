@@ -201,13 +201,20 @@ OPT_WAIT=""
 HOOK_NOT_YET=75
 
 # hook_env_export: the variables a hook receives (design §8). The caller sets
-# H_APP H_ENV H_ROLE H_SHA H_VERSION H_STATE and H_IMAGES (name=ref lines).
+# H_APP H_ENV H_ROLE H_SHA H_VERSION H_STATE H_URL and H_IMAGES (name=ref lines).
 hook_env_export() {
   export TURPIN_APP="$H_APP" TURPIN_ENV="$H_ENV" TURPIN_ROLE="$H_ROLE"
-  export TURPIN_SHA="$H_SHA" TURPIN_VERSION="$H_VERSION" TURPIN_STATE="$H_STATE"
-  # the deploy numbers only save-state and restore-state get (design §8): the caller
-  # sets H_DEPLOY and H_CURRENT for that one call; no other hook sees them
-  if [[ -n "${H_DEPLOY:-}" ]]; then export TURPIN_DEPLOY="$H_DEPLOY"; else unset TURPIN_DEPLOY; fi
+  export TURPIN_SHA="$H_SHA" TURPIN_VERSION="$H_VERSION" TURPIN_STATE="$H_STATE" TURPIN_URL="${H_URL:-}"
+  # the deploy a hook is part of, from step 6 on (design §8): the caller sets H_DEPLOY, and the
+  # folder and the Compose command line follow from it, in one place (`compose_line`). H_CURRENT
+  # is `save-state`'s alone.
+  if [[ -n "${H_DEPLOY:-}" ]]; then
+    local dir line
+    dir="$(deploy_dir "$H_DEPLOY")"; line="$(compose_line "$H_DEPLOY")"
+    export TURPIN_DEPLOY="$H_DEPLOY" TURPIN_DEPLOY_DIR="$dir" TURPIN_COMPOSE="$line"
+  else
+    unset TURPIN_DEPLOY TURPIN_DEPLOY_DIR TURPIN_COMPOSE
+  fi
   if [[ -n "${H_CURRENT:-}" ]]; then export TURPIN_CURRENT="$H_CURRENT"; else unset TURPIN_CURRENT; fi
   local line name
   while IFS='=' read -r name line; do
@@ -285,6 +292,39 @@ hook_step() {
   hook_run "$1" || code=$?
   [[ -z "$HOOK_REFUSAL" ]] || { warn "$HOOK_REFUSAL"; return 1; }
   return "$code"
+}
+
+# ---------------------------------------------------------------- compose
+
+# Compose runs as the deploy does, from one place: the project name, `--project-directory` the
+# deploy's folder, the host's `.env` then `turpin.env`, and the deploy's joined compose files
+# (design §11). The deploy, a hook's TURPIN_COMPOSE and `turpin-host compose` all take it from here.
+# They need ENVDIR (the state folder) and PROJECT.
+deploy_dir()  { printf '%s/deploys/%s' "${ENVDIR:?}" "$1"; }
+
+compose_args() {  # N -> prints the base arguments for the deploy folder, NUL separated
+  local dir; dir="$(deploy_dir "$1")"
+  local args=(compose -p "$PROJECT" --project-directory "$dir")
+  [[ -f "$ENVDIR/.env" ]] && args+=(--env-file "$ENVDIR/.env")
+  args+=(--env-file "$dir/turpin.env")
+  local f
+  while read -r f; do
+    case "$f" in *.yml|*.yaml) args+=(-f "$dir/$f") ;; esac
+  done < <(jq -r '.join[]' "$dir/meta.json")
+  printf '%s\0' "${args[@]}"
+}
+compose_run() {   # N ARGS...
+  local n="$1"; shift
+  local base=() a
+  while IFS= read -r -d '' a; do base+=("$a"); done < <(compose_args "$n")
+  docker "${base[@]}" "$@"
+}
+# compose_line N: the same as one command line, each word quoted for the shell (a hook runs it
+# with `eval "$TURPIN_COMPOSE" ARGS` or `bash -c`).
+compose_line() {
+  local a line="docker"
+  while IFS= read -r -d '' a; do line+=" $(printf '%q' "$a")"; done < <(compose_args "$1")
+  printf '%s' "$line"
 }
 
 # ---------------------------------------------------------------- small helpers

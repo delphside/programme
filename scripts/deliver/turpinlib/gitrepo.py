@@ -233,12 +233,17 @@ def export_paths(repo: Path | str, sha: str, paths: Iterable[str], into: Path) -
     return True
 
 
-def tag_for_version(repo: Path, prof: Profile, version: str) -> str | None:
-    """The tag naming `version` under any of the profile's prefixes, or None."""
-    for prefix in (prof.tag_prefix, *prof.history_prefixes):
-        if f"{prefix}{version}" in tags(repo, prefix):
-            return f"{prefix}{version}"
-    return None
+def tag_for_version(repo: Path, prof: Profile, version: str, commit: str = "") -> str | None:
+    """The tag naming `version` under any of the profile's prefixes, or None. Where two tags
+    carry the version, the one naming `commit` (a full SHA or a prefix of one) is preferred;
+    else the first by prefix order, the release prefix first."""
+    found = [f"{prefix}{version}" for prefix in (prof.tag_prefix, *prof.history_prefixes)
+             if f"{prefix}{version}" in tags(repo, prefix)]
+    if commit:
+        for tag in found:
+            if git(repo, "rev-parse", f"{tag}^{{commit}}").strip().startswith(commit):
+                return tag
+    return found[0] if found else None
 
 
 def _tag_made(repo: Path, tag: str) -> int:

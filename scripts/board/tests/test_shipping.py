@@ -6,10 +6,13 @@ testing the functions the bash callers source, against real commits.
 """
 
 import os
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
+from board import shipping
 from board.shipping import application_tooling, image_paths, reaches_image, ships, touches_image, version_bump_only
 
 from .cli import run
@@ -106,6 +109,73 @@ class ApplicationTooling(unittest.TestCase):
                   env={**os.environ, "PROGRAMME_PROFILE": str(bare)})
         self.assertEqual(70, out.returncode)
         self.assertIn("scripts.groups", out.stderr)
+
+
+class AProgrammePinMove(unittest.TestCase):
+    """T6: a move of the `programme` pin ships only where it changes the deploy steps the payload
+    carries (`scripts/deliver/payload/`, `scripts/deliver/lib/`) between the old pin and the new."""
+
+    GIT = ["git", "-c", "user.name=T", "-c", "user.email=t@e.test", "-c", "commit.gpgsign=false"]
+
+    def git(self, where, *args):
+        return subprocess.run([*self.GIT, "-C", str(where), *args], check=True, capture_output=True,
+                              text=True).stdout.strip()
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.app = Path(tmp.name) / "app"
+        self.prog = self.app / "programme"
+        self.app.mkdir()
+        self.git(self.app, "init", "-q", "-b", "main")
+        self.git(self.app, "init", "-q", "-b", "main", "programme")
+        self.programme_commit({"docs/a.md": "one"})
+        (self.app / "Dockerfile").write_text("FROM scratch\n")
+        self.git(self.app, "add", "-A")
+        self.git(self.app, "commit", "-q", "-m", "base")
+        self.base = self.git(self.app, "rev-parse", "HEAD")
+
+    def programme_commit(self, files):
+        for name, text in files.items():
+            (self.prog / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.prog / name).write_text(text)
+        self.git(self.prog, "add", "-A")
+        self.git(self.prog, "commit", "-q", "-m", "change")
+
+    def moved(self, files):
+        """Move the pin over a programme commit changing `files`; the app's commit moving it."""
+        self.programme_commit(files)
+        self.git(self.app, "add", "programme")
+        self.git(self.app, "commit", "-q", "-m", "move the pin")
+        return self.git(self.app, "rev-parse", "HEAD")
+
+    def answers(self, head):
+        """Exit statuses of `range`, `commit` and `ships` for the move."""
+        codes = [run("board/board-shipping.py", "-C", str(self.app), "range", self.base, head).returncode,
+                 run("board/board-shipping.py", "-C", str(self.app), "commit", head).returncode,
+                 run("board/board-shipping.py", "-C", str(self.app), "ships", head).returncode]
+        return codes
+
+    def test_a_pin_move_changing_only_documents_ships_nothing(self):
+        self.assertEqual([1, 1, 1], self.answers(self.moved({"docs/b.md": "two", "scripts/board/x.py": "x"})))
+
+    def test_a_pin_move_changing_the_payload_ships(self):
+        self.assertEqual([0, 0, 0], self.answers(self.moved({"scripts/deliver/payload/deploy": "new"})))
+
+    def test_a_pin_move_changing_the_libraries_ships(self):
+        self.assertEqual([0, 0, 0], self.answers(self.moved({"scripts/deliver/lib/common.sh": "new"})))
+
+    def test_the_pin_move_alongside_a_shipping_path_still_ships_for_the_path(self):
+        self.programme_commit({"docs/b.md": "two"})
+        (self.app / "Dockerfile").write_text("FROM other\n")
+        self.git(self.app, "add", "-A")
+        self.git(self.app, "commit", "-q", "-m", "both")
+        self.assertEqual([0, 0, 0], self.answers(self.git(self.app, "rev-parse", "HEAD")))
+
+    def test_a_pin_that_cannot_be_compared_ships(self):
+        self.moved({"docs/b.md": "two"})
+        with mock.patch.object(shipping.repo, "programme_paths_between", return_value=None):
+            self.assertTrue(shipping.pin_ships("a" * 40, "b" * 40))
 
 
 class TheCommand(unittest.TestCase):

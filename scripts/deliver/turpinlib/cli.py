@@ -29,7 +29,7 @@ usage: turpin build [REF] [--local]
        turpin deploy ENV REF [--wait[=MIN]] [--check] [--set-aside GATE REASON]
                              [--unrecorded REASON] [--off-level REASON]
        turpin release [--expect VERSION] [--commit REF] [--emergency REASON]
-                      [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]
+                      [--skip-rehearsal REASON] [--set-aside GATE REASON] [--confirm N]... [--check]
        turpin settle VERSION       turpin rollback ENV      turpin status ENV
        turpin list ENV             turpin prune [--dry-run]
        turpin login COMPONENT      (controller, builder, copier, or an ENV)
@@ -58,6 +58,7 @@ class Args:
     values: dict[str, str] = field(default_factory=dict)      # a flag that takes a value; "" for a bare optional one
     reasons: dict[str, str] = field(default_factory=dict)     # a gate flag to its reason
     set_aside: list[tuple[str, str]] = field(default_factory=list)
+    repeated: dict[str, list[str]] = field(default_factory=dict)   # a flag that may be given again, each value in order
 
 
 def _reason(flag: str, words: list[str]) -> str:
@@ -88,6 +89,10 @@ def parse_args(argv: Sequence[str], module) -> Args:
             args.switches.add(name)
         elif flags.get(name) == "optional":
             args.values[name] = inline
+        elif flags.get(name) == "repeat":
+            if not equals and not words:
+                raise UsageError(f"{name} needs a value")
+            args.repeated.setdefault(name, []).append(inline if equals else words.pop(0))
         elif flags.get(name) == "value":
             if not equals and not words:
                 raise UsageError(f"{name} needs a value")
