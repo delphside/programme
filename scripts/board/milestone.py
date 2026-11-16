@@ -36,7 +36,7 @@ Design: programme/records/2.5-changes/programme-tooling/383-one-board-model/
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Sequence
+from typing import Callable, Collection, Sequence
 
 from .model import Issue, ParentProject, PullRequest
 
@@ -108,6 +108,13 @@ def carried(issues: Sequence[Issue], milestone: str,
 
 def unbuilt(rows: Sequence[Carried]) -> tuple[Carried, ...]:
     return tuple(r for r in rows if r.unbuilt)
+
+
+def unconfirmed(rows: Sequence[Carried], confirmed: Collection[int]) -> tuple[Carried, ...]:
+    """The issues the release must ask about: open in the milestone, named by no commit (a parent
+    never is), and not confirmed by a person as in the build. Such an issue is a question, not a
+    block (owner, 2026-11-04); the release gate and anything that asks the question use this one rule."""
+    return tuple(r for r in unbuilt(rows) if r.number not in confirmed)
 
 
 def render(rows: Sequence[Carried], milestone: str, colour: bool = True) -> str:

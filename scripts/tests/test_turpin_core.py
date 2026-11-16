@@ -339,6 +339,27 @@ class Profiles(Isolated):
         self.assertEqual(model.CredentialKind.DOCKER_CONFIG, read.login)
         self.assertEqual("0755", read.host_files[0].mode)
 
+    def test_an_environment_with_no_ssh_alias_takes_the_one_in_hosts(self):                         # T4
+        text = PROFILE.replace('ssh = "acme-prod"\n', "") + '\n[hosts.production]\nssh = "acme-prod-hosts"\n'
+        self.assertEqual("acme-prod-hosts", profile.parse(text, "p").environments["production"].machine)
+        both = PROFILE + '\n[hosts.production]\nssh = "acme-prod-hosts"\n'
+        self.assertEqual("acme-prod", profile.parse(both, "p").environments["production"].machine)   # its own wins
+        other = PROFILE.replace('ssh = "acme-prod"\n', "") + '\n[hosts.rehearsal]\nssh = "elsewhere"\n'
+        result = failing(self, ProfileError, profile.parse, other, "p")      # a host of another name is not its alias
+        self.assertEqual("environments.production.ssh", result.metadata["key"])
+
+    def test_build_arguments_name_a_turpin_value_each(self):                                         # T5
+        text = PROFILE.replace('on = "control-node"', 'on = "control-node"\nargs = {ACME_BUILD_ID = "SHORT_SHA"}')
+        self.assertEqual({"ACME_BUILD_ID": "SHORT_SHA"}, profile.parse(text, "p").build_args)
+        self.assertEqual({}, profile.parse(PROFILE, "p").build_args)
+        bad = PROFILE.replace('on = "control-node"', 'on = "control-node"\nargs = {ACME_BUILD_ID = "TODAY"}')
+        self.assertEqual("turpin.build.args.ACME_BUILD_ID", failing(self, ProfileError, profile.parse, bad, "p").metadata["key"])
+
+    def test_an_environments_url_is_read_and_empty_where_unset(self):                                 # T3
+        text = PROFILE.replace('pull_timeout = 120', 'pull_timeout = 120\nurl = "https://acme.test"')
+        self.assertEqual("https://acme.test", profile.parse(text, "p").environments["production"].url)
+        self.assertIsNone(profile.parse(PROFILE, "p").environments["production"].url)
+
     def test_a_required_key_missing_is_a_fundamental_error_naming_it(self):
         text = PROFILE.replace('candidates = "acme/candidates"\n', "")
         result = failing(self, ProfileError, profile.parse, text, "app-profile.toml")
@@ -444,9 +465,14 @@ class Hooks(Isolated):
         self.assertTrue(got["leader"])
         self.assertEqual({"TURPIN_APP": "acme", "TURPIN_ENV": "rehearsal", "TURPIN_ROLE": "rehearsal",
                           "TURPIN_SHA": "a" * 40, "TURPIN_VERSION": "0.10.2",
-                          "TURPIN_STATE": "/var/lib/turpin/acme/rehearsal",
+                          "TURPIN_STATE": "/var/lib/turpin/acme/rehearsal", "TURPIN_URL": "",
                           "TURPIN_IMAGE_SERVER": "sha256:" + "1" * 64,
                           "TURPIN_IMAGE_WEB_APP": "sha256:" + "2" * 64, "TURPIN_DEPLOY": "4"}, got["env"])
+
+    def test_a_hook_gets_its_environments_url_and_empty_where_it_has_none(self):                   # T3
+        path = self.hook('print(repr(os.environ.get("TURPIN_URL")))')
+        self.assertEqual("''\n", hooks.run_hook(path, self.environment()).output)
+        self.assertEqual("'https://acme.test'\n", hooks.run_hook(path, self.environment(url="https://acme.test")).output)
 
     def test_build_gets_its_creation_time_and_local_only_when_asked(self):
         path = self.hook('print(os.environ.get("TURPIN_CREATED"), os.environ.get("TURPIN_LOCAL"))')

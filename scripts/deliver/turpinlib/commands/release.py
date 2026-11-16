@@ -47,7 +47,7 @@ from .build import gate_failed, now_utc
 USAGE = ("usage: turpin release [--expect VERSION] [--commit REF] [--emergency REASON]\n"
          "                      [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]\n")
 MIN_ARGS = MAX_ARGS = 0
-FLAGS = {"--expect": "value", "--commit": "value", "--check": "switch"}
+FLAGS = {"--expect": "value", "--commit": "value", "--confirm": "repeat", "--check": "switch"}
 GATE_FLAGS = ("--emergency", "--skip-rehearsal", "--set-aside")
 
 RELEASE_CHECK = "release-check"      # the application's hook that is a gate here
@@ -66,25 +66,24 @@ def first_environment(prof, role: Role) -> Environment:
     return found
 
 
-def production_version(prof, log: RunLog, read_health: bool) -> Version | None:
-    """The version of the release production runs (design §9, *Which release production runs*):
-    its record in the host's state, else, where the host has no `current` at all (a production
-    deployed before the tool), what `/health` reports, but only where `read_health` (the emergency
-    gate; the carried range does not read it). A `current` with no record, or a health that cannot
-    be read, is None."""
+def production_runs(prof, log: RunLog) -> tuple[Version, str] | None:
+    """The release production runs and its commit (design §9, *Which release production runs*): its
+    record in the host's state, else, where the host has no `current` at all (a production deployed
+    before the tool), what `/health` reports, `VERSION+SHA` (the SHA may be empty). A `current` with
+    no record, or a health that cannot be read, is None."""
     env = first_environment(prof, Role.PRODUCTION)
     status = hosts.host_status(env.machine, prof.application, env.name, log=log)
     current = status.deployed.current
     if current is not None:
-        return current.record.version if current.record is not None else None
-    if not (read_health and env.url and prof.deployed_path and prof.deployed_field):
+        return (current.record.version, current.record.commit) if current.record is not None else None
+    if not (env.url and prof.deployed_path and prof.deployed_field):
         return None
     log.event("health-read", env=env.name)
     done = subprocess.run(["curl", "-fsS", "--max-time", "30", env.url.rstrip("/") + prof.deployed_path],
                           capture_output=True, text=True, stdin=subprocess.DEVNULL)
     try:
-        text = str(json.loads(done.stdout)[prof.deployed_field])
-        return Version.parse(text.split("+", 1)[0])
+        version, _, commit = str(json.loads(done.stdout)[prof.deployed_field]).partition("+")
+        return Version.parse(version), commit
     except (ValueError, KeyError, TypeError, FormError):
         return None
 
@@ -115,6 +114,7 @@ class Release:
         self.prefixes = (prof.tag_prefix, *prof.history_prefixes)
         self.emergency = args.reasons.get("--emergency")
         self.skip = args.reasons.get("--skip-rehearsal")
+        self.confirmed = self.confirmed_by_flags()      # a bad `--confirm` is refused before anything runs
         self.plan = Plan()
         self.port = connect.connect(prof.application, connect.component_of(ComponentKind.CONTROLLER, prof.login),
                                     self.log)
@@ -230,22 +230,22 @@ class Release:
             # the carried range starts at the release production runs, so a record lists everything
             # production gains with it; the GitHub notes keep `prev`
             if self.tag not in tags and tags:
-                running = production_version(prof, log, read_health=False)
+                running = production_runs(prof, log)
                 if running is None:
                     raise refused(log, "milestone", "cannot tell which release production runs: the carried range "
                                   "starts there")
-                start = gitrepo.tag_for_version(self.repo, prof, str(running))
+                start = gitrepo.tag_for_version(self.repo, prof, str(running[0]), running[1])
                 if start is None:
-                    raise refused(log, "milestone", f"no tag for production's release {running}: the carried "
+                    raise refused(log, "milestone", f"no tag for production's release {running[0]}: the carried "
                                   f"range starts there")
                 plan.carry_from, plan.range, plan.main_range = start, f"{start}..{plan.sha}", f"{start}..origin/main"
             return
-        running = production_version(prof, log, read_health=True)
+        running = production_runs(prof, log)
         if running is None:
             raise refused(log, "emergency-descent", "cannot tell which release production runs")
-        start = gitrepo.tag_for_version(self.repo, prof, str(running))
+        start = gitrepo.tag_for_version(self.repo, prof, str(running[0]), running[1])
         if start is None:
-            raise refused(log, "emergency-descent", f"no tag for production's release {running}")
+            raise refused(log, "emergency-descent", f"no tag for production's release {running[0]}")
         if not gitrepo.is_ancestor(self.repo, f"{start}^{{commit}}", plan.sha):
             raise refused(log, "emergency-descent", f"{plan.sha[:12]} does not descend from {start}, the release "
                           f"production runs")
@@ -331,13 +331,14 @@ class Release:
             if self.overridable("milestone") is None:
                 raise refused(log, "milestone", "the profile does not list milestone in [release].overridable")
             aside = True
-        with board.working(self.repo, "the release's milestone gate", log,
-                           "interrupted before the release began: nothing was changed") as model:
-            request = model.GateRequest(
-                version=str(plan.version), sha=plan.sha, range=plan.range, main_range=plan.main_range,
-                carry_from=plan.carry_from, prefixes=tuple(p for p in self.prefixes if p),
-                emergency=bool(self.emergency), milestone_set_aside=aside)
-            result = model.gate(request)
+        confirmed = self.confirmed
+        result = self.board_gate(aside, confirmed)
+        # an issue no commit names is a question, asked of a person at the terminal, outside the
+        # board call (`--expect` and `--check` are the scripted forms, which have `--confirm`)
+        if result.unconfirmed and "--expect" not in self.args.values and "--check" not in self.args.switches:
+            yes = [n for n in result.unconfirmed if self.ask_to_confirm(n)]
+            if yes:
+                result = self.board_gate(aside, confirmed + yes)
         for verdict in result.gates:
             if not verdict.passed:
                 raise refused(log, verdict.name, verdict.message)
@@ -351,6 +352,35 @@ class Release:
         for note in result.notes:
             print(f"note: {note}")
         plan.carries, plan.left_out = result.carries, list(result.left_out)
+
+    def board_gate(self, aside: bool, confirmed: list[int]):
+        """The board model's gates, with the issues confirmed so far."""
+        plan = self.plan
+        with board.working(self.repo, "the release's milestone gate", self.log,
+                           "interrupted before the release began: nothing was changed") as model:
+            return model.gate(model.GateRequest(
+                version=str(plan.version), sha=plan.sha, range=plan.range, main_range=plan.main_range,
+                carry_from=plan.carry_from, prefixes=tuple(p for p in self.prefixes if p),
+                emergency=bool(self.emergency), milestone_set_aside=aside, confirmed=tuple(confirmed)))
+
+    def confirmed_by_flags(self) -> list[int]:
+        """The issues `--confirm N` named, each a number (a leading # allowed)."""
+        found = []
+        for text in self.args.repeated.get("--confirm", []):
+            try:
+                found.append(int(text.lstrip("#")))
+            except ValueError:
+                raise BusinessError.make(Reason.BAD_VALUE, f"--confirm {text}: name an issue by its number",
+                                         metadata={"source": "--confirm"}) from None
+        return found
+
+    def ask_to_confirm(self, number: int) -> bool:
+        """Ask whether an issue in the milestone, which no commit names, is in this build."""
+        print(f"Project {self.prof.application}#{number} has this milestone but is not explicitly mentioned in a "
+              f"commit. Confirm that #{number} is in this build [y/N] ", end="", file=sys.stderr, flush=True)
+        yes = sys.stdin.readline().strip().lower() in ("y", "yes")
+        self.log.event("confirm-issue", issue=number, answer="yes" if yes else "no")
+        return yes
 
     def release_check(self) -> None:
         """The application's `release-check` hook, from the commit, on the controller: a gate that
@@ -420,6 +450,9 @@ class Release:
         rehearsal = record.rehearsal or {}
         print(f"  rehearsal: {rehearsal.get('environment')} deployed {rehearsal.get('deployed') or 'never'}, "
               f"smoke {rehearsal.get('smoke') or 'none'}")
+        if record.carries.get("confirmed"):
+            print("  confirmed as in this build, though no commit names them: "
+                  + " ".join(f"#{n}" for n in record.carries["confirmed"]))
         if self.emergency:
             print(f"  EMERGENCY: {self.emergency}")
         if self.skip:

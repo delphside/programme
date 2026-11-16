@@ -296,6 +296,27 @@ def changed_paths(sha: str) -> list[str]:
     return [p for p in _git("show", "--name-only", "--format=", sha).splitlines() if p.strip()]
 
 
+def pin_move(base: str, head: str, path: str = "programme") -> tuple[str, str] | None:
+    """The programme pin (the submodule at `path`) as it was at `base` and `head`, where the two
+    differ and both hold one; None otherwise (not moved, added or removed)."""
+    def pinned(rev: str) -> str:
+        found = _git("ls-tree", rev, path).split()
+        return found[2] if len(found) >= 3 and found[0] == "160000" else ""
+    old, new = pinned(base), pinned(head)
+    return (old, new) if old and new and old != new else None
+
+
+def programme_paths_between(old: str, new: str, path: str = "programme") -> list[str] | None:
+    """The paths that differ between two commits of the submodule at `path`, or None where it cannot
+    say (the submodule is not checked out, or lacks one of the commits)."""
+    try:
+        out = run_detached(["git", "-C", path, "diff", "--name-only", old, new],
+                           capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return [p for p in out.stdout.splitlines() if p.strip()] if out.returncode == 0 else None
+
+
 def version_lines(sha: str) -> list[str]:
     """One commit's changed lines in the version files (`versions.bump.files`), `+`/`-` only."""
     return [line for line in _git("show", "-U0", "--format=", sha, "--",

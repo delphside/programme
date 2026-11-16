@@ -33,6 +33,7 @@ import tempfile
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Mapping
 
 from .. import gitrepo, hooks, layout, payload, profile, remote, settings
 from ..cli import Args, Context
@@ -129,8 +130,13 @@ def _run_docker(tree: Path, argv: list[str]) -> None:
                                  metadata={"hook": "default", "exit": code})
 
 
+def build_values(sha: str, version: str, created: str) -> dict[str, str]:
+    """The `TURPIN_*` values a build argument may be taken from (`settings.BUILD_ARG_SOURCES`)."""
+    return {"SHA": sha, "SHORT_SHA": sha[:settings.SHORT_SHA_LENGTH], "VERSION": version, "CREATED": created}
+
+
 def default_hook(tree: Path, app: str, sha: str, version: str, created: str, images: list[str],
-                 local: bool) -> str:
+                 local: bool, build_args: Mapping[str, str] = {}) -> str:
     """The default `build` hook (design §8): one `docker buildx bake` per image, labelled, its
     layout written under `.turpin/oci/IMAGE`, or loaded into local Docker under `--local`.
     Returns what a hook prints: a line per image, its name and its layout's directory."""
@@ -139,6 +145,9 @@ def default_hook(tree: Path, app: str, sha: str, version: str, created: str, ima
         argv = ["docker", "buildx", "bake", "--builder", "turpin"]
         for key, value in ((layout.REVISION, sha), (layout.VERSION, version), (layout.CREATED, created)):
             argv += ["--set", f"{image}.labels.{key}={value}"]
+        values = build_values(sha, version, created)
+        for name, source in build_args.items():       # the profile's `[turpin.build].args`
+            argv += ["--set", f"{image}.args.{name}={values[source]}"]
         if local:
             argv += ["--load", "--set", f"{image}.tags={local_tag(app, image, sha)}", image]
             lines.append(image)
@@ -238,7 +247,8 @@ def _build(ctx: Context, repo: Path, prof, port, candidates, commit_profile, sha
         created = now_utc()
         payload_dir = tree / PAYLOAD_DIR
         payload.assemble(repo, tree, sha, payload_dir)
-        extra = {"TURPIN_PAYLOAD_DIR": str(payload_dir), "TURPIN_BUILD_IMAGES": " ".join(tobuild)}
+        extra = {"TURPIN_PAYLOAD_DIR": str(payload_dir), "TURPIN_BUILD_IMAGES": " ".join(tobuild),
+                 "TURPIN_SHORT_SHA": sha[:settings.SHORT_SHA_LENGTH]}
         if local:       # where a local build must tag each image, for a preview deploy to find it
             extra.update({tag_variable(image): local_tag(prof.application, image, sha) for image in tobuild})
         hook_env = HookEnv(app=prof.application, env="", role="builder", sha=sha, version=version,
@@ -250,7 +260,8 @@ def _build(ctx: Context, repo: Path, prof, port, candidates, commit_profile, sha
             result.require()
             output = result.output
         else:
-            output = default_hook(tree, prof.application, sha, version, created, tobuild, local)
+            output = default_hook(tree, prof.application, sha, version, created, tobuild, local,
+                                  commit_profile.build_args)
         if local:
             return _local_ids(prof.application, sha, tobuild, output, log)
         layouts = layouts_named(output, tobuild, tree, "build")

@@ -67,9 +67,11 @@ while IFS= read -r line; do
 done <<< "$H_IMAGES"
 jq -c 'select(.record != null) | .record' "$REQ" > "$DIR/record.json" || step6_failed "cannot write record.json"
 jq -nc --argjson n "$N" --slurpfile r "$REQ" --argjson join "$JOIN" --argjson hf "$HOST_FILES" --arg project "$PROJECT" \
-  '$r[0] as $q | {n:$n, project:$project, sha:$q.sha, version:$q.version, images:$q.images, role:$q.role, record:$q.record, join:$join, host_files:($hf==1), deployed:null, smoke:null}' \
+  '$r[0] as $q | {n:$n, project:$project, lock:($q.lock // null), sha:$q.sha, version:$q.version, images:$q.images, role:$q.role, record:$q.record, join:$join, host_files:($hf==1), deployed:null, smoke:null}' \
   > "$DIR/meta.new" || step6_failed "cannot write meta.json"
 mv "$DIR/meta.new" "$DIR/meta.json" || step6_failed "cannot write meta.json"
+# shellcheck disable=SC2034 # lib/common.sh (hook_env_export) reads it
+H_DEPLOY="$N"      # every hook from here on is told its deploy, its folder and its Compose command (design §8)
 
 # from step 7 on, a failure runs a restore
 STOPPED=0   # the stop is already noted (a gate's refusal, an interruption)
@@ -102,6 +104,7 @@ look() {
 trap 'fail_deploy "an unexpected error"' ERR
 look_for_interruption "before step 7"
 st_put '.state = "changing: deploy save-state" | .target = $n' --argjson n "$N"
+running_save "$N" || fail_deploy "recording the running containers"
 hook_numbered save-state "$N" "$CUR" || fail_deploy save-state
 look "before migrate"
 st_step "changing: deploy migrate"
@@ -111,12 +114,14 @@ hook_step migrate || fail_deploy migrate
 look "before the host files"
 if [[ "$HOST_FILES" -eq 1 ]]; then
   st_step "changing: deploy host-files"
+  host_files_before "$N" || fail_deploy host-files
   host_files_apply "$N" "$(st_installed)" || fail_deploy host-files
 fi
 
 # step 9: compose up, smoke, then what smoke found goes into meta.json
 look "before compose up"
 st_step "changing: deploy compose-up"
+: > "$DIR/compose-up" || fail_deploy "marking compose up"      # before it runs: a failed `up` may have made containers
 compose_run "$N" up -d --no-build --remove-orphans || fail_deploy "compose up"
 verify_running "$N" || fail_deploy "the digest check of the running containers"
 look "before smoke"

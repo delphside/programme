@@ -178,9 +178,15 @@ class DeployRequest(Deploying):
             {"repeat": False, "app": "acme", "env": "rehearsal", "role": "rehearsal", "sha": SHA, "version": "0.10.2",
              "images": {"server": SERVER, "web": WEB}, "repo": "acme/candidates", "login": "docker-config",
              "login_component": "rehearsal", "payload_image": "server", "pull_timeout": 300, "lock": None,
-             "project": None, "wait": None, "lock_wait": None, "check": False, "local": False, "record": None,
+             "project": None, "url": "", "wait": None, "lock_wait": None, "check": False, "local": False, "record": None,
              "set_aside": [], "host_files": True, "env_join": []},
             {k: v for k, v in request.items() if k != "request_id"})
+
+    def test_the_request_carries_the_environments_url_for_the_hooks(self):                          # T3
+        self.text = self.text.replace('ssh = "acme-reh"', 'ssh = "acme-reh"\nurl = "https://reh.acme.test"')
+        self.host_ok()
+        self.assertEqual(0, self.deploy("rehearsal", SHA)[0])
+        self.assertEqual("https://reh.acme.test", self.request()["url"])
 
     def test_a_dropped_connection_is_retried_under_the_same_request_id_marked_repeat(self):
         self.plan({"exit": 255, "stderr": ["Connection reset by peer"]}, {"exit": 0, "stderr": HOST_GATES + [OK_RESULT]})

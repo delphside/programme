@@ -588,3 +588,4 @@ class Profile:
     deployed_path: str | None
     deployed_field: str | None
     environments: Mapping[str, Environment]
+    build_args: Mapping[str, str] = field(default_factory=dict)   # `[turpin.build].args`: build argument to its source
