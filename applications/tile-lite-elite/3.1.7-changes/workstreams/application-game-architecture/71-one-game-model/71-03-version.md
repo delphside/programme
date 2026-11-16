@@ -373,7 +373,7 @@ pub struct GameSession {
     pub turn: i64,                        // was `turn_number`; game state, walks back under undo
     pub version: i64,                     // every change, of any kind. Never decreases
     pub last_scoring_turn: i64,           // replaces `consecutive_scoreless_turns`
-    pub hidden_by_creator: bool,          // a seatless creator's hide (U5.2); a seat's player hides on the seat
+    hidden_by_creator: bool,                // a seatless creator's hide (U5.2); a seat's player hides on the seat
     unsaved: bool,                        // set and cleared under the lock (The one handler)
     deleted: bool,                        // set by the deleter under the lock
 }
