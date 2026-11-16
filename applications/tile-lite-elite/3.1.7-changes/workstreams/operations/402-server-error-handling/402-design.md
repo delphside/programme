@@ -120,7 +120,7 @@ impl Reason {
   refusals are all `SignInRequired`, with their own messages, and the six
   "Session is invalid or has expired" are `SessionExpired`. A reason is stable
   and never reused once shipped. The estimate is 40 to 60 reasons.
-- **The statuses are today's**, apart from the four changes under
+- **The statuses are today's**, apart from the changes under
   [401 against 403](#401-against-403). Every 4xx other than 401 and 429 is
   *business*, as RFC 9110 puts a 4xx with the caller.
 - **The reason is in `crates/api`**, so the client and the admin CLI match on
@@ -282,7 +282,7 @@ The status changes, each a refusal on an existing path:
     creator-only (`NotGameCreator`); withdraw, holder-only (`NotYourSeat`);
   - `invitations.rs`: inviting to another's game (`NotGameCreator`), and
     accepting an invitation not sent to you (`NotYourInvitation`);
-  - `events.rs`: the WebSocket's one refusal, split by the table above into
+  - `events.rs`: the WebSocket's 401, split by the table above into
     401 and 403 (`NotInGame`).
 - **403 to 401, no session**: starting a game and asking for a suggestion
   answer 403 to a caller with no session today; they answer
@@ -291,7 +291,9 @@ The status changes, each a refusal on an existing path:
   session today, so a caller with none is told only the creator may; it checks
   the session first, as the other roster calls do.
 
-A 403 shows the refusal on a read or a write and never ends the session.
+Over HTTP, a 403 shows the refusal on a read or a write and never ends the
+session. A browser cannot read a refused WebSocket handshake's status, so the
+client's handling of the WebSocket's refusals is unchanged.
 
 ## Logs (R1, R6)
 
@@ -342,7 +344,7 @@ the error's body to stdout, as it prints a success's. A panic is caught in
 | --- | --- | --- |
 | the caller asks too often | answer 429 with `Retry-After` | `throttle.rs` |
 | everyone together asks for more than there is room for | answer 503 with `Retry-After` | `throttle.rs`, `auth.rs` |
-| the server is unreachable | sign-in and registration retry twice, 700 ms apart; otherwise the client polls `/health` and reopens its WebSocket every 3 seconds | `crates/ui/src/app.rs` |
+| the server is unreachable | sign-in and registration retry twice, 700 ms apart; otherwise the client reopens its WebSocket every 3 seconds and probes `/health` about every 4 | `crates/ui/src/app.rs` |
 | the container exits | Docker restarts it | `restart: unless-stopped`, `docker-compose.yml` |
 
 **What R5 owes is that each workaround is seen**, and WP C carries it:
@@ -390,8 +392,8 @@ only what WP A must leave room for.
 (`71-05b-wire-types.md`, *The error body, shared by every endpoint*, D65). Under
 decision 1, **this design supplies that body**; programme pull request #211
 changes 71-05b's section to link here and records D65 as superseded. Core
-needs three things of it, stated by #71's design authority on 2026-11-16 and
-all met:
+needs three things of it, which 71-05b lists on that pull request, all
+met:
 
 | Core needs | Met by |
 | --- | --- |
@@ -410,8 +412,9 @@ sentence.
   that fails to serialise, the one failure inside the error path, falls back
   to a fixed `application/problem+json` string, tested.
 - **Limits and timeouts**: none, because no limit or timeout changes. The ID's
-  60 bits make a collision likely only after about a billion requests, many
-  years of the service's traffic at any rate the capacity plan records.
+  60 bits make a collision likely only after about a billion requests: one
+  open tab polls the games list every 10 seconds, 8,640 requests a day, so
+  even 100 tabs open all day take about 3 years to reach it.
 - **Secrets and access**: the body never carries a driver's, axum's, a
   library's or a panic's words; the correlation ID is random and names
   nothing; `cause` is never sent. Answers kept vague for security stay vague:
