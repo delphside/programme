@@ -368,6 +368,12 @@ sent the invitation and that it is no longer available. Followed by the account
 it passed to, signed in, it opens the invitation instead, which covers the
 player whose verification passed it before they used the link.
 
+**An invitation to an aborted game says the game was aborted** (owner,
+2026-11-16). Accepting, declining or claiming a seat of an `Aborted` game is
+refused with `GameAborted`, not the general `GameNotWaiting`, and the
+invitation's page and the accept answer tell the player the game was aborted.
+Only the #71 flow does this; today's code is not changed for it.
+
 **Withdrawing an invitation spends its seat** with `SeatWithdrawn`, which
 closes the invitation and kills its link; RET-3 does the same for a whole game
 (INV-7). The start drops the spent seats, and until then none is removed.

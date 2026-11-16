@@ -466,6 +466,7 @@ pub enum ApplyError {
     SeatNotPlaying { seat: u8 },
     GameNotActive,
     GameNotWaiting,            // a seat message (add, accept, claim, swap) after the start
+    GameAborted,               // an accept, decline or claim on an aborted game: the player is told why
     InvitationNotAvailable,    // a link claimed after its seat found an addressee (INV-2)
     IllegalMove(rules_shared::MoveError),
     Unknown(String),
