@@ -799,7 +799,7 @@ reads are his; one per row of delphside/dark-portal#7's post-deployment checks:
 
 All of these are **[AUTO]**.
 
-**Events and lifecycle**
+### Events and lifecycle
 
 - `new_id_not_live_is_posted_certain`
 - `new_id_at_or_below_highest_live_id_is_posted_and_logged_as_a_warning`
@@ -836,7 +836,7 @@ All of these are **[AUTO]**.
 - `listing_record_counts_units_sold_over_its_life`
 - `undercut_counts_higher_ids_at_a_lower_price_still_listed`
 
-**Collection**
+### Collection
 
 - `snapshot_hour_is_the_utc_hour_starting_of_last_modified`
 - `collect_in_a_collected_hour_exits_0_without_a_request`
@@ -877,7 +877,7 @@ All of these are **[AUTO]**.
 - `item_fetch_is_paced_at_50_a_second`
 - `secret_never_appears_in_logs_bronze_or_export`
 
-**Scheduling and the hourly run**
+### Scheduling and the hourly run
 
 - `writing_subcommand_waits_for_the_lock_up_to_10_minutes`
 - `writing_subcommand_exits_75_when_the_lock_wait_runs_out`
@@ -896,7 +896,7 @@ All of these are **[AUTO]**.
 - `hour_processed_over_5_minutes_is_logged_as_a_warning`
 - `hour_processed_in_5_minutes_or_less_logs_no_warning`
 
-**Profiles**
+### Profiles
 
 - `lowest_is_the_cheapest_unit_price_in_the_latest_snapshot`
 - `fill_price_averages_the_cheapest_n_units_across_listings`
@@ -935,7 +935,7 @@ All of these are **[AUTO]**.
 - `items_filter_by_name_class_and_subclass`
 - `latest_200_item_response_wins_in_reference`
 
-**Retention and export**
+### Retention and export
 
 - `keep_deletes_only_what_is_older_than_it`
 - `keep_is_measured_by_the_hour_or_day_a_row_or_file_is_for`
@@ -961,7 +961,7 @@ All of these are **[AUTO]**.
 - `exported_profiles_sql_carries_sql_profiles_unchanged`
 - `exported_profiles_sql_gives_the_same_profile_as_the_lake`
 
-**Rebuild and errors**
+### Rebuild and errors
 
 - `rebuild_from_the_first_bronze_hour_equals_the_incremental_run`
 - `unexpected_error_exits_70`
