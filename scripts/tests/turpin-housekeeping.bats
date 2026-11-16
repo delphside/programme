@@ -35,7 +35,7 @@ setup() {
     assert_regex "$gates" "(^| )$g( |$)"
   done
   # the exit is in the log, and so are the arguments
-  run jq -r 'select(.event=="exit") | .code' "$(run_log_latest release)"
+  run jq -r 'select(.event=="result") | .exit' "$(run_log_latest release)"
   assert_output 0
 }
 
@@ -44,14 +44,15 @@ setup() {
   release_ready "12|Requirement||0|"
   # the builder's credential writes candidates only
   STUB_WRITE_ONLY='/candidates$' run d release --expect 0.10.2
-  assert_failure 1
-  assert_output --partial "the copy to releases failed"
+  assert_failure 2
+  assert_output --partial "the registry refused the copier's login"
   [ -z "$(git -C "$W/remote.git" tag -l v0.10.2)" ]
   [ -z "$(rel 0.10.2-server)" ]
   # the copier's credential writes releases only
   commit_change two
   STUB_WRITE_ONLY='/releases$' run d build "$SHA"
-  assert_failure 1
+  assert_failure 2
+  assert_output --partial "the registry refused the builder's login"
   [ -z "$(cand "$SHA-server")" ]
   STUB_WRITE_ONLY='/releases$' run d release --expect 0.10.2
   assert_success
@@ -140,16 +141,13 @@ env-destroy"
   mv "$W/p.toml" "$W/work/app-profile.toml"
   mkdir -p "$W/nobin"
   # oci is not on PATH of the stub host
+  rm "$W/bin/oci"
   run d host-install rehearsal
   assert_failure
   assert_output --partial "oci is missing (needed by the oci-instance-principal login)"
 }
 
-@test "login adapters: the three are named, and an unknown one is refused (R39)" {
-  run bash -c ". '$TURPIN_SRC/lib/common.sh'; . '$TURPIN_SRC/lib/registry.sh'; login_adapters"
-  assert_output "docker-config
-oci-api-key
-oci-instance-principal"
+@test "an unknown login adapter is refused (R39)" {
   run bash -c ". '$TURPIN_SRC/lib/common.sh'; . '$TURPIN_SRC/lib/registry.sh'; login_run nonsense; echo \$REG_ERR"
   assert_output --partial "unknown login adapter nonsense"
 }
@@ -193,7 +191,10 @@ oci-instance-principal"
 }
 
 @test "tool_names_no_application (S45, R1)" {
-  run grep -rniE 'tile[ -]?lite|dark[ -]?portal|oracle|ocid|oci\.oraclecloud|tenancy-' "$TURPIN_SRC"
+  run grep -rniE 'tile[ -]?lite|dark[ -]?portal' "$TURPIN_SRC"
+  assert_failure 1
+  # R1 forbids application names; a vendor adapter may name its vendor, so only its folder is exempt from these
+  run grep -rniE --exclude-dir=ocir 'oracle|ocid|oci\.oraclecloud|tenancy-' "$TURPIN_SRC"
   assert_failure 1
 }
 
@@ -202,9 +203,8 @@ oci-instance-principal"
   sed -i 's|^candidates = .*|&\nregistry = "reg.test/ns"|' "$W/work/app-profile.toml"
   commit_change one
   run d build "$SHA"
-  assert_failure 1
-  assert_output --partial "TURPIN_REGISTRY is not set"
-  assert_output --partial "the profile never holds it"
+  assert_failure 2
+  assert_output --partial "has no TURPIN_REGISTRY"
 }
 
 @test "a second dummy application drives build, deploy and release (S45, R1)" {
@@ -224,7 +224,7 @@ oci-instance-principal"
   [ -f "$W/registry/reg.test/ns/widget/candidates/tags/$SHA-api" ]
   run d deploy rehearsal "$SHA" --off-level first
   assert_success
-  [ -L "$W/hosts/rehearsal/var/lib/turpin/widget/rehearsal/current" ]
+  [ "$(jq -r .current "$W/hosts/rehearsal/var/lib/turpin/widget/rehearsal/state.json")" = 1 ]
   gh_fixture "repos_widget_widget_commits_${SHA}_check-runs" '{"check_runs":[{"name":"e2e","conclusion":"success"}]}'
   jq -nc '[{number:12,title:"issue 12",state:"open",type:{name:"Requirement"},milestone:{title:"0.10.2"},
     sub_issues_summary:{total:0},issue_dependencies_summary:{},labels:[]}]' > "$W/gh/fix/repos_widget_widget_issues.json"

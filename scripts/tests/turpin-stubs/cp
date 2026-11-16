@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# A stand-in for cp, which otherwise is cp. Under STUB_CP it breaks step 6 of a deploy,
+# the copy of the payload into the new deploy folder (design §11):
+#   fail   the copy fails
+#   kill   the deploy step and the turpin-host that started it are killed outright, as a
+#          reboot would, leaving the folder empty and `preparing: deploy-folder`
+set -uo pipefail
+last="${*: -1}"
+if [[ -n "${STUB_CP:-}" && "$last" == */deploys/*/payload ]]; then
+  case "$STUB_CP" in
+    fail) echo "cp: simulated failure" >&2; exit 1 ;;
+    kill) host="$(awk '{print $4}' "/proc/$PPID/stat")"; kill -9 "$PPID" "$host"; sleep 1; exit 137 ;;
+  esac
+fi
+exec /bin/cp "$@"

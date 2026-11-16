@@ -190,7 +190,7 @@ flowchart TB
   GH -->|"fetch the commit (git)"| BLD
   CAND -->|"read: digests, tags"| CTL
   REL -->|"read: digests, records"| CTL
-  CTL -->|"remove request (JSON)"| BLD
+  CTL -->|"remove request (JSON):<br>commit, image, digest; keep"| BLD
   BLD -->|"remove candidates (Artifacts API)"| CAND
   CTL -->|"promote request (JSON)"| COPY
   CAND -->|"image set, by digest"| COPY
@@ -261,7 +261,7 @@ flowchart LR
   RB -->|"role, repo, lock, project"| HRB
   READ -->|"APP ENV --json"| HST
   PR -->|"APP ENV --json"| HST
-  PR -->|"tags with digests"| BDEL
+  PR -->|"commit, image, digest; keep"| BDEL
   LG -->|"user, token on standard input"| HLG
   HI -->|"installs turpin-host, then host files, user prefix"| AL
   ENV --> HENV
@@ -618,12 +618,13 @@ tool, protocol or tag form:
 | Operation | Takes | Gives | Used for |
 | --- | --- | --- | --- |
 | ensure a component's credentials | a `Component` | its credentials in place ([logins](#logins)) | every other operation, under that component's credentials |
+| make a login | a `Component`, a user and a token | the component's registry login, made | `turpin login`, on the component's machine; the token is not kept |
 | find an image by digest or tag | a `Repository`, and a `Build`'s or a release's image or a `Digest` | the `Image`, or *absent* | digest and labels; only *absent* allows a build |
 | list versions | a `Repository` | the commits built in candidates, or the `Version`s in releases | resolving a short SHA; the candidates `prune` considers (`list` reads git tags) |
 | store a build | a commit and the profile's image names | the `Build` | `turpin build`: the `build` hook writes each image as an OCI image layout ([§8](#8-profile-and-hooks)), and each layout is pushed as `SHA-IMAGE`; the image digest is the layout's index or manifest digest, the one the registry stores |
 | read a release's record | a `Version` | its `ReleaseRecord`, or *absent* | a resumed `turpin release` |
 | promote to releases | a `Build`, with a `Version` and its `ReleaseRecord`, or with neither for `--unrecorded` | the image set and record in releases | the release copy: every image by digest, then `VERSION-record` |
-| remove a candidate | one image of a `Build`, the `Digest` it was chosen at, and the digests to keep | removed, or left where the tag has moved | `prune`, on the builder |
+| remove a candidate | one image of a `Build`, the `Digest` it was chosen at, the digests to keep and the tags this prune removes | removed, or left where the tag has moved, the tag is gone or the image is shared | `prune`, on the builder |
 
 *Absent* is an answer, not an error: the registry says the image or record is
 not there, which is told apart from its being unreachable. An error reaches
@@ -645,6 +646,25 @@ run carries on and exits 3.
 
 Every deploy pulls by digest with `docker pull`, in the payload's steps
 ([§11](#11-on-the-host)), outside the port.
+
+**The port's shapes.** An image is named by a build's image (commit and name),
+a release's image (version and name) or a `Digest`; found by a digest, its
+`name` is empty. *List versions* gives the full SHAs built in candidates, or
+the `Version`s in releases, sorted, and passes over any tag not of the
+[tag forms](#the-registry-adapter). *Store a build* takes the commit and the path of each image's layout.
+*Promote* takes both repositories, the `Build`, and the `Version` and
+`ReleaseRecord` or neither, and gives the digests, the record and the tags it
+wrote and found already there. *Remove a candidate* takes the `Build`, the
+image's name, the keep list and the tags this prune removes, and gives
+`removed`, `tag-moved`, `already-gone` or `shared`. The port resolves a short
+SHA from *list versions* (at least 7 characters, git's default abbreviation).
+
+**The image digest is the SHA-256 of the manifest or index `skopeo inspect
+--raw` writes**, hashed byte for byte as read, since `skopeo` writes the stored
+bytes unchanged; a digest asked for is checked against it, and a reply with
+another digest is invalid. This rule is checked on rehearsal's real registry. An image's labels are read from its
+configuration, and for an index from its first platform image, never an
+attestation manifest; a label the image lacks reads as empty.
 
 The release copy skips each blob that releases already holds, and downloads
 and uploads the rest through the copier's machine. Before downloading a blob,
@@ -671,7 +691,7 @@ flowchart TB
   PORT["<i>registry port</i><br>[Component: Python]<br>the interface: the operations,<br>in the domain model's types"]
   subgraph OCIRA["Component: OCIR adapter"]
     TOP["<i>port implementation</i><br>[Component: Python]<br>each operation: the switches<br>and the rules"]
-    MID["<i>Oracle calls</i><br>[Component: Python]<br>one typed function per call:<br>log in, inspect manifest, list tags,<br>copy image, push, pull, find image,<br>delete image"]
+    MID["<i>Oracle calls</i><br>[Component: Python]<br>one typed function per call:<br>log in, inspect manifest, list tags,<br>copy image, push, pull, find image,<br>get image, delete image"]
     TRN["<i>translators</i><br>[Component: Python]<br>OCIDs, image references,<br>manifests and indexes, Oracle errors"]
     RAPI["<i>registry API</i><br>[Component: Python, skopeo]<br>auth files, invocation, errors"]
     AAPI["<i>Artifacts API</i><br>[Component: Python, OCI CLI]<br>API key, instance principal,<br>JSON envelope and paging"]
@@ -697,6 +717,7 @@ flowchart TB
 | port | `registry/port.py` | the interface: the [operations](#operations), in the [domain model](#domain-model)'s types, and the three [error types](#operations) |
 | top: port implementation | `registry/ocir/adapter.py` | each operation as Oracle calls, with the switches (every platform, digests preserved, on the release copy) and the rules: refuse to write a version tag or `VERSION-record` that releases already holds with other contents, since OCIR has [no immutable repositories](#images-tags-and-digests) (a same-digest copy is a no-op); refuse to remove a digest in the request's keep list; the tag forms `SHA-IMAGE`, `VERSION-IMAGE` and `VERSION-record` |
 | middle: Oracle calls | `registry/ocir/calls.py` | one thin function per Oracle call used, returning domain types built through the translators; it meets Oracle's business errors ([validation and errors](#validation-and-errors)) |
+| beside the middle: reasons | `registry/ocir/reasons.py` | the reasons of domain `oracle` that name a tool's failure; an Oracle error code is made upper snake case, not listed |
 | beside the middle: translators | `registry/ocir/translate.py` | Oracle's data types, each to and from the domain model ([translators](#translators)) |
 | bottom: the APIs | `registry/ocir/api.py` | one function per API, taking the call's name and typed arguments: the registry API through `skopeo`, and the Artifacts API through the `oci` CLI. Each alone maps a call to its tool's subcommand, flags and auth file or configuration; holds each component's credential (an auth file; an API key's configuration; an instance principal); reads its tool's output format (the `oci` CLI's JSON envelope, `data`, and paging by `opc-next-page`; a `skopeo` or `docker` auth file); logs each call's duration; and meets the technical errors, retrying the transient ones, with `--no-retry` on every `oci` call ([validation and errors](#validation-and-errors)) |
 
@@ -710,7 +731,8 @@ The Oracle calls, and what the bottom layer runs for each:
 | copy image, every platform, digests preserved | registry | `skopeo copy --all --preserve-digests` |
 | push | registry | `skopeo copy` from an OCI layout: the record's; or, for a build, `skopeo copy --all --preserve-digests oci:DIR` from each layout the `build` hook wrote, which holds one image, to the tag `SHA-IMAGE` |
 | pull | registry | `skopeo copy` to an OCI layout (the record) |
-| find image by repository and digest | Artifacts | `oci artifacts container image list --no-retry`, in the compartment `TURPIN_OCI_COMPARTMENT` names ([the registry address](#the-registry-address)), giving the image's OCID |
+| find image by repository and digest | Artifacts | `oci artifacts container image list --no-retry --lifecycle-state AVAILABLE`, in the compartment `TURPIN_OCI_COMPARTMENT` names ([the registry address](#the-registry-address)), giving the image's OCID; a listing's items are summaries and carry no tags |
+| get image | Artifacts | `oci artifacts container image get --no-retry`, by the OCID, giving the image's `versions`, its tags |
 | delete image | Artifacts | `oci artifacts container image delete --no-retry`, by the OCID |
 
 How the port implementation uses them:
@@ -721,7 +743,29 @@ How the port implementation uses them:
 | find an image, list versions, read a record | inspect manifest; list tags; pull `VERSION-record` | the component's `skopeo` login |
 | store a build | push each image's layout; inspect manifest for each digest | the builder's |
 | promote to releases | inspect manifest of each target; copy image; push the record | the copier's |
-| remove a candidate | first, the keep list: a digest in it is refused, with no call; then inspect manifest, that the tag still names the chosen digest; find image by repository and digest; delete image | the builder's [removal credential](#logins) |
+| remove a candidate | first, the keep list: a digest in it is refused, with no call; then inspect manifest, that the tag still names the chosen digest; find image by repository and digest, get it for its tags, and that it carries the chosen tag and no tag outside this prune's; delete image | the builder's [removal credential](#logins) |
+
+**The rules apply as follows.**
+
+- No overwrite covers every tag a promotion writes, `SHA-IMAGE` of an
+  `--unrecorded` copy included. Each target in releases is inspected before any
+  write, so a refusal writes nothing, and again as it is written. The record is
+  compared by digest, and is built reproducibly (one uncompressed layer, no
+  timestamps), so the same record is the same digest and another is refused.
+- A promotion checks that each source digest is in candidates before it writes;
+  one missing is a business error naming the digest.
+- A remove finds the image by digest, gets it for its tags, and deletes it only
+  if every tag the image carries is in the request's set of tags this prune
+  removes. Another tag means the image is shared with a commit that is kept, so
+  it is left, as `shared` with no error, the other tags in the run log. A tag no
+  longer there is `already-gone`. A reply with several images for the digest, or
+  an image with no list of tags or without the chosen tag, is invalid, so
+  nothing is deleted on it. A compartment that lists no image after the tag
+  check passed is a setting fault, a fundamental technical error naming
+  `TURPIN_OCI_COMPARTMENT`. A build that pushes the same digest under a new tag
+  between the get and the delete loses that tag with it; the window is narrow,
+  since the builder runs both, and only a candidate is lost, which the next
+  build of that commit makes again.
 
 A test replaces a bottom-layer function with a stub, with `unittest`. Another
 registry would be a second adapter behind the same port, reusing the
@@ -740,7 +784,7 @@ no layer above the middle sees Oracle's formats:
 
 | Translator | Handles |
 | --- | --- |
-| OCID | parsing one, and checking its kind (`containerimage`) and region; never logged |
+| OCID | parsing one, and checking its kind (`containerimage`), not its region, which a registry host and an OCID name differently; never logged |
 | image reference | a repository, a tag or a digest, to and from `REGISTRY/NAMESPACE/REPO:TAG@sha256:…` |
 | manifest or index | the media types; the platform manifests and attestation manifests an index lists; the digest that is the image digest |
 | Oracle error | the error envelope (`code`, `message`, HTTP status), as the [error type](#operations) it names |
@@ -752,7 +796,7 @@ no layer above the middle sees Oracle's formats:
 | Layer | Finds | Reports |
 | --- | --- | --- |
 | top: port implementation | business errors on validation: each value's form (from an argument or the version file), before any call; the request's rules ([the registry adapter](#the-registry-adapter)), the keep list and no overwrite of a version tag or `VERSION-record`, before any write, since no overwrite needs an inspect of releases. It wraps whatever comes from below with the operation's context (which image, which step), keeping its type. | business errors; a remove left where the tag has moved, which is no error; what comes from below, wrapped |
-| middle: Oracle calls | through the translators, Oracle's answers: a manifest unknown; a delete answered `NotAuthorizedOrNotFound` (below); a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind or region). Its calls are well formed, since the top has validated them | *absent* for a manifest unknown on a read; a business error where the operation needed the thing; a technical error for a delete answered `NotAuthorizedOrNotFound`; an unexpected error for an invalid reply |
+| middle: Oracle calls | through the translators, Oracle's answers: a manifest unknown; a delete answered `NotAuthorizedOrNotFound` (below); a reply that arrives whole but is invalid (an unknown media type, a missing field, a digest other than the one asked for, an OCID of the wrong kind). Its calls are well formed, since the top has validated them | *absent* for a manifest unknown on a read; a business error where the operation needed the thing; a technical error for a delete answered `NotAuthorizedOrNotFound`; an unexpected error for an invalid reply |
 | bottom: the APIs | technical errors: authorisation, the network, a timeout, a missing tool; and output not in the tool's format at all (not JSON, no envelope). It retries a blip (below) | technical errors; an unexpected error for output not in its format |
 
 So business errors come from the top (validation) and the middle (not found);
@@ -810,6 +854,15 @@ its own business errors; an error from a registry call goes layer by layer:
    [exit statuses](#errors-results-and-the-pivot)). For a fundamental
    technical error from a login, the message also says that a new auth token
    can take a few minutes to start working (observed 2026-11-12).
+
+**Every error the bottom layer raises is technical, a blip or a fundamental
+one**, including an image unknown (reason `MANIFEST_UNKNOWN` or
+`NAME_UNKNOWN`), apart from output not in the tool's format, which is
+unexpected. The middle layer reads the reason and the HTTP status to give the
+verdict: *absent*, a business error, or an unexpected error for a failure with
+no known meaning (a reason `TOOL_FAILED`, or a status 400, 409 or 422). The
+bottom layer reads the `oci` CLI's error envelope (`code`, `status`), since it
+needs the status to retry; the translators classify its result.
 
 **The bottom layer retries a blip**, after a network error or a timeout, HTTP
 429 or 5xx, in a call that is safe to repeat, since only it sees the status:
@@ -978,6 +1031,10 @@ none, a local preview deploy, needs none. An `oci-*` controller login runs on
 each registry read, with no caching; both applications use `docker-config` for
 the controller.
 
+An `oci-*` login runs each time a component's credentials are ensured. A
+deployer is not served by the port, since it pulls with `docker`. The shared
+`docker` login is made by `turpin login`, not by the port.
+
 #### The registry address
 
 The registry address carries the tenancy's namespace, so it is never in a
@@ -1106,11 +1163,20 @@ never read as refused or as empty:
 `turpin` catches the board model's `ProfileError`, otherwise unexpected (70),
 and exits 2. The board model's `Unavailable` (`sources.py`) carries `transient`,
 true for a connection error, a timeout, 429 or a 5xx, which `turpin` maps to 75,
-and otherwise 2. The board model starts each `gh` and `git` it runs in a process
+and otherwise 2; the model sets it from a timeout, or from `gh`'s or `git`'s text
+naming HTTP 429 or 5xx, a rate limit, a timeout, or a connection or name-resolution
+failure (`gh`'s `error connecting to HOST`, `check your internet connection`, `Could not
+resolve host`). It does not take ssh's `Could not resolve hostname`, a host name wrong in a
+configuration, so name resolution is transient for `gh` only. The board model starts each `gh` and `git` it runs in a process
 group of its own (`start_new_session`), so a Ctrl+C reaches `turpin` alone
-([interruption](#interruption)); both are changes to the board model, which is
+([interruption](#interruption)). Its third change is `sources.refuse_new_calls`,
+which `run_detached` checks before it starts a `gh` or `git`: `turpin settle`
+sets it while it holds a Ctrl+C, so the action under way finishes and none is
+started after it. All three are changes to the board model, which is
 otherwise reused. Around the call, it redirects the board model's standard error
-to the run log, so the operator sees one message.
+to the run log, so the operator sees one message. It also holds a Ctrl+C until
+the call returns, because `subprocess.run` kills its child on one, and then stops
+with exit 130, before the pivot or after it, as [interruption](#interruption) says.
 
 **The revert rule** ([the milestone gate](#the-milestone-gate)) is in
 `repo.py`, so `board-check.py`'s pre-flight counts reverts as the gate does.
@@ -1246,7 +1312,7 @@ on needs `flock`. Common tools are named only; the others are described under
 `scripts/deliver/turpin` calls `turpinlib`'s front end, which reads the
 subcommand and calls that command's module. It uses the standard library only
 ([docs/1.10](../../../../docs/1.10-development-standards.md#each-languages-standard-and-checks)),
-reading the profile with `tomllib` (hence Python 3.11 or later) and JSON with
+reading the profile with `tomllib` (hence Python 3.11 or later; 3.11.4 for the tar extraction filter the payload uses) and JSON with
 `json`, and calls GitHub through the board model, in-process.
 
 | Module, in `scripts/deliver/turpinlib/` | Holds |
@@ -1257,14 +1323,16 @@ reading the profile with `tomllib` (hence Python 3.11 or later) and JSON with
 | `runlog.py` | the run log, and the gates each command expects to run |
 | `gates.py` | the [§9](#9-gates-and-checks) gates that are not the board model's |
 | `hooks.py` | running the application's hooks, with their environment and exit 75 |
-| `gitrepo.py` | fetching, tags, the bump of `main`; `record_of_tag`, which calls the board model's `repo.tag_record`, the one parser of a record ([§10](#10-the-release-and-its-record)) |
+| `gitrepo.py` | fetching, the release tags and the ancestry gates read, the tag a release pushes, the bump of `main`; `record_of_tag`, which calls the board model's `repo.tag_record`, the one parser of a record ([§10](#10-the-release-and-its-record)) |
 | `hosts.py` | `turpin-host`, on this machine or by `ssh`: the requests, and `Deployed` from `status`; it logs each call's duration, maps `ssh`'s 255 for itself and for `remote.py`, and retries `ssh`'s blips where a retry is safe ([interruption](#interruption)) |
-| `remote.py` | a `turpin` command on another component's machine, by `ssh`: `build`, `promote`, `remove` and `login` passed on |
-| `settings.py` | the client's product settings: the retry limit and backoff, shared by registry calls and `ssh` calls, and the timeout of each ([§13](#13-non-functional-design)) |
+| `remote.py` | a `turpin` command on another component's machine, by `ssh`: `build`, `promote`, `remove` and `login` passed on (the calling side); and, on the called side, reading its request, the end of its input as the caller's interruption, and the data a login reads |
+| `layout.py` | the labels of each platform image in an OCI layout the `build` hook wrote, read before any push |
+| `oci.py` | what the OCI image format fixes (the label keys, an attestation manifest, a layout's first entry), shared by `layout.py` and the registry adapter's translators |
+| `settings.py` | the client's product settings: the retry limit and backoff, shared by registry calls and `ssh` calls, and the timeout of each ([§13](#13-non-functional-design)); and the names of the environment variables `turpin` reads between its own calls: `TURPIN_CALLED`, `TURPIN_ON_BUILD_HOST`, and `TURPIN_BIN`, the program a call to `turpin` runs (default: the entry script beside `turpinlib`) |
 | `payload.py` | assembling the payload and its `profile.json` |
-| `board.py` | the board model's `release` module, imported from `scripts/board/`; before calling it, sets what `board-release.py`'s `_environment()` sets: `BOARD_REPOSITORY` from `TURPIN_GH_REPO` or the origin URL, and `PROGRAMME_CONFIG` where it is unset |
-| `registry/` | the registry port and the `OCIR` adapter ([the registry adapter](#the-registry-adapter)) |
-| `commands/` | one module per command: `build`, `deploy` (and `rollback`), `release`, `settle`, `status` (and `list`), `prune`, `promote`, `remove`, `login`, `host_install`, `env` |
+| `board.py` | the board model's `release` module, imported from `scripts/board/`; before calling it, sets what `board-release.py`'s `_environment()` sets: `BOARD_REPOSITORY` from `TURPIN_GH_REPO` or the origin URL, and `PROGRAMME_CONFIG` where it is unset; `calling`, which turns what the model raises into a result and holds a Ctrl+C until the call returns; `no_new_calls`, which `settle` runs inside, so a held Ctrl+C lets the action under way finish and starts no other |
+| `registry/` | the registry port and the `OCIR` adapter ([the registry adapter](#the-registry-adapter)); `connect.py`, the one place a command makes the port for a component's credentials |
+| `commands/` | one module per command: `build`, `deploy` (and `rollback`), `release`, `settle`, `status`, `list`, `prune`, `promote`, `remove`, `login`, `host_install`, `env` |
 
 `turpin-host` is one Bash script whose front end calls each subcommand's
 function (`cmd_deploy`, `cmd_status` and so on). It and the payload source
@@ -1346,7 +1414,7 @@ Where each runs is in the two deployment views.
 
 | Technology | What it is | Used for |
 | --- | --- | --- |
-| [Python 3](https://www.python.org/), 3.11 or later | the language of the client and of the reused board model; its standard library reads TOML (`tomllib`) and JSON | `turpin`, on the controller, the builder, the copier and any host where `turpin env` runs; the board model's gates, checks, next, settle and publish ([§4](#the-board-model)) |
+| [Python 3](https://www.python.org/), 3.11.4 or later | the language of the client and of the reused board model; its standard library reads TOML (`tomllib`) and JSON | `turpin`, on the controller, the builder, the copier and any host where `turpin env` runs; the board model's gates, checks, next, settle and publish ([§4](#the-board-model)) |
 | [bash](https://www.gnu.org/software/bash/), [jq](https://jqlang.org/), [awk](https://www.gnu.org/software/gawk/manual/) | the shell `turpin-host` and the payload are written in; a command-line JSON processor; a text-processing language | `turpin-host` and the payload; their requests, state and records; a TOML profile given to `turpin-host env` (`toml.awk`) |
 | [skopeo](https://github.com/containers/skopeo) | a command-line tool that inspects and copies images in a registry without pulling them or running a Docker daemon | registry API reads, the release copy, the record ([§3](#3-oci-registry-integration)) |
 | [Docker](https://docs.docker.com/), [Compose](https://docs.docker.com/compose/), [Buildx](https://docs.docker.com/build/) | the container engine; its multi-container runner; its builder, which can build several architectures in one run | pull by digest and run; the default `build` hook |
@@ -1430,8 +1498,9 @@ whichever machine. How `turpin` sets up each child:
 
 - it starts each child (an `ssh`, a tool, a hook) in a process group of its
   own, so a SIGINT reaches `turpin` alone;
-- a call that reads data (`turpin-host login`, `allowlist` and `env`, and
-  `turpin login` passed on) gets that data, then the *closing line*
+- a call that reads data (`turpin-host login` and `allowlist`, and
+  `turpin login` passed on; `env` reads its secrets at a terminal prompt, not
+  from its input) gets that data, then the *closing line*
   `# turpin: end`, which the call removes before use; without that line it
   changes nothing and exits 75;
 - every other call it makes to `turpin-host`, or to `turpin` on any machine (the
@@ -1453,7 +1522,14 @@ own request looks for it. Every hook runs with its input from `/dev/null`.
 
 Then, on a Ctrl+C:
 
-1. A tool, a hook or a data-reading call already running runs to its end.
+1. A tool, a hook or a data-reading call already running runs to its end,
+   within its time limit, however often Ctrl+C is pressed.
+   `subprocess.run` kills its child on a Ctrl+C, so `turpin` holds one for the
+   length of every `git` call it makes and each board-model call (one mechanism,
+   `board.held_interrupt`), and raises the interruption once the call has
+   returned. The tag push is such a call: it is spent if and only if `origin`
+   holds the tag, which `turpin` asks of `origin` after an interruption, and
+   its message says which.
 2. `turpin` closes the input of each call that has one held open.
 3. The called side reads the end of its input as the interruption at its next
    step or while it waits (the lock, a hook's *not yet*). `turpin-host rollback`
@@ -1469,6 +1545,10 @@ Then, on a Ctrl+C:
      not done, for a rerun that retries what is not done;
    - in any other command with no pivot, has its message say which steps are
      done and what to run next.
+   - A call into the board model counts as one step: it is held to its end
+     (item 1). `settle`'s actions are each a `gh` call the model makes, and none
+     is started once a Ctrl+C is held, so the action under way finishes and the
+     rest are left for the rerun (S90); every action is safe to run again.
 5. A called side that read the interruption exits 130, which comes back over
    the `ssh` connection, still open. Once every call has returned, `turpin`
    exits 130, except for a rollback that held the lock (step 3).
@@ -1545,15 +1625,28 @@ JSON request on standard input.
 | `turpin login COMPONENT` | controller; on the component's machine, `turpin login` (builder, copier) or `turpin-host login` (an environment) | owner | the owner's one `docker-config` login for `controller`, `builder`, `copier` or an environment (its deployer): asks for the registry user, reads the token at a hidden prompt, and sends both on standard input to the component's machine ([§3](#3-oci-registry-integration) says which login each makes). Prints nothing of the token | the owner's `ssh` key to the component's machine; writes only that component's login |
 | `turpin env create\|destroy NAME` | deployer, on the environment's host | owner, on the environment's host | an ephemeral environment from the profile template: user, state folder, `.env` (secrets at a hidden prompt), Compose project; the `env-*` hooks | deployer: the deploy user and *root-ops* |
 | `turpin host-install ENV` | controller | owner | installs or updates `turpin-host` and libraries on ENV's host; installs `jq` if missing; refuses if `flock` or the tools its credential kind needs (`oci`) are absent. Refuses environments that would remove each other's host files ([§9](#9-gates-and-checks)) | the owner's `ssh` key, as a user with `sudo` on the target machine, to install into `/usr/local` |
-| `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `request_id`, `repeat`, `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
-| `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | [§11](#11-on-the-host)'s rollback. The request: `request_id`, `repeat`, `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait` | as for `deploy` |
+| `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `request_id`, `repeat`, `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `lock_wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
+| `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | [§11](#11-on-the-host)'s rollback. The request: `request_id`, `repeat`, `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait`, `lock_wait`, `fallback` | as for `deploy` |
 | `turpin-host status APP ENV --json` | deployer | `status`, `list`, `prune`, release, the rehearsal-level gate, production's version read | what runs, its record, state, as a [result object](#errors-results-and-the-pivot) | the deploy user (reads its state) |
-| `turpin promote APP < request` | release copier | `turpin release` and `turpin deploy --unrecorded`, on `[turpin.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request: `login`, `candidates`, `releases`, `copies` (`digest`, `dest` name), `record` (`tag`, `body`) or null | its `skopeo` login (read candidates, write releases) |
-| `turpin remove APP < request` | builder | `turpin prune`, on `[turpin.build].on` with the build login | remove each candidate the controller chose, through the Artifacts API ([the registry adapter](#the-registry-adapter)), only while the tag still has that digest, and never a digest in `keep`; an absent tag is done. The request: `login`, `candidates`, `removes` (`tag`, `digest`) and `keep` (the digests releases holds) | its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates) |
+| `turpin promote APP < request` | release copier | `turpin release` and `turpin deploy --unrecorded`, on `[turpin.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request, in the registry port's terms: `login`, `candidates`, `releases`, `commit`, `images` (name to digest), `version` and `record` (the release record), the last two null for `--unrecorded`. It prints `copied TAG` or `kept TAG` for each tag | its `skopeo` login (read candidates, write releases) |
+| `turpin remove APP < request` | builder | `turpin prune`, on `[turpin.build].on` with the build login | remove each candidate the controller chose, through the Artifacts API ([the registry adapter](#the-registry-adapter)), only while the tag still has that digest, and never a digest in `keep`; an absent tag is done. The request: `login`, `candidates`, `removes` (`commit`, `image`, `digest`) and `keep` (the digests releases holds); the set of tags this prune removes is derived from `removes`. It prints `removed`, `tag-moved`, `already-gone` or `shared` and the tag for each | its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates) |
 | `turpin-host login APP deployer ENV` | deployer | `turpin login ENV`, on the environment's host | `docker login --password-stdin` for the machine user, user and token on standard input | writes only that deployer's login |
 | `turpin-host allowlist APP < lines` | deployer | `host-install`, as root | the root-owned allowlist | root, through `host-install`'s `sudo` |
 | `turpin-host env create\|destroy NAME` | deployer | `turpin env` | an ephemeral environment | the deploy user and *root-ops* |
 | `turpin-host root-ops ...` | deployer | payload steps and `env`, by one `sudo` rule | the deploy user's root operations ([privileges](#privileges)) | root, by the one `sudo` rule |
+
+A `turpin` another `turpin` calls (`build`, `promote`, `remove`, `login`) is given
+`TURPIN_CALLED=1` on the `ssh` command line, since `ssh` carries no
+environment, and writes its gates and result on standard error as the host
+does: `@gate` lines ([§6](#6-commands)) and a last `@result` line
+([§11](#11-on-the-host)). A build passed to the builder carries
+`TURPIN_ON_BUILD_HOST=1` and is not retried; `promote`, `remove` and `login`
+are safe to repeat and are. A `--local` image is tagged
+`turpin-local/APP-IMAGE:SHA`, a name the build hook is given in
+`TURPIN_BUILD_TAG_IMAGE`. A build's failed store query stops it, exit 75 for a
+blip and 2 for a fundamental error; a `login` for an unknown component, or for
+an environment that shares the builder's login ([Logins](#logins)), is refused,
+exit 1, before anything is asked.
 
 `prune` removes a candidate only if built before the newest release was made,
 not released, and not run by any current or previous deploy. "Built" is the
@@ -1583,7 +1676,8 @@ from the real calls:
 - loads the `ssh` key into an agent;
 - adds each host to `known_hosts`;
 - gives the host user that `host-install` connects as `sudo` without a
-  password.
+  password; on the controller's own machine, which has the operator's terminal,
+  `host-install` may prompt for the `sudo` password instead.
 
 ```sh
 # turpin deploy, to the environment's host: the request on standard input
@@ -1939,6 +2033,7 @@ missing hook is a no-op. Only `build` has a default.
 | 0 | passed |
 | 75 | not yet: `--wait` retries; else the run stops as a blip, exit 75 |
 | other | refused, or the step failed: a business error naming the hook, exit 1 |
+| killed by a signal | an unexpected error naming the hook and the signal, exit 70 ([docs/1.10](../../../../docs/1.10-development-standards.md#what-a-scripts-exit-status-means)) |
 
 **The `build` hook writes OCI image layouts.** It builds each image of the set
 and writes it as an OCI image layout, a directory holding that one image,
@@ -2023,7 +2118,7 @@ production deploy, an error after the deploy's
 | Where | For | Criterion | Kind | Set aside by |
 | --- | --- | --- | --- | --- |
 | build | nothing local | clean worktree of a remote commit | gate | `--local` (preview) |
-| build | no overwrite | existing `SHA-IMAGE` not rebuilt; failed registry query refuses; releases tags never overwritten | gate | — |
+| build | no overwrite | existing `SHA-IMAGE` not rebuilt; failed registry query stops the build, exit by type (75 or 2); releases tags never overwritten | gate | — |
 | every deploy | exact bytes | pulled by digest; revision label is the SHA; running `RepoDigests` match (`--local`: image id and label) | gate | — |
 | every deploy | no overlap | lock free, held to the end | gate | nothing (`--wait` waits) |
 | every deploy | *state gate* | the state admits a new deploy, by [§11](#11-on-the-host)'s state table: none, `preparing`, `finished`, `restored` or `failed, no previous deploy`; `changing` and a failed restore refuse, naming the step reached and `turpin rollback ENV` | gate | nothing: `turpin rollback` |
@@ -2065,10 +2160,11 @@ production deploy, an error after the deploy's
 ### Which release production runs
 
 For rehearsal's level and the emergency gate, it is the record in production's
-host state, read over ssh. Only where the host has no `current` at all (a
-production deployed before the tool) is it read from `/health` through
-`[versions].deployed` and the environment's `url`. A `current` with no record
-(`--unrecorded`) makes the gate refuse.
+host state, read over ssh. Where production's host has no `current` at all (a
+production deployed before the tool), the rehearsal-level gate refuses and
+needs `--off-level`, and does not read `/health`; only the emergency gate reads
+it there, through `[versions].deployed` and the environment's `url`. A
+`current` with no record (`--unrecorded`) makes both gates refuse.
 
 ## 10. The release and its record
 
@@ -2081,10 +2177,11 @@ The release step ([stages](#stages), stage 5) puts what cannot be undone last:
    no-op, another digest refuses;
 3. push the record as a scratch image `VERSION-record`;
 4. push the annotated tag `vVERSION`, whose message is the record. **The version
-   is spent here**, the release's [pivot](#errors-results-and-the-pivot): a
-   rerun checks the tag's record and resumes at 5;
-5. the GitHub Release, notes from the previous release tag of any prefix
-   ([§4](#4-github-integration));
+   is spent here**, the release's [pivot](#errors-results-and-the-pivot), once
+   `origin` holds the tag: a push that fails or is interrupted deletes the local
+   tag again, and a rerun that finds the tag only here pushes it before it resumes at 5;
+5. the GitHub Release, notes from the previous release tag of any prefix lower
+   than this release's own ([§4](#4-github-integration)), on a resume too;
 6. bump `main` to the next patch after the released version, skipped if `main`
    already holds that or higher, with the version-only change `[versions.bump]`
    allows (and the `bump` hook), a subject from `versions.stamp_form` and
@@ -2092,15 +2189,23 @@ The release step ([stages](#stages), stage 5) puts what cannot be undone last:
 7. open the next milestone and, after an emergency, move into it the issues the
    milestone gate left out.
 
-The record is made once, at step 1, and kept in the controller's state. A rerun
+The record is made once, at step 1, and kept in the controller's state (the file
+`release-VERSION.json` beside the run logs, which keeps `made` across a rerun). Steps
+2 and 3 are one `turpin promote`, which copies the images and then pushes the record,
+and an error from it before the tag names `turpin release` as the rerun. A rerun
 after a failure:
 
 | Failure point | Outcome |
 | --- | --- |
 | before step 4 | the run stops, exit by type, and nothing is spent; a rerun reuses the images and any `VERSION-record` whose commit and digests match, else refuses |
-| after step 4 | an error; the later steps still run, exit 3, the message naming `turpin release`, which resumes |
+| after step 4 | an error; the later steps still run, exit 3, the message naming the rerun, `turpin release` with the flags of the run (`--expect`, `--commit`, `--emergency`, `--skip-rehearsal`, `--set-aside`), which resumes |
 | a tag with a different record | refuses |
-| all steps done | exits 0 |
+| all steps done | exits 0, saying every step is already done |
+
+A rerun that resumes passes the rehearsal gate on the tag's record, even where
+rehearsal has since deployed another commit, and does not run the milestone gate again, so the issues an
+emergency left out are not known to it: the first run's step 7 moves them, and one
+that failed is moved by hand, each named in the exit-3 message.
 
 **The retrospective issue.** Once the tag is pushed, `--skip-rehearsal` raises
 `Retrospective: VERSION released with rehearsal skipped`, which names the reason
@@ -2139,7 +2244,7 @@ What a caller does with each:
 | a release's carried releases (the board model's `tag_record`) | a release with no record, under the range rules below | refuses |
 | `settle` | settles nothing and exits 3, warning that the tag has no record it reads | settles nothing and exits 3, warning that the tag has no record it reads |
 | `status` | passes over the tag | passes over the tag |
-| `list` | lists the version as history, with no record | lists the version as history, with no record |
+| `list` | lists the version as `(history: no record)`; a tag whose suffix is not a semver version is not listed | lists the version as `(a record this tool does not read)` |
 | `prune` | counts the tag's own date toward the newest release, and treats none of its candidates as released | counts the tag's own date toward the newest release, and treats none of its candidates as released |
 
 In a deploy by version, the controller takes the commit and the digests from
@@ -2190,7 +2295,9 @@ evidence, never the list: an issue only referenced is never carried. The range:
 
 `set_aside` lists each `--set-aside` gate with its reason, and is empty where
 none was. `rehearsal.deployed` is the last finished rehearsal deploy of these
-digests, from the rehearsal host's state. The owner's judgement that rehearsal
+digests, from the rehearsal host's state; its `smoke` is `passed` when the host
+recorded the time the deploy finished (`deployed` in `meta.json`, written with
+`smoke`). The owner's judgement that rehearsal
 passed is step 1's confirmation; the tool reads no test report.
 
 ## 11. On the host
@@ -2301,8 +2408,10 @@ On a host's first deploy, with no `current`, a restore runs `restore-state`,
 stops `pending`'s containers, removes its host files and, in one write, clears
 `pending` and `target` and marks the state `failed, no previous deploy`, naming
 the fallback (`[turpin].fallback`). A restore that fails, either kind, marks
-`failed: the restore did not complete`. Neither removes `pending`'s folder,
-which step 10's prune cuts down like any other.
+`failed: the restore did not complete`. A restore stops at its first failed
+step, so it never starts `current`'s build on data that was not restored.
+Neither removes `pending`'s folder, which step 10's prune cuts down like any
+other.
 
 **Rollback** moves the host to `previous`. It takes the lock and acts by the
 state table; from `finished`, `restored` or `preparing` its steps are:
@@ -2343,8 +2452,10 @@ outcome:
 | `running` | on taking the lock, before the next step; found by its repeat, the request died part-way (a reboot, a kill) | refused, exit 1, running nothing and leaving `last_request` as found, naming `turpin status ENV` for the owner to judge what the host holds |
 
 - Any other request runs as a new one, writing its `request_id` with `running`.
-- An outcome is written in the same write as the state the request ends in,
-  and rewritten with exit 3 where a prune after the pivot fails.
+- A deploy's outcome is written in the pivot's write, and a rollback's in its
+  final write, so each is in the same write as the state the request ends in;
+  rewritten with exit 3 where a prune after the pivot fails. Every other
+  outcome is written as the host exits.
 - A rollback's outcome is `finished`, `failed`, `refused` or `running`; it is
   never `interrupted`, since an interruption does not stop a rollback holding
   the lock. One that finishes leaves the state `restored`, or
@@ -2353,11 +2464,35 @@ outcome:
   `changing: rollback`; one that runs a restore and fails marks
   `failed: the restore did not complete`, recorded `failed`.
 - A request refused because the lock is held, and any request under `--check`,
-  write nothing.
-- `turpin` marks each repeat with `repeat` set, which makes the host wait for
-  the lock, up to the `--wait` limit where the command sets one, else 60
-  minutes, and at the limit exit 75; the repeat waits for a hook's *not yet*
-  only where the command's own `wait` says so.
+  write nothing. Nor does a rollback on a host with no `state.json` (it has
+  nothing to hold a record), whose refusal names the fallback the request
+  carries in `fallback` ([§8](#8-profile-and-hooks)), since no payload is on
+  disk to name it.
+- `last_request` holds `request_id`, `outcome`, `exit`, `result` (the
+  `@result` object below) and `gates` (the `@gate` lines the request sent), which
+  is all a repeat needs to answer from the record.
+- The outcome written as the host exits is by its exit: 0 or 3 `finished`, 75 or
+  130 `interrupted`, 1 `refused` where the last stop was a gate and no restore
+  failed, otherwise `failed`. A payload step killed by a signal leaves
+  `running`, as a kill of the host does.
+- A kill of the host leaves its `request.*`, `payload.*`, `note.*` and
+  `interrupted.*` files in the state folder; the next request removes those
+  whose process id is gone.
+- The host's last line on standard error is `@result` and a JSON object, the
+  [result](#errors-results-and-the-pivot) with a `reason` from `model.py`'s
+  enumeration: each host stop, its refusals included, has one. `@gate NAME
+  RESULT` lines before it are the gates `turpin` logs. Over `ssh` the host's
+  standard error is shown after the call ends, except for exit 255.
+- `turpin status` shows `pending` as the folder's `meta.json` (commit, version,
+  record, when `smoke` passed), not the number (or `deploy N (folder not written)`
+  where a kill came before the folder's `meta.json`), and the last request's
+  `request_id` and outcome, so that the owner can judge a request left
+  `running`.
+- `turpin` marks each repeat with `repeat` set, and sends `lock_wait`, the minutes
+  the host waits for the lock: the `--wait` limit where the command sets one,
+  else 60 for a repeat (`settings.py`'s), and at the limit exit 75. The host has
+  no default of its own. The repeat waits for a hook's *not yet* only where the
+  command's own `wait` says so.
 - A `request_id` is a version 4 UUID, which `turpin` generates once per command
   and the host validates before it takes the lock, so each command has its own
   and a malformed one changes nothing.
@@ -2431,6 +2566,13 @@ Each action skips what is done, so a rerun is harmless, and settle has no
 still run, the items left are named, and `settle`, or the deploy that ran it,
 exits 3, the message naming `turpin settle VERSION`.
 
+A tag with no record is a business error (exit 1), raised before any action.
+A profile with no announcement, a profile that cannot be read, or a repository
+the model cannot name is a fundamental error (exit 2), also before any action.
+A board that cannot be reached is a blip (exit 75) where the model says the
+failure is transient, else fundamental (exit 2). An interruption lets the action
+under way finish, starts none, and names the rerun.
+
 ## 13. Non-functional design
 
 - **Capacity.** On Tile Lite Elite's 1 GB production host the instance-principal
@@ -2471,7 +2613,7 @@ exits 3, the message naming `turpin settle VERSION`.
   least access, and a token reaches `turpin login` at a hidden prompt, then
   standard input only. Nothing secret
   reaches a profile, record, tag or log. Reading production's host state or
-  `/health` (rehearsal's level, the emergency gate) is a scripted, bounded,
+  `/health` (the emergency gate, where production has no `turpin` state; rehearsal's level reads host state only) is a scripted, bounded,
   read-only check each application's CLAUDE.md names.
 
 ## 14. Moving Tile Lite Elite to it

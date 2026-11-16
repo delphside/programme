@@ -103,8 +103,9 @@ def run(main, argv: list[str]) -> int:
 
 def _git(cwd: Path, *args: str) -> str:
     try:
+        # its own session, as `sources.run_detached` does (this module cannot import sources)
         out = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True,
-                             text=True, timeout=10)
+                             text=True, timeout=10, start_new_session=True)
     except (OSError, subprocess.SubprocessError):
         return ""
     return out.stdout.strip() if out.returncode == 0 else ""
@@ -142,8 +143,9 @@ def _hint(path: Path, given: str | None, root: Path | None, usual: str) -> str:
     return usual
 
 
-def technical_path(root: Path | None = None) -> Path:
-    given = os.environ.get(ENV_PROFILE)
+def technical_path(root: Path | None = None, own: bool = False) -> Path:
+    """The technical profile: `PROGRAMME_PROFILE`, else the root's own; `own` ignores the override."""
+    given = None if own else os.environ.get(ENV_PROFILE)
     return Path(given) if given else (root or app_root()) / TECHNICAL_FILE
 
 
@@ -223,9 +225,10 @@ class Section:
         return value
 
 
-def technical(root: Path | None = None) -> Section:
-    """The technical profile, `app-profile.toml` at the application's root."""
-    path = technical_path(root)
+def technical(root: Path | None = None, own: bool = False) -> Section:
+    """The technical profile, `app-profile.toml` at the application's root (`own`: never the
+    override, for a tree that is not the working one)."""
+    path = technical_path(root, own)
     return Section(_toml(path, "the technical profile",
                          _hint(path, os.environ.get(ENV_PROFILE), root,
                                f"it is `{TECHNICAL_FILE}` at the application's root; set "
@@ -435,12 +438,13 @@ def tools_registers(root: Path | None = None) -> list[str]:
         f"{config.string('programme.submodule')}/{config.string('programme_documents.tools_register')}"]
 
 
-def current_version(which: str, root: Path | None = None) -> str | None:
+def current_version(which: str, root: Path | None = None, own: bool = False) -> str | None:
     """The app or api version as the tree holds it now, or None when the file
-    cannot be read or holds none. A key missing from the profile is an error."""
+    cannot be read or holds none. A key missing from the profile is an error. `own` reads the
+    root's own profile, whatever `PROGRAMME_PROFILE` says."""
     root = root or app_root()
-    spec = technical(root).get(f"versions.{which}")
-    source = technical(root).source
+    spec = technical(root, own).get(f"versions.{which}")
+    source = technical(root, own).source
     if not isinstance(spec, dict) or not isinstance(spec.get("file"), str):
         raise ProfileError(f"{source}: `versions.{which}` must be a table with a `file`")
     try:
@@ -450,7 +454,7 @@ def current_version(which: str, root: Path | None = None) -> str | None:
     if "command" in spec:
         try:
             run = subprocess.run([str(root / spec["command"])], input=text, capture_output=True,
-                                 text=True, timeout=30)
+                                 text=True, timeout=30, start_new_session=True)
         except (OSError, subprocess.SubprocessError):
             return None
         return run.stdout.strip() or None if run.returncode == 0 else None

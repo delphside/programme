@@ -21,7 +21,7 @@ setup() {
   [ -s "$W/logs/where.log" ]
   run grep -vc '^copy copier$' "$W/logs/where.log"
   assert_output 0
-  assert_regex "$(cat "$W/logs/ssh.log")" "ssh copier: .*turpin-host copy acme"
+  assert_regex "$(cat "$W/logs/ssh.log")" "ssh copier: .*turpin promote acme"
   # and --unrecorded is the copier's copy too
   git -C "$W/work" pull -q --ff-only origin main
   commit_change two; build_ok "$SHA"
@@ -36,6 +36,7 @@ setup() {
 # F2 --------------------------------------------------------------------------
 @test "F2 a host's prune keeps every environment's current and previous images (R14)" {
   printf '\n[environments.checks]\nrole = "test"\nssh = "rehearsal"\nlogin = "docker-config"\n' >> "$W/work/app-profile.toml"
+  host_env rehearsal checks     # the environment's own .env, which the host reads its registry from
   commit_change a; local A="$SHA"; build_ok "$A"
   run d deploy checks "$A"; assert_success
   commit_change b; local B="$SHA"; build_ok "$B"; deploy_rehearsal "$B"; assert_success
@@ -150,11 +151,11 @@ setup() {
 @test "F8 --expect and --commit with no value refuse and do not loop" {
   cd "$W/work"
   run timeout 10 "$TURPIN" release --expect
-  assert_failure 1
-  assert_output --partial "--expect needs a version"
+  assert_failure 64
+  assert_output --partial "--expect needs a value"
   run timeout 10 "$TURPIN" release --commit
-  assert_failure 1
-  assert_output --partial "--commit needs a commit"
+  assert_failure 64
+  assert_output --partial "--commit needs a value"
 }
 
 # F11 -------------------------------------------------------------------------
@@ -179,18 +180,19 @@ setup() {
 @test "F12 a registry failure reaches the screen and the log as a summary, never the registry's words or address" {
   commit_change a
   STUB_REGISTRY_DOWN=1 run d build "$SHA"
-  assert_failure 1
-  assert_output --partial "the registry could not be reached"
+  assert_failure 75
+  assert_output --partial "the registry did not answer in time or is busy"
   refute_output --partial "dial tcp"
   refute_output --partial "reg.test"
   ref_commit "a feature" 12
   release_ready "12|Requirement||0|"
   STUB_WRITE_ONLY='/candidates$' run d release --expect 0.10.2
-  assert_failure 1
-  assert_output --partial "the registry refused access"
+  assert_failure 2
+  assert_output --partial "the registry refused"
   refute_output --partial "requested access"
   refute_output --partial "reg.test"
-  run grep -rl "reg.test\|dial tcp\|requested access" "$XDG_STATE_HOME/turpin/acme"
+  # the log keeps the tool's own text as the cause (design §3), but never the registry's address
+  run grep -rl "reg.test" "$XDG_STATE_HOME/turpin/acme"
   [ "$status" -ne 0 ] || { echo "the run log holds: $output" >&2; false; }
 }
 
@@ -199,9 +201,20 @@ setup() {
   commit_change a; build_ok "$SHA"
   hook_exit pre-deploy 75
   lock_hold rehearsal rehearsal
-  ( sleep 2.4; kill "$LOCK_PID" ) &
+  # release the lock once this test's deploy is waiting on it (a `flock -w` holding this lock file
+  # on fd 9), not at a fixed time: the deploy may start late on a busy machine
+  local lockfile; lockfile="$(host_state_dir rehearsal rehearsal)/lock"
+  (
+    for _ in $(seq 300); do
+      for p in $(pgrep -f 'flock -w 1 9'); do
+        [ "$(readlink "/proc/$p/fd/9" 2>/dev/null)" = "$lockfile" ] && break 2
+      done
+      sleep 0.1
+    done
+    sleep 1.5; kill "$LOCK_PID"
+  ) &
   run d deploy rehearsal "$SHA" --off-level first --wait=4
-  assert_failure 1
+  assert_failure 75
   assert_output --partial "still not yet after waiting 4 minute(s)"
   # the minutes the lock took are the hook's too: it is asked 4 - used + 1 times
   local used; used="$(sed -n 's/^TURPIN_WAIT_USED=//p' "$HOOKLOG" | head -1)"
@@ -217,7 +230,7 @@ setup() {
   printf '#!/bin/sh\necho "tags rejected" >&2\nwhile read -r old new ref; do case "$ref" in refs/tags/*) exit 1;; esac; done\n' > "$W/remote.git/hooks/pre-receive"
   chmod +x "$W/remote.git/hooks/pre-receive"
   run d release --expect 0.10.2
-  assert_failure 1
+  assert_failure 2
   assert_output --partial "cannot push tag"
   [ -n "$(rel 0.10.2-record)" ]
   rm "$W/remote.git/hooks/pre-receive"
@@ -225,7 +238,7 @@ setup() {
   sleep 1.2
   run d release --expect 0.10.2
   assert_success
-  assert_equal "$(tag_record v0.10.2)" "$(registry_record 0.10.2)"
+  assert_equal "$(tag_record v0.10.2 | jq -S .)" "$(registry_record 0.10.2 | jq -S .)"
 }
 
 # F15 -------------------------------------------------------------------------
@@ -243,7 +256,7 @@ setup() {
   local i
   for i in a b c d; do commit_change $i; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success; done
   local dirs; dirs="$(ls "$(host_state_dir rehearsal rehearsal)/deploys" | sort | tr '\n' ' ')"
-  assert_equal "$dirs" "3 4 "
+  assert_equal "$dirs" "1 2 3 4 "      # the two oldest are cut to their meta.json (S82), not removed
   assert_equal "$(host_current rehearsal rehearsal)" 4
   assert_equal "$(host_previous rehearsal rehearsal)" 3
 }
@@ -461,7 +474,7 @@ EOF
   assert_success
   run d release --expect 0.10.2 --commit "$SHA" --skip-rehearsal "no host"
   assert_success
-  assert_equal "$(jq -r .rehearsal.environment <<< "$(tag_record v0.10.2)")" '"re hearsal"'
+  assert_equal "$(jq -r .rehearsal.environment <<< "$(tag_record v0.10.2)")" 're hearsal'
 }
 
 @test "R4 prune names only registry images and leaves local ones" {
@@ -557,4 +570,18 @@ echo backup"
   assert_success
   run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops userdel acme-x
   assert_failure 1
+}
+
+@test "root-ops rm of a file already deleted is done, and drops its entry (R13)" {
+  commit_change a; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  local root="$W/hosts/rehearsal" st="$W/hosts/rehearsal/var/lib/turpin/acme/rehearsal"
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops install "$st/deploys/1/payload/host_files/ops/backup.sh" /opt/acme/backup.sh 0755
+  assert_success
+  rm "$root/opt/acme/backup.sh"
+  grep -qx /opt/acme/backup.sh "$root/etc/turpin/acme/installed"
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops rm /opt/acme/backup.sh
+  assert_success
+  ! grep -qx /opt/acme/backup.sh "$root/etc/turpin/acme/installed"
+  run env TURPIN_HOST_ROOT="$root" "$TURPIN_HOST" root-ops rm /opt/acme/backup.sh
+  assert_success
 }

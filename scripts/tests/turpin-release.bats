@@ -100,17 +100,20 @@ two_builds() {   # P (production's) and Q (another)
   assert_output --partial "rehearsal-passed"
   # its smoke test did not pass
   local m; m="$(host_state_dir rehearsal rehearsal)/deploys/1/meta.json"
-  jq '.smoke = "failed"' "$m" > "$m.new" && mv "$m.new" "$m"
+  local passed; passed="$(jq -r .deployed "$m")"
+  jq '.deployed = null | .smoke = null' "$m" > "$m.new" && mv "$m.new" "$m"
   run d release --expect 0.10.2
   assert_failure 1
   assert_output --partial "rehearsal-passed"
   # the deploy did not finish
-  jq '.smoke = "passed"' "$m" > "$m.new" && mv "$m.new" "$m"
-  printf 'in progress: smoke\ndeploy=1\n' > "$(host_state_dir rehearsal rehearsal)/state"
+  jq --arg t "$passed" '.deployed = $t | .smoke = "passed"' "$m" > "$m.new" && mv "$m.new" "$m"
+  host_record_set rehearsal rehearsal '.state = "changing: deploy smoke"'
+
   run d release --expect 0.10.2
   assert_failure 1
   assert_output --partial "rehearsal-passed"
-  printf 'finished\ndeploy=1\n' > "$(host_state_dir rehearsal rehearsal)/state"
+  host_record_set rehearsal rehearsal '.state = "finished"'
+
   local before; before="$(snapshot)"
   run d release --expect 0.10.2
   assert_success
@@ -127,6 +130,40 @@ two_builds() {   # P (production's) and Q (another)
   assert_regex "$(gh_log)" "RELEASE create v0.10.2 notes-start-tag="
   assert_regex "$(gh_log)" "POST repos/acme/acme/milestones title=0.10.3"
   : "$before"
+}
+
+@test "list shows each release record beside what the environment runs, and marks the one it runs (S46, R40)" {
+  ref_commit "a feature" 12
+  build_ok "$SHA"; local a="$SHA"
+  gh_checks "$a" e2e=success
+  gh_milestone 0.10.2 "12|Requirement||0|"
+  deploy_rehearsal "$a"; assert_success
+  run d release --expect 0.10.2
+  assert_success
+  text_tag v0.10.1 HEAD     # a release made before the tool
+  # rehearsal runs the released build; a build made since is not the record's
+  run d list rehearsal
+  assert_success
+  assert_output --regexp "^0\\.10\\.1  \\(history: no record\\)"
+  assert_output --regexp "0\\.10\\.2  ${a:0:12}  20[0-9-]+T[0-9:]+Z  <- rehearsal runs this$"
+  git -C "$W/work" pull -q --ff-only origin main
+  commit_change later; build_ok "$SHA"
+  run d deploy rehearsal "$SHA" --off-level "shown against the record"
+  assert_success
+  run d list rehearsal
+  assert_success
+  assert_output --regexp "0\\.10\\.2  ${a:0:12}  20[0-9-]+T[0-9:]+Z$"
+  refute_output --partial "runs this"
+}
+
+@test "list shows a record version it does not read as such, and leaves out a tag that is no version (S46, R40)" {
+  commit_change one; build_ok "$SHA"; deploy_rehearsal "$SHA"; assert_success
+  git -C "$W/work" tag -a -m '{"record":2,"version":"0.10.5","commit":"x","images":{}}' v0.10.5 HEAD
+  git -C "$W/work" tag -a -m 'notes' vnext HEAD
+  git -C "$W/work" push -q origin refs/tags/v0.10.5 refs/tags/vnext
+  run d list rehearsal
+  assert_success
+  assert_output "0.10.5  (a record this tool does not read)"
 }
 
 @test "skip_rehearsal_records_reason_and_raises_retrospective (S19, R16, R30)" {
@@ -286,16 +323,17 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   assert_output --partial "refused at gate version-spent-once"
   git -C "$W/work" tag -d v0.10.2 >/dev/null; git -C "$W/work" push -q origin :refs/tags/v0.10.2
   # a record for it is in releases from another commit
-  mkdir -p "$W/registry/reg.test/ns/acme/releases"
-  printf '{"record":1,"commit":"deadbeef","images":{}}\n' > "$W/rec.json"
-  ( cd "$W/work" && . "$TURPIN_SRC/lib/common.sh" && . "$TURPIN_SRC/lib/registry.sh" && export TURPIN_REGISTRY=reg.test/ns REGISTRY_AUTH_FILE="$HOME/.config/turpin/auth/acme/copier.json" && record_push acme/releases 0.10.2-record "$W/rec.json" )
+  jq -nc --arg c "$(git -C "$W/work" rev-parse HEAD~1)" --arg s "$(cand "$RSHA-server")" --arg w "$(cand "$RSHA-web")" \
+    '{login:"docker-config",candidates:"acme/candidates",releases:"acme/releases",commit:$c,images:{server:$s,web:$w},version:"0.10.2",
+      record:{record:1,application:"acme",version:"0.10.2",commit:$c,images:{server:$s,web:$w},made:"2026-10-01T00:00:00Z"}}' \
+    | "$TURPIN" promote acme
   run d release --expect 0.10.2
   assert_failure 1
   assert_output --partial "another commit or other digests"
   rm -rf "$W/registry/reg.test/ns/acme/releases/oci/0.10.2-record" "$W/registry/reg.test/ns/acme/releases/tags/0.10.2-record"
   # lower than a prod- tag of an earlier prefix
   text_tag prod-0.11.0 "$(git -C "$W/work" rev-parse HEAD~1)"
-  fake_production 0.11.0 "$(git -C "$W/work" rev-parse HEAD~1)"
+  fake_production 0.11.0 "$RSHA"
   run d release --expect 0.10.2
   assert_failure 1
   assert_output --partial "not higher than the newest release tag 0.11.0"
@@ -388,7 +426,7 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   assert_failure 1
   # (2) the flag without a reason
   run d release --expect 0.10.2 --set-aside milestone
-  assert_failure 1
+  assert_failure 64
   assert_output --partial "needs a reason"
   # (3) the profile does not list milestone
   run d release --expect 0.10.2 --set-aside milestone "known extra"
@@ -456,8 +494,8 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   ref_commit "a feature" 12
   release_ready "12|Requirement||0|"
   STUB_FAIL_RECORD_PUSH=1 run d release --expect 0.10.2
-  assert_failure 1
-  assert_output --partial "pushing the record failed"
+  assert_failure 75
+  assert_output --partial "turpin release --expect 0.10.2 --commit"
   [ -z "$(git -C "$W/remote.git" tag -l v0.10.2)" ]
   [ -n "$(rel 0.10.2-server)" ]                    # the copy was made
   [ -z "$(rel 0.10.2-record)" ]
@@ -493,7 +531,7 @@ emergency_ready() {   # COMMIT: built and on rehearsal, CI green, milestone 0.10
   ref_commit "a feature" 12
   release_ready "12|Requirement||0|"
   local other; other="$(git -C "$W/work" rev-parse HEAD~1)"
-  printf '{"record":1,"application":"acme","version":"0.10.2","commit":"%s","images":{"server":"sha256:aaa","web":"sha256:bbb"}}\n' "$other" > "$W/rec.json"
+  printf '{"record":1,"application":"acme","version":"0.10.2","commit":"%s","images":{"server":"sha256:%064d","web":"sha256:%064d"},"made":"2026-10-01T00:00:00Z"}\n' "$other" 1 2 > "$W/rec.json"
   git -C "$W/work" tag -a -F "$W/rec.json" v0.10.2 "$other" && git -C "$W/work" push -q origin refs/tags/v0.10.2
   run d release --expect 0.10.2
   assert_failure 1
