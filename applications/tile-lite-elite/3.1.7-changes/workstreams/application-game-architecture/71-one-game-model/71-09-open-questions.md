@@ -204,8 +204,8 @@ the game's lock; (b) the deleter takes the game's lock, so a save in progress
 finishes first and a later one finds the flag. Answered (Claude, 2026-11-16,
 as the design authority): (b), which holds (a)'s flag too. The deleter takes the
 game's lock, sets `deleted`, and removes the game from the map, so a save
-already under the lock finishes first and one that comes later finds the flag
-and does nothing. #408 keeps the map's loading and eviction.
+already under the lock finishes first and a message that comes later finds the
+flag, is refused as one to a game that does not exist, and saves nothing. #408 keeps the map's loading and eviction.
 
 **Does a staged word survive onto a game that is over?** `live_composition`
 ([*The composition is keyed by game and seat*](71-07-client.md#the-composition-is-keyed-by-game-and-seat))

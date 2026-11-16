@@ -321,7 +321,7 @@ seat id, so a swap and the start's renumbering write no list
 
 1. **The bot list names an account that does not exist, or an engine not
    compiled in.** Answered (owner, 2026-11-15), with a level outside 1 to the
-   engine's `max_level` added on 2026-11-16: the server refuses to start,
+   engine's `max_level` added by Claude on 2026-11-16: the server refuses to start,
    naming the setting, as for any invalid setting
    ([*The bots the server runs*](71-06b-engine-bots.md#the-bots-the-server-runs)).
 2. **An administrator deletes a listed bot's account while the server runs.**
