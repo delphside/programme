@@ -4,7 +4,9 @@ Found while designing delphside/tile-lite-elite#545 *MAIN PROJECT: Build once,
 promote through environments*, for Tile Lite Elite's adoption of Turpin
 (delphside/programme#117): gaps in the tool that Tile Lite Elite could not meet
 as written. delphside/programme#233 *Turpin: close the gaps for Tile Lite Elite*
-closes T1 to T7 and T9 to T12; T8 is not needed (Q5); T13 is open. *A first
+closes T1 to T7 and T9 to T12, and delphside/programme#235 *Turpin: host-read
+profile keys ship; report unmilestoned issues* closes T13 and T14; T8 is not
+needed (Q5). *A first
 deploy* is one to a host whose state has no `current`; *an adopted host* runs
 the application under another tool before Turpin's first deploy, as Tile Lite
 Elite's two VMs run its `deploy.sh`.
@@ -23,4 +25,5 @@ Elite's two VMs run its `deploy.sh`.
 | T10 | to release 0.10.2 while production runs 0.10.1, deployed by `deploy.sh`, where production has no Turpin state | fixed: production's version comes from `/health`, and the release refuses where no tag of that version names the commit |
 | T11 | the state folder and its `.env` in place before the first deploy | fixed: `host-install` makes `/var/lib/turpin/APP` and `APP/ENV` (0700, owned by the deploy user) and an empty `.env` (0600) |
 | T12 | one home for Tile Lite Elite's specifics | fixed: Turpin's design links to Tile Lite Elite's [design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md) |
-| T13 | with `[ships].carries_payload`, an `app-profile.toml` change ships only where a key in the payload's `HOST_READS` changes (`board/shipping.py` judges the file as one path) | open: to be fixed in Turpin before delphside/tile-lite-elite#555 *WP B Del 3 of 4: deploy tooling builds once and promotes* merges |
+| T13 | with `[ships].carries_payload`, an `app-profile.toml` change to ship only where a key the host reads changes | fixed: the board compares the profile's host-read keys (`HOST_READS`) at the two commits |
+| T14 | R10: an open issue a release names with no milestone still reported | fixed: `turpin release` reports each one as a note, a check and not a gate (`milestone.unmilestoned`) |
