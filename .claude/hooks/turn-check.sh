@@ -97,10 +97,12 @@ fi
 # fails a turn, so an unreadable profile is reported in the turn and ends it.
 # An application whose profile has no `[release]` table announces no deploys, so
 # there is no marker and nothing to filter out.
-if ! HAS_RELEASE="$(python3 "$BOARD"/board-profile.py has release 2>&1)"; then
-  echo "turn-check: $HAS_RELEASE"
-  exit 0
-fi
+# `has` answers by its exit status: 0 yes, 1 no, anything else unreadable.
+HAS_RELEASE=true
+WHY="$(python3 "$BOARD"/board-profile.py has release 2>&1)" || case $? in
+  1) HAS_RELEASE=false ;;
+  *) echo "turn-check: $WHY"; exit 0 ;;
+esac
 DEPLOY_MARKER=""
 if [ "$HAS_RELEASE" = true ] && ! DEPLOY_MARKER="$(python3 "$BOARD"/board-profile.py get release.deploy_marker 2>&1)"; then
   echo "turn-check: $DEPLOY_MARKER"

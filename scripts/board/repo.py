@@ -52,12 +52,12 @@ from .sources import Unavailable, _blip, run_detached
 # about a question in #311 was the reason #311 read as closed by a commit.
 
 
-def has_release() -> bool:
+def has_release(root=None) -> bool:
     """Whether the technical profile has a `[release]` table. An application that does
     not (it has made no release, or ships none through tags) has no release tags, no
     deploy announcements and no CI status to read: each of those reads answers as it
     would for a repository that has never released, and says nothing."""
-    return profile.technical().has_table("release")
+    return profile.technical(root).has_table("release")
 
 
 def _tag_prefix() -> str:
@@ -74,7 +74,7 @@ def _history_prefixes() -> list[str]:
     current prefix (`_tag_prefix`), which alone names the releases made now.
     """
     tech = profile.technical()
-    if not tech.has_table("release") or "history_prefixes" not in tech.data["release"]:
+    if not has_release() or "history_prefixes" not in tech.data["release"]:
         return []
     return tech.strings("release.history_prefixes")
 
@@ -468,7 +468,7 @@ def ci_red_on_main() -> str | None:
     read as a red one any more than as a green one.
     """
     root = profile.app_root()
-    if not profile.technical(root).has_table("release"):
+    if not has_release(root):
         return None
     command = shlex.split(profile.technical(root).string("release.ci_status"))
     script = root / command[0]
