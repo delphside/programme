@@ -388,7 +388,7 @@ only what WP A must leave room for.
 
 ## Coordination with #71
 
-#71 Core (delphside/tile-lite-elite#268) designed an `ErrorDto`
+The Core package of #71 (delphside/tile-lite-elite#268) designed an `ErrorDto`
 (`71-05b-wire-types.md`, *The error body, shared by every endpoint*, D65). Under
 decision 1, **this design supplies that body**; programme pull request #211
 changes 71-05b's section to link here and records D65 as superseded. Core
