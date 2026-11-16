@@ -48,11 +48,11 @@ missing (`71-test-approach.md`).
 - [ ] **Claude** — two seats of one listed bot share one account and one rating per edition
 - [ ] **Claude** — a scripted second client sees every change the first makes, invitations included, within one update
 - [ ] **Claude** — the same engine plays the same move through the glue and through the external transport
-- [ ] **Claude** — an engine refuses a level of 0 or above its maximum when its game starts, starts at its default when the bot list gives none, and one with a maximum of 1 plays at level 1
+- [ ] **Claude** — an engine's `start` refuses a level of 0 or above its maximum, a bot list giving one stops the server at start-up, an engine starts at its default when the bot list gives none, and one with a maximum of 1 plays at level 1
 - [ ] **Claude** — G1: a bot seat the start renumbers keeps its bot object and plays on its new number, and a swap writes no seat list
 - [ ] **Claude** — G2: a bot object ends on the first view that shows its game finished or aborted, and one made at start-up for a game already over ends on that game's first view
 - [ ] **Claude** — G3: an account subscribed over every seated game has an `Invited` seat in its list from the moment it is the seat's addressee, keeps a declined or withdrawn seat until the start, and loses a spent seat at the start; deleting a waiting game takes it from its addressee's list too
-- [ ] **Claude** — G4: a bot list naming an account that does not exist, or an engine not compiled in, stops the server at start-up naming the setting, and deleting a listed bot's account is refused
+- [ ] **Claude** — G4: a bot list naming an account that does not exist, an engine not compiled in, or a level outside that engine's range, stops the server at start-up naming the setting, and deleting a listed bot's account is refused
 - [ ] **Claude** — G5: hiding a game and sending a reminder each log a row with the next `seq` and the version unchanged
 - [ ] **Claude** — G6: a bot's move whose save fails is submitted once more after `Retry-After` and applied if that save succeeds; a second failure leaves the seat on turn
 - [ ] **Claude** — the start drops spent seats, renumbers the rest and checks GAME-3 again after the drop, refusing a game left with fewer than two seats
@@ -61,9 +61,10 @@ missing (`71-test-approach.md`).
 - [ ] **Claude** — an abort cancels the game's pending invitations
 - [ ] **Claude** — a person's move whose save fails answers 503 with `Retry-After`, reloads the game and publishes nothing; a reader that finds `unsaved` reloads first; a failed reload answers 503 to every message until one succeeds
 - [ ] **Claude** — every applied change, and a game's creation, appends one `game_events` row with its version, and a duplicate (`game_id`, `seq`) is refused
-- [ ] **Claude** — a pre-start event in the log names the seat by its id, and still names the right seat after a swap and after the start
+- [ ] **Claude** — a pre-start event in the log, a chat and a hide included, names the seat by its id, and still names the right seat after a swap and after the start
 - [ ] **Claude** — deleting a game deletes its seats, invitations and log rows, sets `rating_history.game_id` to null, and a rating point with no game reads as no game (#66)
-- [ ] **Claude** — a save after a game's deletion does nothing: the deleter holds the game's lock and sets `deleted`
+- [ ] **Claude** — a message to a game after its deletion is refused and saves nothing: the deleter takes the game's lock and sets `deleted`
+- [ ] **Claude** — GAME-6: a force-resign from anyone but the creator is refused with `NotCreator`
 - [ ] **Claude** — DEL-2: deleting an account that any game names is refused
 - [ ] **Claude** — the migration keeps every rating row under its new (`player_id`, `edition`) key, writes `schema_version` 1, and fails on a foreign-key violation (#253, #302)
 - [ ] **Claude** — a rename reaches every game the player is in (#80), and moves each one's version

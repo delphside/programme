@@ -98,8 +98,8 @@ workspace extends model.dsl {
         !element tle.server.scheduler {
             tags "changed" "wp:268"
         }
-        // 71-08-storage.md, "Modules" (app/admin.rs): force-resign and
-        // force-end become messages.
+        // 71-08-storage.md, "Modules" (app/admin.rs): force-end becomes a
+        // message.
         !element tle.server.adminApi {
             tags "changed" "wp:268"
         }
@@ -238,7 +238,7 @@ workspace extends model.dsl {
         tle.server.scheduler -> tle.server.session "sends due messages to apply" {
             tags "new" "wp:268"
         }
-        tle.server.adminApi -> tle.server.session "sends force-resign and force-end messages to apply" {
+        tle.server.adminApi -> tle.server.session "sends force-end messages to apply" {
             tags "new" "wp:268"
         }
         tle.server.games -> tle.server.store "deletes expired sessions, records the database size" {
