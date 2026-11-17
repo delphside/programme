@@ -194,11 +194,41 @@ class Section:
             node = node[part]
         return node
 
+    def has_table(self, dotted: str) -> bool:
+        """Whether the profile has this table at all. The one way to ask about a table
+        that is optional as a whole (`release`): the keys inside a table that is there
+        are still each required, so a misspelt key in it still fails, naming it. A key
+        that is there but is not a table is malformed, and fails rather than reading as
+        absent."""
+        node: Any = self.data
+        walked: list[str] = []
+        for part in dotted.split("."):
+            if part not in node:
+                return False
+            node = node[part]
+            walked.append(part)
+            if not isinstance(node, dict):
+                raise ProfileError(f"{self.source}: `{self.prefix}{'.'.join(walked)}` must be a table "
+                                   f"(asked for `{self.prefix}{dotted}`)")
+        return True
+
     def string(self, dotted: str) -> str:
         value = self.get(dotted)
         if not isinstance(value, str) or not value:
             raise ProfileError(f"{self.source}: `{dotted}` must be a non-empty string")
         return value
+
+    def flag(self, dotted: str) -> bool:
+        """An optional yes-or-no key: false where it is absent, and a key that is there but is
+        not true or false is malformed."""
+        node: Any = self.data
+        for part in dotted.split("."):
+            if not isinstance(node, dict) or part not in node:
+                return False
+            node = node[part]
+        if not isinstance(node, bool):
+            raise ProfileError(f"{self.source}: `{dotted}` must be true or false")
+        return node
 
     def integer(self, dotted: str) -> int:
         value = self.get(dotted)

@@ -1,27 +1,37 @@
 <!-- markdownlint-disable-file MD041 -->
 <!--
-The body is the review surface. Say what is being asked for; the argument, the
-measurements and the design live on the issue. The rules for the body are in
-*Changes* in
+The rules for the body are in *Changes* in
 [the programme's `CLAUDE.md`](https://github.com/delphside/programme/blob/main/CLAUDE.md#changes).
-
 Who reviews, and when Claude merges, is
 [1.2 §2.2](https://github.com/delphside/programme/blob/main/docs/1.2-change-lifecycle.md#22-when-to-branch-and-what-pre-approved-means).
 
-Replace `N` on the `Refs #N` line with the issue this delivers, or write
-`Activity: <id>`, and `Initiative: <id>` where there is one, for BAU work.
-`Closes #N` is never used: no merge closes an issue.
+The `Refs #N` line:
 
-*Review* says whether the owner's review is owed: the programme holds no
-application, so the default is that it is not, and `board-pr-state.py` then
-does not report the pull request as waiting on nobody. Where a change does owe
-his review, replace the `No review owed:` line with what he is to check, and
-add him as reviewer.
+- for an issue, replace `N` with the issue this delivers;
+- for business-as-usual (BAU) work, replace the line with `Activity: <id>`,
+  and add `Initiative: <id>` on a line of its own where there is one.
+
+Never write `Closes #N`.
+
+*Review* says whether the owner's review is owed:
+
+- not owed, the default here: keep the `No review owed:` line, and open the
+  pull request with `create-pr.sh --no-review`;
+- owed: replace the line with what he is to check, add him as reviewer when
+  opening it (`create-pr.sh` does by default), and ask for the review in the
+  chat.
 
 *Review rounds* is the review record, in the form
 [1.1](https://github.com/delphside/programme/blob/main/docs/1.1-programme-tooling.md#claudes-tooling)
 gives. Keep `None owed:` where 1.1's *what owes none* row covers the change;
 otherwise replace it with the record.
+
+The board tooling reads these, so keep them as written:
+
+- *What is being requested* and *What is deliberately left out*, read by
+  `board-check.py`;
+- *Review* and its opening `No review owed`, read by `board-pr-state.py`;
+- *Review rounds* and its opening `None owed`, read by the weekly digest.
 -->
 
 Refs #N
@@ -35,13 +45,13 @@ Which part of the scope this delivers, named against its issue or activity.
 ## What is deliberately left out
 
 <!--
-Scope this pull request does not carry, and why. *Nothing* is a valid answer,
-and a blank heading is not.
+Scope this pull request does not carry, and why. Where nothing is left out,
+write *Nothing*.
 -->
 
 ## Review
 
-No review owed: the programme's documents, process and tooling (docs/1.2 §2.2).
+No review owed: the programme's records, documents, process and tooling (docs/1.2 §2.2).
 
 ## Review rounds
 

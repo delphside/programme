@@ -9,6 +9,9 @@ replaced); git is a real history, because the evidence is git's.
               revert, name nothing
   parents     a parent's `Refs` is reported beside its work package and never
               counted for it (delphside/tile-lite-elite#375)
+  confirm     an issue no commit names is a question: refused naming it until confirmed, then
+              carried like a named one and kept in the record's `carries.confirmed`; a
+              parent is never asked about
   emergency   an issue evidenced only on `main` is left out, not refused
   routes      a Production Release work package the commits name is in the
               milestone or an undeployed earlier release's; other routes are not
@@ -51,7 +54,7 @@ def wp(n, milestone="0.10.2", parent=None, route="Production Release", body=TICK
 
 def request(sha, **kw):
     base = dict(version="0.10.2", sha=sha, range=sha, main_range="main", carry_from=None,
-                prefixes=("v", "prod-"), emergency=False, milestone_set_aside=False)
+                prefixes=("v", "prod-"), emergency=False, milestone_set_aside=False, confirmed=())
     base.update(kw)
     return GateRequest(**base)
 
@@ -100,7 +103,7 @@ class TheMilestoneIsAShippingList(Cases):
             sha = h.commit("a feature\n\nRefs #12")
             with Board([raw(12), raw(13)]):
                 result = gate(request(sha, range=f"v0.10.1..{sha}"))
-            self.expect("the unevidenced issue refuses", (False, "open in milestone 0.10.2 but no commit in the release says Refs: #13"),
+            self.expect("the unevidenced issue refuses", (False, "open in milestone 0.10.2, no commit in the release says Refs, and not confirmed as in this build: #13"),
                         verdicts(result)["milestone"])
             with Board([raw(12)]):
                 result = gate(request(sha, range=f"v0.10.1..{sha}"))
@@ -110,6 +113,96 @@ class TheMilestoneIsAShippingList(Cases):
             with Board([raw(99)]):
                 result = gate(request(sha, range=f"v0.10.1..{sha}"))
             self.expect("a commit before the release is not evidence", False, result.passed)
+
+    def test_an_issue_no_commit_names_is_a_question_a_confirmation_answers(self):             # T9
+        """unconfirmed refuses and is listed; confirmed is carried, and recorded as confirmed"""
+        with History() as h, inside(h.path):
+            h.commit("base\n\nRefs #99")
+            h.tag("v0.10.1")
+            sha = h.commit("a feature\n\nRefs #12")
+            with Board([raw(12), raw(13), raw(14)]):
+                result = gate(request(sha, range=f"v0.10.1..{sha}", confirmed=(13,)))
+                self.expect("the one left unconfirmed refuses, naming it and no other",
+                            (False, [14]), (result.passed, result.unconfirmed))
+                self.expect("naming only it", True, "#14" in verdicts(result)["milestone"][1] and "#13" not in verdicts(result)["milestone"][1])
+                result = gate(request(sha, range=f"v0.10.1..{sha}", confirmed=(13, 14)))
+            self.expect("every one confirmed passes", True, result.passed)
+            self.expect("and is carried like a named one, and recorded",
+                        {"work_packages": [], "issues": [12, 13, 14], "releases": [], "confirmed": [13, 14]}, result.carries)
+
+    def test_a_confirmation_a_commit_makes_needless_is_noted_and_not_recorded(self):           # T9
+        """--confirm 12 for an issue a commit names changes nothing but a note"""
+        with History() as h, inside(h.path):
+            sha = h.commit("a feature\n\nRefs #12")
+            with Board([raw(12)]):
+                result = gate(request(sha, range=sha, confirmed=(12, 77)))
+            self.expect("passes", True, result.passed)
+            self.expect("nothing recorded as confirmed", {"work_packages": [], "issues": [12], "releases": []}, result.carries)
+            self.expect("both noted", 2, len([n for n in result.notes if "needs no confirmation" in n]))
+
+    def test_a_parent_is_never_asked_about(self):                                               # T9
+        """a parent in the milestone with no commit is skipped, as before"""
+        with History() as h, inside(h.path):
+            sha = h.commit("a feature\n\nRefs #363")
+            parent = raw(301, "Project", subs=(RawSubIssue(363, "Project"),))
+            with Board([parent, wp(363, parent=301)]):
+                result = gate(request(sha, range=sha))
+            self.expect("passes with nothing to confirm", (True, []), (result.passed, result.unconfirmed))
+
+    def test_set_aside_still_carries_the_milestone_as_it_stands(self):                          # T9
+        """--set-aside milestone is unchanged: nothing is asked"""
+        with History() as h, inside(h.path):
+            sha = h.commit("a feature\n\nRefs #12")
+            with Board([raw(12), raw(13)]):
+                result = gate(request(sha, range=sha, milestone_set_aside=True))
+            self.expect("passes, both carried", (True, [12, 13]), (result.passed, result.carries["issues"]))
+
+    def test_an_open_issue_a_commit_names_with_no_milestone_is_reported(self):                 # T14
+        """named + open + no milestone is a note; the release goes ahead"""
+        with History() as h, inside(h.path):
+            sha = h.commit("a feature\n\nRefs #12\n\nRefs #13")
+            with Board([raw(12), raw(13, milestone=None)]):
+                result = gate(request(sha, range=sha))
+            self.expect("passes, and names only the one", (True, ["#13 is named by a commit in the release and is open with no milestone"]),
+                        (result.passed, result.notes))
+
+    def test_an_issue_with_another_milestone_is_not_reported(self):                            # T14
+        with History() as h, inside(h.path):
+            sha = h.commit("a feature\n\nRefs #12\n\nRefs #13")
+            with Board([raw(12), raw(13, milestone="2026.11.16-1")]):
+                result = gate(request(sha, range=sha))
+            self.expect("no note", [], result.notes)
+
+    def test_a_closed_issue_is_not_reported(self):                                             # T14
+        from board.milestone import unmilestoned
+        from board.model import classify
+        issues = [classify(raw(12, milestone=None)), classify(raw(13, milestone=None, state="CLOSED"))]
+        self.expect("only the open one", (12,), unmilestoned(issues, {12, 13}))
+
+    def test_a_parent_and_an_issue_no_commit_names_are_not_reported(self):                    # T14
+        with History() as h, inside(h.path):
+            sha = h.commit("a feature\n\nRefs #12\n\nRefs #301")
+            parent = raw(301, "Project", milestone=None, subs=(RawSubIssue(363, "Project"),))
+            with Board([raw(12), parent, raw(14, milestone=None)]):
+                result = gate(request(sha, range=sha))
+            self.expect("no note", [], result.notes)
+
+    def test_a_set_aside_milestone_still_reports_it(self):                                     # T14
+        with History() as h, inside(h.path):
+            sha = h.commit("a feature\n\nRefs #13")
+            with Board([raw(13, milestone=None)]):
+                result = gate(request(sha, range=sha, milestone_set_aside=True))
+            self.expect("noted", 1, len(result.notes))
+
+    def test_a_reverted_mention_is_not_reported(self):                                         # T14
+        with History() as h, inside(h.path):
+            h.commit("base\n\nRefs #99")
+            h.tag("v0.10.1")
+            first = h.commit("a feature\n\nRefs #13")
+            sha = h.revert(first, "Refs #13")
+            with Board([raw(13, milestone=None)]):
+                result = gate(request(sha, range=f"v0.10.1..{sha}"))
+            self.expect("no note", [], result.notes)
 
     def test_a_revert_takes_the_evidence_away(self):
         """a commit that is reverted, and the revert, name nothing"""

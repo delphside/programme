@@ -605,6 +605,25 @@ It holds nothing secret; secrets stay in each host's `.env`.
   built commit pins (the running tool's own without one), read with
   `git archive` and recorded as `tool.programme`; hooks and files from the
   application.
+- Its `profile.json` is the commit's profile cut to the keys a host reads
+  ([§8](#8-profile-and-hooks)), so an edit to any other key, a board key among them,
+  changes nothing the image carries.
+- A move of an application's `programme` pin changes what the payload carries only
+  through the files `payload.py` copies: `scripts/deliver/payload/` and the three
+  libraries `common.sh`, `toml.sh` and `toml.awk` of `scripts/deliver/lib/`. They are
+  named once, in the board's `shipping.py`, which `payload.py` reads. An application
+  whose image carries the payload sets `[ships].carries_payload = true`; the board
+  then counts a pin move as reaching the image only where one of those files differs
+  between the old pin and the new one, in every command (`paths` judges the staged
+  move, for the pre-commit hook), whatever `[ships].non_shipping` says of the path
+  `programme`; where the submodule cannot say, it ships. Without the key the pin is a
+  path like any other and `non_shipping` decides it.
+- The same key judges an edit to the profile file, `app-profile.toml`: it counts as
+  reaching the image only where the profile cut to the keys a host reads
+  (`HOST_READS`, the cut `profile.json` is made of) differs, as parsed data, between
+  the two commits, in every command as for the pin. A profile that cannot be read or
+  parsed at either commit ships. An edit to board keys alone ships nothing. Without
+  the key the profile is a path like any other.
 - Joined files come from the payload, never a working tree; an environment may
   name its own (Tile Lite Elite's preview joins `docker-compose.preview.yml`,
   `Caddyfile.preview`).
@@ -1136,7 +1155,7 @@ flowchart LR
 
 | Function | Rule it holds | Answers |
 | --- | --- | --- |
-| `gate(request)` | the tests-passed and milestone gates: `Refs` in the range, reverts, the work-package classification | passed or refused, with each finding; what the release carries (`work_packages`, `issues`, and `releases` with `dropped`), which goes into the record; with `--emergency`, the items left out |
+| `gate(request)` | the tests-passed and milestone gates: `Refs` in the range, reverts, the work-package classification | passed or refused, with each finding and note (an issue a commit names that has no milestone); what the release carries (`work_packages`, `issues`, and `releases` with `dropped`), which goes into the record; with `--emergency`, the items left out |
 | `settle(record, announcement, tag)` | [§12](#12-settling)'s table | does the table, skipping what is done; returns what is left, with a reason where the issues could not be read |
 | `open_next(version, move)` | step 7 of [§10](#10-the-release-and-its-record) | opens the next milestone and moves the left-out items into it |
 | `checks(sha, required)` | the `ci-passed` gate's read | each `required_checks` check's conclusion on the commit |
@@ -1617,16 +1636,17 @@ JSON request on standard input.
 | --- | --- | --- | --- | --- |
 | `turpin build [REF] [--local]` | builder | owner; timer; controller by `ssh` | builds REF (default `HEAD`) once, pushes to candidates; non-interactive. The `build` hook writes each image as an OCI image layout ([§8](#8-profile-and-hooks); the default runs `docker buildx bake` with OCI output per target), and the [registry adapter](#the-registry-adapter) pushes it, once its labels `org.opencontainers.image.revision` (SHA), `.version` (from the version file) and `.created`, which the hook sets, are checked; prints digests (an index digest for a multi-arch build). `--local` (preview only): the hook, given `TURPIN_LOCAL=1`, loads the images into local Docker (the default with `--load`), no push; identified by image id and revision label, not `RepoDigests` | builder: its `skopeo` login (read and push candidates), the machine's git login (fetch) |
 | `turpin deploy ENV REF [--wait[=MIN]] [--check] [--set-aside GATE REASON] [--unrecorded REASON] [--off-level REASON]` | controller | owner | preview, test, rehearsal: REF is a SHA (full or short; ambiguous refuses) or version, resolved to candidates' digests. Production: a version with a record | controller: its `skopeo` login (read), the owner's `ssh` key. Deployer: the machine user's `docker` login (pull candidates, or releases for production); the deploy user and *root-ops* |
-| `turpin release [--expect VERSION] [--commit REF] [--emergency REASON] [--skip-rehearsal REASON] [--set-aside GATE REASON] [--check]` | controller; `turpin promote` on the copier | owner | releases the commit rehearsal runs; `--commit REF` names another commit instead, as `--skip-rehearsal` needs. Shows version (from the version file at that commit), commit, digests, last passing rehearsal deploy; the owner types the version to confirm (`--expect` if non-interactive). Gates [§9](#9-gates-and-checks), steps [§10](#10-the-release-and-its-record) | controller: its `skopeo` login (read), the owner's `gh` login (through the board model), the owner's git login (push `main`, by admin bypass, and the tag), the owner's `ssh` key to the copier's machine. Copier: its `skopeo` login (write releases) |
+| `turpin release [--expect VERSION] [--commit REF] [--emergency REASON] [--skip-rehearsal REASON] [--set-aside GATE REASON] [--confirm N]... [--check]` | controller; `turpin promote` on the copier | owner | releases the commit rehearsal runs; `--commit REF` names another commit instead, as `--skip-rehearsal` needs. Shows version (from the version file at that commit), commit, digests, last passing rehearsal deploy; the owner types the version to confirm (`--expect` if non-interactive), and, without `--expect`, answers for each open issue in the milestone that no commit names (`--confirm N`, repeatable, answers it without a terminal). Gates [§9](#9-gates-and-checks), steps [§10](#10-the-release-and-its-record) | controller: its `skopeo` login (read), the owner's `gh` login (through the board model), the owner's git login (push `main`, by admin bypass, and the tag), the owner's `ssh` key to the copier's machine. Copier: its `skopeo` login (write releases) |
 | `turpin settle VERSION` | controller | owner | the board to what the record says shipped ([§12](#12-settling)); safe to rerun | controller: the owner's `gh` login, through the board model |
 | `turpin rollback ENV` | controller | owner | `turpin-host rollback`: ENV's previous deploy ([§11](#11-on-the-host)) | controller: the owner's `ssh` key. Deployer: as for `deploy` |
 | `turpin status ENV`, `list ENV` | controller | owner | digests ENV runs (`RepoDigests`), their record, deploy state, host files against the payload's (a check); `list`: the records beside what ENV runs | controller: its `skopeo` login (read), the owner's `ssh` key |
 | `turpin prune [--dry-run]` | controller; `turpin remove` on the builder | owner | the controller picks the unneeded candidates, reading every environment's state and the registry with its own login, and sends the list to the builder (`[turpin.build].on`), with the digests releases holds as its keep list; the builder's removal credential removes them; never releases. `--dry-run` lists and sends nothing. A candidate the builder fails to remove is an error, and the rest are removed, exit 3 ([the pivot](#errors-results-and-the-pivot)) | controller: its `skopeo` login (read), `ssh` to every host and the builder. Builder: its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates, through the Artifacts API) |
 | `turpin login COMPONENT` | controller; on the component's machine, `turpin login` (builder, copier) or `turpin-host login` (an environment) | owner | the owner's one `docker-config` login for `controller`, `builder`, `copier` or an environment (its deployer): asks for the registry user, reads the token at a hidden prompt, and sends both on standard input to the component's machine ([§3](#3-oci-registry-integration) says which login each makes). Prints nothing of the token | the owner's `ssh` key to the component's machine; writes only that component's login |
 | `turpin env create\|destroy NAME` | deployer, on the environment's host | owner, on the environment's host | an ephemeral environment from the profile template: user, state folder, `.env` (secrets at a hidden prompt), Compose project; the `env-*` hooks | deployer: the deploy user and *root-ops* |
-| `turpin host-install ENV` | controller | owner | installs or updates `turpin-host` and libraries on ENV's host; installs `jq` if missing; refuses if `flock` or the tools its credential kind needs (`oci`) are absent. Refuses environments that would remove each other's host files ([§9](#9-gates-and-checks)) | the owner's `ssh` key, as a user with `sudo` on the target machine, to install into `/usr/local` |
-| `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `request_id`, `repeat`, `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `wait`, `lock_wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
+| `turpin host-install ENV` | controller | owner | installs or updates `turpin-host` and libraries on ENV's host; installs `jq` if missing; refuses if `flock` or the tools its credential kind needs (`oci`) are absent. For an environment it also makes the state folder and its `.env` ([§11](#11-on-the-host)). Refuses environments that would remove each other's host files ([§9](#9-gates-and-checks)) | the owner's `ssh` key, as a user with `sudo` on the target machine, to install into `/usr/local` |
+| `turpin-host deploy APP ENV < request` | deployer | `turpin deploy` | [§11](#11-on-the-host)'s steps. The request: `request_id`, `repeat`, `app`, `env`, `role`, `sha`, `version`, `images` by digest, `repo`, `login`, `login_component`, `payload_image`, `pull_timeout`, `lock`, `project`, `url`, `wait`, `lock_wait`, `check`, `local`, `record`, `set_aside`, `host_files`, `env_join` | the machine user's `docker` login (pull); the deploy user and *root-ops* |
 | `turpin-host rollback APP ENV < request` | deployer | `turpin rollback` | [§11](#11-on-the-host)'s rollback. The request: `request_id`, `repeat`, `app`, `env`, `role`, `login`, `repo`, `lock`, `project`, `pull_timeout`, `wait`, `lock_wait`, `fallback` | as for `deploy` |
+| `turpin-host compose APP ENV ARGS...` | deployer | the owner or an application's script, on the host | Compose against `current`'s folder, with the deploy's own project name, `--project-directory`, env files and compose files ([§11](#11-on-the-host)), holding the environment's lock while it runs; refuses where there is no `current` or the lock is held | the deploy user (Docker); no `sudo` and no `root-ops` |
 | `turpin-host status APP ENV --json` | deployer | `status`, `list`, `prune`, release, the rehearsal-level gate, production's version read | what runs, its record, state, as a [result object](#errors-results-and-the-pivot) | the deploy user (reads its state) |
 | `turpin promote APP < request` | release copier | `turpin release` and `turpin deploy --unrecorded`, on `[turpin.release].copy_on` with `copy_login` | image set to releases by digest, then the record; the controller only reads. The request, in the registry port's terms: `login`, `candidates`, `releases`, `commit`, `images` (name to digest), `version` and `record` (the release record), the last two null for `--unrecorded`. It prints `copied TAG` or `kept TAG` for each tag | its `skopeo` login (read candidates, write releases) |
 | `turpin remove APP < request` | builder | `turpin prune`, on `[turpin.build].on` with the build login | remove each candidate the controller chose, through the Artifacts API ([the registry adapter](#the-registry-adapter)), only while the tag still has that digest, and never a digest in `keep`; an absent tag is done. The request: `login`, `candidates`, `removes` (`commit`, `image`, `digest`) and `keep` (the digests releases holds); the set of tags this prune removes is derived from `removes`. It prints `removed`, `tag-moved`, `already-gone` or `shared` and the tag for each | its `skopeo` login (read candidates) and its [removal credential](#logins) (remove candidates) |
@@ -1753,6 +1773,7 @@ is one and always in the run log:
 | `--unrecorded REASON` (production deploy) | the need for a record: REF is a full SHA, copied to releases by the release copier as `SHA-IMAGE` (no-op where the same digests are present; another digest refuses); no version spent, nothing to settle |
 | `--off-level REASON` (rehearsal deploy) | a cycle starting from production's level |
 | `--set-aside GATE REASON` | a gate in `[release].overridable`: a hook's name, or `milestone` |
+| `--confirm N` (release; repeatable) | not a gate set aside: answers, for issue N, the question the milestone gate asks of an open issue that no commit names; the record keeps N as confirmed |
 
 `--check` runs every gate and stops before anything changes (Tile Lite Elite's
 `verify.sh` uses it). `deploy --wait[=MIN]` waits for the lock and for a hook
@@ -1941,60 +1962,67 @@ through `root-ops` ([privileges](#privileges)).
 ## 8. Profile and hooks
 
 **Profile.** The application's `app-profile.toml` keeps its sections and gains
-keys in them, never the registry address ([§3](#3-oci-registry-integration)). Tile Lite
-Elite's example; Dark Portal's values in comments (`dp:`):
+keys in them, never the registry address ([§3](#3-oci-registry-integration)). A
+generic example, for an application `acme`, with Dark Portal's values in
+comments (`dp:`); Tile Lite Elite's own profile and hooks are in
+[its design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md):
 
 ```toml
+application = "acme"
+
 [release]
 tag_prefix = "v"
 history_prefixes = ["prod-"]               # earlier tags: history, release notes, version order, production's tag
 announcement = "Released in v"             # starts settle's comment (§12); matched also with each history prefix
-deploy_marker = "[turpin]"
-required_checks = ["e2e"]
-required_hooks = ["pre-deploy", "save-state", "migrate", "smoke", "restore-state", "release-check"]
+required_checks = ["ci"]                   # check-run names, as GitHub shows them
+required_hooks = ["pre-deploy", "save-state", "migrate", "smoke", "restore-state"]
 overridable = ["milestone"]
 
 [turpin]
-candidates = "tile-lite-elite/candidates"  # dp: "dark-portal/candidates"
-releases   = "tile-lite-elite/releases"    # dp: "dark-portal/releases"
+candidates = "acme/candidates"             # dp: "dark-portal/candidates"
+releases   = "acme/releases"               # dp: "dark-portal/releases"
 images     = ["server", "web"]             # dp: ["dp"]; tag is SHA-IMAGE
 payload_image = "server"
-join = ["docker-compose.yml", "Caddyfile"]
+join = ["docker-compose.yml"]
 
 login = "docker-config"                    # the controller's own login: reads candidates and releases
 
 [turpin.build]
-on    = "controller"                     # dp: ssh alias of the non-production VM; builds and removes candidates
+on    = "controller"                       # dp: ssh alias of the non-production VM; builds and removes candidates
 login = "docker-config"                    # dp: "oci-instance-principal"
+args  = { ACME_BUILD_ID = "SHORT_SHA" }    # build arguments, each taken from a TURPIN_* value of the build
 
 [turpin.release]
-copy_on    = "controller"                # dp: the non-production VM, user dp-release
+copy_on    = "controller"                  # dp: the non-production VM, user dp-release
 copy_login = "docker-config"               # dp: "oci-api-key"
 
 [[turpin.host_files]]
-src  = "scripts/operate/backup-to-oci.sh"
-dest = "/opt/tile-lite-elite/backup-to-oci.sh"
+src  = "ops/backup.sh"
+dest = "/opt/acme/backup.sh"
 mode = "0755"
 # a systemd unit adds: enable = true
 
-[environments.preview]                     # existing keys stay
+[environments.preview]
 role  = "preview"
 host  = "controller"
-login = "docker-config"                    # the machine user's docker login, shared with the builder on the laptop
-join  = ["docker-compose.preview.yml", "Caddyfile.preview"]
+login = "docker-config"
+join  = ["docker-compose.preview.yml"]
 
 [environments.rehearsal]
 role  = "rehearsal"
-ssh   = "tile-lite-elite-rehearsal"
+ssh   = "acme-rehearsal"
 login = "oci-instance-principal"
+url   = "https://rehearsal.acme.example"
 
 [environments.production]
 role  = "production"
-ssh   = "tile-lite-elite"
 login = "oci-instance-principal"
 host_files = true                          # default: true for roles rehearsal and production
-# lock = "/var/lib/turpin/APP/vm.lock"    # dp: one lock for E3 to E6 and its heavy runs
-pull_timeout = 300                         # unmeasured; delphside/tile-lite-elite#555's first deploy measures it
+# lock = "/var/lib/turpin/acme/vm.lock"    # dp: one lock for E3 to E6 and its heavy runs
+pull_timeout = 300
+
+[hosts.production]                         # the ssh alias has one home where board-hosts.py reads it
+ssh = "acme-production"
 ```
 
 Also:
@@ -2004,7 +2032,15 @@ Also:
 - `[turpin].fallback`, the sentence a failed first deploy prints;
 - `[turpin.ephemeral]` (`user_prefix`, `home`, `secrets`), `turpin env`'s
   template;
-- per environment `project` (Compose project) and `url`;
+- per environment `project` (Compose project) and `url`, which a hook is given
+  as `TURPIN_URL` and which is also where `/health` is read;
+- per environment the `ssh` alias, which where the environment names none is
+  `[hosts.ENV].ssh`, the table `board-hosts.py` reads, so the alias has one home;
+- `[turpin.build].args`, a table of build arguments, each named for one of the
+  build's `TURPIN_*` values, without the prefix: `SHA`, `SHORT_SHA` (its first
+  seven characters), `VERSION` or `CREATED`; the default `build` hook passes
+  each to every image as `--set IMAGE.args.NAME=VALUE`. Read from the commit's
+  profile, like `images`;
 - `[versions].deployed` (`path`, `field`), where `/health` reports production's
   version ([§9](#9-gates-and-checks));
 - `on` (builder), `copy_on` and `host` take `"controller"` (`"control-node"` still works);
@@ -2018,9 +2054,13 @@ parse, since it is the operator's to fix.
 
 Each key is read from one of two profiles:
 
-- the commit's: `required_checks`, `required_hooks`, `overridable`, `images`
-  and `payload_image`, read by the gates, and `join` and `[[turpin.host_files]]`,
-  carried in the payload with the hooks;
+- the commit's: `required_checks`, `required_hooks`, `overridable`, `images`,
+  `payload_image` and `[turpin.build].args`, read by the gates and the build, and
+  the keys a host reads, carried in the payload with the hooks: `required_hooks`,
+  `overridable`, `[turpin].fallback`, `join`, `[[turpin.host_files]]`,
+  `[turpin.ephemeral]` and `application`. The payload's `profile.json` is the
+  commit's profile cut to those keys, named once in the board's `shipping.py` as `HOST_READS`, so
+  a change to any other key (a board key, say) changes nothing the image carries;
 - the controller's working tree: every other key, including each
   environment's host, role, `login`, `host_files`, `pull_timeout` and `lock`.
 
@@ -2073,12 +2113,28 @@ The `--load` form sets the same labels.
 
 Each hook gets `TURPIN_APP`, `TURPIN_ENV`, `TURPIN_ROLE` (`controller` for
 the release step, `ephemeral` for create and destroy), `TURPIN_SHA`,
-`TURPIN_VERSION`, `TURPIN_STATE` (state folder), `TURPIN_IMAGE_<NAME>`
-(each image by digest), for `build` `TURPIN_CREATED` and, under `--local`
+`TURPIN_VERSION`, `TURPIN_STATE` (state folder), `TURPIN_URL` (the
+environment's `url`, empty where it has none), `TURPIN_IMAGE_<NAME>`
+(each image by digest), for `build` `TURPIN_CREATED`, `TURPIN_SHORT_SHA` and, under `--local`
 only, `TURPIN_LOCAL=1`. A hook that cannot judge answers refused.
 
-`save-state` and `restore-state` also get deploy numbers
-([§11](#11-on-the-host)), so neither needs to know how far a deploy got:
+**A deploy's hooks on the host** (`save-state`, `migrate`, `smoke`, and
+`restore-state`) are also told their deploy ([§11](#11-on-the-host)), so a hook
+need not work it out or copy what the deploy runs:
+
+- `TURPIN_DEPLOY`, the deploy's number: for `save-state`, `migrate` and `smoke`
+  `pending`'s; for `restore-state` the number of the deploy being undone, below;
+- `TURPIN_DEPLOY_DIR`, that deploy's folder;
+- `TURPIN_COMPOSE`, a command line that runs Compose exactly as the deploy does:
+  `docker compose -p PROJECT --project-directory DIR --env-file .env
+  --env-file DIR/turpin.env -f DIR/FILE...`, each word quoted for the shell, so
+  `eval "$TURPIN_COMPOSE run --rm server --migrate-only"` runs a one-off container
+  with the volumes and environment the compose file gives. It is the one
+  function `turpin-host compose` and the deploy's own steps use ([§11](#11-on-the-host)).
+
+`pre-deploy` runs before the deploy has a number or a folder, and is given none of these, nor `post-deploy`, which
+runs on the controller. `save-state` and `restore-state` also get deploy numbers, so neither
+needs to know how far a deploy got:
 
 - `save-state` gets `TURPIN_DEPLOY`, `pending`'s number, and `TURPIN_CURRENT`,
   `current`'s, absent where there is no `current`. It:
@@ -2092,19 +2148,29 @@ only, `TURPIN_LOCAL=1`. A hook that cannot judge answers refused.
   deploy's snapshot, and does nothing where it has no complete one, since then
   `save-state` never finished and nothing has changed the data.
 
-| Hook | Kind | Component | Tile Lite Elite | Dark Portal |
-| --- | --- | --- | --- | --- |
-| `build` | step | builder | `docker buildx bake --builder turpin` from the compose file's `build:` blocks, to OCI layouts | `docker buildx bake --builder turpin`, arm64 and amd64, to OCI layouts |
-| `release-check` | gate | controller | no `functional` change in a patch | none |
-| `pre-deploy` | gate | deployer | database not ahead of the build's schema | window :40 to :10 (75 outside) |
-| `save-state` | step | deployer | stop server, snapshot database keyed to `TURPIN_DEPLOY`, keep it and `TURPIN_CURRENT`'s | copy DuckLake catalog aside, keyed the same way |
-| `migrate` | step | deployer | `server --migrate-only` | catalog migrations |
-| `smoke` | gate | deployer | `/health` shows `VERSION+SHA` within 60 s | release's own checks |
-| `restore-state` | step | deployer | restore `TURPIN_DEPLOY`'s snapshot, if complete | restore `TURPIN_DEPLOY`'s catalog copy, if complete; bronze untouched |
-| `post-deploy` | check | controller | list open `Release Check` issues | next collection, about :36, lands |
-| `env-create`, `env-destroy` | step | deployer | preview slot's volume | user, `/srv/dp/NAME` |
+**What a hook may leave stopped.** `save-state` may stop the server to take a
+consistent snapshot, and `restore-state` may stop it to replace the data; neither
+need start it again. Where a deploy fails before `compose up` on a host's first
+deploy, the restore starts again each container that was running when the deploy
+began ([§11](#11-on-the-host), *A restore*), after `restore-state` has run, so the
+data is restored before the server returns. On a host with a `current` the restore's
+`compose up` starts everything.
 
-The optional `bump` step (neither application has one) runs in the worktree that
+Tile Lite Elite's hooks, one by one, are in [its design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md). Dark Portal's, as an example of another application's:
+
+| Hook | Kind | Component | Dark Portal |
+| --- | --- | --- | --- |
+| `build` | step | builder | `docker buildx bake --builder turpin`, arm64 and amd64, to OCI layouts |
+| `release-check` | gate | controller | none |
+| `pre-deploy` | gate | deployer | window :40 to :10 (75 outside) |
+| `save-state` | step | deployer | copy DuckLake catalog aside, keyed to `TURPIN_DEPLOY` |
+| `migrate` | step | deployer | catalog migrations |
+| `smoke` | gate | deployer | release's own checks |
+| `restore-state` | step | deployer | restore `TURPIN_DEPLOY`'s catalog copy, if complete; bronze untouched |
+| `post-deploy` | check | controller | next collection, about :36, lands |
+| `env-create`, `env-destroy` | step | deployer | user, `/srv/dp/NAME` |
+
+The optional `bump` step runs in the worktree that
 bumps `main`, with `TURPIN_VERSION`, for a lockfile refresh the version pattern
 cannot do.
 
@@ -2133,7 +2199,8 @@ production deploy, an error after the deploy's
 | release | tests passed | every work package in milestone VERSION has a *Functional user tests* or a *Technical tests* heading, and every box under the headings it has is ticked (`release.outstanding`); a package with neither heading refuses | gate; a check with `--emergency` | `--emergency` |
 | release | CI passed | every `required_checks` check green on the commit | gate | — |
 | release | version spent once | no tag for it; a `VERSION-record` in releases is reused if it has this commit and digests; above the newest release tag of any prefix | gate | — |
-| release | shipping list | open issues in milestone VERSION evidenced by commits in the release; Production Release work packages the commits name in it or an undeployed release's ([The milestone gate](#the-milestone-gate)) | gate | `--set-aside milestone REASON` |
+| release | shipping list | open issues in milestone VERSION evidenced by commits in the release or confirmed by a person; Production Release work packages the commits name in it or an undeployed release's ([The milestone gate](#the-milestone-gate)) | gate | `--set-aside milestone REASON` |
+| release | no unmilestoned mention | an open issue with no milestone that a commit in the range names, parents aside, is reported as a note ([The milestone gate](#the-milestone-gate)) | check | — |
 | release | no silent drop | an item an earlier release in the range carried and this drops: `#N is in X but not carried by Y` ([§10](#10-the-release-and-its-record)) | check | — |
 | production deploy | made releases only | a record exists for VERSION; digests pulled from releases | gate | `--unrecorded` |
 | after production deploy | board is current | `settle` ([§12](#12-settling)); failure reported, exit 3, deploy stands | check | — |
@@ -2145,7 +2212,23 @@ production deploy, an error after the deploy's
 - Parents are left aside.
 - Every open issue in milestone VERSION has a `Refs #N` commit since the release
   production runs, the carried range's start
-  ([§10](#10-the-release-and-its-record)).
+  ([§10](#10-the-release-and-its-record)), or is confirmed by a person as in this
+  build (owner, 2026-11-04): an issue no commit names is a question, not a block.
+  - Which issues need confirming is the board model's rule (`milestone.py`'s
+    `unconfirmed`), the one copy every gate shares; `turpin` only asks and passes
+    the answers in.
+  - Without `--expect`, `turpin release` asks for each: *Project APP#N has this
+    milestone but is not explicitly mentioned in a commit. Confirm that #N is in
+    this build [y/N]*. Only `y` or `yes` confirms; anything else, an end of input
+    included, leaves it unconfirmed.
+  - `--confirm N`, repeatable, answers it without a terminal. With `--expect`, or
+    `--check`, nothing is asked: an issue not confirmed by a flag refuses.
+  - An issue left unconfirmed refuses, naming it. A `--confirm` for an issue that
+    needs none is noted and changes nothing.
+  - A confirmed issue is carried and settled like a named one, and the record
+    keeps it in `carries.confirmed` ([§10](#10-the-release-and-its-record)).
+  - `--set-aside milestone REASON` stays: it carries the milestone's open items as
+    they stand and asks nothing.
   - A commit a later commit in the range reverts, and that revert, name nothing.
   - A parent's `Refs` is shown beside its work package, never counted for it
     ([the board model](#the-board-model)).
@@ -2153,18 +2236,35 @@ production deploy, an error after the deploy's
   milestone, or that of a release made but not deployed whose tag is in the
   range. Other routes are left out: they deliver on date milestones (docs/1.2
   §2.15).
+- A check, not a gate: each open issue, parents aside, that a commit in the range
+  names (reverted ones excepted) and that has no milestone is reported as a note
+  in the release's output, and the release goes ahead. The rule is the board
+  model's (`milestone.py`'s `unmilestoned`); `turpin` only prints the notes. It is
+  not recorded, and it runs under `--set-aside milestone` too.
 - With `--emergency`, open issues evidenced only by commits on `main` are left
   out, and moved to the next milestone by [§10](#10-the-release-and-its-record)
   step 7.
 
 ### Which release production runs
 
-For rehearsal's level and the emergency gate, it is the record in production's
-host state, read over ssh. Where production's host has no `current` at all (a
-production deployed before the tool), the rehearsal-level gate refuses and
-needs `--off-level`, and does not read `/health`; only the emergency gate reads
-it there, through `[versions].deployed` and the environment's `url`. A
-`current` with no record (`--unrecorded`) makes both gates refuse.
+For rehearsal's level, the release's carried range and the emergency gate, it is
+the record in production's host state, read over ssh, and the commit that record
+names. Where production's host has no `current` at all (a production deployed
+before the tool), the rehearsal-level gate refuses and needs `--off-level`, and
+does not read `/health`; the release reads it, through `[versions].deployed` and
+the environment's `url`, for the carried range as for the emergency gate, and
+does not refuse: `/health` reports `VERSION+SHA`, the version and the commit
+production runs. A `current` with no record (`--unrecorded`), or a `/health` that
+cannot be read, makes the release refuse, and a `current` with no record makes
+the rehearsal-level gate refuse.
+
+The release's tag for that version is the one naming that commit, so where two
+tags carry one version (Tile Lite Elite's `prod-0.10.1` names the commit
+production runs and `v0.10.1` one that diverged from `main`) the range starts at the
+right one. Where a commit is reported and no tag of its version names it, the
+release refuses, naming each tag and its commit, even where the version has
+only one tag. With no commit to go by, the first by prefix order is taken: the
+release prefix, then each history prefix.
 
 ## 10. The release and its record
 
@@ -2264,14 +2364,17 @@ the images.
   "rehearsal_skipped": null,
   "set_aside": [{"gate": "milestone", "reason": "..."}],
   "tool": {"programme": "the programme commit the application pins"},
-  "carries": {"work_packages": [555, 556], "issues": [560],
+  "carries": {"work_packages": [555, 556], "issues": [560], "confirmed": [560],
               "releases": [{"version": "0.10.1", "work_packages": [555], "issues": [], "dropped": []}]}
 }
 ```
 
 `carries` lists what production gains: the milestone's open items once the gate
 passed or was set aside, less any an emergency left out (work packages and open
-non-project issues, parents aside), and the items of `releases`. `Refs` are
+non-project issues, parents aside), and the items of `releases`. `confirmed`
+(present only where there are any) lists the issues a person confirmed as in the
+build, though no commit names them; they are in `work_packages` or `issues` as well,
+and carried and settled as the others are. `Refs` are
 evidence, never the list: an issue only referenced is never carried. The range:
 
 - It starts at the release production runs
@@ -2310,7 +2413,10 @@ passed is step 1's confirmation; the tool reads no test report.
   interrupted.PID       written when a request's input ends; removed by that request
   deploys/<n>/          per deploy:
     turpin.env           images by digest
-    meta.json             the deploy's facts: SHA, version, images, role, the record, joined files, host files or not; the time `smoke` passed (`deployed`) and its result, added then
+    meta.json             the deploy's facts: SHA, version, images, role, the project, the lock, the record, joined files, host files or not; the time `smoke` passed (`deployed`) and its result, added then
+    running               the project's running containers, one id a line, taken before `save-state` (a first deploy's restore starts them again)
+    host_files_before.json the deploy's host files that were on the host before it installed any, and `host_files_old/` a copy of each (a first deploy's restore puts them back, at the allowlisted mode, through root-ops)
+    compose-up            present once `compose up` was started (a first deploy's restore runs `compose down` only then)
     payload/              the payload as built, with the commit's `profile.json`, the hooks and the host files
     record.json           the record, if any
     the joined files, at their own paths
@@ -2337,10 +2443,21 @@ the owner clears it by hand. It holds:
   last request*, below).
 
 Compose runs with a fixed project name (volumes persist), `--project-directory`
-the deploy's folder, `--env-file` the host's `.env` then `turpin.env`,
-`--no-build`. Tile Lite Elite's compose file names images
-`${TURPIN_IMAGE_SERVER:-tile-lite-elite-server}` with `pull_policy: never`; the
-builder uses it with its `build:` blocks.
+the deploy's folder, `--env-file` the host's `.env` then `turpin.env`, the
+deploy's joined compose files, `--no-build`. These arguments are made in one
+function, which the deploy's own `compose` calls, each hook's `TURPIN_COMPOSE`
+([§8](#8-profile-and-hooks)) and `turpin-host compose` all use. A compose file
+names images `${TURPIN_IMAGE_SERVER:-acme-server}` with `pull_policy: never`; the
+builder uses it with its `build:` blocks. A deploy's project name and lock are kept in its
+`meta.json`, so a command outside a deploy runs as the deploy did.
+
+**`turpin-host compose APP ENV ARGS...`** runs Compose against `current`'s
+folder with those arguments, for an operator or an application's script (to apply
+a changed `.env` with `up -d web`, or reset an environment with `down -v` then
+`up -d`). It takes the environment's lock, the one `current`'s `meta.json` records, and holds it
+while Compose runs, so it never overlaps a deploy; the lock held refuses at once. It
+refuses where there is no `current`. It is the deploy user's, as Docker is, and so
+adds nothing to `root-ops` or the `sudo` rule.
 
 **A deploy's steps** (gates in [§9](#9-gates-and-checks)), steps 3 to 9 each
 writing their step to `state.json`:
@@ -2353,17 +2470,21 @@ writing their step to `state.json`:
 6. record the next deploy number, one above the highest folder in `deploys/`
    (1 where there is none), as `pending`, then write its folder, `meta.json`
    last. An error in this step removes the folder and `pending`. A folder that
-   a deploy which did not finish left is kept, for step 10's prune;
-7. record `changing: deploy` with `target` `pending`'s number; run
-   `save-state`; run `migrate`;
+   a deploy which did not finish left is kept, for step 10's prune. From here
+   every hook is told `TURPIN_DEPLOY` ([§8](#8-profile-and-hooks));
+7. record `changing: deploy` with `target` `pending`'s number; write `running`,
+   the ids of the project's running containers; run `save-state`; run `migrate`;
 8. install `pending`'s host files where `host_files` is true (default only for
    rehearsal and production, so environments sharing a host never overwrite each
    other's; an application whose test environments need a schedule keeps it
    inside its Compose project, not as a host unit): copy with modes,
    `systemctl daemon-reload`, enable and restart units marked `enable`, as root
    through `root-ops`. A host file in `installed_host_files` that `pending`
-   lacks is removed;
-9. run `compose up` from `pending`'s folder, then `smoke`, then add the time
+   lacks is removed. Before the first is installed, the host files that already
+   exist are written to `host_files_before.json` and copied to `host_files_old/`,
+   and for each such unit marked `enable` whether it was enabled and whether it
+   was running is written to `host_units_before.json`;
+9. mark `compose-up`, then run `compose up` from `pending`'s folder, then `smoke`, then add the time
    `smoke` passed (`deployed`) and its result to `pending`'s `meta.json`;
 10. the pivot, one write: `previous` becomes `current`, `current` becomes
     `pending`, `pending` and `target` are cleared, `installed_host_files`
@@ -2404,10 +2525,25 @@ also left by its own failure, on purpose, so that it is run again.
 3. run `compose up` from `current`'s folder;
 4. one write: `pending` and `target` cleared, the state `restored`.
 
-On a host's first deploy, with no `current`, a restore runs `restore-state`,
-stops `pending`'s containers, removes its host files and, in one write, clears
-`pending` and `target` and marks the state `failed, no previous deploy`, naming
-the fallback (`[turpin].fallback`). A restore that fails, either kind, marks
+On a host's first deploy, with no `current`, there is nothing to go back to, and
+what was on the host before the deploy stays. A restore runs `restore-state`, then:
+
+- where `compose-up` is marked, runs `compose down` for the project: the deploy's
+  `compose up` ran and may have replaced the containers in place, so the old
+  server is gone and the application's own way back, the fallback, brings it back;
+- where it is not, starts again each container `running` lists (`docker start`;
+  one already running is untouched, one gone is left), since `save-state` may have
+  stopped the old server and the deploy never replaced it. Nothing is brought
+  down;
+- removes the host files `pending` installed that were not in `host_files_before.json`
+  (stopping and disabling an enabled unit first), then puts back, from
+  `host_files_old/`, the content of each that was there and `pending` overwrote, runs
+  `systemctl daemon-reload`, and returns each such unit to the enabled and running
+  state `host_units_before.json` holds. Where the deploy stopped before step 8 there
+  is no `host_files_before.json` and every file is as it was. Then,
+
+in one write, clears `pending` and `target` and marks the state
+`failed, no previous deploy`, naming the fallback (`[turpin].fallback`). A restore that fails, either kind, marks
 `failed: the restore did not complete`. A restore stops at its first failed
 step, so it never starts `current`'s build on data that was not restored.
 Neither removes `pending`'s folder, which step 10's prune cuts down like any
@@ -2508,6 +2644,11 @@ non-production host may run any branch's build, as no builder builds a fork.
 `turpin host-install`, run by the owner with sudo, writes root-owned files in
 `/etc/turpin/APP/` (0755, files 0644) and the one `sudo` rule letting the
 deploy user run `turpin-host root-ops` as root:
+
+`turpin host-install ENV` also makes, for an environment, `/var/lib/turpin/APP/ENV/`
+owned by the user who runs it (the deploy user), mode 0700, and an empty `.env`,
+mode 0600, where there is none; it never overwrites an existing `.env`. The deploy
+user cannot make them under `/var/lib/turpin` himself.
 
 | File | Holds |
 | --- | --- |
@@ -2618,24 +2759,26 @@ under way finish, starts none, and names the rerun.
 
 ## 14. Moving Tile Lite Elite to it
 
-Production runs 0.10.0, built the old way. 0.10.1 is released (`v0.10.1`, a text
-tag, no record) and has never run in production. 0.10.2 is the first release
-made with `turpin` (owner, 2026-10-28), and the first with a record.
+The steps below are an application's move to Turpin, from deploying by its own
+scripts. Tile Lite Elite is the first to take them; its move, its profile and
+hooks, its migration order, its fallback and what changes in it are in
+[its design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md),
+which this document does not restate.
 
-- **The Python client.** Before delphside/tile-lite-elite#555 starts, the
+- **The Python client.** Before the application's work package starts, the
   Python `turpin`, with its `OCIR` adapter
   ([§5](#scripts-and-their-dependencies)), reaches the programme's `main` and
-  Tile Lite Elite's `programme/` pin moves to it, so that work package is
-  built and tested against it.
-- **The builder's API key.** Before the first `prune`: make an API key for
-  Oracle user `tle-builder`, with its private key and `config` in `~/.oci/` on
-  the laptop; install the OCI CLI there; set `TURPIN_OCI_COMPARTMENT` in
-  `~/.config/turpin/tile-lite-elite.env`
+  the application's `programme/` pin moves to it, so that work package is built
+  and tested against it.
+- **The builder's API key.** Before the first `prune`: make an API key for the
+  Oracle user the builder logs in as, with its private key and `config` in
+  `~/.oci/` on the builder's machine; install the OCI CLI there; set
+  `TURPIN_OCI_COMPARTMENT` in `~/.config/turpin/APP.env`
   ([the registry address](#the-registry-address)).
-- **The laptop's Buildx builder.** Before the first `turpin build`, check that
+- **The builder's Buildx builder.** Before the first `turpin build`, check that
   `docker buildx ls` lists a builder named `turpin` with the
   `docker-container` driver ([§5](#the-components)). If it is absent, make it,
-  without `--use`, so the default builder, and `deploy.sh`'s
+  without `--use`, so the default builder, and any script that runs
   `docker compose build`, are untouched:
 
   ```sh
@@ -2643,8 +2786,9 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
   ```
 
 - **The proof by hand.** Before `prune`, the owner removes one candidate by
-  hand on his laptop, with the builder's [removal credential](#logins), under
-  the policy conditioned on `target.repo.name` ([policy](#policy)): an
+  hand on the builder's machine, with the builder's
+  [removal credential](#logins), under the policy conditioned on
+  `target.repo.name` ([policy](#policy)): an
   `oci artifacts container image list` finding its OCID, then
   `oci artifacts container image delete`. It shows both the lookup and the
   delete work under that policy. The candidate is a multi-arch build, with an
@@ -2658,37 +2802,30 @@ made with `turpin` (owner, 2026-10-28), and the first with a record.
   `prune` and rehearsal deploy, with the owner's timing of the proof by hand,
   and sets the timeouts and the retry numbers in `settings.py` from them
   ([§13](#13-non-functional-design)).
-- **The first rehearsal cycle** has no production record to start from. It
-  starts from production's commit deployed by `deploy.sh`, as today, and the
-  first `turpin deploy` to rehearsal takes
-  `--off-level "first turpin deploy"`.
-- **The fallback.** Until 0.10.2 has run in production, the way back is to
-  0.10.0, the only earlier version production has run. It is a written
-  procedure, delphside/tile-lite-elite#555's artefact, tried on rehearsal before
-  0.10.2's production deploy: stop the Compose project Turpin started; restore
-  the snapshot `save-state` took (Tile Lite Elite's hook keeps it in
-  `~/tile-lite-elite/snapshots`, where `rollback.sh --db-only` reads it); then
-  `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason, which
-  copies that commit's compose file and so its image names. `deploy.sh` and
-  `rollback.sh` are retired in 0.10.3.
 - **The logins.** Before the first `turpin` command: run `turpin login
-  controller`, `copier` and `builder` on the laptop (each asks for its Oracle
-  user and auth token; preview shares the builder's `docker` login); and
-  `docker logout` of any old `tle-releaser` login left in the laptop's
-  `~/.docker`, so the builder's and preview's `docker` login is
-  `tle-builder`'s alone.
-- **The board** reads the `v` prefix for releases and keeps `prod-*` as history
-  (`history_prefixes`); "running in production" comes from settle and `/health`,
-  not from the tag.
-- **What changes in Tile Lite Elite** is delphside/tile-lite-elite#555's and
-  delphside/tile-lite-elite#556's: the profile keys
-  ([§8](#8-profile-and-hooks)); the hooks, which wrap today's schema,
-  snapshot, migrate and smoke steps and refuse where today's pass for want of
-  an answer; the `build` hook writing OCI layouts, with a Buildx builder able
-  to export them ([§5](#the-components)); the compose files' `image:` lines;
-  the payload in
-  the server image; `Caddyfile` mounted, not copied; `[ships].non_shipping` no
-  longer listing what the payload carries; `verify.sh` using `turpin status`
-  and `--check`; the `sa` alias as an `/etc/profile.d` host file naming the
-  Compose project, not a compose file; CLAUDE.md's dev bump moving to the
-  release step; the record replacing `deploy.sh`'s build manifest.
+  controller`, `copier` and `builder` on the machine that holds each (each asks
+  for its Oracle user and auth token; a preview on the builder's machine
+  shares the builder's `docker` login); and `docker logout` of any login the
+  old release script left in that machine's `~/.docker`, so the builder's and
+  the preview's `docker` login is the builder user's alone.
+- **The first rehearsal cycle** has no production record to start from. It
+  starts from production's commit deployed by the application's own script, and
+  the first `turpin deploy` to rehearsal takes
+  `--off-level "first turpin deploy"`.
+- **The board** reads the release prefix as releases and keeps earlier prefixes
+  as history (`history_prefixes`); "running in production" comes from settle
+  and `/health`, not from the tag.
+- **An adopted host** (one that runs the application under another tool before
+  Turpin's first deploy) needs of Turpin this much: a first deploy's restore
+  leaves what was there, puts back what the deploy overwrote and starts again
+  what it stopped ([§11](#11-on-the-host), *A restore*); `turpin release` reads
+  production's version from `/health` where production has no Turpin state,
+  and the tag of that version at the commit `/health` reports
+  ([§9](#which-release-production-runs)); and `turpin host-install` makes the
+  application's state folder, each environment's and its `.env`
+  ([§11](#11-on-the-host)). The way back from a failure at or after
+  `compose up` is the application's own written procedure.
+
+The Python client, its `OCIR` adapter and the machines' tools ([§5](#scripts-and-their-dependencies),
+[§3](#3-oci-registry-integration)) reach the programme's `main` before an application's `programme/`
+pin moves to them, so the application's work is built and tested against them.

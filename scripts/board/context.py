@@ -25,6 +25,7 @@ from typing import Mapping, Sequence
 
 from . import refs
 from .model import PROJECT_STATE, Issue, ParentProject, Project, PullRequest
+from .vocabulary import (ROUTE)
 
 # START is an identifier, not a path to keep current: every open project's body
 # on GitHub carries this exact line, and `strip()` and `current()` find the
@@ -132,7 +133,7 @@ def render(root: Issue, board: Mapping[int, Issue],
         # A parent carries no route and no milestone (CLAUDE.md), so any that
         # is set on one is ignored rather than shown as if it meant something.
         is_parent = isinstance(m, ParentProject)
-        route = None if is_parent else m.field("Route")
+        route = None if is_parent else m.field(ROUTE)
         milestone = None if is_parent else m.raw.milestone
         pr = ", ".join(f"#{n}" for n in prs.get(m.number, []))
         phase = m.field(PROJECT_STATE)

@@ -39,6 +39,13 @@ headings:
   when* item and question in the handover, as **holds**, **finding** (with its
   number) or **could not check** (and why). Claude reads silence as
   unchecked.
+- **A finding that two documents disagree, or a document and the code**,
+  says how they came apart where `git log` shows it: the commit that wrote
+  each side, and which changed last. Where
+  `git rev-parse --is-shallow-repository` prints `true` in the repository
+  searched, the history is **could not check**
+  ([the change-a-document skill](skills/change-a-document/SKILL.md#when-documents-or-code-disagree)
+  says why).
 - **Each finding** gives the file and line, what is wrong, what would be right
   and whether you **verified** it in place or **inferred** it. Where your own
   file grades findings, it says how.

@@ -1,9 +1,26 @@
 #!/usr/bin/env bash
 # STUB_SYSTEMCTL_FAIL=1 fails every call; =once fails the first call on this machine only.
+# A unit's state is kept in $root/.systemd/UNIT.enabled and UNIT.active (a unit with neither is disabled and
+# stopped); is-enabled and is-active answer from it and are not logged, being questions and not changes.
 root="${TURPIN_HOST_ROOT:-${STUB_LOCAL_ROOT:?}}"
+mkdir -p "$root/.systemd"
+args=()
+for a in "$@"; do [[ "$a" == --quiet ]] || args+=("$a"); done
+set -- "${args[@]}"
+case "${1:-}" in
+  is-enabled) [[ -e "$root/.systemd/$2.enabled" ]]; exit $? ;;
+  is-active) [[ -e "$root/.systemd/$2.active" ]]; exit $? ;;
+esac
 echo "systemctl $*" >> "$root/.systemctl.log"
 case "${STUB_SYSTEMCTL_FAIL:-}" in
-  "") exit 0 ;;
-  once) [[ -f "$root/.systemctl.failed" ]] && exit 0; : > "$root/.systemctl.failed"; exit 1 ;;
+  "") ;;
+  once) if [[ -f "$root/.systemctl.failed" ]]; then :; else : > "$root/.systemctl.failed"; exit 1; fi ;;
   *) exit 1 ;;
 esac
+case "${1:-}" in
+  enable) : > "$root/.systemd/$2.enabled" ;;
+  disable) rm -f "$root/.systemd/$2.enabled" ;;
+  restart) : > "$root/.systemd/$2.active" ;;
+  stop) rm -f "$root/.systemd/$2.active" ;;
+esac
+exit 0

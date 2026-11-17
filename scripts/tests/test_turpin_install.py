@@ -38,6 +38,9 @@ def prof(extra=""):
     return profile.parse(PROFILE + extra, "app-profile.toml")
 
 
+PRODUCTION = prof().environments["production"]
+
+
 class Targets(unittest.TestCase):
     def test_every_credential_kind_says_which_tools_it_needs(self):
         self.assertEqual(set(CredentialKind), set(host_install.TOOLS))
@@ -82,7 +85,7 @@ class Script(Isolated):
         return subprocess.run(["bash", "-s"], input=text, env=env, capture_output=True, text=True)
 
     def test_an_environment_gets_the_command_the_libraries_and_the_root_owned_files(self):
-        done = self.run_script(host_install.script_for(prof(EXTRA), CredentialKind.DOCKER_CONFIG, True))
+        done = self.run_script(host_install.script_for(prof(EXTRA), CredentialKind.DOCKER_CONFIG, PRODUCTION))
         self.assertEqual((0, "turpin-host installed\n"), (done.returncode, done.stdout), done.stderr)
         for source, dest in (("turpin-host", "usr/local/bin/turpin-host"), ("lib/common.sh", "usr/local/lib/turpin/common.sh"),
                              ("lib/toml.sh", "usr/local/lib/turpin/toml.sh"),
@@ -95,25 +98,49 @@ class Script(Isolated):
         self.assertEqual(0o440, (self.root / "etc/sudoers.d/turpin-host").stat().st_mode & 0o777)
         self.assertEqual("acme-\n", (self.root / "etc/turpin/acme/ephemeral.prefix").read_text())
 
+    def test_an_environment_gets_its_state_folder_for_the_deploy_user_and_an_empty_env(self):        # T11
+        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION))
+        self.assertEqual(0, done.returncode, done.stderr)
+        folder = self.root / "var/lib/turpin/acme/production"
+        self.assertEqual((0o700, os.getuid()), (folder.stat().st_mode & 0o777, folder.stat().st_uid))
+        app = folder.parent        # a lock shared by the application's environments is made here, by the deploy user
+        self.assertEqual((0o700, os.getuid()), (app.stat().st_mode & 0o777, app.stat().st_uid))
+        env = folder / ".env"
+        self.assertEqual(("", 0o600, os.getuid()), (env.read_text(), env.stat().st_mode & 0o777, env.stat().st_uid))
+
+    def test_a_rerun_never_overwrites_an_existing_env(self):                                          # T11
+        folder = self.root / "var/lib/turpin/acme/production"
+        folder.mkdir(parents=True)
+        (folder / ".env").write_text("TURPIN_REGISTRY=reg.test/ns\n")
+        (folder / ".env").chmod(0o640)
+        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION))
+        self.assertEqual(0, done.returncode, done.stderr)
+        self.assertEqual(("TURPIN_REGISTRY=reg.test/ns\n", 0o640), ((folder / ".env").read_text(), (folder / ".env").stat().st_mode & 0o777))
+        self.assertEqual(0o700, folder.stat().st_mode & 0o777)           # the folder is put right
+
+    def test_a_copier_or_a_builder_gets_no_state_folder(self):                                        # T11
+        self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, None))
+        self.assertFalse((self.root / "var").exists())
+
     def test_a_destination_with_a_space_or_a_quote_stays_one_field_of_the_allowlist(self):
-        done = self.run_script(host_install.script_for(prof(EXTRA), CredentialKind.DOCKER_CONFIG, True))
+        done = self.run_script(host_install.script_for(prof(EXTRA), CredentialKind.DOCKER_CONFIG, PRODUCTION))
         self.assertEqual(0, done.returncode, done.stderr)
         lines = (self.root / "etc/turpin/acme/host_files.allow").read_text().splitlines()
         self.assertIn("/opt/acme/two words's.sh\tops/it's here.sh\t0644\ttrue", lines)
         self.assertIn("/opt/acme/backup.sh\tops/backup.sh\t0755\tfalse", lines)
 
     def test_the_allowlist_is_sent_with_the_closing_line_the_host_requires(self):
-        text = host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, True)
+        text = host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION)
         self.assertIn(f"printf '\\n{hosts.CLOSING_LINE}\\n'", text)
 
     def test_a_copier_or_a_builder_gets_no_root_owned_file(self):
-        done = self.run_script(host_install.script_for(prof(EXTRA), CredentialKind.DOCKER_CONFIG, False))
+        done = self.run_script(host_install.script_for(prof(EXTRA), CredentialKind.DOCKER_CONFIG, None))
         self.assertEqual(0, done.returncode, done.stderr)
         self.assertTrue((self.root / "usr/local/bin/turpin-host").exists())
         self.assertEqual([], [p.name for p in (self.root / "etc").glob("*")] if (self.root / "etc").exists() else [])
 
     def test_a_credential_kind_that_needs_oci_refuses_a_host_without_it_and_installs_with_it(self):
-        text = host_install.script_for(prof(), CredentialKind.OCI_INSTANCE_PRINCIPAL, True)
+        text = host_install.script_for(prof(), CredentialKind.OCI_INSTANCE_PRINCIPAL, PRODUCTION)
         bare = self.dir / "bare"
         bare.mkdir()
         for tool in ("bash", "sudo", "jq", "flock", "install", "base64", "env", "id", "sed", "printf", "cat", "mkdir",
@@ -133,7 +160,7 @@ class Script(Isolated):
         bare.mkdir()
         for tool in ("bash", "sudo", "jq", "install", "base64", "id", "env"):
             (bare / tool).symlink_to(shutil.which(tool, path=self.path))
-        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, True), path=str(bare))
+        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION), path=str(bare))
         self.assertEqual(2, done.returncode)
         self.assertIn("flock (util-linux) is missing", done.stderr)
 
@@ -154,14 +181,14 @@ class Script(Isolated):
     def test_apt_get_failing_is_fundamental_with_its_text(self):
         path = self.stubbed(sudo='[ "$1" = -n ] && shift; exec "$@"', **{"apt-get": 'echo "E: Unable to locate package jq" >&2; exit 100'})
         (self.dir / "stubbed" / "jq").unlink()
-        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, True), path=path)
+        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION), path=path)
         self.assertEqual(2, done.returncode)
         self.assertIn("E: Unable to locate package jq", done.stderr)
         self.assertIn("stopped at:", done.stderr)
 
     def test_sudo_wanting_a_password_is_fundamental_and_never_asks(self):
         path = self.stubbed(sudo='[ "$1" = -n ] || { echo asked >&2; exit 9; }; echo "sudo: a password is required" >&2; exit 1')
-        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, True), path=path)
+        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION), path=path)
         self.assertEqual(2, done.returncode)
         self.assertIn("sudo: a password is required", done.stderr)
         self.assertNotIn("asked", done.stderr)
@@ -169,25 +196,25 @@ class Script(Isolated):
     def test_a_tool_not_found_is_fundamental_and_not_the_127_that_names_bash(self):
         path = self.stubbed(sudo='[ "$1" = -n ] && shift; exec "$@"')
         (self.dir / "stubbed" / "base64").unlink()
-        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, True), path=path)
+        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION), path=path)
         self.assertEqual(2, done.returncode)
 
     def test_the_script_is_one_function_called_last_and_stops_on_an_unset_name_or_a_failed_pipe(self):
-        text = host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, True)
+        text = host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION)
         self.assertTrue(text.startswith("main() {\n  set -euo pipefail\n"))
         self.assertTrue(text.endswith("}\nset -E\nmain\n"))
         self.assertEqual(1, text.count("\nmain\n"))
         self.assertEqual([], re.findall(r"\bsudo (?!-n )\S+", text))        # never a `sudo` that may ask
 
     def test_on_this_machine_the_sudo_may_ask_for_a_password(self):
-        text = host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, True, local=True)
+        text = host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION, local=True)
         self.assertNotIn("sudo -n", text)
         self.assertGreater(len(re.findall(r"\bsudo (?!-n )\S+", text)), 4)
         self.assertEqual(0, self.run_script(text).returncode)
 
     def test_a_sudoers_line_visudo_refuses_is_not_installed_and_is_fundamental(self):
         path = self.stubbed(sudo='[ "$1" = -n ] && shift; exec "$@"', visudo='echo "visudo: syntax error" >&2; exit 1')
-        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, True), path=path)
+        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION), path=path)
         self.assertEqual(2, done.returncode)
         self.assertIn("syntax error", done.stderr)
         self.assertFalse((self.root / "etc/sudoers.d/turpin-host").exists())
@@ -197,18 +224,18 @@ class Script(Isolated):
         tmp.mkdir()
         path = self.stubbed(sudo='[ "$1" = -n ] && shift; exec "$@"', visudo='exit 1')
         env = {**os.environ, "PATH": path, "TURPIN_HOST_ROOT": str(self.root), "TMPDIR": str(tmp)}
-        done = subprocess.run(["bash", "-s"], input=host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, True),
+        done = subprocess.run(["bash", "-s"], input=host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION),
                               env=env, capture_output=True, text=True)
         self.assertEqual((2, []), (done.returncode, list(tmp.iterdir())))
 
     def test_an_empty_user_name_makes_a_line_visudo_refuses(self):
         path = self.stubbed(sudo='[ "$1" = -n ] && shift; exec "$@"', id='echo ""')
-        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, True), path=path)
+        done = self.run_script(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION), path=path)
         self.assertEqual(2, done.returncode)
         self.assertFalse((self.root / "etc/sudoers.d/turpin-host").exists())
 
     def test_a_second_run_updates_what_the_first_wrote(self):
-        text = host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, True)
+        text = host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION)
         self.assertEqual(0, self.run_script(text).returncode)
         (self.root / "usr/local/lib/turpin/common.sh").write_text("# changed\n")
         self.assertEqual(0, self.run_script(text).returncode)
@@ -240,7 +267,7 @@ class Run(Isolated):
         self.assertEqual((0, "acme-prod", ["-s"]), (code, machine, args))
         self.assertEqual(("bash", True, settings.HOST_INSTALL_TIMEOUT),
                          (kwargs["program"], kwargs["retry"], kwargs["timeout"]))
-        self.assertEqual(host_install.script_for(prof(), CredentialKind.OCI_INSTANCE_PRINCIPAL, True), kwargs["data"])
+        self.assertEqual(host_install.script_for(prof(), CredentialKind.OCI_INSTANCE_PRINCIPAL, PRODUCTION), kwargs["data"])
         self.assertEqual([], self.attached)
 
     def test_the_controllers_own_machine_runs_a_file_of_the_script_attached_with_a_sudo_that_may_ask(self):
@@ -256,7 +283,7 @@ class Run(Isolated):
             code, _, _ = self.run_main(["host-install", "preview"])
         (args, program, text, mode, path), = seen
         self.assertEqual((0, "bash", 0o600, 1), (code, program, mode, len(args)))
-        self.assertEqual(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, True, local=True), text)
+        self.assertEqual(host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, prof().environments["preview"], local=True), text)
         self.assertNotIn("sudo -n", text)
         self.assertFalse(path.exists())
 

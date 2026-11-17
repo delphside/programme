@@ -47,6 +47,10 @@ flowchart TD
 
 ### U4.2 Ask for a suggested move
 
+Not built by #71: WP A removes today's `suggest_move`, and
+[#585](https://github.com/delphside/tile-lite-elite/issues/585) builds hints
+when the owner decides (G7). The journey stands as RATE-4 describes it.
+
 ```mermaid
 flowchart TD
   s0((start)) --> p1["Player: asks for a suggestion on their turn"]
@@ -139,7 +143,7 @@ flowchart TD
 ```mermaid
 flowchart TD
   s0((start)) --> p1["Player: removes a game from their list<br/>DEL-5"]
-  p1 --> v1{"Server: the game Finished or Aborted,<br/>and the player seated in it or its creator?"}
+  p1 --> v1{"Server: a seated player no longer playing in it (withdrawn, declined,<br/>resigned, timed out, force-resigned, or the game Finished or Aborted),<br/>or a seatless creator and the game Finished or Aborted?"}
   v1 -- no --> r1["refused, nothing changes"]
   v1 -- yes --> t1["Server: the game is marked hidden for this player alone<br/>(no transition); the game, its seats and every other<br/>player's list are untouched, and it still refers to the player<br/>DEL-5, DEL-2, Q13"]
 ```

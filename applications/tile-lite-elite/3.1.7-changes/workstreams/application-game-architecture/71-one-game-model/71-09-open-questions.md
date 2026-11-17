@@ -7,7 +7,7 @@ follows [`71-08-storage.md`](71-08-storage.md) and is followed by
 ## Open questions
 
 **Core writes the log; undo reads it later.**[^d61] Every `Applied` appends one
-row to `game_events (game_id, seq, version, event, created_at)`, written by
+row to `game_events (game_id, seq, version, event, actor_id, created_at)`, written by
 `publish` and never rewritten, and `game_moves` becomes what is read from it.
 The row holds the same serialised event that goes over the wire, so there is one
 serialisation rather than a second format to keep in step. Current state stays
@@ -176,9 +176,21 @@ the credentials to do so.[^d66]
 the test client, which make any client possible; #10 then attaches
 `engine-core`, signs in as a bot account and submits moves.
 
+**WP A's test client has a test-only engine mode** (owner, 2026-11-16): it
+attaches `engine-core`, signs in as a bot account and plays, so the engine is
+shown to be a client in WP A, on rehearsal, before #10 *Bot client harness*
+builds the harness people run.
+
+**The gaps WP A's life histories found are answered there.** G1 to G6, from
+the seat id to resending a move that was not saved, are in
+[*Gaps the matrix found*](71-life-histories.md#gaps-the-matrix-found), each
+with the design file it is written in, and G7, which removes `suggest_move`
+in WP A, is the owner's (2026-11-16).
+
 ## Open questions about the shapes
 
-**Does `apply` persist, or does its caller?** Written as
+**Does `apply` persist, or does its caller?** Answered (Claude, 2026-11-16, as
+the design authority): the caller, as
 [*The one handler*](71-03-version.md#the-one-handler) has it: `apply` mutates in
 memory and returns `Applied`; `events::publish` persists and publishes. That
 keeps `GameSession` free of the database, and makes `apply` a pure function of
@@ -194,8 +206,11 @@ so it can save after a sweep or an admin delete has removed the game from the
 map, which inserts the row again. The live case is `Hide` on a finished game.
 Options: (a) the session carries a deleted flag that every save checks under
 the game's lock; (b) the deleter takes the game's lock, so a save in progress
-finishes first and a later one finds the flag. It may be #408's, which designs
-the map's loading and eviction.
+finishes first and a later one finds the flag. Answered (Claude, 2026-11-16,
+as the design authority): (b), which holds (a)'s flag too. The deleter takes the
+game's lock, sets `deleted`, and removes the game from the map, so a save
+already under the lock finishes first and a message that comes later finds the
+flag, is refused as one to a game that does not exist, and saves nothing. #408 keeps the map's loading and eviction.
 
 **Does a staged word survive onto a game that is over?** `live_composition`
 ([*The composition is keyed by game and seat*](71-07-client.md#the-composition-is-keyed-by-game-and-seat))
@@ -207,26 +222,30 @@ only while its game is selected, fixes the Remove `test.fixme` case in
 Options: (a) a status condition in `live_composition`; (b) a clear on a status
 change, which brings back the push model the design retires. Open, for #269.
 
-**What is a bot account's `players` row?** The migration creates one account
-per engine with rating rows ([*Migration*](71-08-storage.md#migration)), and
-the row must satisfy today's schema (migrations 0004 and 0006). Three parts
-need an answer:
+**A bot account's `players` row.** Answered (owner, 2026-11-16, for the
+first two; Claude, as the design authority, for the third). The migration
+creates one account per engine with rating rows
+([*Migration*](71-08-storage.md#migration)):
 
-- **`email` and `password_hash`** are `not null`, and a bot has neither.
-  Options: (a) a reserved address per engine and a hash nothing can match;
-  (b) make both nullable, with a check that only a bot account leaves them
-  empty.
-- **`display_name`** is `not null` and unique, and its folded form is unique
-  too (`idx_players_display_name_folded`). An engine's name can clash with a
-  player's, which would fail the migration. Options: (a) the migration checks
-  for a clash first; (b) a bot's name is one no player can register.
-- **Which listed bot inherits the rows.** Each listed bot has its own account
-  ([*The bots the server runs*](71-06b-engine-bots.md#the-bots-the-server-runs)),
-  so the list must find the account the migration made, or the first start
-  makes a second one and the migrated ratings belong to nobody.
+- **`email` and `password_hash` become nullable.** The rule is Rust's, not a
+  database check: an account is a human, with an address and a hash, or a
+  bot, with neither, so a bot with an address cannot be represented. Reading a
+  row that breaks it is an error, and a password sign-in to a bot account
+  always fails.
+- **A bot's `display_name` is one no player can register**: it ends in a
+  space and `(bot)`, compared in the folded form, trailing spaces trimmed, which
+  registration and a rename refuse. So no engine's name can clash with a
+  player's, now or for a bot added later, and players can see who is a bot. A
+  player who already has such a name stops the migration before it commits,
+  naming the account; the rehearsal run on production's copy finds it first,
+  and renaming a real player would then come to the owner.
+- **The listed bot finds the migrated account by its name.** The migration
+  names each engine's account `<engine> (bot)`, and `TILE_LITE_ELITE_BOTS`
+  names accounts by display name, so the first start finds the account and its
+  migrated ratings rather than making a second one.
 
-`created_at` and `updated_at` take the migration's time. Open, for WP A; it
-sits beside G4, deleting a listed bot's account
+`created_at` and `updated_at` take the migration's time. It sits beside G4,
+deleting a listed bot's account
 ([71-life-histories](71-life-histories.md#gaps-the-matrix-found)).
 
 **What is the hint?** Answered (owner, 2026-11-11): nothing uses `suggest_move`
@@ -235,8 +254,11 @@ later, using it makes the game unrated, and it may come from a different engine
 from the one playing. It is a server feature, so that the server knows to make
 the game unrated; that is
 [delphside/tile-lite-elite#585](https://github.com/delphside/tile-lite-elite/issues/585),
-outside #71. Until then #71 leaves `suggest_move` as it is, and a hint, once
-built, takes an `engine_limit` permit like any other search in the server.
+outside #71. **WP A removes `suggest_move` and its route** (owner,
+2026-11-16, G7): it plays the move, against RATE-4, and WP A's per-game lock
+and one handler replace what it is built on. The `rated` flag and the command
+a hint applies arrive with #585, and a hint, once built, takes an
+`engine_limit` permit like any other search in the server.
 
 **What paces the engine's moves?** Answered (owner, 2026-11-15): the client,
 as a playback queue that shows each move for a set interval, while the game

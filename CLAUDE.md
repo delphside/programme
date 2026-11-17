@@ -2,9 +2,8 @@
 
 This page owns the rules. The numbered documents own the procedures and the
 reasons, and issues own the arguments. If this page and a document disagree,
-one of them has a defect: fix it, don't work around it. Read each rule's
-commit history first, to learn what it was written for (owner, 2026-11-09;
-the change-a-document skill).
+one of them has a defect: read how they came apart (the rule on disagreements
+under *Documentation*), then fix it; do not work around it.
 
 **A Claude Code session on the web** (claude.ai/code) works without the local
 session's memory and outside its git hooks. It answers questions and comments
@@ -391,8 +390,32 @@ docs/1.6 records the app it works through.
   then look at one neighbouring standard. A name only this repository knows is a
   cost paid by every future reader, and *we named it ourselves* is never the
   reason to keep one.
+- **An issue or pull request is named by its number and its title**, as
+  `#N *title*`, wherever Claude names one (owner, 2026-11-16). A bare number
+  makes the reader look it up.
+  - It covers documents, issue bodies, comments, pull request bodies, commit
+    message bodies and the chat, Claude's questions to the owner included. A
+    commit body gives the title in quotation marks, `#N "title"`, since git
+    shows asterisks as typed. A commit subject and a pull request's own
+    title stay as they are.
+  - The repository goes before the number, as `delphside/programme#N`, where
+    it is another repository's, and always in the chat, which spans every
+    application.
+  - A project's or work package's title drops its own leading `#N`.
+  - A line the tooling reads takes the form it parses: a `Refs #N` trailer
+    takes no title, and a dependency is one line each, `**waits on #N**
+    *title*: why` or `**is needed by #N** *title*: why`. A dependency on
+    another repository's issue takes its repository, as
+    `**waits on delphside/programme#N** *title*: why`, and `board-check.py`
+    checks only those in the issue's own repository for a GitHub link.
+  - A paragraph written before 2026-11-16 takes the form when it is next
+    edited; records, closed issues and posted comments stay as they are.
 - One fact, one home. The rule lives in its owning document, the argument in
   the issue, and every other mention is a link.
+- **Where two documents disagree, or a document and the code, read the
+  commit history to learn how the disagreement came about before resolving
+  it** (owner, 2026-11-09 and 2026-11-16). The change-a-document skill has
+  the steps.
 - **Every setting is listed in the application's (3+n).4.1.** Deployment
   settings (addresses, keys, hosts) are environment variables; product
   settings (defaults, rate limits, retention, time limits) are one code module

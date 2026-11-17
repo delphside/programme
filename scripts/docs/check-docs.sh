@@ -25,6 +25,10 @@ set -uo pipefail
 #   3. placement     — the folder convention settled on #156, and the numbering
 #                      of the documents in docs/ (4.1 to 4.4, three levels)
 #
+# Step 4 is the application's document map; with `--programme`, where there is none,
+# it checks that docs/1.6's generated vocabulary table is current
+# (`board-vocabulary.py --check`).
+#
 # Exits non-zero if any check failed, except the placement of the programme's
 # change documents (step 3), which is reported only **in an application**.
 #
@@ -213,10 +217,21 @@ fi
 # Found by ticking #349's own box asking whether the map lists every heading:
 # it did not, because the commit before it added ten and did not regenerate.
 # A derived artefact with no check is the shape #326 and #340 are also about.
+#
+# In the programme repository there is no application and so no map; the derived
+# document there is docs/1.6's vocabulary table, generated from the board's source,
+# and the same rule applies: a gate, fixed by `board-vocabulary.py --write`.
 echo
 bold "4. the document map"
 if (( PROGRAMME_ONLY )); then
   echo "  not applicable here: the map is an application's, read through its technical profile"
+  # The programme's own derived table, docs/1.6's vocabulary, from the board's source.
+  # Exit 1 is stale and 2 could not judge; either fails, and it says which.
+  if "$SELF/../board/board-vocabulary.py" --check "$HERE/docs/1.6-github-project-board.md"; then
+    echo "  docs/1.6's vocabulary table is current"
+  else
+    FAILED=1
+  fi
 elif MAP_OUT="$("$SELF/document-map.py" --check 2>&1)"; then
   echo "  the document map lists every heading in every document"
 elif [[ "$MAP_OUT" == *"is out of date"* ]]; then

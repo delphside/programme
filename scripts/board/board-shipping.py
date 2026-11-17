@@ -10,6 +10,13 @@
     board-shipping.py check                  # exit 0 if the profile holds what the others read
     board-shipping.py -C <dir> ...           # against the repository at <dir>
 
+Where the technical profile sets `ships.carries_payload = true`, a move of the programme pin ships
+only where it changes a file the payload carries (`shipping.carried`), and `paths` judges the staged
+move so; without the key the pin is a path like any other and `ships.non_shipping` decides it.
+Likewise the profile file: an edit to it ships only where the profile cut to the keys a host reads
+(`shipping.HOST_READS`) differs between the two commits, or either cannot be read; an edit to board
+keys alone ships nothing. Without the key the profile is a path like any other.
+
 The rule is `programme/scripts/board/shipping.py`'s. This is the command the bash tooling
 calls instead of keeping a copy of it: `shipping-paths.sh`'s functions, the
 pre-commit hook, `deploy.sh`, `verify.sh` and CI (#421). An unknown commit
@@ -42,11 +49,15 @@ def main(argv: list[str]) -> int:
         return 0
     cmd, args = argv[0], argv[1:]
     if cmd == "commit" and len(args) == 1:
-        return 0 if shipping.touches_image(changed_paths(args[0])) else 1
+        return 0 if shipping.touches_image(changed_paths(args[0]), shipping.pin_move_ships(args[0] + "^", args[0]),
+                                                  shipping.profile_ships(args[0] + "^", args[0])) else 1
     if cmd == "range" and len(args) == 2:
-        return 0 if shipping.touches_image(changed_paths_between(*args)) else 1
+        return 0 if shipping.touches_image(changed_paths_between(*args), shipping.pin_move_ships(*args),
+                                                  shipping.profile_ships(*args)) else 1
     if cmd == "ships" and len(args) == 1:
-        return 0 if shipping.ships(changed_paths(args[0]), version_lines(args[0])) else 1
+        return 0 if shipping.ships(changed_paths(args[0]), version_lines(args[0]),
+                                   shipping.pin_move_ships(args[0] + "^", args[0]),
+                                   shipping.profile_ships(args[0] + "^", args[0])) else 1
     if cmd == "version-bump" and args == ["--staged"]:
         return 0 if shipping.version_bump_only(*staged()) else 1
     if cmd == "check" and not args:
@@ -59,7 +70,8 @@ def main(argv: list[str]) -> int:
             print(path)
         return 0
     if cmd == "paths" and not args:
-        for path in shipping.image_paths(line.strip() for line in sys.stdin):
+        for path in shipping.image_paths((line.strip() for line in sys.stdin), shipping.staged_pin_ships(),
+                                       shipping.staged_profile_ships()):
             print(path)
         return 0
     print(f"board-shipping.py: unknown or malformed command: {' '.join(argv)}\n{__doc__}",

@@ -133,7 +133,6 @@ justifies separate states is a predicate on the field:
 | --- | --- |
 | who may accept — that player, whoever holds the link, anyone | guard |
 | which invitations appear in your list — `ByName { you }` | query |
-| which may be re-sent — `ByEmail` | guard |
 | declining an open seat, which nobody was asked for | guard |
 
 None of them is a transition. The test for a separate state is whether the
@@ -161,6 +160,11 @@ unresolvable name is refused wherever it comes from.
 on the spot, so they have no invitation and never pass through `Invited`. The
 `Option` says so once, instead of every caller checking for a seat kind.
 
+**Inviting yourself by name is your own seat** (#106; owner, 2026-11-16): a
+seat by name that names the creator is added as `Claimed`, with no invitation.
+Inviting your own address is not special: it answers and behaves as any other
+address does (INV-6), and the creator accepts it like anyone.
+
 **Every seat has a kind.** A seat is added as one of five kinds (the creator's
 own, a bot, by name, by email or open), and a human seat without one is refused
 outright: *"A human seat needs a claim: named, open, or email."*
@@ -180,6 +184,16 @@ including their own (GAME-8), or the player holding it. The seat keeps the
 name of whoever said no or walked away, if anybody had, and its invitation is
 never sent again. A creator who wants to invite anybody, the same person
 included, adds a new seat.
+
+**A seat has one invitation, for its whole life** (owner, 2026-11-16). The
+seat's `Invitation` and its invitation ID are fixed when the seat is added and
+never change; a link claim or a verification sets only its addressee (INV-2,
+INV-4). A seat never gets a second invitation, meaning a new ID or a new
+`game_invitations` row: inviting again, such as the same person after they
+declined, takes a new seat. A reminder of an invitation still unanswered would
+be the same invitation on the same seat; none is built or required today. So
+today's `POST /games/{game_id}/invite`, which sends or resends to an existing
+seat whoever the request names, goes.
 
 That is what lets `Claimed` carry nothing but the player. Nothing goes back, so
 nothing has to be remembered, and **the pre-start lifecycle is acyclic**: a seat
@@ -203,9 +217,11 @@ about every seat: no seat may be `Invited`, and everything that is not spent
 must be `Claimed`. One is never coming and the other might.
 
 **Start is the last moment renumbering is free.** Dropping seats renumbers the
-ones that remain, and seat numbers are the turn order. Before the start no
-move has been recorded against a seat number, so nothing refers to the old
-ones; a moment later the log does, and the same tidy-up would be a rewrite.
+ones that remain, and seat numbers are the turn order. Anything kept from
+before the start names a seat by its `id`: the log's pre-start events, the
+invitation row and the seat's own row ([*The seat*](#the-seat)). So nothing
+kept refers to an old number. After the start the numbers are fixed, and the
+events of play name seats by number.
 
 It follows that **a game must still have two seats left** (GAME-3), checked
 when it is created and again at start, after the spent seats are dropped. A
@@ -352,6 +368,15 @@ sent the invitation and that it is no longer available. Followed by the account
 it passed to, signed in, it opens the invitation instead, which covers the
 player whose verification passed it before they used the link.
 
+**An invitation to an aborted game says the game was aborted** (owner,
+2026-11-16). Accepting, declining or claiming a seat of an `Aborted` game is
+refused with `GameAborted`, not the general `GameNotWaiting`, and the
+invitation's page and the accept answer tell the player the game was aborted.
+The abort is checked first: a seat already declined or withdrawn, or a link
+already claimed by someone else, still answers `GameAborted` once its game is
+aborted.
+Only the #71 flow does this; today's code is not changed for it.
+
 **Withdrawing an invitation spends its seat** with `SeatWithdrawn`, which
 closes the invitation and kills its link; RET-3 does the same for a whole game
 (INV-7). The start drops the spent seats, and until then none is removed.
@@ -383,7 +408,7 @@ true of every seat in every state; the rest move into the state that owns them.
 pub struct Seat {
     pub id: SeatId,                       // a per-game counter, set when the seat is added and stored with it
     pub number: u8,                       // the turn order; the start renumbers it
-    pub player: Option<PlayerId>,         // resolved when the seat is created; a bot is a player
+    pub player: Option<PlayerId>,         // set when it is known: at creation for the creator's, a bot's or a named seat, else when the seat is claimed; a bot is a player
     pub invitation: Option<Invitation>,   // fixed at creation; None for own seat and bots
     pub state: SeatState,
     pub hidden_by_player: bool,           // "removed from my list" — per seat, not per game

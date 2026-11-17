@@ -52,6 +52,14 @@ from .sources import Unavailable, _blip, run_detached
 # about a question in #311 was the reason #311 read as closed by a commit.
 
 
+def has_release(root=None) -> bool:
+    """Whether the technical profile has a `[release]` table. An application that does
+    not (it has made no release, or ships none through tags) has no release tags, no
+    deploy announcements and no CI status to read: each of those reads answers as it
+    would for a repository that has never released, and says nothing."""
+    return profile.technical(root).has_table("release")
+
+
 def _tag_prefix() -> str:
     """Releases are tagged `<prefix><version>`; the prefix is the technical profile's."""
     return profile.technical().string("release.tag_prefix")
@@ -66,13 +74,15 @@ def _history_prefixes() -> list[str]:
     current prefix (`_tag_prefix`), which alone names the releases made now.
     """
     tech = profile.technical()
-    if "history_prefixes" not in tech.data.get("release", {}):
+    if not has_release() or "history_prefixes" not in tech.data["release"]:
         return []
     return tech.strings("release.history_prefixes")
 
 
 def release_tags() -> list[str]:
-    """Tags of releases made under the current prefix, newest first."""
+    """Tags of releases made under the current prefix, newest first; none without a `[release]` table."""
+    if not has_release():
+        return []
     return [t for t in _git("tag", "--list", f"{_tag_prefix()}*",
                             "--sort=-creatordate").split() if t]
 
@@ -87,6 +97,8 @@ def history_tags() -> list[str]:
 
 
 def _all_release_refs() -> list[str]:
+    if not has_release():
+        return []
     return [f"refs/tags/{p}*" for p in [_tag_prefix(), *_history_prefixes()]]
 
 
@@ -192,8 +204,11 @@ def last_release_at() -> float | None:
     that shipped and was still open when the *next* release went out has been
     overtaken, whatever its phase says.
     """
+    refs = _all_release_refs()
+    if not refs:
+        return None
     out = _git("for-each-ref", "--sort=-creatordate",
-               "--format=%(creatordate:unix)", *_all_release_refs())
+               "--format=%(creatordate:unix)", *refs)
     first = out.split("\n")[0].strip() if out else ""
     try:
         return float(first)
@@ -279,6 +294,46 @@ def changed_paths(sha: str) -> list[str]:
     An unknown commit gives an empty list.
     """
     return [p for p in _git("show", "--name-only", "--format=", sha).splitlines() if p.strip()]
+
+
+def pin_move(base: str, head: str, path: str = "programme") -> tuple[str, str] | None:
+    """The programme pin (the submodule at `path`) as it was at `base` and `head`, where the two
+    differ and both hold one; None otherwise (not moved, added or removed)."""
+    def pinned(rev: str) -> str:
+        found = _git("ls-tree", rev, path).split()
+        return found[2] if len(found) >= 3 and found[0] == "160000" else ""
+    old, new = pinned(base), pinned(head)
+    return (old, new) if old and new and old != new else None
+
+
+def staged_pin_move(path: str = "programme") -> tuple[str, str] | None:
+    """The pin at HEAD and as staged, where the two differ and both hold one; None otherwise."""
+    head = _git("ls-tree", "HEAD", path).split()
+    index = _git("ls-files", "-s", path).split()
+    old = head[2] if len(head) >= 3 and head[0] == "160000" else ""
+    new = index[1] if len(index) >= 2 and index[0] == "160000" else ""
+    return (old, new) if old and new and old != new else None
+
+
+def file_at(rev: str, path: str) -> str | None:
+    """A file as it was at commit `rev`, or None where it cannot be read there."""
+    return _git("show", f"{rev}:{path}") if _git("cat-file", "-t", f"{rev}:{path}").strip() == "blob" else None
+
+
+def staged_file(path: str) -> str | None:
+    """A file as staged, or None where it cannot be read."""
+    return _git("show", f":{path}") if _git("ls-files", "--stage", path).strip() else None
+
+
+def programme_paths_between(old: str, new: str, path: str = "programme") -> list[str] | None:
+    """The paths that differ between two commits of the submodule at `path`, or None where it cannot
+    say (the submodule is not checked out, or lacks one of the commits)."""
+    try:
+        out = run_detached(["git", "-C", path, "diff", "--name-only", old, new],
+                           capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return [p for p in out.stdout.splitlines() if p.strip()] if out.returncode == 0 else None
 
 
 def version_lines(sha: str) -> list[str]:
@@ -453,6 +508,8 @@ def ci_red_on_main() -> str | None:
     read as a red one any more than as a green one.
     """
     root = profile.app_root()
+    if not has_release(root):
+        return None
     command = shlex.split(profile.technical(root).string("release.ci_status"))
     script = root / command[0]
     if not script.exists():

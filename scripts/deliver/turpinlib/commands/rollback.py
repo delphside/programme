@@ -35,7 +35,7 @@ def request_for(prof, env, request_id: str, repeat: bool) -> dict:
         "request_id": request_id, "repeat": repeat, "app": prof.application, "env": env.name,
         "role": env.role.value, "login": env.login.value,
         "repo": prof.releases if env.role is Role.PRODUCTION else prof.candidates,
-        "lock": env.lock, "project": env.project, "pull_timeout": env.pull_timeout, "wait": None,
+        "lock": env.lock, "project": env.project, "url": env.url or "", "pull_timeout": env.pull_timeout, "wait": None,
         # a repeat waits for the lock the length of time settings.py names (design §11)
         "lock_wait": settings.WAIT_DEFAULT_MINUTES if repeat else None,
         "fallback": prof.fallback or NO_FALLBACK}

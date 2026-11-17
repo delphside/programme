@@ -71,7 +71,7 @@ def request_for(prof: Profile, env: Environment, resolved: gates.Resolved, reque
         # the builder's login where the environment is on the builder's machine, else the environment's own
         "login_component": profile.login_component(prof, env),
         "payload_image": resolved.commit_profile.payload_image or "",
-        "pull_timeout": env.pull_timeout, "lock": env.lock, "project": env.project, "wait": wait,
+        "pull_timeout": env.pull_timeout, "lock": env.lock, "project": env.project, "url": env.url or "", "wait": wait,
         # a repeat waits for the lock the length of time `--wait` or settings.py names (design §11)
         "lock_wait": wait if wait is not None else (settings.WAIT_DEFAULT_MINUTES if repeat else None),
         "check": check, "local": resolved.local,
@@ -104,7 +104,7 @@ def post_deploy(repo: Path, env: Environment, resolved: gates.Resolved, prof: Pr
             result = hooks.run_hook(path, hooks.HookEnv(
                 app=prof.application, env=env.name, role=env.role.value, sha=resolved.commit,
                 version=resolved.version, state=str(state_folder(prof.application)),
-                images={name: str(digest) for name, digest in resolved.images.items()}), cwd=repo)
+                images={name: str(digest) for name, digest in resolved.images.items()}, url=env.url or ""), cwd=repo)
         except ProgrammeError as exc:
             text = (f"check post-deploy could not run: {exc.result.message} (the deploy stands; "
                     f"turpin rollback {env.name} undoes it)")

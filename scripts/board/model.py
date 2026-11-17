@@ -17,6 +17,23 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Iterator, Mapping, Sequence
 
+from . import vocabulary
+from .vocabulary import (  # noqa: F401  (some are only re-exported: callers import them from here)
+    APPLICATION_TOOLING, CLAIMED_BY, DECISION_STATE, DEC_ACTIONED,
+    DEC_ASKED, DEC_DECIDED, DEC_FEEDBACK, DEC_SIGN_OFF,
+    DEPRECATED_REPOSITORY, FORMER_APPLICATION_TOOLING,
+    FORMER_PROGRAMME_TOOLING, OTHER, PROGRAMME_TOOLING, PROJECT_STATE,
+    PROJ_CLOSEDOWN, PROJ_DEPLOYMENT, PROJ_DESIGN, PROJ_DEVELOPMENT,
+    PROJ_POST_DEPLOYMENT, PROJ_Q1, PROJ_Q2, PROJ_Q3, PROJ_SCOPE,
+    PROJ_USER_TESTING, PR_APPROVED, PR_AWAITING_REVIEW,
+    PR_CHANGES_REQUESTED, PR_DRAFTING, PR_STATE, RELEASE, RELEASE_CHECK,
+    REQUIREMENT_STATE, REQ_CANDIDATE_1, REQ_CANDIDATE_2, REQ_CANDIDATE_3,
+    REQ_ON_HOLD, REQ_READY, REQ_SCOPE, REQ_TRIAGE, ROUTE, TICKET_STATE,
+    TKT_CLOSED, TKT_IN_PROGRESS, TKT_NEW, TKT_PENDING, TKT_REFUSED,
+    TKT_RESOLVED, TKT_WAITING_ON_SENDER, TURN, TURNS, TURN_CLAUDE,
+    TURN_HOLD, TURN_OWNER, TYPE_DECISION, TYPE_PROJECT, TYPE_PULL_REQUEST,
+    TYPE_REQUIREMENT, TYPE_TICKET, WORKSTREAM)
+
 # --------------------------------------------------------------------------
 # what a source hands over
 # --------------------------------------------------------------------------
@@ -284,49 +301,20 @@ class Observed:
         return f"{self.repo}#{self.raw.number}"
 
 
-# --------------------------------------------------------------------------
-# Routes: the values of the Route field, decided here once
-# --------------------------------------------------------------------------
+# The field and option names are in `vocabulary.py`, once; imported at the top
+# of this file.
 
-# --------------------------------------------------------------------------
-# the state fields: every issue type's journey is `<type> State`
-# --------------------------------------------------------------------------
-# Owner, 2026-09-30: the four lifecycle fields share one word, and `State`
-# needed the fewest renames. `Stage` and `Phase` were renamed in GitHub.
-
-REQUIREMENT_STATE = "Requirement State"
-PROJECT_STATE = "Project State"
-PR_STATE = "PR State"
-TICKET_STATE = "Ticket State"
-DECISION_STATE = "Decision State"
-TURN = "Turn"
-CLAIMED_BY = "Claimed by"
-WORKSTREAM = "Workstream"
-
-
-RELEASE = "Production Release"
-APPLICATION_TOOLING = "Application Tooling"
-PROGRAMME_TOOLING = "Docs and Programme Tooling"
-OTHER = "Other"
-
-# The two tooling options were renamed on 2026-10-26 (owner): every document
-# changed on its own is now the second's. Issues may carry the old names until
-# the field's options are renamed in GitHub, so both are read.
+# Issues may carry the old Route names until the field's options are renamed in
+# GitHub, so both are read.
 FORMER_NAMES = {
-    "Application Tooling and Docs": APPLICATION_TOOLING,
-    "Programme Tooling and Docs": PROGRAMME_TOOLING,
+    FORMER_APPLICATION_TOOLING: APPLICATION_TOOLING,
+    FORMER_PROGRAMME_TOOLING: PROGRAMME_TOOLING,
 }
 
 
 def route_of(value: str | None) -> str | None:
     """The route a Route field value names, reading a former name as its new one."""
     return FORMER_NAMES.get(value or "", value)
-
-# The Repository Change route split in two on 2026-09-29 (#421 R4). The old
-# option stays on the field, marked deprecated, because closed issues carry
-# it; it is matched by its prefix so renaming it to say so changes nothing.
-DEPRECATED_REPOSITORY = "Repository Change"
-
 
 def delivered_by_merge(route: str | None) -> bool:
     """Is a change on this route delivered when it merges into main?
@@ -590,7 +578,7 @@ class Requirement(Issue):
         # Owner, 2026-09-18: an unset Stage is Triage. A row every rule skips
         # is a row nothing enforces, which is the untyped defect (#361) in
         # different clothes.
-        return self.field(REQUIREMENT_STATE) or "Triage"
+        return self.field(REQUIREMENT_STATE) or REQ_TRIAGE
 
     @property
     def step_field(self) -> str:
@@ -636,11 +624,11 @@ class ParentProject(Project):
 
     @property
     def work_packages(self) -> list[int]:
-        return [s.number for s in self.sub_issues if s.issue_type == "Project"]
+        return [s.number for s in self.sub_issues if s.issue_type == TYPE_PROJECT]
 
     @property
     def folded_requirements(self) -> list[int]:
-        return [s.number for s in self.sub_issues if s.issue_type == "Requirement"]
+        return [s.number for s in self.sub_issues if s.issue_type == TYPE_REQUIREMENT]
 
 
 @dataclass(frozen=True)
@@ -650,7 +638,7 @@ class WorkPackage(Project):
 
     @property
     def route(self) -> str | None:
-        return self.field("Route")
+        return self.field(ROUTE)
 
     @property
     def milestone(self) -> str | None:
@@ -663,7 +651,7 @@ class StandaloneProject(Project):
 
     @property
     def route(self) -> str | None:
-        return self.field("Route")
+        return self.field(ROUTE)
 
     @property
     def milestone(self) -> str | None:
@@ -705,8 +693,6 @@ ROLES = (ROLE_OWNER, ROLE_DESIGN, ROLE_TECHNICAL, ROLE_DEMAND, ROLE_RELEASE,
 ROLE_AUTHOR = "author"
 HOLDERS = ROLES + (ROLE_AUTHOR,)
 
-TURN_OWNER, TURN_CLAUDE, TURN_HOLD = "Owner", "Claude", "Hold"
-TURNS = (TURN_OWNER, TURN_CLAUDE, TURN_HOLD)
 
 # Owner, 2026-11-13: 7 days for every state where the owner or a thread owes a
 # move, a day for triage, none for a queue.
@@ -716,12 +702,6 @@ OWED_DAYS = 7
 # when it is the same again overdue.
 REVIEW_DUE_DAYS = 7
 POST_DEPLOYMENT_DAYS = REVIEW_DUE_DAYS + OWED_DAYS
-
-# A delivery carrying this waits for the next release and owes nobody an
-# action: the difference between "you have not done this" and "this cannot be
-# done yet". Without it a Release Check project nags for a review for ever,
-# which is #310.
-RELEASE_CHECK = "Release Check"
 
 # Why a `Hold` is valid, by the kind of wait a state makes (design.md, *Hold
 # reasons*). A state with no kind accepts a thread-set `Hold` on any reason.
@@ -753,140 +733,140 @@ def _row(role, turn, bound, owes, leaves_on, **kw) -> Flow:
 
 
 REQUIREMENT_FLOW: dict[str, Flow] = {
-    "Triage": _row(ROLE_DESIGN, TURN_CLAUDE, TRIAGE_DAYS,
+    REQ_TRIAGE: _row(ROLE_DESIGN, TURN_CLAUDE, TRIAGE_DAYS,
                    "the minimum fields, then an outcome",
                    "the thread's action, at raising (R10)"),
-    "Scope, Options and Dependencies": _row(
+    REQ_SCOPE: _row(
         ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS,
         "options, dependencies, a recommendation", "the thread's action"),
-    "On Hold": _row(ROLE_DESIGN, TURN_HOLD, None,
+    REQ_ON_HOLD: _row(ROLE_DESIGN, TURN_HOLD, None,
                     "none: resting",
                     "the named event, or the issue it waits on closing",
                     hold=HOLD_ON_NAMED),
-    "Ready for Project": _row(ROLE_DEMAND, TURN_CLAUDE, None,
+    REQ_READY: _row(ROLE_DEMAND, TURN_CLAUDE, None,
                               "a slot at planning",
                               "board-sweep planning; the owner agrees"),
-    "Candidate Project 1": _row(ROLE_DEMAND, TURN_CLAUDE, OWED_DAYS,
+    REQ_CANDIDATE_1: _row(ROLE_DEMAND, TURN_CLAUDE, OWED_DAYS,
                                 "raise the project, since it is next",
                                 "board-sweep planning"),
-    "Candidate Project 2": _row(ROLE_DEMAND, TURN_CLAUDE, None,
+    REQ_CANDIDATE_2: _row(ROLE_DEMAND, TURN_CLAUDE, None,
                                 "a slot at planning", "board-sweep planning"),
-    "Candidate Project 3": _row(ROLE_DEMAND, TURN_CLAUDE, None,
+    REQ_CANDIDATE_3: _row(ROLE_DEMAND, TURN_CLAUDE, None,
                                 "a slot at planning", "board-sweep planning"),
 }
 
 PROJECT_FLOW: dict[str, Flow] = {
-    "Scope": _row(ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS,
+    PROJ_SCOPE: _row(ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS,
                   "what the project does", "its action; the owner agrees the next move"),
-    "Q3": _row(ROLE_DEMAND, TURN_CLAUDE, None, "a place in the queue",
+    PROJ_Q3: _row(ROLE_DEMAND, TURN_CLAUDE, None, "a place in the queue",
                "board-sweep planning"),
-    "Q2": _row(ROLE_DEMAND, TURN_CLAUDE, None, "a place in the queue",
+    PROJ_Q2: _row(ROLE_DEMAND, TURN_CLAUDE, None, "a place in the queue",
                "board-sweep planning"),
-    "Q1": _row(ROLE_DEMAND, TURN_CLAUDE, None, "to be pulled into design",
+    PROJ_Q1: _row(ROLE_DEMAND, TURN_CLAUDE, None, "to be pulled into design",
                "board-sweep planning"),
-    "Design and Test Approach": _row(
+    PROJ_DESIGN: _row(
         ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS,
         "the design, and the test approach",
         "design done and test approach approved",
         parts=((ROLE_TEST, "approve the test approach"),
                (ROLE_OWNER, "answer the Design boxes"))),
-    "Development": _row(ROLE_TECHNICAL, TURN_CLAUDE, OWED_DAYS,
+    PROJ_DEVELOPMENT: _row(ROLE_TECHNICAL, TURN_CLAUDE, OWED_DAYS,
                         "the change on its branch", "first test deploy, or merge"),
-    "User testing": _row(ROLE_TECHNICAL, TURN_CLAUDE, OWED_DAYS,
+    PROJ_USER_TESTING: _row(ROLE_TECHNICAL, TURN_CLAUDE, OWED_DAYS,
                          "the branch tip deployed and tested", "tests ticked",
                          parts=((ROLE_OWNER, "run the browser tests"),)),
-    "Deployment": _row(ROLE_TECHNICAL, TURN_HOLD, None,
+    PROJ_DEPLOYMENT: _row(ROLE_TECHNICAL, TURN_HOLD, None,
                        "the release it waits for", "the deploy",
                        parts=((ROLE_RELEASE, "make the release"),),
                        hold=HOLD_ON_RELEASE),
-    "Post-deployment": _row(ROLE_TECHNICAL, TURN_CLAUDE, POST_DEPLOYMENT_DAYS,
+    PROJ_POST_DEPLOYMENT: _row(ROLE_TECHNICAL, TURN_CLAUDE, POST_DEPLOYMENT_DAYS,
                             "the post-deployment review, due after "
                             f"{REVIEW_DUE_DAYS} days", "the review",
                             hold=HOLD_ON_RELEASE),
-    "Project Closedown": _row(ROLE_TECHNICAL, TURN_CLAUDE, OWED_DAYS,
+    PROJ_CLOSEDOWN: _row(ROLE_TECHNICAL, TURN_CLAUDE, OWED_DAYS,
                               "the lessons written", "lessons written, closed"),
 }
 
 DECISION_FLOW: dict[str, Flow] = {
-    "Asked": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "answer the question",
+    DEC_ASKED: _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "answer the question",
                   "the owner answers"),
-    "Feedback Provided": _row(ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS,
+    DEC_FEEDBACK: _row(ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS,
                               "write the decision down", "Claude writes it down"),
-    "Documented Ready for Sign-Off": _row(
+    DEC_SIGN_OFF: _row(
         ROLE_OWNER, TURN_OWNER, OWED_DAYS, "read the decision and sign it off",
         "the owner signs off"),
-    "Decided": _row(ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS, "apply the decision",
+    DEC_DECIDED: _row(ROLE_DESIGN, TURN_CLAUDE, OWED_DAYS, "apply the decision",
                     "Claude applies it"),
-    "Actioned": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS,
+    DEC_ACTIONED: _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS,
                      "read the outcome, and close it", "the owner closes it"),
 }
 
 # Derived from GitHub's own state by `board-pr-state.py`, never typed. Awaiting
 # review is the owner's; every other state is its author's (design.md).
 PULL_REQUEST_FLOW: dict[str, Flow] = {
-    "Drafting": _row(ROLE_AUTHOR, TURN_CLAUDE, OWED_DAYS,
+    PR_DRAFTING: _row(ROLE_AUTHOR, TURN_CLAUDE, OWED_DAYS,
                      "finish the draft, then ask for review", "ready for review"),
-    "Awaiting review": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS,
+    PR_AWAITING_REVIEW: _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS,
                             "review: approve or request changes", "the review"),
-    "Changes requested": _row(ROLE_AUTHOR, TURN_CLAUDE, OWED_DAYS,
+    PR_CHANGES_REQUESTED: _row(ROLE_AUTHOR, TURN_CLAUDE, OWED_DAYS,
                               "make the changes, then re-request the review",
                               "re-requested"),
-    "Approved": _row(ROLE_AUTHOR, TURN_CLAUDE, OWED_DAYS,
+    PR_APPROVED: _row(ROLE_AUTHOR, TURN_CLAUDE, OWED_DAYS,
                      "approved — mine to merge", "the merge"),
 }
 
 TICKET_FLOW: dict[str, Flow] = {
-    "New": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "read it", "the owner reads it"),
-    "In progress": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "answer it",
+    TKT_NEW: _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "read it", "the owner reads it"),
+    TKT_IN_PROGRESS: _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "answer it",
                         "a reply is sent"),
-    "Waiting on sender": _row(ROLE_OWNER, TURN_HOLD, OWED_DAYS,
+    TKT_WAITING_ON_SENDER: _row(ROLE_OWNER, TURN_HOLD, OWED_DAYS,
                               "review the wait on the sender",
                               "the sender answers", hold=HOLD_ON_SENDER,
                               stalls_under_hold=True),
     # Its bound is the review date in the Ticket's last note; a Ticket whose
     # note names none falls back to the figure here.
-    "Pending": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS,
+    TKT_PENDING: _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS,
                     "decide it, at the review date in the last note",
                     "the review date"),
-    "Resolved": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "close it", "closed"),
-    "Refused": _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "close it", "closed"),
-    "Closed": _row(None, None, None, "none", "none"),
+    TKT_RESOLVED: _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "close it", "closed"),
+    TKT_REFUSED: _row(ROLE_OWNER, TURN_OWNER, OWED_DAYS, "close it", "closed"),
+    TKT_CLOSED: _row(None, None, None, "none", "none"),
 }
 
 # type -> state -> row. A project's three kinds share the Project rows; a
 # parent's difference is the sweep's (`flow.py`), as design.md states it.
 FLOW: dict[str, dict[str, Flow]] = {
-    "Requirement": REQUIREMENT_FLOW,
-    "Project": PROJECT_FLOW,
-    "Decision": DECISION_FLOW,
-    "PullRequest": PULL_REQUEST_FLOW,
-    "Ticket": TICKET_FLOW,
+    TYPE_REQUIREMENT: REQUIREMENT_FLOW,
+    TYPE_PROJECT: PROJECT_FLOW,
+    TYPE_DECISION: DECISION_FLOW,
+    TYPE_PULL_REQUEST: PULL_REQUEST_FLOW,
+    TYPE_TICKET: TICKET_FLOW,
 }
 
 # The field that carries each type's state, and the state it starts at
 # (R7; S-G5, S-G6). A pull request's is derived from GitHub, never written.
 STATE_FIELD_OF: dict[str, str] = {
-    "Requirement": REQUIREMENT_STATE,
-    "Project": PROJECT_STATE,
-    "Decision": DECISION_STATE,
-    "PullRequest": PR_STATE,
-    "Ticket": TICKET_STATE,
+    TYPE_REQUIREMENT: REQUIREMENT_STATE,
+    TYPE_PROJECT: PROJECT_STATE,
+    TYPE_DECISION: DECISION_STATE,
+    TYPE_PULL_REQUEST: PR_STATE,
+    TYPE_TICKET: TICKET_STATE,
 }
 STARTING_STATE: dict[str, str] = {
-    "Requirement": "Triage",
-    "Project": "Scope",
-    "Decision": "Asked",
-    "Ticket": "New",
+    TYPE_REQUIREMENT: REQ_TRIAGE,
+    TYPE_PROJECT: PROJ_SCOPE,
+    TYPE_DECISION: DEC_ASKED,
+    TYPE_TICKET: TKT_NEW,
 }
 
 # The holder of an item of a type whose state the table cannot place, where its
 # workstream is known (design.md, *The turn*).
 TYPE_HOLDER: dict[str, str] = {
-    "Requirement": ROLE_DESIGN,
-    "Project": ROLE_DESIGN,
-    "Decision": ROLE_DESIGN,
-    "PullRequest": ROLE_AUTHOR,
-    "Ticket": ROLE_OWNER,
+    TYPE_REQUIREMENT: ROLE_DESIGN,
+    TYPE_PROJECT: ROLE_DESIGN,
+    TYPE_DECISION: ROLE_DESIGN,
+    TYPE_PULL_REQUEST: ROLE_AUTHOR,
+    TYPE_TICKET: ROLE_OWNER,
 }
 
 
@@ -900,9 +880,17 @@ def role_turn(role: str | None) -> str | None:
 def flow_type(issue) -> str:
     """The flow table's type for a classified issue: its three project kinds
     are one."""
+    # By class, not by `kind`, which is a Python name that only happens to equal
+    # GitHub's: renaming a type in GitHub must not move an issue's flow.
     if isinstance(issue, Project):
-        return "Project"
-    return issue.kind
+        return TYPE_PROJECT
+    if isinstance(issue, Decision):
+        return TYPE_DECISION
+    if isinstance(issue, Ticket):
+        return TYPE_TICKET
+    if isinstance(issue, PullRequest):
+        return TYPE_PULL_REQUEST
+    return TYPE_REQUIREMENT
 
 
 def flow_row(issue) -> Flow | None:
@@ -991,19 +979,19 @@ def classify(raw: RawIssue) -> Issue:
     sub-issues misread it.
     """
     match raw.issue_type:
-        case "Decision":
+        case vocabulary.TYPE_DECISION:
             return Decision(raw)
-        case "PullRequest":
+        case vocabulary.TYPE_PULL_REQUEST:
             return PullRequest(raw)
-        case "Project":
-            if any(s.issue_type == "Project" for s in raw.sub_issues):
+        case vocabulary.TYPE_PROJECT:
+            if any(s.issue_type == TYPE_PROJECT for s in raw.sub_issues):
                 return ParentProject(raw)
             if raw.parent is not None:
                 return WorkPackage(raw)
             return StandaloneProject(raw)
-        case "Ticket":
+        case vocabulary.TYPE_TICKET:
             return Ticket(raw)
-        case "Requirement":
+        case vocabulary.TYPE_REQUIREMENT:
             return Requirement(
                 raw, stage_was_defaulted=raw.fields.get(REQUIREMENT_STATE) is None
             )

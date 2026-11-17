@@ -95,18 +95,31 @@ fi
 # going quiet.
 # The marker is the technical profile's `release.deploy_marker`. This hook never
 # fails a turn, so an unreadable profile is reported in the turn and ends it.
-if ! DEPLOY_MARKER="$(python3 "$BOARD"/board-profile.py get release.deploy_marker 2>&1)"; then
+# An application whose profile has no `[release]` table announces no deploys, so
+# there is no marker and nothing to filter out.
+# `has` answers by its exit status: 0 yes, 1 no, anything else unreadable.
+HAS_RELEASE=true
+WHY="$(python3 "$BOARD"/board-profile.py has release 2>&1)" || case $? in
+  1) HAS_RELEASE=false ;;
+  *) echo "turn-check: $WHY"; exit 0 ;;
+esac
+DEPLOY_MARKER=""
+if [ "$HAS_RELEASE" = true ] && ! DEPLOY_MARKER="$(python3 "$BOARD"/board-profile.py get release.deploy_marker 2>&1)"; then
   echo "turn-check: $DEPLOY_MARKER"
   exit 0
 fi
 OWNER_NAME="$(python3 "$BOARD"/board-profile.py get accounts.owner_name 2>/dev/null)" || OWNER_NAME="the owner"
 ME="${ME:-__no_such_login__}"
 ME_J="$(python3 "$BOARD"/board-profile.py json-string "$ME")" || exit 0
-MARKER_J="$(python3 "$BOARD"/board-profile.py json-string "$DEPLOY_MARKER")" || exit 0
+MARKER_FILTER=""
+if [ "$HAS_RELEASE" = true ]; then
+  MARKER_J="$(python3 "$BOARD"/board-profile.py json-string "$DEPLOY_MARKER")" || exit 0
+  MARKER_FILTER='| select((.body | startswith('"$MARKER_J"')) | not)'
+fi
 # A cloud session posts as the owner's account; its footer marks it (#455 R9).
 FOOTER_J="$(cd "$BOARD/.." && python3 -c 'import json; from board.sources import FOOTER; print(json.dumps(FOOTER))' 2>/dev/null)" || { echo "turn-check: cannot read the footer pattern from board/sources.py"; exit 0; }
 FILTER='.[] | select(.user.login != '"$ME_J"')
-            | select((.body | startswith('"$MARKER_J"')) | not)
+            '"$MARKER_FILTER"'
             | select((.body | test('"$FOOTER_J"')) | not)
             | "#\(.issue_url | split("/") | last)  \(.updated_at[11:16])  \((.body | gsub("\n"; " "))[0:160])"'
 if (( PRINT_FILTER )); then printf '%s\n' "$FILTER"; exit 0; fi

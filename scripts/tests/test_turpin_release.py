@@ -132,6 +132,7 @@ class World(Isolated):
         self.promote_error: Exception | None = None
         self.checks = (True, {"e2e": "success"}, [])
         self.gate_result = self.passing_gate()
+        self.gate_for = None          # a function of the request, where a test needs the board to answer it
         self.publish_result = {"retrospective": "not asked", "release": "created", "failed": []}
         self.next_result = {"milestone": "0.10.3", "created": True, "moved": [], "failed": []}
         self.board_error: dict[str, Exception] = {}       # a call of the model to the error it raises
@@ -241,7 +242,7 @@ class World(Isolated):
             return call
         return types.SimpleNamespace(
             GateRequest=model_release.GateRequest,
-            gate=guarded("gate", lambda: self.gate_result),
+            gate=guarded("gate", lambda: self.gate_for(self.events[-1][1][0]) if self.gate_for else self.gate_result),
             checks=guarded("checks", lambda: self.checks),
             publish=guarded("publish", lambda: self.publish_result),
             open_next=guarded("open_next", lambda: self.next_result))
@@ -402,15 +403,82 @@ class Gates(World):
         self.rehearse(emergency)
         self.production = None
         real = subprocess.run
+        running = self.git("rev-parse", "v0.10.0^{commit}", cwd=self.work)[:7]
 
         def run(argv, *a, **kw):
             if argv and argv[0] == "curl":
                 self.assertIn("http://prod.test/health", argv)
-                return subprocess.CompletedProcess(argv, 0, '{"app_version":"0.10.0+abc1234"}', "")
+                return subprocess.CompletedProcess(argv, 0, json.dumps({"app_version": f"0.10.0+{running}"}), "")
             return real(argv, *a, **kw)
         with mock.patch("subprocess.run", side_effect=run):
             code, _, err = self.release("--expect", "0.10.2", "--commit", emergency, "--emergency", "outage")
         self.assertEqual(0, code, err)
+
+    @staticmethod
+    def health_says(text):
+        real = subprocess.run
+
+        def run(argv, *a, **kw):
+            if argv and argv[0] == "curl":
+                return subprocess.CompletedProcess(argv, 0, json.dumps({"app_version": text}), "")
+            return real(argv, *a, **kw)
+        return run
+
+    def test_a_release_reads_health_where_production_has_no_turpin_state_and_does_not_refuse(self):   # T10
+        self.text_tag("v0.10.0", self.sha)
+        sha = self.commit("0.10.2 work", version="0.10.2")
+        self.build(sha)
+        self.rehearsal = self.rehearsal_ran(sha)
+        self.production = None
+        with mock.patch("subprocess.run", side_effect=self.health_says("0.10.0+" + self.sha[:7])):
+            code, _, err = self.release("--expect", "0.10.2")
+        self.assertEqual(0, code, err)
+        request = self.called("gate")[0][1][0]
+        self.assertEqual(("v0.10.0", f"v0.10.0..{sha}"), (request.carry_from, request.range))
+
+    def two_tags_of_one_version(self):
+        """0.10.1 is `v0.10.1` on a commit that never shipped and `prod-0.10.1` on the one production runs."""
+        self.text_tag("v0.10.1", self.sha)
+        shipped = self.commit("what production runs", version="0.10.1")
+        self.text_tag("prod-0.10.1", shipped)
+        sha = self.commit("0.10.2 work", version="0.10.2")
+        self.build(sha)
+        self.rehearsal = self.rehearsal_ran(sha)
+        return shipped
+
+    def test_two_tags_of_one_version_the_one_naming_the_commit_health_reports_is_taken(self):        # T10
+        shipped = self.two_tags_of_one_version()
+        self.production = None
+        with mock.patch("subprocess.run", side_effect=self.health_says("0.10.1+" + shipped[:7])):
+            code, _, err = self.release("--expect", "0.10.2")
+        self.assertEqual(0, code, err)
+        self.assertEqual("prod-0.10.1", self.called("gate")[0][1][0].carry_from)
+
+    def test_two_tags_of_one_version_the_one_naming_the_hosts_record_commit_is_taken(self):          # T10
+        shipped = self.two_tags_of_one_version()
+        self.production_runs("0.10.1", shipped)
+        self.assertEqual(0, self.release("--expect", "0.10.2")[0])
+        self.assertEqual("prod-0.10.1", self.called("gate")[0][1][0].carry_from)
+
+    def test_two_tags_of_one_version_with_no_commit_to_go_by_take_the_release_prefix(self):          # T10
+        self.two_tags_of_one_version()
+        self.production = None
+        with mock.patch("subprocess.run", side_effect=self.health_says("0.10.1")):
+            code, _, err = self.release("--expect", "0.10.2")
+        self.assertEqual(0, code, err)
+        self.assertEqual("v0.10.1", self.called("gate")[0][1][0].carry_from)
+
+    def test_a_commit_health_reports_that_no_tag_of_the_version_names_refuses_naming_the_tags(self):   # T10
+        self.two_tags_of_one_version()
+        self.production = None
+        with mock.patch("subprocess.run", side_effect=self.health_says("0.10.1+deadbee")):
+            code, _, err = self.release("--expect", "0.10.2")
+        self.assertEqual(1, code)
+        self.assertIn("deadbee", err)
+        self.assertIn("none of its tags names that commit", err)
+        self.assertIn("v0.10.1 names", err)
+        self.assertIn("prod-0.10.1 names", err)
+        self.assertEqual([], self.called("gate"))
 
     def test_a_required_check_that_is_not_green_refuses(self):                                       # S21, R18
         for ok, bad, text in ((False, ["check e2e is failure on abc"], "e2e is failure"),
@@ -542,6 +610,65 @@ class Gates(World):
         request = self.called("gate")[0][1][0]
         self.assertTrue(request.milestone_set_aside)
         self.assertEqual("set-aside", self.gates()["milestone"])
+
+    def board_asks_about_13(self):
+        """The board's gate with issue #13 open in the milestone and named by no commit."""
+        def answer(request):
+            if 13 in request.confirmed:
+                return self.passing_gate(issues=[12, 13], confirmed=[13])
+            return model_release.GateResult(
+                gates=[model_release.Verdict("tests-passed", True, "ok"),
+                       model_release.Verdict("milestone", False, "open in milestone 0.10.2, no commit in the release "
+                                             "says Refs, and not confirmed as in this build: #13")],
+                unconfirmed=[13])
+        self.gate_for = answer
+
+    def test_an_unconfirmed_issue_refuses_naming_it_and_asks_nobody_under_expect(self):               # T9
+        self.board_asks_about_13()
+        code, _, err = self.release("--expect", "0.10.2")
+        self.assertEqual(1, code)
+        self.assertIn("refused at gate milestone", err)
+        self.assertIn("#13", err)
+        self.assertNotIn("Confirm that", err)
+        self.nothing_changed()
+
+    def test_confirm_answers_the_question_without_a_terminal_and_the_record_keeps_it(self):          # T9
+        self.board_asks_about_13()
+        code, _, err = self.release("--expect", "0.10.2", "--confirm", "13")
+        self.assertEqual(0, code, err)
+        self.assertEqual((13,), self.called("gate")[0][1][0].confirmed)
+        record = json.loads(self.tag_message("v0.10.2"))
+        self.assertEqual([13], record["carries"]["confirmed"])
+        self.assertEqual([12, 13], record["carries"]["issues"])
+
+    def test_confirm_is_repeatable_and_takes_a_number(self):                                          # T9
+        code, _, err = self.release("--expect", "0.10.2", "--confirm", "#13", "--confirm", "14")
+        self.assertEqual(0, code, err)
+        self.assertEqual((13, 14), self.called("gate")[0][1][0].confirmed)
+        code, _, err = self.release("--expect", "0.10.2", "--confirm", "thirteen")
+        self.assertEqual(64, code)
+        self.assertIn("name an issue by its number", err)
+        self.assertIn("[--confirm N]...", err)
+
+    def test_without_expect_each_unconfirmed_issue_is_asked_about_and_yes_confirms_it(self):        # T9
+        self.board_asks_about_13()
+        code, _, err = self.release(stdin="y\n0.10.2\n")
+        self.assertEqual(0, code, err)
+        self.assertIn("Project acme#13 has this milestone but is not explicitly mentioned in a commit. "
+                      "Confirm that #13 is in this build [y/N]", err)
+        self.assertEqual([(), (13,)], [call[1][0].confirmed for call in self.called("gate")])
+        self.assertEqual([13], json.loads(self.tag_message("v0.10.2"))["carries"]["confirmed"])
+
+    def test_without_expect_anything_but_yes_leaves_the_issue_unconfirmed_and_refuses(self):         # T9
+        self.board_asks_about_13()
+        for answer in ("\n", "n\n", ""):
+            with self.subTest(answer):
+                code, _, err = self.release(stdin=answer)
+                self.assertEqual(1, code)
+                self.assertIn("#13", err)
+                self.assertEqual(1, len(self.called("gate")))
+                self.events.clear()
+        self.nothing_changed()
 
     def test_a_gate_the_profile_does_not_list_cannot_be_set_aside(self):                              # S53, R10
         sha = self.commit("profile", version="0.10.2")

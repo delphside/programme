@@ -40,25 +40,29 @@ from dataclasses import dataclass, field
 from .model import (APPLICATION_TOOLING, OTHER, PROGRAMME_TOOLING, Issue, ParentProject,
                     StandaloneProject, WorkPackage, classify, route_of)
 from .sources import Snapshot
+from .vocabulary import (
+    PROJ_CLOSEDOWN, PROJ_DEPLOYMENT, PROJ_DESIGN, PROJ_DEVELOPMENT,
+    PROJ_POST_DEPLOYMENT, PROJ_Q1, PROJ_Q2, PROJ_Q3, PROJ_SCOPE,
+    PROJ_USER_TESTING, ROUTE, WORKSTREAM)
 
 # Progress along a delivery, worst to best. Q1 is nearer than Q3, which is why
 # they run backwards: the Phase field orders what is next (the programme's docs/1.2 §2.15).
 PHASE_ORDER = (
-    "Scope", "Q3", "Q2", "Q1", "Design and Test Approach",
-    "Development", "User testing", "Deployment",
-    "Post-deployment", "Project Closedown",
+    PROJ_SCOPE, PROJ_Q3, PROJ_Q2, PROJ_Q1, PROJ_DESIGN,
+    PROJ_DEVELOPMENT, PROJ_USER_TESTING, PROJ_DEPLOYMENT,
+    PROJ_POST_DEPLOYMENT, PROJ_CLOSEDOWN,
 )
 
 # Four bands, so a bar reads as how far along it is at a glance.
 BANDS = (
-    ("planned", ("Scope", "Q3", "Q2", "Q1")),
-    ("designing", ("Design and Test Approach",)),
-    ("building", ("Development", "User testing", "Deployment")),
-    ("landed", ("Post-deployment", "Project Closedown")),
+    ("planned", (PROJ_SCOPE, PROJ_Q3, PROJ_Q2, PROJ_Q1)),
+    ("designing", (PROJ_DESIGN,)),
+    ("building", (PROJ_DEVELOPMENT, PROJ_USER_TESTING, PROJ_DEPLOYMENT)),
+    ("landed", (PROJ_POST_DEPLOYMENT, PROJ_CLOSEDOWN)),
 )
 
 # The key's wording for each band's phases, shorter than listing them all.
-_KEY_PHASES = {"planned": "Scope, Q3 to Q1", "designing": "Design and Test Approach",
+_KEY_PHASES = {"planned": "Scope, Q3 to Q1", "designing": PROJ_DESIGN,
                "building": "Development to Deployment",
                "landed": "Post-deployment, Project Closedown"}
 
@@ -109,7 +113,7 @@ def _milestone_label(issue: Issue) -> str:
     """
     if issue.raw.milestone:
         return issue.raw.milestone
-    route = route_of(issue.field("Route"))
+    route = route_of(issue.field(ROUTE))
     if route == PROGRAMME_TOOLING:
         return "no milestone"
     if route in (APPLICATION_TOOLING, OTHER):
@@ -134,7 +138,7 @@ def build(snapshot: Snapshot, parent: int | None = None,
         drawn = [i for i in drawn if i.parent == parent]
     if workstream is not None:
         drawn = [i for i in drawn
-                 if (i.field("Workstream") or "").lower() == workstream.lower()]
+                 if (i.field(WORKSTREAM) or "").lower() == workstream.lower()]
     drawn_numbers = {i.number for i in drawn}
 
     road = Roadmap()
@@ -196,7 +200,7 @@ def build(snapshot: Snapshot, parent: int | None = None,
         rank_of(n)
 
     for issue in drawn:
-        lane = issue.field("Workstream") or TRIAGE_LANE
+        lane = issue.field(WORKSTREAM) or TRIAGE_LANE
         road.lanes.setdefault(lane, []).append(issue)
     for lane in road.lanes.values():
         lane.sort(key=lambda i: (road.rank[i.number],

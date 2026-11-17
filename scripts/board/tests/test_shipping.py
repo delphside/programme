@@ -6,10 +6,13 @@ testing the functions the bash callers source, against real commits.
 """
 
 import os
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
+from board import shipping
 from board.shipping import application_tooling, image_paths, reaches_image, ships, touches_image, version_bump_only
 
 from .cli import run
@@ -106,6 +109,198 @@ class ApplicationTooling(unittest.TestCase):
                   env={**os.environ, "PROGRAMME_PROFILE": str(bare)})
         self.assertEqual(70, out.returncode)
         self.assertIn("scripts.groups", out.stderr)
+
+
+class AnApplicationRepository(unittest.TestCase):
+    """A repository with a `programme` submodule, and the commands run against it with the
+    technical profile opted in to carrying the payload or not."""
+
+    GIT = ["git", "-c", "user.name=T", "-c", "user.email=t@e.test", "-c", "commit.gpgsign=false"]
+
+    def git(self, where, *args):
+        return subprocess.run([*self.GIT, "-C", str(where), *args], check=True, capture_output=True,
+                              text=True).stdout.strip()
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.app = Path(tmp.name) / "app"
+        self.prog = self.app / "programme"
+        self.app.mkdir()
+        self.git(self.app, "init", "-q", "-b", "main")
+        self.git(self.app, "init", "-q", "-b", "main", "programme")
+        self.programme_commit({"docs/a.md": "one"})
+        (self.app / "Dockerfile").write_text("FROM scratch\n")
+        self.git(self.app, "add", "-A")
+        self.git(self.app, "commit", "-q", "-m", "base")
+        self.base = self.git(self.app, "rev-parse", "HEAD")
+
+    def programme_commit(self, files):
+        for name, text in files.items():
+            (self.prog / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.prog / name).write_text(text)
+        self.git(self.prog, "add", "-A")
+        self.git(self.prog, "commit", "-q", "-m", "change")
+
+    def moved(self, files):
+        """Move the pin over a programme commit changing `files`; the app's commit moving it."""
+        self.programme_commit(files)
+        self.git(self.app, "add", "programme")
+        self.git(self.app, "commit", "-q", "-m", "move the pin")
+        return self.git(self.app, "rev-parse", "HEAD")
+
+    def env(self, opted):
+        """The technical profile the commands read: the fixture's, with `ships.carries_payload` or without."""
+        base = Path(os.environ["PROGRAMME_PROFILE"])
+        if not opted:
+            return None
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "app-profile.toml"
+        path.write_text(base.read_text().replace("[ships]\n", "[ships]\ncarries_payload = true\n", 1))
+        return {**os.environ, "PROGRAMME_PROFILE": str(path)}
+
+    def answers(self, head, opted=True):
+        """Exit statuses of `range`, `commit` and `ships` for the move."""
+        env = self.env(opted)
+        return [run("board/board-shipping.py", "-C", str(self.app), cmd, *args, env=env).returncode
+                for cmd, args in (("range", (self.base, head)), ("commit", (head,)), ("ships", (head,)))]
+
+    def staged_paths(self, files, opted=True):
+        """What `paths` prints for a staged pin move over a programme commit changing `files`."""
+        self.programme_commit(files)
+        self.git(self.app, "add", "programme")
+        return run("board/board-shipping.py", "-C", str(self.app), "paths", stdin="programme\n",
+                   env=self.env(opted)).stdout.strip()
+
+
+class AProgrammePinMove(AnApplicationRepository):
+    """T6: a move of the `programme` pin ships only where it changes the deploy steps the payload
+    carries (`scripts/deliver/payload/`, `scripts/deliver/lib/`) between the old pin and the new."""
+
+    def test_a_pin_move_changing_only_documents_ships_nothing(self):
+        self.assertEqual([1, 1, 1], self.answers(self.moved({"docs/b.md": "two", "scripts/board/x.py": "x"})))
+
+    def test_a_pin_move_changing_the_payload_ships(self):
+        self.assertEqual([0, 0, 0], self.answers(self.moved({"scripts/deliver/payload/deploy": "new"})))
+
+    def test_a_pin_move_changing_a_library_the_payload_carries_ships(self):
+        for name in ("common.sh", "toml.sh", "toml.awk"):
+            with self.subTest(name):
+                self.assertEqual([0, 0, 0], self.answers(self.moved({f"scripts/deliver/lib/{name}": name + "x"})))
+
+    def test_a_pin_move_changing_a_library_the_payload_does_not_carry_ships_nothing(self):
+        self.assertEqual([1, 1, 1], self.answers(self.moved({"scripts/deliver/lib/registry.sh": "new"})))
+
+    def test_without_the_key_the_profile_decides_the_pin_and_a_payload_move_ships_nothing(self):
+        head = self.moved({"scripts/deliver/payload/deploy": "new"})
+        self.assertEqual([1, 1, 1], self.answers(head, opted=False))
+
+    def test_the_pre_commit_paths_judge_the_staged_move_where_the_key_is_set(self):
+        self.assertEqual("programme", self.staged_paths({"scripts/deliver/payload/deploy": "new"}))
+
+    def test_the_pre_commit_paths_pass_a_staged_documents_move(self):
+        self.assertEqual("", self.staged_paths({"docs/b.md": "two"}))
+
+    def test_the_pre_commit_paths_without_the_key_pass_a_payload_move(self):
+        self.assertEqual("", self.staged_paths({"scripts/deliver/payload/deploy": "new"}, opted=False))
+
+    def test_the_pin_move_alongside_a_shipping_path_still_ships_for_the_path(self):
+        self.programme_commit({"docs/b.md": "two"})
+        (self.app / "Dockerfile").write_text("FROM other\n")
+        self.git(self.app, "add", "-A")
+        self.git(self.app, "commit", "-q", "-m", "both")
+        self.assertEqual([0, 0, 0], self.answers(self.git(self.app, "rev-parse", "HEAD")))
+
+    def test_a_pin_that_cannot_be_compared_ships(self):
+        self.moved({"docs/b.md": "two"})
+        with mock.patch.object(shipping.repo, "programme_paths_between", return_value=None):
+            self.assertTrue(shipping.pin_ships("a" * 40, "b" * 40))
+
+
+PROFILE = """application = "widget"
+[release]
+tag_prefix = "v"
+required_hooks = ["build"]
+[turpin]
+fallback = "one"
+[environments.production]
+host = "a"
+"""
+
+
+class AProfileEdit(AnApplicationRepository):
+    """T13: where the application carries the payload, an edit to `app-profile.toml` ships only where
+    the profile cut to the keys a host reads (`HOST_READS`) differs between the two commits."""
+
+    def setUp(self):
+        super().setUp()
+        self.edited(PROFILE)
+        self.base = self.git(self.app, "rev-parse", "HEAD")
+
+    def edited(self, text):
+        """Commit the profile with this text (None removes it); the commit's hash."""
+        path = self.app / "app-profile.toml"
+        if text is None:
+            path.unlink()
+        else:
+            path.write_text(text)
+        self.git(self.app, "add", "-A")
+        self.git(self.app, "commit", "-q", "-m", "profile")
+        return self.git(self.app, "rev-parse", "HEAD")
+
+    def staged_paths_of(self, text, opted=True):
+        (self.app / "app-profile.toml").write_text(text)
+        self.git(self.app, "add", "app-profile.toml")
+        return run("board/board-shipping.py", "-C", str(self.app), "paths", stdin="app-profile.toml\n",
+                   env=self.env(opted)).stdout.strip()
+
+    def test_a_board_key_edit_ships_nothing(self):
+        self.assertEqual([1, 1, 1], self.answers(self.edited(PROFILE.replace('host = "a"', 'host = "b"')
+                                                             .replace('tag_prefix = "v"', 'tag_prefix = "w"'))))
+
+    def test_an_edit_that_only_reorders_or_comments_ships_nothing(self):
+        self.assertEqual([1, 1, 1], self.answers(self.edited("# a comment\n" + PROFILE)))
+
+    def test_a_host_read_key_edit_ships(self):
+        for old, new in (('fallback = "one"', 'fallback = "two"'), ('required_hooks = ["build"]', 'required_hooks = []'),
+                         ('application = "widget"', 'application = "gadget"'), ('fallback = "one"', "")):
+            with self.subTest(new):
+                self.assertEqual([0, 0, 0], self.answers(self.edited(PROFILE.replace(old, new))))
+                self.edited(PROFILE)
+
+    def test_without_the_key_the_profile_path_is_judged_as_before(self):
+        # the fixture's non_shipping does not list the profile, so a board-key edit ships as any path does
+        head = self.edited(PROFILE.replace('host = "a"', 'host = "b"'))
+        self.assertEqual([0, 0, 0], self.answers(head, opted=False))
+
+    def test_a_profile_that_does_not_parse_ships(self):
+        self.assertEqual([0, 0, 0], self.answers(self.edited("not [valid")))
+
+    def test_a_profile_that_did_not_parse_before_ships(self):
+        broken = self.edited("not [valid")
+        self.assertEqual([0], self.answers_between(broken, self.edited(PROFILE))[:1])
+
+    def test_a_profile_added_or_removed_ships(self):
+        gone = self.edited(None)
+        self.assertEqual([0, 0, 0], self.answers(gone))
+        self.assertEqual([0], self.answers_between(gone, self.edited(PROFILE))[:1])
+
+    def test_the_pre_commit_paths_pass_a_staged_board_key_edit(self):
+        self.assertEqual("", self.staged_paths_of(PROFILE.replace('host = "a"', 'host = "b"')))
+
+    def test_the_pre_commit_paths_name_a_staged_host_read_edit(self):
+        self.assertEqual("app-profile.toml", self.staged_paths_of(PROFILE.replace('"one"', '"two"')))
+
+    def test_the_pre_commit_paths_without_the_key_name_a_staged_board_key_edit(self):
+        self.assertEqual("app-profile.toml", self.staged_paths_of(PROFILE.replace('host = "a"', 'host = "b"'), opted=False))
+
+    def test_an_unreadable_staged_profile_is_named(self):
+        self.assertEqual("app-profile.toml", self.staged_paths_of("not [valid"))
+
+    def answers_between(self, base, head):
+        env = self.env(True)
+        return [run("board/board-shipping.py", "-C", str(self.app), "range", base, head, env=env).returncode]
 
 
 class TheCommand(unittest.TestCase):

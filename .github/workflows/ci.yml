@@ -66,6 +66,8 @@ jobs:
       # The same script an application runs over its own documents, here over
       # this repository's (`--programme`): markdownlint (`.markdownlint.jsonc`),
       # every `](#anchor)` and relative link, and the placement of change
-      # documents, which is a gate here and only a report in an application.
+      # documents, which is a gate here and only a report in an application,
+      # and that the vocabulary table in docs/1.6 is current
+      # (`board-vocabulary.py --check`).
       - name: Documents
         run: ./scripts/docs/check-docs.sh --programme

@@ -1,11 +1,12 @@
 ---
 name: change-a-document
-description: Find the section that owns a fact before adding it to a document, CLAUDE.md or a skill, so each fact has one home. Use before writing to any document.
+description: Find the section that owns a fact before adding it to a document, CLAUDE.md or a skill, so each fact has one home, and find how two documents, or a document and the code, came to disagree before fixing either. Use before writing to any document, and when documents or code disagree.
 ---
 
 # Changing a document
 
-**Read this before adding text to a document, `CLAUDE.md` or a skill.**
+**Read this before adding text to a document, `CLAUDE.md` or a skill, and
+when documents or code disagree.**
 
 *One fact, one home* is a rule about where a fact belongs, and it is unusable
 without knowing all the homes. There are hundreds of sections, so *"where does
@@ -57,24 +58,38 @@ Google's guide. Write to it; the two document reviewers apply it.
 - **Every string the tooling matches literally** is in
   [1.6](../../../docs/1.6-github-project-board.md).
 
-## When two rules disagree
+## When documents or code disagree
 
-**Find where each came from before changing either.** Each was written for
-a situation, and the fix keeps both intents only once both are known.
+**Find how each side came about before changing either.** Each was written
+for a situation, and the fix keeps both intents only once both are known.
 
-1. Find the commit that added each rule's wording, searching for a phrase
-   that sits on one line, since `-S` matches literal text:
+1. Make sure the history is all there in each side's repository. From an
+   application's checkout, a programme document's is `programme/` and a
+   record's is the live checkout. A shallow clone names its oldest commit as
+   the one that added anything older, so this fetches the rest where the clone
+   is shallow:
 
    ```sh
-   git log --format='%h %ad %s' --date=short -S'<a phrase from the rule>' -- CLAUDE.md docs
+   if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --unshallow; fi
    ```
+
+2. Find the commit that wrote each side, searching for a phrase that sits on
+   one line, since `-S` matches literal text:
+
+   ```sh
+   git log --format='%h %ad %s' --date=short -S'<a phrase from that side>' -- CLAUDE.md docs .claude
+   ```
+
+   For code or a record, put its path after `--`. A function in code can be
+   followed instead with `git log -L :<function>:<file>`.
 
    The programme repository carries the history from its first commit,
    including the rules' time in Tile Lite Elite under older names.
-2. Read each commit's message (`git show -s <sha>`) and diff: what situation
-   the rule was written for, and who decided it.
-3. Write the fix from both intents, and say in the commit message where each
-   side came from.
+3. Read each commit's message (`git show -s <sha>`) and diff: what situation
+   the change was written for, who decided it and which side changed last.
+4. Write the fix from both intents, and say in the commit message where each
+   side came from. A fix that changes a rule, or an application, owes what
+   `CLAUDE.md` *The work* says it owes the owner.
 
 ## Traps
 

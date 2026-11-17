@@ -158,10 +158,32 @@ gains what this settles:
   is added, which is also when its invitation is sent
 - declining and withdrawing are final for that seat, and starting the game
   clears them
+- GAME-9 widens: a seat has one invitation, fixed when it is added, and never
+  a second; inviting again takes a new seat, and a reminder of an unanswered
+  invitation, were one built, is the same invitation on the same seat (owner,
+  2026-11-16)
 - bots hold accounts, and an external client authenticates as a person before
   assuming a bot
 - how many tiles each opponent holds is public
+- when a game may be hidden (DEL-5): by a player once they are no longer playing
+  in it, having withdrawn, declined, resigned, timed out or been force-resigned,
+  or once the game is over; by its creator only once it is over (owner,
+  2026-11-16)
 - aborting cancels every pending invitation, and nothing about a seat can be
   invited, accepted or claimed once the game has started
+- GAME-1's "whatever state" means Waiting or Active: an abort of a game already
+  over is refused, and the ratings it settled stand (owner, 2026-11-16)
+- GAME-12's "players seated": an invited addressee and a player who is or was
+  playing, resigned and timed out included, may chat; one who declined or
+  withdrew may not (owner, 2026-11-16)
+- a display name ending in a space and `(bot)` is a bot's: registration and a rename
+  refuse one (owner, 2026-11-16)
+- RET-3's keep matters only before the start; after it, a keep does nothing
+  and the creator is told the game has already started, not given an error
+  (owner, 2026-11-16)
+- inviting yourself by name gives your own seat, claimed (#106); your own
+  address is invited like any other (owner, 2026-11-16)
+- a player withdrawing from their own seat hides the game from their list
+  (#105; owner, 2026-11-16)
 
 Undo's rules wait for the undo work itself.

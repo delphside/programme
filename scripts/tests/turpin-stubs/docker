@@ -77,8 +77,14 @@ case "${1:-}" in
     cp -a "$src.payload/." "$3" ;;
   rm) rm -f "$S/containers/$2.src" ;;
   ps)
+    # a container stopped by `docker stop` is not listed until `docker start`
     proj="$(printf '%s ' "$@" | sed -n 's/.*label=com.docker.compose.project=\([^ ]*\).*/\1/p')"
-    for f in "$S/compose/$proj".*; do [[ -f "$f" ]] && basename "$f"; done ;;
+    for f in "$S/compose/$proj".*; do [[ -f "$f" && ! -e "$S/stopped/$(basename "$f")" ]] && basename "$f"; done; exit 0 ;;
+  stop)
+    mkdir -p "$S/stopped"; shift; for id in "$@"; do [[ -f "$S/compose/$id" ]] && : > "$S/stopped/$id"; done; exit 0 ;;
+  start)
+    [[ -f "$S/compose/$2" ]] || { echo "No such container: $2" >&2; exit 1; }
+    rm -f "$S/stopped/$2" ;;
   inspect)
       # shellcheck disable=SC2124
     f="$S/compose/${@: -1}"; [[ -f "$f" ]] || exit 1
@@ -103,7 +109,7 @@ case "${1:-}" in
         if [[ -n "${STUB_COMPOSE_UP_FAIL:-}" && ! -f "$S/up_failed" ]]; then
           : > "$S/up_failed"; echo "compose up failed (simulated)" >&2; exit 1
         fi
-        rm -f "$S/compose/$proj".*
+        rm -f "$S/compose/$proj".* "$S/stopped"/"$proj".*
         last="${envs[${#envs[@]}-1]}"
         while IFS='=' read -r k v; do
           [[ "$k" == TURPIN_IMAGE_* ]] || continue
@@ -111,7 +117,7 @@ case "${1:-}" in
         done < "$last" ;;
       down)
         [[ -z "${STUB_COMPOSE_DOWN_FAIL:-}" ]] || { echo "compose down failed (simulated)" >&2; exit 1; }
-        rm -f "$S/compose/$proj".* ;;
+        rm -f "$S/compose/$proj".* "$S/stopped"/"$proj".* ;;
     esac ;;
   buildx)
     # docker buildx bake --builder B T... [--load] --set T.labels.K=V --set T.tags=REF --set T.output=type=oci,dest=DIR,tar=false

@@ -233,12 +233,25 @@ def export_paths(repo: Path | str, sha: str, paths: Iterable[str], into: Path) -
     return True
 
 
-def tag_for_version(repo: Path, prof: Profile, version: str) -> str | None:
-    """The tag naming `version` under any of the profile's prefixes, or None."""
-    for prefix in (prof.tag_prefix, *prof.history_prefixes):
-        if f"{prefix}{version}" in tags(repo, prefix):
-            return f"{prefix}{version}"
-    return None
+class NoTagAtCommit(Exception):
+    """The release production runs has tags, and none names the commit it runs."""
+
+
+def tag_for_version(repo: Path, prof: Profile, version: str, commit: str = "") -> str | None:
+    """The tag naming `version` under any of the profile's prefixes, or None. Where two tags
+    carry the version, the one naming `commit` (a full SHA or a prefix of one) is taken. Where a
+    commit is given and no tag of that version names it, that is `NoTagAtCommit`: the commit is
+    not what the tag says, and a release carried from the wrong tag would list the wrong range.
+    With no commit, the first by prefix order, the release prefix first."""
+    found = [f"{prefix}{version}" for prefix in (prof.tag_prefix, *prof.history_prefixes)
+             if f"{prefix}{version}" in tags(repo, prefix)]
+    if commit and found:
+        for tag in found:
+            if git(repo, "rev-parse", f"{tag}^{{commit}}").strip().startswith(commit):
+                return tag
+        raise NoTagAtCommit(f"production runs {version} at {commit[:12]}, and none of its tags names that commit: "
+                            + ", ".join(f"{t} names {git(repo, 'rev-parse', f'{t}^{{commit}}').strip()[:12]}" for t in found))
+    return found[0] if found else None
 
 
 def _tag_made(repo: Path, tag: str) -> int:

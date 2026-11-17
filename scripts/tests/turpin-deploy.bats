@@ -1078,3 +1078,189 @@ EOF2
   assert_equal "$(snapshot)" "$before"
   assert_equal "$(grep -c 'docker pull' "$W/hosts/rehearsal/.docker/log" 2>/dev/null || true)" "$pulls"
 }
+
+# ---- an adopted host: the old tool's server running, its files installed by hand (T7)
+
+# adopted_host [FILES...]: rehearsal runs the old server and has the named files, installed by hand; the
+# commit's `save-state` stops the server as a real one does, and it is built
+adopted_host() {
+  local f
+  mkdir -p "$W/hosts/rehearsal/.docker/compose" "$W/hosts/rehearsal/opt/acme" "$W/hosts/rehearsal/etc/systemd/system"
+  printf 'old\n' > "$W/hosts/rehearsal/.docker/compose/acme-rehearsal.TURPIN_IMAGE_SERVER"
+  for f in "$@"; do printf 'by hand: %s\n' "$f" > "$W/hosts/rehearsal$f"; done
+  cat > "$W/work/turpin/hooks/save-state" <<'HOOK'
+#!/usr/bin/env bash
+echo "== save-state $*" >> "$HOOKLOG"
+docker ps -q --filter "label=com.docker.compose.project=acme-rehearsal" | xargs -r docker stop > /dev/null
+HOOK
+  chmod +x "$W/work/turpin/hooks/save-state"
+  commit_change adopted; build_ok "$SHA"
+}
+old_server_runs() {
+  [ -f "$W/hosts/rehearsal/.docker/compose/acme-rehearsal.TURPIN_IMAGE_SERVER" ] \
+    && [ ! -e "$W/hosts/rehearsal/.docker/stopped/acme-rehearsal.TURPIN_IMAGE_SERVER" ]
+}
+
+@test "T7: a first deploy failing before the host files leaves the hand-installed files and starts the stopped server again" {
+  adopted_host /opt/acme/backup.sh /etc/systemd/system/acme-backup.timer
+  hook_exit migrate 1
+  run d deploy rehearsal "$SHA" --off-level adopted
+  assert_failure 1
+  assert_equal "$(host_state rehearsal rehearsal)" "failed, no previous deploy"
+  assert_equal "$(cat "$W/hosts/rehearsal/opt/acme/backup.sh")" "by hand: /opt/acme/backup.sh"
+  assert_equal "$(cat "$W/hosts/rehearsal/etc/systemd/system/acme-backup.timer")" "by hand: /etc/systemd/system/acme-backup.timer"
+  assert_output --partial "the new containers were never started"
+  old_server_runs
+  # compose up never ran, so nothing of the project is brought down
+  run bash -c 'cat "$1" 2>/dev/null | grep -c "^compose down"' _ "$W/hosts/rehearsal/.docker/compose.log"
+  assert_output 0
+}
+
+@test "T7: a first deploy failing after the host files keeps what was there and removes only what it added" {
+  adopted_host /opt/acme/backup.sh
+  STUB_COMPOSE_UP_FAIL=1 run d deploy rehearsal "$SHA" --off-level adopted
+  assert_failure 1
+  assert_equal "$(host_state rehearsal rehearsal)" "failed, no previous deploy"
+  assert_equal "$(cat "$W/hosts/rehearsal/opt/acme/backup.sh")" "by hand: /opt/acme/backup.sh"   # the old content, not the deploy's
+  [ -f "$W/hosts/rehearsal/opt/acme/backup.sh" ]                              # there before the deploy
+  [ ! -e "$W/hosts/rehearsal/etc/systemd/system/acme-backup.timer" ]         # the deploy's own
+  assert_output --partial "the new containers are stopped"
+  run bash -c 'cat "$1" 2>/dev/null | grep -c "^compose down"' _ "$W/hosts/rehearsal/.docker/compose.log"        # compose up ran, so it is brought down
+  assert_output 1
+}
+
+@test "T7: a failure at the host files, before any is installed, leaves every file there" {
+  adopted_host /opt/acme/backup.sh /etc/systemd/system/acme-backup.timer
+  STUB_SYSTEMCTL_FAIL=1 run d deploy rehearsal "$SHA" --off-level adopted
+  assert_failure 1
+  [ -f "$W/hosts/rehearsal/opt/acme/backup.sh" ]
+  [ -f "$W/hosts/rehearsal/etc/systemd/system/acme-backup.timer" ]
+  old_server_runs
+  run bash -c 'cat "$1" 2>/dev/null | grep -c "^compose down"' _ "$W/hosts/rehearsal/.docker/compose.log"
+  assert_output 0
+}
+
+@test "T7: a first deploy failing after the host files puts a hand-installed timer back, enabled and running as it was" {
+  adopted_host /etc/systemd/system/acme-backup.timer
+  mkdir -p "$W/hosts/rehearsal/.systemd"; : > "$W/hosts/rehearsal/.systemd/acme-backup.timer.enabled"; : > "$W/hosts/rehearsal/.systemd/acme-backup.timer.active"
+  STUB_COMPOSE_UP_FAIL=1 run d deploy rehearsal "$SHA" --off-level adopted
+  assert_failure 1
+  assert_equal "$(cat "$W/hosts/rehearsal/etc/systemd/system/acme-backup.timer")" "by hand: /etc/systemd/system/acme-backup.timer"
+  [ -e "$W/hosts/rehearsal/.systemd/acme-backup.timer.enabled" ]
+  [ -e "$W/hosts/rehearsal/.systemd/acme-backup.timer.active" ]
+  run tail -3 "$W/hosts/rehearsal/.systemctl.log"
+  assert_output "systemctl daemon-reload
+systemctl enable acme-backup.timer
+systemctl restart acme-backup.timer"
+}
+
+@test "T7: a hand-installed timer that was disabled and stopped is left disabled and stopped" {
+  adopted_host /etc/systemd/system/acme-backup.timer
+  STUB_COMPOSE_UP_FAIL=1 run d deploy rehearsal "$SHA" --off-level adopted
+  assert_failure 1
+  assert_equal "$(cat "$W/hosts/rehearsal/etc/systemd/system/acme-backup.timer")" "by hand: /etc/systemd/system/acme-backup.timer"
+  [ ! -e "$W/hosts/rehearsal/.systemd/acme-backup.timer.enabled" ]
+  [ ! -e "$W/hosts/rehearsal/.systemd/acme-backup.timer.active" ]
+}
+
+# ---- what a hook is told (T1, T3)
+
+@test "T1: every hook from step 7 on is told its deploy, its folder and the Compose command the deploy runs" {
+  first_deploy
+  local dir; dir="$(host_state_dir rehearsal rehearsal)/deploys/1"
+  local h
+  for h in save-state migrate smoke; do
+    run hook_log_for "$h"
+    assert_output --partial "TURPIN_DEPLOY=1"
+    assert_output --partial "TURPIN_DEPLOY_DIR=$dir"
+    assert_output --partial "TURPIN_COMPOSE=docker compose -p acme-rehearsal --project-directory $dir --env-file"
+    assert_output --partial "--env-file $dir/turpin.env -f $dir/docker-compose.yml"
+  done
+  run hook_log_for pre-deploy                         # before the folder exists
+  refute_output --partial "TURPIN_DEPLOY"
+  refute_output --partial "TURPIN_COMPOSE"
+  run hook_log_for migrate
+  refute_output --partial "TURPIN_CURRENT"
+}
+
+@test "T1: a hook running TURPIN_COMPOSE runs Compose as the deploy does" {
+  commit_change first
+  cat > "$W/work/turpin/hooks/migrate" <<'HOOK'
+#!/usr/bin/env bash
+eval "$TURPIN_COMPOSE config" > /dev/null
+HOOK
+  chmod +x "$W/work/turpin/hooks/migrate"
+  commit_all hook; build_ok "$SHA"
+  deploy_rehearsal "$SHA"
+  assert_success
+  local log="$W/hosts/rehearsal/.docker/compose.log" up config
+  up="$(grep '^compose up ' "$log" | head -1 | sed 's/^compose up //')"
+  config="$(grep '^compose config ' "$log" | head -1 | sed 's/^compose config //')"
+  [ -n "$up" ]
+  assert_equal "$config" "$up"                       # the same project and compose files
+}
+
+@test "T1: rollback's restore-state is told the deploy it undoes, with that deploy's Compose command" {
+  first_deploy; second_deploy
+  : > "$HOOKLOG"
+  run d rollback rehearsal
+  assert_success
+  run hook_log_for restore-state
+  assert_output --partial "TURPIN_DEPLOY=2"
+  assert_output --partial "TURPIN_DEPLOY_DIR=$(host_state_dir rehearsal rehearsal)/deploys/2"
+  assert_output --partial "--project-directory $(host_state_dir rehearsal rehearsal)/deploys/2"
+}
+
+@test "T3: a hook is told its environment's url, and empty where it has none" {
+  first_deploy
+  run hook_log_for migrate
+  assert_output --regexp "(^|"$'\n'")TURPIN_URL=("$'\n'"|$)"
+  sed -i '/^\[environments.rehearsal\]/a url = "https://rehearsal.acme.test"' "$W/work/app-profile.toml"
+  : > "$HOOKLOG"
+  commit_change second; build_ok "$SHA"
+  run d deploy rehearsal "$SHA"
+  assert_success
+  local h
+  for h in pre-deploy migrate smoke post-deploy; do       # post-deploy runs on the controller, the others on the host
+    run hook_log_for "$h"
+    assert_output --partial "TURPIN_URL=https://rehearsal.acme.test"
+  done
+}
+
+# ---- turpin-host compose (T2)
+
+@test "T2: turpin-host compose runs Compose against current's folder as the deploy does" {
+  first_deploy
+  : > "$W/hosts/rehearsal/.docker/compose.log"
+  run env TURPIN_HOST_ROOT="$W/hosts/rehearsal" "$TURPIN_HOST" compose acme rehearsal ps
+  assert_success
+  local log="$W/hosts/rehearsal/.docker/compose.log"
+  run grep -c . "$log"
+  assert_output 1
+  run grep "project=acme-rehearsal files=.*/deploys/1/docker-compose.yml" "$log"
+  assert_success
+}
+
+@test "T2: turpin-host compose refuses where there is no current deploy" {
+  run env TURPIN_HOST_ROOT="$W/hosts/rehearsal" "$TURPIN_HOST" compose acme rehearsal ps
+  assert_failure 1
+  assert_output --partial "no current deploy"
+  [ ! -s "$W/hosts/rehearsal/.docker/compose.log" ]
+  first_deploy
+  host_record_set rehearsal rehearsal 'del(.current)'
+  run env TURPIN_HOST_ROOT="$W/hosts/rehearsal" "$TURPIN_HOST" compose acme rehearsal ps
+  assert_failure 1
+}
+
+@test "T2: turpin-host compose waits for no one: it refuses while the environment's lock is held" {
+  first_deploy
+  lock_hold rehearsal rehearsal
+  : > "$W/hosts/rehearsal/.docker/compose.log"
+  run env TURPIN_HOST_ROOT="$W/hosts/rehearsal" "$TURPIN_HOST" compose acme rehearsal ps
+  lock_release
+  assert_failure 1
+  assert_output --partial "lock"
+  [ ! -s "$W/hosts/rehearsal/.docker/compose.log" ]
+  run env TURPIN_HOST_ROOT="$W/hosts/rehearsal" "$TURPIN_HOST" compose acme rehearsal ps
+  assert_success
+}

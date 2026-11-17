@@ -30,6 +30,14 @@ from .model import (
     WorkPackage,
     route_of,
 )
+from .vocabulary import (
+    DEC_ACTIONED, DEC_ASKED, DEC_DECIDED, EFFORT, PRIORITY, PROJECT_STATE,
+    PROJ_CLOSEDOWN, PROJ_DEPLOYMENT, PROJ_DESIGN, PROJ_DEVELOPMENT,
+    PROJ_POST_DEPLOYMENT, PROJ_Q1, PROJ_Q2, PROJ_Q3, PROJ_SCOPE,
+    PROJ_USER_TESTING, PR_APPROVED, PR_AWAITING_REVIEW,
+    PR_CHANGES_REQUESTED, REQ_CANDIDATE_1, REQ_CANDIDATE_2, REQ_CANDIDATE_3,
+    REQ_ON_HOLD, REQ_READY, REQ_SCOPE, REQ_TRIAGE, ROUTE, TYPE_OF_CHANGE,
+    WORKSTREAM)
 
 ANY_STEP = ()
 
@@ -93,7 +101,7 @@ def headings_answered(*headings: str) -> Callable[[Issue], bool]:
     """
     def check(issue: Issue) -> bool:
         return all(
-            issue.has_heading(h) and _has_substance(issue.section(h))
+            issue.has_heading(h) and is_answer(issue.section(h))
             for h in headings
         )
 
@@ -111,20 +119,35 @@ def artefacts_answered(issue: Issue) -> bool:
                for h in ("Deliveries", "Impacted artefacts"))
 
 
-def _has_substance(body: str) -> bool:
-    # a table skeleton, a placeholder, or nothing at all is not an answer
-    stripped = re.sub(r"[|\-\s]", "", body).lower()
-    return bool(stripped) and stripped not in {"none", "n/a", "tbd", "tbc"}
+_SEPARATOR = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
+_PLACEHOLDERS = {"none", "n/a", "tbd", "tbc"}
+
+
+def is_answer(body: str) -> bool:
+    """Whether a section's text answers its heading: the one place for it.
+
+    A table's header row (the row directly above a separator row) and its
+    separator row are skeleton and dropped; a placeholder or nothing at all is
+    no answer either. Data rows and prose count.
+    """
+    lines = body.splitlines()
+    skeleton: set[int] = set()
+    def piped(i: int) -> bool:
+        return 0 <= i < len(lines) and "|" in lines[i]
+
+    for i, line in enumerate(lines):
+        # A separator is a table's second line: a piped row above it, and no
+        # piped row above that. A dashed data row lower down is data.
+        if ("|" in line and "-" in line and _SEPARATOR.match(line)
+                and piped(i - 1) and not piped(i - 2)):
+            skeleton.update((i - 1, i))
+    kept = "".join(text for i, text in enumerate(lines) if i not in skeleton)
+    stripped = re.sub(r"[|\-\s]", "", kept).lower()
+    return bool(stripped) and stripped not in _PLACEHOLDERS
 
 
 def section_has_text(heading: str) -> Callable[[Issue], bool]:
-    def check(issue: Issue) -> bool:
-        body = issue.section(heading)
-        # a heading with only a table skeleton or "none" under it is empty
-        stripped = re.sub(r"[|\-\s]", "", body).lower()
-        return bool(stripped) and stripped not in {"none", "n/a", "tbd"}
-
-    return check
+    return lambda issue: is_answer(issue.section(heading))
 
 
 def never(_: Issue) -> bool:
@@ -133,15 +156,15 @@ def never(_: Issue) -> bool:
 
 PROJECTS = (ParentProject, WorkPackage, StandaloneProject)
 DELIVERING = (WorkPackage, StandaloneProject)
-BUILD_PHASES = ("Development", "User testing", "Deployment")
+BUILD_PHASES = (PROJ_DEVELOPMENT, PROJ_USER_TESTING, PROJ_DEPLOYMENT)
 
 # Every phase but `Scope`, the initial value the owner's rule exempts.
 # Reaching a queue phase (`Q3`/`Q2`/`Q1`) is what asserts scoping is settled —
 # #346 R2/R3 — so that is where a project's own fields start being owed,
 # parent and work package alike.
 PAST_SCOPE = (
-    "Q3", "Q2", "Q1", "Design and Test Approach", *BUILD_PHASES,
-    "Post-deployment", "Project Closedown",
+    PROJ_Q3, PROJ_Q2, PROJ_Q1, PROJ_DESIGN, *BUILD_PHASES,
+    PROJ_POST_DEPLOYMENT, PROJ_CLOSEDOWN,
 )
 
 
@@ -174,7 +197,7 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         "a `Type of change`",
         "triage owes it — CLAUDE.md's minimum, and the programme's docs/1.2 §2.6: every "
         "requirement and project carries one and it is a field",
-        lambda i: bool(i.field("Type of change")),
+        lambda i: bool(i.field(TYPE_OF_CHANGE)),
     ),
     Obligation(
         "stage-set", (Requirement,), ANY_STEP,
@@ -193,7 +216,7 @@ OBLIGATIONS: tuple[Obligation, ...] = (
                        StandaloneProject, Decision), ANY_STEP,
         "a workstream",
         "unset is the triage queue, so an unset workstream is untriaged",
-        lambda i: bool(i.field("Workstream")),
+        lambda i: bool(i.field(WORKSTREAM)),
     ),
 
     Obligation(
@@ -207,33 +230,33 @@ OBLIGATIONS: tuple[Obligation, ...] = (
 
     # ---- Requirement, by Stage ------------------------------------------
     Obligation(
-        "triage-minimum", (Requirement,), ("Triage",),
+        "triage-minimum", (Requirement,), (REQ_TRIAGE,),
         "workstream, type of change and priority",
         "the minimum that makes a requirement placeable",
-        fields_set("Workstream", "Type of change", "Priority"),
+        fields_set(WORKSTREAM, TYPE_OF_CHANGE, PRIORITY),
     ),
     Obligation(
-        "scoped-effort", (Requirement,), ("Scope, Options and Dependencies",),
+        "scoped-effort", (Requirement,), (REQ_SCOPE,),
         "effort",
         "size known before it can be queued",
-        fields_set("Effort"),
+        fields_set(EFFORT),
     ),
     Obligation(
-        "on-hold-reason", (Requirement,), ("On Hold",),
+        "on-hold-reason", (Requirement,), (REQ_ON_HOLD,),
         "something named under dependencies",
         "a stall names something actionable, or it is invisible",
         section_has_text("Dependencies"),
     ),
     Obligation(
         "ready-complete", (Requirement,),
-        ("Ready for Project",),
+        (REQ_READY,),
         "scope, the option chosen, effort, and nothing unresolved",
         "it can be planned without re-reading it",
         None,  # gap: "nothing unresolved" has no evidence yet
     ),
     Obligation(
         "candidate-grouped", (Requirement,),
-        ("Candidate Project 1", "Candidate Project 2", "Candidate Project 3"),
+        (REQ_CANDIDATE_1, REQ_CANDIDATE_2, REQ_CANDIDATE_3),
         "the same candidate number as its group, and a known route",
         "the candidate stages check nothing today",
         None,  # gap
@@ -241,7 +264,7 @@ OBLIGATIONS: tuple[Obligation, ...] = (
 
     # ---- Parent project, by Phase ---------------------------------------
     Obligation(
-        "parent-scope-headings", (ParentProject,), ("Scope",),
+        "parent-scope-headings", (ParentProject,), (PROJ_SCOPE,),
         "`## Requirements` and `## Design`, each holding content or a pointer",
         "what the project does, and which technical option",
         headings_answered("Requirements", "Design"),
@@ -250,7 +273,7 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         "parent-no-route", (ParentProject,), ANY_STEP,
         "no Route",
         "a parent has no delivery role; its work packages carry one each — #297",
-        lambda i: not i.field("Route"),
+        lambda i: not i.field(ROUTE),
     ),
 
     # ---- every project, once scoping is claimed settled ------------------
@@ -267,13 +290,13 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         "project-effort", PROJECTS, PAST_SCOPE,
         "an effort",
         "size known once scoping is claimed finished — #346",
-        fields_set("Effort"),
+        fields_set(EFFORT),
     ),
     Obligation(
         "project-priority", PROJECTS, PAST_SCOPE,
         "a priority",
         "a judgement made once scoping is claimed finished — #346",
-        fields_set("Priority"),
+        fields_set(PRIORITY),
     ),
     Obligation(
         "parent-not-building", (ParentProject,), BUILD_PHASES,
@@ -282,7 +305,7 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         never,
     ),
     Obligation(
-        "parent-design-testable", (ParentProject,), ("Design and Test Approach",),
+        "parent-design-testable", (ParentProject,), (PROJ_DESIGN,),
         "`## Test approach` and `## Deliveries`, "
         "each holding the content or saying where it is",
         "a parent and its packages both owe these, and either may point at "
@@ -299,14 +322,14 @@ OBLIGATIONS: tuple[Obligation, ...] = (
     # which is why #402 and #291 exist.
     Obligation(
         "parent-non-functional", (ParentProject,),
-        ("Design and Test Approach",) + BUILD_PHASES,
+        (PROJ_DESIGN,) + BUILD_PHASES,
         "`## Non-functional design` — capacity, failure, limits and timeouts, "
         "secrets and access",
         "asked per change it is cheap; unasked it accumulates into a project",
         headings_answered("Non-functional design"),
     ),
     Obligation(
-        "parent-closedown", (ParentProject,), ("Project Closedown",),
+        "parent-closedown", (ParentProject,), (PROJ_CLOSEDOWN,),
         "lessons learnt, no unticked boxes, every child closed",
         "the lesson is captured while it is still remembered",
         lambda i: i.has_heading("Lessons learnt") and i.unticked_boxes == 0,
@@ -317,11 +340,11 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         "delivery-route", DELIVERING, ANY_STEP,
         "a Route",
         "something must be able to say whether this reaches users",
-        lambda i: bool(i.field("Route")),
+        lambda i: bool(i.field(ROUTE)),
     ),
     Obligation(
         "wp-non-functional", DELIVERING,
-        ("Design and Test Approach",) + BUILD_PHASES,
+        (PROJ_DESIGN,) + BUILD_PHASES,
         "`## Non-functional design`, holding the answers or pointing at the "
         "parent's",
         "a delivery says what it costs and what it does when it fails",
@@ -332,14 +355,14 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         headings_answered("Non-functional design"),
     ),
     Obligation(
-        "wp-design-testable", DELIVERING, ("Design and Test Approach",),
+        "wp-design-testable", DELIVERING, (PROJ_DESIGN,),
         "a test approach and its delivery's artefacts, held here or pointed at",
         "a delivery is testable before it is built; the parent may hold the "
         "detail, but this says where",
         lambda i: headings_answered("Test approach")(i) and artefacts_answered(i),
     ),
     Obligation(
-        "wp-user-tested", DELIVERING, ("User testing",),
+        "wp-user-tested", DELIVERING, (PROJ_USER_TESTING,),
         "Preview boxes ticked or answered",
         "somebody has used it",
         lambda i: i.ticked_in("Functional user tests — Preview") > 0
@@ -353,22 +376,22 @@ OBLIGATIONS: tuple[Obligation, ...] = (
     # delivery landed and is set then (owner, 2026-11-03), so a route other
     # than Production Release owes it only from Post-deployment.
     Obligation(
-        "wp-milestone", DELIVERING, ("Deployment", "Post-deployment"),
+        "wp-milestone", DELIVERING, (PROJ_DEPLOYMENT, PROJ_POST_DEPLOYMENT),
         "a milestone: a release's from Deployment, a date once it has landed",
         "a delivery made at one point in time is placed in the sequence",
         lambda i: (bool(i.milestone)
-                   or route_of(i.field("Route")) == PROGRAMME_TOOLING
-                   or (route_of(i.field("Route")) != RELEASE
-                       and i.field("Project State") != "Post-deployment")),
+                   or route_of(i.field(ROUTE)) == PROGRAMME_TOOLING
+                   or (route_of(i.field(ROUTE)) != RELEASE
+                       and i.field(PROJECT_STATE) != PROJ_POST_DEPLOYMENT)),
     ),
     Obligation(
-        "wp-built", DELIVERING, ("Deployment",),
+        "wp-built", DELIVERING, (PROJ_DEPLOYMENT,),
         "commits naming it",
         "a milestone's issues are backed by commits",
         None,  # gap here: needs git, which this report does not yet read
     ),
     Obligation(
-        "wp-post-deployment", DELIVERING, ("Post-deployment",),
+        "wp-post-deployment", DELIVERING, (PROJ_POST_DEPLOYMENT,),
         "one check per requirement, each answered",
         "it did what it was for",
         # Scoped to its own section. Counting boxes across the whole body
@@ -393,7 +416,7 @@ OBLIGATIONS: tuple[Obligation, ...] = (
     # the unticked-box half matches `parent-closedown`, because a package that
     # closes with a box outstanding leaves work owned by nobody.
     Obligation(
-        "wp-closedown", DELIVERING, ("Project Closedown",),
+        "wp-closedown", DELIVERING, (PROJ_CLOSEDOWN,),
         "lessons learnt, or a statement that the parent carries them",
         "a delivery's lesson is captured or delegated",
         lambda i: (i.has_heading("Lessons learnt") or "Delegated to #" in i.body)
@@ -402,7 +425,7 @@ OBLIGATIONS: tuple[Obligation, ...] = (
 
     # ---- Decision, by Decision State ------------------------------------
     Obligation(
-        "decision-question", (Decision,), ("Asked",),
+        "decision-question", (Decision,), (DEC_ASKED,),
         "a question, options, and what turns on it",
         "the question is answerable as put",
         None,  # gap
@@ -422,13 +445,13 @@ OBLIGATIONS: tuple[Obligation, ...] = (
         None,  # gap: a decision need not have one, so absence is not a defect
     ),
     Obligation(
-        "decision-agreed", (Decision,), ("Decided", "Actioned"),
+        "decision-agreed", (Decision,), (DEC_DECIDED, DEC_ACTIONED),
         "an `Agreed Decision` heading with an answer under it",
         "it is settled, and the answer is where it will be found",
         lambda i: bool(i.agreed.strip()),
     ),
     Obligation(
-        "decision-actioned", (Decision,), ("Actioned",),
+        "decision-actioned", (Decision,), (DEC_ACTIONED,),
         "applied in the same commit that marked it answered, or an issue raised",
         "nothing checks that an Actioned decision changed anything",
         None,  # gap
@@ -446,7 +469,7 @@ OBLIGATIONS: tuple[Obligation, ...] = (
     ),
     Obligation(
         "pr-scope-stated", (PullRequest,),
-        ("Awaiting review", "Approved", "Changes requested"),
+        (PR_AWAITING_REVIEW, PR_APPROVED, PR_CHANGES_REQUESTED),
         "what is being requested, and what is deliberately left out",
         "the body is the review surface — owner, 2026-09-17",
         has_headings("What is being requested", "What is deliberately left out"),

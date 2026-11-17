@@ -29,10 +29,11 @@ from dataclasses import dataclass, field
 from typing import Sequence
 
 from . import profile, repo, sources
-from .milestone import carried, unbuilt
+from .milestone import carried, unbuilt, unconfirmed, unmilestoned
 from .model import (PROJECT_STATE, RELEASE, Issue, ParentProject, PullRequest,
                     StandaloneProject, WorkPackage, classify, route_of)
 from .sources import Unavailable
+from .vocabulary import (PROJ_POST_DEPLOYMENT, ROUTE)
 
 DELIVERING = (StandaloneProject, WorkPackage)
 
@@ -106,7 +107,7 @@ def render(found: Sequence[Outstanding], milestone: str,
 # the gates (`board-release.py gate`)
 # --------------------------------------------------------------------------
 
-POST_DEPLOYMENT = "Post-deployment"
+POST_DEPLOYMENT = PROJ_POST_DEPLOYMENT
 
 
 def compact(value) -> str:
@@ -142,6 +143,7 @@ class GateRequest:
     prefixes: tuple[str, ...]
     emergency: bool
     milestone_set_aside: bool
+    confirmed: tuple[int, ...] = ()    # issues a person confirmed are in this build, though no commit names them
 
     @classmethod
     def parse(cls, data: dict) -> "GateRequest":
@@ -150,7 +152,8 @@ class GateRequest:
                        main_range=data["main_range"], carry_from=data.get("carry_from"),
                        prefixes=tuple(data["prefixes"]),
                        emergency=bool(data.get("emergency", False)),
-                       milestone_set_aside=bool(data.get("milestone_set_aside", False)))
+                       milestone_set_aside=bool(data.get("milestone_set_aside", False)),
+                       confirmed=tuple(int(n) for n in data.get("confirmed", ())))
         except (KeyError, TypeError) as exc:
             raise profile.ProfileError(f"the gate request is malformed: {exc!r}") from None
 
@@ -169,6 +172,7 @@ class GateResult:
     notes: list[str] = field(default_factory=list)
     carries: dict = field(default_factory=lambda: {"work_packages": [], "issues": [], "releases": []})
     left_out: list[int] = field(default_factory=list)
+    unconfirmed: list[int] = field(default_factory=list)   # the milestone's issues no commit names and nobody confirmed
 
     @property
     def passed(self) -> bool:
@@ -178,7 +182,8 @@ class GateResult:
         return {"passed": self.passed,
                 "gates": [{"name": g.name, "result": ("refused" if not g.passed else "reported" if g.reported else "passed"),
                            "message": g.message} for g in self.gates],
-                "notes": self.notes, "carries": self.carries, "left_out": self.left_out}
+                "notes": self.notes, "carries": self.carries, "left_out": self.left_out,
+                "unconfirmed": self.unconfirmed}
 
 
 def _delivered(issue: Issue) -> bool:
@@ -262,7 +267,7 @@ def _absent_work_packages(req: GateRequest, issues: Sequence[Issue], ev: set[int
         issue = by_number.get(n)
         if issue is None or not _delivered(issue):
             continue
-        if route_of(issue.field("Route")) != RELEASE:
+        if route_of(issue.field(ROUTE)) != RELEASE:
             continue
         if issue.raw.milestone != req.version and issue.raw.milestone not in earlier_versions:
             absent.append(n)
@@ -273,12 +278,14 @@ def milestone_gate(req: GateRequest, issues: Sequence[Issue], result: GateResult
     """The milestone is a shipping list (design §9, *The milestone gate*)."""
     own = _items(issues, req.version)
     wp, other = _split(own)
+    ev_counts = repo.named_in_range(req.range, effective=True)
+    result.notes += [f"#{n} is named by a commit in the release and is open with no milestone"
+                     for n in unmilestoned(issues, set(ev_counts))]
     if req.milestone_set_aside:
         result.carries = {"work_packages": wp, "issues": other, "releases": []}
         result.gates.append(Verdict("milestone", True, "set aside: the milestone's open items are carried as they stand"))
         return
 
-    ev_counts = repo.named_in_range(req.range, effective=True)
     evall = set(repo.named_in_range(req.range, effective=False))
     ev = set(ev_counts)
     main_named = set(repo.named_in_range(req.main_range, effective=False))
@@ -286,15 +293,21 @@ def milestone_gate(req: GateRequest, issues: Sequence[Issue], result: GateResult
     # An open issue not evidenced by a commit in the release (parents aside). A
     # parent's own commits are shown beside its work package and never counted
     # for it (delphside/tile-lite-elite#375).
-    missing = unbuilt(carried(issues, req.version, lambda n: ev_counts.get(n, 0)))
+    rows = carried(issues, req.version, lambda n: ev_counts.get(n, 0))
+    missing = unconfirmed(rows, req.confirmed)
     left_out = [r.number for r in missing if req.emergency and r.number in main_named]
     refused = [r for r in missing if r.number not in left_out]
+    needless = sorted(set(req.confirmed) - {r.number for r in unbuilt(rows)})
+    result.notes += [f"#{n} was confirmed but needs no confirmation: a commit names it, or it is not in "
+                     f"milestone {req.version}" for n in needless]
     if refused:
         def one(r) -> str:
             return f"#{r.number}" + (f" (parent #{r.parent} has {r.parent_mentions})"
                                      if r.parent and r.parent_mentions else "")
+        result.unconfirmed = [r.number for r in refused]
         result.gates.append(Verdict("milestone", False,
-                                    f"open in milestone {req.version} but no commit in the release says Refs: "
+                                    f"open in milestone {req.version}, no commit in the release says Refs, "
+                                    "and not confirmed as in this build: "
                                     + " ".join(one(r) for r in refused)))
         return
 
@@ -315,6 +328,9 @@ def milestone_gate(req: GateRequest, issues: Sequence[Issue], result: GateResult
     wp = sorted(set([n for n in wp if n not in left_out] + [n for r in earlier for n in r["work_packages"]]))
     other = sorted(set([n for n in other if n not in left_out] + [n for r in earlier for n in r["issues"]]))
     result.carries = {"work_packages": wp, "issues": other, "releases": earlier}
+    asked = sorted(r.number for r in unbuilt(rows) if r.number in req.confirmed)
+    if asked:
+        result.carries["confirmed"] = asked
     result.gates.append(Verdict(
         "milestone", True,
         f"carries work packages {compact(wp)} and issues {compact(other)}"

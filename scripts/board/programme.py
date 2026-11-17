@@ -22,8 +22,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import profile, repo
-from .model import RELEASE, ParentProject, Requirement, StandaloneProject, WorkPackage, classify
+from .model import RELEASE, ParentProject, PullRequest, Requirement, StandaloneProject, WorkPackage, classify
 from .sources import Snapshot
+from .vocabulary import (
+    PROJ_DESIGN, PROJ_POST_DEPLOYMENT, PROJ_Q1, PROJ_Q2, PROJ_Q3,
+    PROJ_SCOPE, ROUTE)
 
 DELIVERING = (WorkPackage, StandaloneProject)
 
@@ -108,7 +111,7 @@ def environments() -> list[tuple[str, str, str, str]]:
 # Where the board would have to be for the commits to make sense. Only the
 # clearly-impossible pairs are listed: the point is to catch a contradiction,
 # not to police every ordering.
-EARLY = ("Scope", "Q1", "Q2", "Q3", "Design and Test Approach")
+EARLY = (PROJ_SCOPE, PROJ_Q1, PROJ_Q2, PROJ_Q3, PROJ_DESIGN)
 
 
 @dataclass(frozen=True)
@@ -149,7 +152,7 @@ def changes(snapshot: Snapshot, got: repo.Commits) -> list[Change]:
         issue = classify(raw)
         if not isinstance(issue, DELIVERING):
             continue
-        route = issue.field("Route")
+        route = issue.field(ROUTE)
         state = got.state_of(issue.number,
                              live_at_merge=route != RELEASE,
                              milestone=issue.raw.milestone, shipped=shipped)
@@ -207,7 +210,7 @@ def unanswered_checks(snapshot: Snapshot) -> list[tuple[int, str, int]]:
     out = []
     for raw in snapshot.issues:
         issue = classify(raw)
-        if not isinstance(issue, DELIVERING) or issue.step != "Post-deployment":
+        if not isinstance(issue, DELIVERING) or issue.step != PROJ_POST_DEPLOYMENT:
             continue
         open_boxes = issue.unticked_in("Post-deployment checks against requirements") \
             + issue.unticked_in("Post-deployment checks")
@@ -232,7 +235,7 @@ def render(snapshot: Snapshot, got: repo.Commits, colour: bool = True) -> str:
     out.append(paint(BOLD, "Environments"))
     prs = {i.raw.head_ref: (i.number, i.title) for i in
            (classify(r) for r in snapshot.issues)
-           if i.kind == "PullRequest" and i.raw.head_ref and i.state == "OPEN"}
+           if isinstance(i, PullRequest) and i.raw.head_ref and i.state == "OPEN"}
     for name, version, behind, meaning in environments():
         out.append(f"  {name:<12}{version:<20}{behind:<34}{paint(DIM, meaning)}")
         extra = branch_line(repo.running_on(version), prs)

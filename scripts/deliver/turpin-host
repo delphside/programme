@@ -7,6 +7,8 @@
 #                                                out of the image, run its steps
 #   turpin-host rollback APP ENV < request.json
 #   turpin-host status APP ENV --json
+#   turpin-host compose APP ENV ARGS...   Compose against `current`, as the deploy runs it,
+#                                          holding the environment's lock
 #   turpin-host env create|destroy NAME
 #   turpin-host delete APP < request      the builder's work for prune: delete the
 #                                           candidates the controller chose
@@ -393,6 +395,30 @@ cmd_rollback() {
   exit "$code"
 }
 
+# compose APP ENV ARGS...: Compose run as the deploy runs it (`compose_run`, in common.sh, which the
+# hooks' TURPIN_COMPOSE comes from too), against `current`'s folder, with the environment's lock held
+# for as long as it runs. Refused where there is no `current`. It needs no `root-ops` and no `sudo` rule:
+# it is the deploy user's, as Docker is.
+cmd_compose() {
+  local app="$1" env="$2"; shift 2
+  local envdir cur meta lock
+  envdir="$(env_dir "$app" "$env")"
+  [[ $# -gt 0 ]] || die "usage: turpin-host compose APP ENV ARGS..."
+  state_layout_check "$envdir"
+  [[ -n "$(state_field "$envdir" current)" ]] || die "$app $env has no current deploy to run Compose against: deploy it first"
+  # the lock is the deploy's own: the one the current deploy was made under
+  cur="$(state_field "$envdir" current)"; meta="$envdir/deploys/$cur/meta.json"
+  [[ -f "$meta" ]] || die "deploy #$cur of $app $env is gone from $envdir/deploys"
+  lock="$(jq -r '.lock // empty' "$meta")"; lock="${lock:+$ROOT$lock}"; lock="${lock:-$envdir/lock}"
+  take_lock "$envdir" "$lock" ""
+  cur="$(state_field "$envdir" current)"; meta="$envdir/deploys/$cur/meta.json"     # as the lock found it
+  [[ -n "$cur" && -f "$meta" ]] || die "$app $env has no current deploy to run Compose against: deploy it first"
+  ENVDIR="$envdir"
+  # shellcheck disable=SC2034 # lib/common.sh (compose_args) reads PROJECT
+  PROJECT="$(jq -r --arg p "$app-$env" '.project // $p' "$meta")"
+  compose_run "$cur" "$@"
+}
+
 # read_data: the data a call reads (login, allowlist), up to the closing line `# turpin: end`,
 # which the call removes before use (design section 6, Interruption). Input that ends without
 # it was cut off, so the call changes nothing and exits 75.
@@ -705,11 +731,12 @@ main() {
     deploy) [[ $# -ge 2 ]] || die "usage: turpin-host deploy APP ENV < request"; cmd_deploy "$@" ;;
     rollback) [[ $# -ge 2 ]] || die "usage: turpin-host rollback APP ENV < request"; cmd_rollback "$@" ;;
     status) [[ $# -ge 2 ]] || die "usage: turpin-host status APP ENV --json"; cmd_status "$@" ;;
+    compose) [[ $# -ge 2 ]] || die "usage: turpin-host compose APP ENV ARGS..."; cmd_compose "$@" ;;
     allowlist) [[ $# -ge 1 ]] || die "usage: turpin-host allowlist APP < lines"; cmd_allowlist "$@" ;;
     login) [[ $# -ge 2 ]] || die "usage: turpin-host login APP COMPONENT [ENV] < user-and-token"; cmd_login "$@" ;;
     root-ops) cmd_root_ops "$@" ;;
     env) cmd_env "$@" ;;
-    *) die "usage: turpin-host deploy|rollback|status|login|allowlist|env|root-ops" ;;
+    *) die "usage: turpin-host deploy|rollback|status|compose|login|allowlist|env|root-ops" ;;
   esac
 }
 main "$@"

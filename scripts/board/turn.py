@@ -44,8 +44,10 @@ from .model import (
     Box,
     Decision,
     Issue,
+    ParentProject,
     Recurring,
     PullRequest,
+    Requirement,
     StandaloneProject,
     WorkPackage,
     classify,
@@ -53,6 +55,10 @@ from .model import (
 )
 from . import repo
 from .sources import Snapshot, step_ages, token_days_left
+from .vocabulary import (
+    DEC_ASKED, PROJ_CLOSEDOWN, PROJ_DEPLOYMENT, PROJ_DESIGN,
+    PROJ_POST_DEPLOYMENT, PROJ_USER_TESTING, PR_AWAITING_REVIEW,
+    PR_CHANGES_REQUESTED)
 
 DELIVERING = (WorkPackage, StandaloneProject)
 
@@ -65,15 +71,15 @@ DELIVERING = (WorkPackage, StandaloneProject)
 # Requirement never qualifies: its `What would show it works` boxes describe
 # evidence a future delivery will produce, not work waiting on anybody today.
 DUE_AT: dict[str, tuple[str, ...]] = {
-    "ParentProject": ("User testing", "Deployment", "Post-deployment",
-                      "Project Closedown"),
-    "WorkPackage": ("User testing", "Deployment", "Post-deployment",
-                    "Project Closedown"),
-    "StandaloneProject": ("User testing", "Deployment", "Post-deployment",
-                          "Project Closedown"),
-    "Decision": ("Asked",),
-    "PullRequest": ("Awaiting review", "Changes requested"),
-    "Requirement": (),
+    ParentProject.__name__: (PROJ_USER_TESTING, PROJ_DEPLOYMENT, PROJ_POST_DEPLOYMENT,
+                      PROJ_CLOSEDOWN),
+    WorkPackage.__name__: (PROJ_USER_TESTING, PROJ_DEPLOYMENT, PROJ_POST_DEPLOYMENT,
+                    PROJ_CLOSEDOWN),
+    StandaloneProject.__name__: (PROJ_USER_TESTING, PROJ_DEPLOYMENT, PROJ_POST_DEPLOYMENT,
+                          PROJ_CLOSEDOWN),
+    Decision.__name__: (DEC_ASKED,),
+    PullRequest.__name__: (PR_AWAITING_REVIEW, PR_CHANGES_REQUESTED),
+    Requirement.__name__: (),
 }
 
 
@@ -85,7 +91,7 @@ DUE_AT: dict[str, tuple[str, ...]] = {
 # 2026-09-21 and sat in *not yet due* the moment they were written, which is the
 # one place this report must not put a question.
 DUE_SECTIONS: dict[str, tuple[str, ...]] = {
-    "Design and Test Approach": ("Design",),
+    PROJ_DESIGN: ("Design",),
 }
 
 # **The mirror case, found 2026-09-23.** `DUE_SECTIONS` makes a box due
@@ -98,9 +104,9 @@ DUE_SECTIONS: dict[str, tuple[str, ...]] = {
 # caller something it can act on"* was already being asked. The owner
 # noticed; nothing else would have.
 POST_DEPLOYMENT_HEADING = "Post-deployment checks against requirements"
-POST_DEPLOYMENT_DUE_AT = ("Post-deployment", "Project Closedown")
+POST_DEPLOYMENT_DUE_AT = (PROJ_POST_DEPLOYMENT, PROJ_CLOSEDOWN)
 
-PROJECTS = ("ParentProject", "WorkPackage", "StandaloneProject")
+PROJECTS = (ParentProject.__name__, WorkPackage.__name__, StandaloneProject.__name__)
 
 
 # **A recurrence is due on its date, whatever phase its issue is in.** #291 R2.
@@ -189,7 +195,7 @@ def waiting_on_owner(issue: Issue) -> Waiting | None:
 
     # The one phase whose exit only the owner can evidence: somebody has to
     # have used it in a browser, and only he can say so.
-    if isinstance(issue, DELIVERING) and issue.step == "User testing":
+    if isinstance(issue, DELIVERING) and issue.step == PROJ_USER_TESTING:
         unticked = issue.unticked_in("Functional user tests — Preview")
         if unticked:
             plural = "" if unticked == 1 else "s"
@@ -239,7 +245,7 @@ def waiting_on_claude(issue: Issue) -> Waiting | None:
             return Waiting(issue, row.owes, "pull request")
         return None
 
-    if (isinstance(issue, DELIVERING) and issue.step == "Post-deployment"
+    if (isinstance(issue, DELIVERING) and issue.step == PROJ_POST_DEPLOYMENT
             and RELEASE_CHECK not in issue.labels):
         return Waiting(issue, "post-deployment review is due — "
                               "programme/docs/templates/post-deployment-review.md",
@@ -298,7 +304,7 @@ def render(snapshot: Snapshot, colour: bool = True, dated: bool = True,
         return f"{code}{text}{RESET}" if colour else text
 
     waiting = whats_waiting(snapshot, dated=dated, who=who)
-    subject = "you" if who == OWNER else "Claude"
+    subject = "you" if who == OWNER else CLAUDE
     out = []
 
     if waiting:

@@ -18,8 +18,8 @@ REST (so it runs from a cloud session), judges each against the flow table
     that names a package still before its merge is only listed, under "needs a
     look";
   * rewrites the body of the pinned stalled-list issue (titled by
-    `flow.STALLED_LIST_TITLE`, in the programme repository), and prints the same
-    list by role. The body ends with the ledger: each item's state, when the
+    `flow.STALLED_LIST_TITLE`, in the programme repository), says it did, and
+    prints the same list by role. The body ends with the ledger: each item's state, when the
     sweep first saw it there, and the `Turn` the sweep last wrote.
 
 It refuses, naming it, when the pinned issue is missing. The ledger is all it

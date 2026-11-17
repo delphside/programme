@@ -31,7 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from board import flow                         # noqa: E402
-from board.model import HOLDERS                # noqa: E402
+from board.model import CLAUDE, HOLDERS, OWNER  # noqa: E402
 from board.sources import Unavailable, fetch  # noqa: E402
 from board.turn import render                 # noqa: E402
 
@@ -89,7 +89,7 @@ def main(argv=None) -> int:
 
     text, count = render(snapshot, colour=not args.no_colour,
                          dated=not args.quick,
-                         who="Claude" if args.claude else "owner")
+                         who=CLAUDE if args.claude else OWNER)
     print(text)
     print(f"\033[2mfetched in {snapshot.window:.1f}s, "
           f"reported in {time.time() - started:.1f}s total\033[0m")

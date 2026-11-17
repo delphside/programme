@@ -31,22 +31,22 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R2 | The registry address is never in the profile. Each component reads `TURPIN_REGISTRY` from its own local configuration. | §3 |
 | R3 | `build [REF]` is non-interactive and refuses a REF that is not a commit on the remote. It builds from a clean worktree with the `build` hook, or `docker buildx bake` by default. It labels each image `org.opencontainers.image.revision` = SHA, `.version` = the version file and `.created` = the build's start, which `build` sets once per build, in RFC 3339 form, UTC, and gives the hook as `TURPIN_CREATED`; the hook writes the labels (the default hook by `--set IMAGE.labels...` on its `bake`, and the same under `--load`), and `build` reads them, before any push, from the configuration of each platform image in each layout, passing over attestation manifests, which carry none, and refuses an image whose labels differ, exit 1, pushing nothing. The hook writes each image as an OCI image layout, which the builder pushes as `SHA-IMAGE` with its own `skopeo` login; it prints the digests, an index digest for a multi-arch build, each equal to the digest the registry stores. | §6; §8 |
 | R4 | An image whose `SHA-IMAGE` is already present is not rebuilt. A failed registry query stops the build, exit by type (75 or 2). A version tag or `VERSION-record` that releases already holds with other contents is never written; a copy of the same digest is a no-op. | §6; §9; §3 |
-| R5 | The payload goes into `payload_image` at `/turpin/`, from the pinned submodule and the app repository. It holds nothing secret. Joined files come from the payload and never from a working tree. An environment may name its own `join`. | §3; §8 |
+| R5 | The payload goes into `payload_image` at `/turpin/`, from the pinned submodule and the app repository. It holds nothing secret, and its `profile.json` only the profile keys a host reads (R74). Joined files come from the payload and never from a working tree. An environment may name its own `join`. | §3; §8 |
 | R6 | `deploy ENV REF` checks REF against the environment's role. For preview, test and rehearsal, REF is a full or short SHA or a version, resolved in candidates. A short SHA that matches more than one candidate refuses. For production it is a version with a record, pulled from releases. The deploy runs over ssh, or locally where `host = "controller"`, and then `settle` for production. Gates key on the role, never the name. | §2; §6 |
 | R7 | Every image is pulled by digest. Its revision label must equal the SHA, and the running containers' `RepoDigests` must match. | §9 |
 | R8 | The environment's lock (`flock`) must be free and is held to the end. `--wait[=MINUTES]` waits for the lock and for a hook's exit 75, checking each minute, for at most 60 minutes by default. At the limit it stops as a blip, exit 75, naming what it waited for, with nothing changed. | §6; §9; §11 |
 | R9 | A deploy refuses unless `state.json` shows the last deploy finished. Exceptions: no state (a first deploy), `preparing` (a deploy stopped before `save-state`, nothing that runs changed), `restored` and `failed, no previous deploy` (a first deploy that failed and was restored) do not refuse, and the next deploy is the way forward. The way out of any other unfinished state is `turpin rollback`; a redeploy refuses until then. This is the deploy column of §11's state table; R57 has the rollback column. | §9; §11 |
 | R10 | `pre-deploy` is a gate. It can be set aside with `--set-aside`, where the profile marks it overridable. | §8; §9 |
 | R11 | A deploy runs these steps in order: lock, then state, then pull by digest, then payload, then `pre-deploy`, then the new deploy folder, then `changing: deploy` recorded, then `save-state`, then `migrate`, then host files, then `compose up` from `pending`, then `smoke`, then the pivot (one write of `state.json`: `current`, `previous`, finished), then pruning host images. Compose runs with a fixed project name, `--project-directory` the deploy's own folder `deploys/N`, the host `.env` and then `deploys/N/turpin.env`, and `--no-build`. | §11 |
-| R12 | A failure from `save-state` on runs `restore-state`, given `pending`'s number, reinstalls `current`'s host files, runs `compose up` from `current` and clears `pending`, keeping its folder; `current` and `previous` move only at the pivot. It then exits by the error's type: 1 for a hook's refusal or failure. On a host's first `turpin` deploy there is no `current`: the failure runs `restore-state`, stops the new containers, removes their host files, clears `pending`, keeping its folder, marks the state `failed, no previous deploy`, and exits by the error's type, naming the application's fallback. | §8; §9; §11 |
+| R12 | A failure from `save-state` on runs `restore-state`, given `pending`'s number, reinstalls `current`'s host files, runs `compose up` from `current` and clears `pending`, keeping its folder; `current` and `previous` move only at the pivot. It then exits by the error's type: 1 for a hook's refusal or failure. On a host's first `turpin` deploy there is no `current`: the failure runs `restore-state`, then leaves every host file that existed before the deploy and removes those it added, runs `compose down` only where its `compose up` was started and otherwise starts again the containers that were running when the deploy began, clears `pending`, keeping its folder, marks the state `failed, no previous deploy`, and exits by the error's type, naming the application's fallback (R68). | §8; §9; §11 |
 | R13 | Host files are installed with their modes, followed by `systemctl daemon-reload`. Units marked `enable` are enabled and restarted. A host file the previous deploy installed and this one does not carry is removed. `turpin status` compares the host's copies with the payload, as a check. | §9; §11 |
 | R14 | A host keeps only its current and previous image sets. | §11; §13 |
 | R15 † | A rehearsal cycle is the deploys to a rehearsal-role environment since the last release was made. Its first deploy must be production's current record, read from the production host's state over ssh and pulled from candidates by the same digests. Production running a build with no record refuses. `--off-level REASON` sets this aside. | §9 |
 | R16 | `release` releases the commit that the rehearsal-role environment runs. It refuses unless that environment's last deploy finished and its `smoke` passed. The owner confirms by typing the version, or with `--expect VERSION`. `--skip-rehearsal REASON` sets this aside, is recorded, and raises the retrospective issue. | §6; §9; §10 |
-| R17 † | The release commit must be on `origin/main`. With `--emergency REASON` it must instead descend from the tag of the release production runs (its record, read from production's host state; where production has no `turpin` state, the version its `/health` reports, whose tag is the release's), and none of its commits after that tag may be on `main`. The newest tag is not the test: a release made but not yet run in production does not count. | §9 |
+| R17 † | The release commit must be on `origin/main`. With `--emergency REASON` it must instead descend from the tag of the release production runs (its record, read from production's host state; where production has no `turpin` state, the version its `/health` reports, whose tag is the release's, the one naming the commit `/health` reports where two tags carry the version; the carried range of R42 reads it the same way and does not refuse, R70), and none of its commits after that tag may be on `main`. The newest tag is not the test: a release made but not yet run in production does not count. | §9 |
 | R18 | Every check in `required_checks` must be green on the commit. | §9 |
 | R19 | The version is read from the version file at the commit. No tag or record may exist for it, and it must be higher than the newest release tag of any prefix. | §6; §9 |
-| R20 | Parents aside, every open issue in milestone VERSION must be evidenced by a `Refs #N` since the release production runs. A parent's `Refs` is reported beside its work package and never counted for it (delphside/tile-lite-elite#375). A commit a later commit in the range reverts, and that revert, name nothing. Every work package those commits name whose `Route` is Production Release must be in the milestone; work packages of other routes are left out. With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 7. Otherwise the release refuses. `--set-aside milestone REASON` sets the gate aside where the profile's `[release].overridable` lists `milestone`. | §9; docs/1.2 |
+| R20 | Parents aside, every open issue in milestone VERSION must be evidenced by a `Refs #N` since the release production runs, or confirmed by a person as in this build (R71). A parent's `Refs` is reported beside its work package and never counted for it (delphside/tile-lite-elite#375). A commit a later commit in the range reverts, and that revert, name nothing. Every work package those commits name whose `Route` is Production Release must be in the milestone; work packages of other routes are left out. With `--emergency`, open issues evidenced only by commits on `main` are left out of the check and moved by step 7. Otherwise the release refuses. `--set-aside milestone REASON` sets the gate aside where the profile's `[release].overridable` lists `milestone`. | §9; docs/1.2 |
 | R20a | Every work package in milestone VERSION has a *Functional user tests* or a *Technical tests* heading, and every box under the headings it has is ticked (`release.outstanding`); a package with neither heading refuses. With `--emergency` it is a check: reported, not refused. | §9 |
 | R21 | `release-check` is a gate. It can be set aside with `--set-aside` where overridable. | §9 |
 | R22 | The release runs in this order: gates and confirmation, then copy, then `VERSION-record`, then the annotated tag `vVERSION`, then the GitHub Release, then the bump, then the milestone. A copy already present with the same digest is a no-op. The version is spent at the tag. A rerun after the tag checks that the tag's record matches and resumes at the GitHub Release. The tag is the release's pivot: a failure before it stops the run, exit by its type, with nothing spent; a failure after it is an error, the later steps still run, and the exit is 3, the message naming `turpin release`. | §10; §6 |
@@ -56,7 +56,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R26 | A production deploy needs a record for VERSION, with its digests pulled from releases. `--unrecorded REASON` instead copies `SHA-IMAGE` to releases with no record. No version is spent, and settle moves nothing. | §6; §9 |
 | R27 | `settle` acts only on what the record carries. A carried work package goes to Post-deployment with a comment. Only Production Release work packages are carried, because the milestone gate counts no other route. A carried non-project issue is closed as completed with a comment. The milestone is closed. Each action checks first, so settle is safe to rerun, and it has no pivot. An action that fails is an error: the other actions still run, the items left are listed, the deploy stands, and the exit is 3, the message naming `turpin settle VERSION`. | §12; §9; §6 |
 | R28 | Rollback switches to `previous` and runs `restore-state`, given `current`'s number, and restores the previous deploy's host-file set, removing the current deploy's extra files. With no previous deploy it refuses and names the fallback. R57 has the other states. | §11 |
-| R29 | A hook listed in `required_hooks` that is missing or not executable refuses. Any other missing hook is a no-op. A hook's exit means 0 passed; 75 not yet, which without `--wait` stops the run, exit 75; and anything else refused or failed, a business error naming the hook, exit 1. Hooks receive `TURPIN_APP`, `_ENV`, `_ROLE`, `_SHA`, `_VERSION`, `_STATE` and `_IMAGE_<NAME>`; `build` also `_CREATED`; `save-state` also `_DEPLOY` and `_CURRENT`, and `restore-state` `_DEPLOY` (§8). Every hook on a host runs with its input from `/dev/null`. A hook of kind check (`post-deploy`) that exits non-zero is reported as a warning, changes nothing else, and leaves the exit code as it was. | §8; §9 |
+| R29 | A hook listed in `required_hooks` that is missing or not executable refuses. Any other missing hook is a no-op. A hook's exit means 0 passed; 75 not yet, which without `--wait` stops the run, exit 75; and anything else refused or failed, a business error naming the hook, exit 1. Hooks receive `TURPIN_APP`, `_ENV`, `_ROLE`, `_SHA`, `_VERSION`, `_STATE` and `_IMAGE_<NAME>`; `_URL` (the environment's `url`, empty where it has none); `build` also `_CREATED` and `_SHORT_SHA`; from the deploy's step 6 on every hook on the host also `_DEPLOY`, `_DEPLOY_DIR` and `_COMPOSE` (R64), `save-state` also `_CURRENT`, and `restore-state` the `_DEPLOY` of the deploy it undoes (§8). Every hook on a host runs with its input from `/dev/null`. A hook of kind check (`post-deploy`) that exits non-zero is reported as a warning, changes nothing else, and leaves the exit code as it was. | §8; §9 |
 | R30 | Every override takes a reason. The reason goes into the record where there is one, and always into the run log. | §6 |
 | R31 | Every command writes a run log on its own machine, naming each gate it ran. A command that ends with a gate unrun refuses. Exits are 0 done, with at most warnings; 1 a gate refused or a business error; 2 a fundamental technical error; 75 a blip whose retries ran out, or `--wait` at its limit; a blip over `ssh` is retried where a retry is safe, a deploy or rollback repeated under its `request_id` and so taking effect at most once, and a build not retried; 70 an unexpected error; 3 done with errors, a step after the command's pivot having failed; 64 a usage error (a bad flag or a missing argument); 130 interrupted, the message naming the rerun and, for a command with a pivot, saying whether its change is live. A run that stops before its pivot has undone what it changed. A call that reads data changes something only once its data has arrived whole. | §6 |
 | R32 | `--check` runs every gate and changes nothing. | §6 |
@@ -65,7 +65,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R35 | Every pull completes within the environment's `pull_timeout`, or the deploy refuses before any change. | §11; §13 |
 | R36 | `prune` removes candidates whose `created` label (the build's start) is before the newest release was made, not released, and not in any environment's current or previous deploy. It never removes releases. The controller chooses; R46 says who removes. | §6 |
 | R37 | `env create\|destroy NAME` works from the profile's template: a user, a state folder, a `.env` with secrets at a hidden prompt, a Compose project, and the hooks. | §6 |
-| R38 | `host-install ENV` installs or updates `turpin-host` and its libraries and the single `sudo` rule on an environment's host, installs `jq` where it is missing, and checks that `flock` and the credential kind's tools (`oci`) are present, refusing when one is not. | §6; §11 |
+| R38 | `host-install ENV` installs or updates `turpin-host` and its libraries and the single `sudo` rule on an environment's host, makes its state folder (mode 0700, the deploy user's) and an empty `.env` (mode 0600) where there is none, never overwriting one (R73), installs `jq` where it is missing, and checks that `flock` and the credential kind's tools (`oci`) are present, refusing when one is not. | §6; §11 |
 | R39 | The credential kinds are `oci-instance-principal`, `oci-api-key` and `docker-config`. Hosts log in by instance principal. | §3; owner 2026-10-28 |
 | R42 | The carried range starts at the release production runs, so a release made while an earlier one is undeployed carries both; an item named only by a commit a later commit in the range reverts is not carried, and a revert of a commit outside the range has no effect. | §9; §10 |
 | R43 | Settling a record settles the items of the earlier releases it carries (comment `..., deployed with vV`), closes their milestones, and takes a dropped item out of its milestone with a comment, leaving its state alone; a rerun changes nothing. | §12 |
@@ -83,7 +83,7 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R54 | Pruning a host's deploy folders other than current and previous leaves only each folder's `meta.json`, holding the whole record. | §11 |
 | R55 | Each command that changes something has a pivot. `deploy`'s is marking the state `finished`, once `smoke` has passed, so a `smoke` failure after `compose up` from `pending` still restores; `release`'s is the tag; `settle` and `prune` have none. Before the pivot an error stops the run, undoes what changed and exits by its type. After it, or at an action of `settle` or a delete of `prune`, an error is logged at severity *error*, the steps that do not need the failed one still run, and the exit is 3, the message naming the command that reruns what failed. | §6 *Errors, results and the pivot*; §10; §11; §12 |
 | R56 | Each error and warning in the run log, and `turpin-host status --json`'s output, is docs/1.10's result object: `outcome` (ok, warning, error or fatal); for an error or a fatal one, `type` and, for a technical one, `blip`; `reason`, upper snake case and unique in its domain; `domain`, `turpin`, or `oracle` for a registry call's cause; `message`, one sentence naming the next step, holding no tool's text and no registry address, namespace or OCID; `metadata`; `violations` for a refused value (field, value, limit and reason); `cause`, the result from below, nested. | §2 *Domain model*; §3 *Validation and errors*; §6 |
-| R41 | Tile Lite Elite's move: the first `turpin` deploy to rehearsal takes `--off-level`. The fallback until 0.10.2 has run in production is the written procedure to 0.10.0: stop the `turpin` project, restore the snapshot, then `deploy.sh` at 0.10.0's commit with `DEPLOY_EMERGENCY` and a reason. 0.10.2 is the first release with a record. The board reads `v` as released and `prod-` as history. | §14; (H) |
+| R41 | An application's move to Turpin takes `--off-level` for its first deploy to rehearsal, and the board reads the release prefix as released and the history prefixes as history. The steps are [§14](design.md#14-moving-tile-lite-elite-to-it); Tile Lite Elite's own move, its fallback and its first release are in [its design](https://github.com/delphside/programme/blob/main/applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/545-build-once/design.md). | §14; (H) |
 | R57 | `turpin rollback` acts by `state.json`'s state, as §11's state table gives in its rollback column. None: refuses, naming the fallback. `preparing: STEP`: switches to `previous`, clearing `pending`, or, with no `previous`, refuses, naming the fallback. `changing: deploy`: a restore. `changing: rollback`: the rollback again. `finished` and `restored`: switches to `previous`, or refuses, naming the fallback, where there is none, so a second rollback after a finished one refuses, `previous` having been cleared. `failed, no previous deploy`: refuses, naming the fallback. `failed: the restore did not complete`: the restore again, a first deploy's where there is no `current`. A rollback that switches to `previous` and fails is recorded `failed` and, like one killed part-way, leaves `changing: rollback`, and is run again by `turpin rollback`; a rollback that runs a restore (from `changing: deploy`) and fails marks `failed: the restore did not complete` and is recorded `failed`, and `turpin rollback` runs the restore again; a new deploy refuses meanwhile (R9). A refusal is a gate's, exit 1. | §11 |
 | R58 | On taking the lock, before any other step, `turpin-host deploy` and `rollback` read `state.json`'s `last_request`, and act by its outcome when the request's `request_id` is the last one's. `finished`: answered with the recorded result, running nothing, the exit kept (3 where the prune failed). `failed` and `refused`: answered with the recorded result, running nothing. `interrupted` (a deploy only; a rollback is never interrupted): run again. `running` (the request died part-way): refused, exit 1, running nothing, `last_request` left as found, the message naming `turpin status ENV`. Any other `request_id` runs as a new request, which writes its id with `running`. A request refused because the lock is held, and any under `--check`, write nothing. A repeat waits for the lock up to the `--wait` limit, else 60 minutes, and at the limit exits 75; it waits for a hook's *not yet* only where the command's own `wait` says so. A `request_id` is a version 4 UUID, which the host validates before it takes the lock, so a malformed one changes nothing; one that is not is an unexpected error (R48). A repeat answered from the record is, for `turpin`, the request's own result: after a `finished` deploy with exit 3, `turpin` goes on to `settle` on production as it would have. | §11 *The last request*; §6 |
 | R59 | `turpin-host` owns the held-open input. It reads the request line, removes any `interrupted.PID` under its own process id, then starts a watcher that reads on to the end of input and there writes that file in the state folder. The file is keyed by process id, not by `request_id`, since a repeat shares its `request_id` with a request that may still be running, and two requests to one environment can run at once, one waiting for the lock. A deploy's steps look for their own file before each step and while they wait: the lock is taken in waits of one second (`flock -w 1`), and a hook's *not yet* is retried, each with a look between. A rollback looks only while it waits for the lock, so one holding the lock runs to its end. On exit, by a trap, `turpin-host` stops its watcher and removes its file; a file left by a killed request is never read. Every hook runs with its input from `/dev/null`, so a hook that reads its input gets end of file at once. | §6 *Interruption*; §11 |
@@ -91,6 +91,19 @@ The gates for the `production` role are tested in CI only. On real hosts they ar
 | R61 | A gate run on a host is reported to `turpin` as one line on standard error, `@gate NAME RESULT` (`passed`, `refused` or `set-aside`), which `hosts.py` copies into the controller's run log and leaves out of what the operator sees. | §6 |
 | R62 | A read of the board or git that cannot be made is never read as refused or as empty. The board model's `Unavailable` carries `transient`, true for a connection error, a timeout, 429 or a 5xx, which `turpin` maps to exit 75, and otherwise exit 2. A `ProfileError` is exit 2; any other exception is unexpected, exit 70. | §4 |
 | R63 | The board model starts each `gh` and `git` it runs in a process group of its own, so a Ctrl+C reaches `turpin` alone and a read already running runs to its end. | §4; §6 *Interruption* |
+| R64 | A hook on a host, from the deploy's step 7 on, is given `TURPIN_DEPLOY` (the deploy's number; for `restore-state` that of the deploy it undoes), `TURPIN_DEPLOY_DIR` and `TURPIN_COMPOSE`, a command line that runs Compose exactly as the deploy does: the project name, `--project-directory`, the env files and the compose files. `pre-deploy` and `post-deploy` are given none of the three. `TURPIN_CURRENT` is `save-state`'s alone. | §8 |
+| R65 | `turpin-host compose APP ENV ARGS...` runs Compose against `current`'s folder with the same arguments as the deploy's (one function makes them), holds the environment's lock, the deploy's own, while it runs, refuses at once where the lock is held, refuses where there is no `current`, and needs no `sudo` rule. | §6; §11 |
+| R66 | A hook is given `TURPIN_URL`, its environment's `url`, empty where there is none, on the host and on the controller. | §8 |
+| R67 | Where an environment names no `ssh` alias, it is `[hosts.ENV].ssh`; its own `ssh` wins; with neither the profile is refused naming `environments.ENV.ssh`. | §8 |
+| R68 | On a host's first deploy the restore (R12) puts back, with its old content, every host file the deploy overwrote, removes only those the deploy added, runs `compose down` only where `compose up` was started, and otherwise starts again each container that was running when the deploy began, after `restore-state`. A container that is gone is left. | §11 |
+| R69 | `[turpin.build].args` names build arguments, each taken from `SHA`, `SHORT_SHA`, `VERSION` or `CREATED`; any other source is refused naming the key. The default `build` hook passes each to every image, under `--local` too. | §8 |
+| R70 | Where production has no `turpin` state, `turpin release` reads `/health` through `[versions.deployed]` and the environment's `url` for the carried range as well as the emergency gate, and does not refuse; it takes the tag of the version naming the commit `/health` (or the host's record) reports, and refuses, naming each tag and its commit, where no tag of the version names it; with no commit reported, the release prefix's. A `/health` it cannot read refuses. | §9 |
+| R71 | An open issue in milestone VERSION that no commit names (parents aside) is a question: `turpin release` asks, per issue, `Confirm that #N is in this build [y/N]`, unless `--expect` or `--check` is given; `--confirm N`, repeatable, answers it without a terminal; an issue left unconfirmed refuses, naming it; a confirmed one is carried and settled like a named one and kept in the record's `carries.confirmed`; `--set-aside milestone` stays. The board model decides which issues need confirming. | §9; §10; owner 2026-11-04 |
+| R72 | Where the technical profile sets `ships.carries_payload = true`, a move of the `programme` pin counts as reaching the image only where it changes a file the payload carries (`scripts/deliver/payload/`, and `common.sh`, `toml.sh`, `toml.awk` of `scripts/deliver/lib/`, named once in `board/shipping.py`) between the old pin and the new one, in `commit`, `range`, `ships` and, for the staged move, `paths`; a pin that cannot be compared ships. Without the key the pin is a path like any other and `ships.non_shipping` decides it. | §3 |
+| R73 | `host-install ENV` makes `/var/lib/turpin/APP/` and `/var/lib/turpin/APP/ENV/` owned by the deploy user, mode 0700, and an empty `.env`, mode 0600, where none exists, and never overwrites an existing `.env`; a copier or builder gets neither. | §11 |
+| R74 | The payload's `profile.json` holds only the keys a host reads (`application`, `release.required_hooks`, `release.overridable`, `turpin.fallback`, `host_files`, `join`, `ephemeral`), so a change to another key changes nothing the image carries. | §3; §8 |
+| R75 | Where the technical profile sets `ships.carries_payload = true`, an edit to the profile file (`app-profile.toml`) counts as reaching the image only where the profile cut to the keys a host reads (`HOST_READS` of `board/shipping.py`, the cut R74 makes the payload's `profile.json`) differs between the two commits, in `commit`, `range`, `ships` and, for the staged edit, `paths`; a profile that cannot be read or parsed at either commit, or is added or removed, ships. Without the key the profile is a path like any other. | §3 |
+| R76 | `turpin release` reports, as a note in its output and not a refusal, each open issue that a commit in the release's range names with `Refs` (a reverted one excepted) and that has no milestone; an issue with a milestone, a closed one, a parent and one no commit names are not reported. It is not recorded, and is reported under `--set-aside milestone` too. | §9 |
 
 ### Checked for contradiction
 
@@ -367,6 +380,19 @@ scenarios of their own: S108 and S109.
 | S115 | A release given SIGINT to `turpin`'s process group while its stub `gh` read is running. | R63, R62, C45 | the stub `gh` is in a process group other than `turpin`'s, is not signalled, and runs to its end; `turpin` then stops before the pivot, exit 130, nothing changed (O1's snapshot) | CI (unittest) |
 | S116 | On a host with a `current`, a deploy killed after `save-state` (state `changing: deploy`), then `turpin rollback` whose `restore-state` exits 1; the failed rollback's repeat under its `request_id`; then a new deploy; then the cause removed and `turpin rollback` again. | R57, R58, C8 `changing: deploy`, C42 `failed` | exit 1; the state `failed: the restore did not complete`, `pending` and `target` kept, `last_request` `failed`; the repeat answered with its recorded result, O27; the deploy refused, naming `turpin rollback ENV`, exit 1; then the restore run again, `restore-state` given `pending`'s number, the state `restored`, exit 0 | CI (bats) |
 | S117 | Two commits whose `web` image has one digest, one of them pruned; then both pruned in one `prune`. | R46 | the first: the image is left, which is no error, the other commit's tag still in candidates and named in the run log; the second: the image is removed with both tags, exit 0 | CI (unittest) |
+| S118 | A deploy to rehearsal: the hooks' environments. Case 1: `save-state`, `migrate` and `smoke` are given `TURPIN_DEPLOY`, `TURPIN_DEPLOY_DIR` and `TURPIN_COMPOSE`; `pre-deploy` none; `TURPIN_CURRENT` only on `save-state`. Case 2: a `migrate` hook that runs `eval "$TURPIN_COMPOSE config"`. Case 3: a rollback's `restore-state`. | R64 | Case 2: Compose is run with the project and compose files of the deploy's own `compose up`. Case 3: the undone deploy's number and folder. | CI |
+| S119 | `turpin-host compose` on a host with a `current`; with none; with `current` removed from the record; with the environment's lock held by another process. | R65 | runs Compose with the deploy's project and compose files; refuses naming no current deploy, exit 1; refuses for the lock, running nothing | CI |
+| S120 | A deploy to an environment with a `url`, then one with none; the controller's `post-deploy`. | R66 | every hook is told `TURPIN_URL`, empty for none | CI |
+| S121 | A profile whose production names no `ssh` and has `[hosts.production].ssh`; one that names both; one that names neither; a `[hosts]` entry of another name. | R67 | the hosts alias; the environment's own; refused naming the key; refused | CI |
+| S122 | A first deploy to a host that runs the old server and has hand-installed files. Case 1: `migrate` fails. Case 2: `compose up` fails, one file hand-installed, one not. Case 3: the host-file step fails before any file is installed. Case 4: `compose up` fails, a timer hand-installed, enabled and running; and one disabled and stopped. | R68, R12 | Case 1: the files untouched, the stopped server started again, no `compose down`. Case 2: the hand-installed file stays with its old content, the other is removed, `compose down` runs. Case 3: every file stays, the server runs, no `compose down`. Case 4: the file has its old content, the timer is enabled and running as it was, or disabled and stopped as it was | CI |
+| S123 | A build with `[turpin.build].args` naming `SHORT_SHA`, `SHA` and `VERSION`; one naming another source; none. | R69 | each image's bake is given the arguments, under `--local` too; refused naming the key; none passed | CI |
+| S124 | A release where production has no `turpin` state, `/health` reporting `0.10.0+SHA`; with two tags of one version, `/health` naming the commit of the second; with the host's record naming it; with a commit that no tag of the version names; with no commit reported; with `/health` unreadable. | R70, R17, R42 | the range starts at the tag of the release `/health` names, not refused; the tag naming the commit; the tag naming the commit; refused naming each tag and its commit; the release prefix's; refused | CI |
+| S125 | A release with an open issue in the milestone that no commit names. Case 1: `--expect`. Case 2: `--expect --confirm N`. Case 3: no `--expect`, the answer `y`; then `n`, empty and end of input. Case 4: a parent in the milestone; `--set-aside milestone`; `--confirm` for an issue a commit names. | R71, R20 | Case 1: refused naming it. Case 2: released, the record's `carries.confirmed` holding N and `issues` too. Case 3: asked once per issue; released, or refused naming it, with nothing changed. Case 4: no question; carried as it stands; a note | CI |
+| S126 | A commit moving the `programme` pin over a programme commit that changes only documents; one changing `scripts/deliver/payload/`; one changing `lib/common.sh`; one changing only `lib/registry.sh`; a pin that cannot be compared; the same with a shipping path in the commit; the payload move without the key; the staged move through `paths`. | R72 | does not reach the image; reaches it; reaches it; does not reach it; reaches it; reaches it by the path; does not reach it (`non_shipping` decides); `paths` names `programme` only with the key and a carried file | CI |
+| S127 | `turpin host-install` for an environment on an empty host; again with an existing `.env` of other content and mode; for a copier. | R73 | the folder 0700 and an empty `.env` 0600; the `.env` unchanged; neither | CI |
+| S128 | A build of a commit whose profile has board keys, `environments` and `versions` as well as the host's keys. | R74 | the payload's `profile.json` holds only the keys a host reads | CI |
+| S129 | With the key: an edit to board keys only (an environment's host, `release.tag_prefix`) and one that only adds a comment, in `range`, `commit` and `ships`; an edit to each of `application`, `release.required_hooks`, `turpin.fallback`, and one removing `turpin.fallback`; a profile that does not parse after, and before, the edit; a profile added and removed; a board-key edit staged, a host-read edit staged and an unparsable one staged, through `paths`. Without the key: a staged board-key edit through `paths`. | R75 | do not reach the image; reach it; reaches it; reach it; `paths` omits the profile for the board-key edit and names it for the others; names it without the key | CI |
+| S130 | A release range with commits naming: an open issue with no milestone; one in milestone VERSION; one in a date milestone; a closed one; a parent with no milestone; an open issue no commit names; an issue named only by a commit that is then reverted. Also the first case under `--set-aside milestone`. | R76 | only the first is reported, and the release goes ahead; the first is reported under set-aside | CI |
 
 ## 6. Refusals and successes
 
@@ -422,15 +448,15 @@ scenarios of their own: S108 and S109.
 | R9 | S13, S38, S57, S95, S96, S100 |
 | R10 | S10, S12, S53 |
 | R11 | S6 |
-| R12 | S14, S33, S57, S85, S97 |
+| R12 | S14, S33, S57, S85, S97, S122 |
 | R13 | S15, S34, S55, S56 |
 | R14 | S16 |
 | R15 † | S17, S39, S48, S49 |
 | R16 | S18, S19, S25 |
-| R17 † | S20, S50, S52 |
+| R17 † | S20, S50, S52, S124 |
 | R18 | S21 |
 | R19 | S22 |
-| R20 | S23, S51, S52, S53, S53a |
+| R20 | S23, S51, S52, S53, S53a, S125 |
 | R20a | S53b |
 | R21 | S24 |
 | R22 | S26, S86 |
@@ -451,7 +477,7 @@ scenarios of their own: S108 and S109.
 | R37 | S41 |
 | R38 | S42 |
 | R39 | S35 |
-| R42 | S60, S61, S62, S63, S64 |
+| R42 | S60, S61, S62, S63, S64, S124 |
 | R43 | S61, S62, S64 |
 | R40 | S46 |
 | R41 | S39, S47 |
@@ -475,6 +501,19 @@ scenarios of their own: S108 and S109.
 | R61 | S113 |
 | R62 | S114, S115 |
 | R63 | S115 |
+| R64 | S118 |
+| R65 | S119 |
+| R66 | S120 |
+| R67 | S121 |
+| R68 | S122 |
+| R69 | S123 |
+| R70 | S124 |
+| R71 | S125 |
+| R72 | S126 |
+| R73 | S127 |
+| R74 | S128 |
+| R75 | S129 |
+| R76 | S130 |
 
 | scenario | rules |
 | --- | --- |
@@ -597,6 +636,19 @@ scenarios of their own: S108 and S109.
 | S115 | R62, R63 |
 | S116 | R57, R58 |
 | S117 | R46 |
+| S118 | R64 |
+| S119 | R65 |
+| S120 | R66 |
+| S121 | R67 |
+| S122 | R68, R12 |
+| S123 | R69 |
+| S124 | R70, R17, R42 |
+| S125 | R71, R20 |
+| S126 | R72 |
+| S127 | R73 |
+| S128 | R74 |
+| S129 | R75 |
+| S130 | R76 |
 
 ## 8. Approach
 
@@ -689,6 +741,49 @@ A test of what `turpin` decides is a `unittest` test; one of what a host does (`
 - `deploy_after_a_failed_first_deploy_proceeds`
 - `ambiguous_short_sha_refuses`
 - `post_deploy_check_failure_is_reported_and_leaves_the_exit_code`
+
+### Hooks, `compose`, adopted hosts and the payload
+
+- `every_hook_from_step_7_on_is_told_its_deploy_its_folder_and_the_compose_command_the_deploy_runs` (S118, T1)
+- `a_hook_running_turpin_compose_runs_compose_as_the_deploy_does` (S118)
+- `rollbacks_restore_state_is_told_the_deploy_it_undoes_with_that_deploys_compose_command` (S118)
+- `a_hook_is_told_its_environments_url_and_empty_where_it_has_none` (S120, T3)
+- `turpin_host_compose_runs_compose_against_currents_folder_as_the_deploy_does` (S119, T2)
+- `turpin_host_compose_refuses_where_there_is_no_current_deploy` (S119)
+- `turpin_host_compose_refuses_while_the_environments_lock_is_held` (S119)
+- `an_environment_with_no_ssh_alias_takes_the_one_in_hosts` (S121, T4)
+- `build_arguments_name_a_turpin_value_each` (S123, T5)
+- `the_default_hook_passes_the_profiles_build_arguments_taken_from_turpin_values` (S123)
+- `a_first_deploy_failing_before_the_host_files_leaves_the_hand_installed_files_and_starts_the_stopped_server_again` (S122, T7)
+- `a_first_deploy_failing_after_the_host_files_keeps_what_was_there_and_removes_only_what_it_added` (S122)
+- `a_failure_at_the_host_files_before_any_is_installed_leaves_every_file_there` (S122)
+- `a_release_reads_health_where_production_has_no_turpin_state_and_does_not_refuse` (S124, T10)
+- `two_tags_of_one_version_the_one_naming_the_commit_health_reports_is_taken` (S124)
+- `two_tags_of_one_version_the_one_naming_the_hosts_record_commit_is_taken` (S124)
+- `two_tags_of_one_version_with_no_commit_to_go_by_take_the_release_prefix` (S124)
+- `an_unconfirmed_issue_refuses_naming_it_and_asks_nobody_under_expect` (S125, T9)
+- `confirm_answers_the_question_without_a_terminal_and_the_record_keeps_it` (S125)
+- `without_expect_each_unconfirmed_issue_is_asked_about_and_yes_confirms_it` (S125)
+- `without_expect_anything_but_yes_leaves_the_issue_unconfirmed_and_refuses` (S125)
+- `an_issue_no_commit_names_is_a_question_a_confirmation_answers` (the board model, S125)
+- `a_parent_is_never_asked_about` (the board model, S125)
+- `set_aside_still_carries_the_milestone_as_it_stands` (the board model, S125)
+- `a_pin_move_changing_only_documents_ships_nothing`, `a_pin_move_changing_the_payload_ships`, `a_pin_move_changing_a_library_the_payload_carries_ships` (S126, T6)
+- `a_pin_move_changing_a_library_the_payload_does_not_carry_ships_nothing`, `without_the_key_the_profile_decides_the_pin_and_a_payload_move_ships_nothing` (S126)
+- `the_pre_commit_paths_judge_the_staged_move_where_the_key_is_set`, `the_pre_commit_paths_pass_a_staged_documents_move`, `the_pre_commit_paths_without_the_key_pass_a_payload_move` (S126)
+- `the_payload_carries_the_libraries_the_board_model_names_and_no_others` (S128)
+- `a_first_deploy_failing_after_the_host_files_puts_a_hand_installed_timer_back_enabled_and_running_as_it_was` (S122, T7)
+- `a_hand_installed_timer_that_was_disabled_and_stopped_is_left_disabled_and_stopped` (S122)
+- `a_commit_health_reports_that_no_tag_of_the_version_names_refuses_naming_the_tags` (S124, T10)
+- `a_custom_build_hook_is_given_turpin_short_sha_the_commits_first_seven_characters` (S123, T5)
+- `the_request_carries_the_environments_url_for_the_hooks` (the rollback's, S120)
+- `an_environment_gets_its_state_folder_for_the_deploy_user_and_an_empty_env` (S127, T11)
+- `a_rerun_never_overwrites_an_existing_env` (S127)
+- `the_payload_carries_only_the_profile_keys_a_host_reads` (S128, T6)
+- `a_board_key_edit_ships_nothing`, `an_edit_that_only_reorders_or_comments_ships_nothing`, `a_host_read_key_edit_ships`, `without_the_key_the_profile_path_is_judged_as_before` (S129, T13)
+- `a_profile_that_does_not_parse_ships`, `a_profile_that_did_not_parse_before_ships`, `a_profile_added_or_removed_ships` (S129)
+- `the_pre_commit_paths_pass_a_staged_board_key_edit`, `the_pre_commit_paths_name_a_staged_host_read_edit`, `the_pre_commit_paths_without_the_key_name_a_staged_board_key_edit`, `an_unreadable_staged_profile_is_named` (S129)
+- `an_open_issue_a_commit_names_with_no_milestone_is_reported`, `an_issue_with_another_milestone_is_not_reported`, `a_closed_issue_is_not_reported`, `a_parent_and_an_issue_no_commit_names_are_not_reported`, `a_set_aside_milestone_still_reports_it`, `a_reverted_mention_is_not_reported` (the board model, S130, T14)
 
 ### Release
 

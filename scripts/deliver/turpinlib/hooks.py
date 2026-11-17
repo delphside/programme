@@ -41,13 +41,14 @@ class HookEnv:
     images: Mapping[str, str] = field(default_factory=dict)
     created: str | None = None
     local: bool = False
+    url: str = ""             # the environment's `url`, empty where it has none (TURPIN_URL)
     extra: Mapping[str, str] = field(default_factory=dict)   # e.g. TURPIN_DEPLOY, TURPIN_CURRENT
 
     def environ(self) -> dict[str, str]:
         """The process environment: this machine's, with the hook's `TURPIN_*` on top."""
         values = {"TURPIN_APP": self.app, "TURPIN_ENV": self.env, "TURPIN_ROLE": self.role,
                   "TURPIN_SHA": self.sha, "TURPIN_VERSION": self.version,
-                  "TURPIN_STATE": self.state}
+                  "TURPIN_STATE": self.state, "TURPIN_URL": self.url}
         for name, digest in self.images.items():
             values["TURPIN_IMAGE_" + re.sub(r"[^A-Z0-9]", "_", name.upper())] = str(digest)
         if self.created is not None:
