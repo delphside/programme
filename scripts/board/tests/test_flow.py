@@ -1056,12 +1056,23 @@ class Failure(Flow):
         run = self.go()
         self.expect("said so", True, "rewrote " in run.out and flow.STALLED_LIST_TITLE in run.out)
 
-    def test_a_failed_run_does_not_say_it_rewrote_the_list(self):
-        """A failed run keeps the last complete run's list, so it never says rewrote."""
-        self.quiet_world_one()
-        self.w.fail_reads["fakeorg/infrastructure/issues?state=open"] = "HTTP 500"
+    def test_a_run_whose_item_write_fails_does_not_say_it_rewrote_the_list(self):
+        """A run that gets past the survey but has a write refused keeps the last
+        complete run's list and rewrites only the ledger, so it never says rewrote."""
+        self.proj(1, "Development", D(hours=1), repo=DP)
+        self.w.refuse_writes.add("fakeorg/dark-portal/issues/1")
         run = self.go()
         self.expect("exit 2", 2, run.code)
+        self.expect("the ledger was rewritten", True, len(self.w.body_writes()) == 1)
+        self.expect("not said", False, "rewrote " in run.out)
+
+    def test_a_run_whose_pinned_write_fails_does_not_say_it_rewrote_the_list(self):
+        """The rewrite of the pinned issue itself is refused: exit 2, never rewrote."""
+        self.proj(2, "Development", D(hours=1))
+        self.w.refuse_writes.add("fakeorg/programme/issues/900")
+        run = self.go()
+        self.expect("exit 2", 2, run.code)
+        self.expect("said it could not", True, "could not rewrite" in run.err)
         self.expect("not said", False, "rewrote " in run.out)
 
     def test_immediate_rerun_writes_only_the_pinned_issue(self):
