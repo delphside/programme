@@ -1049,6 +1049,21 @@ class Failure(Flow):
         self.expect("the same fields", one[0], two[0])
         self.expect("the same stalled set", one[1], two[1])
 
+    def test_a_complete_run_says_it_rewrote_the_pinned_issue(self):
+        """The output names the stalled-list write, as a dry run names the one
+        it would make, so a reader of the output need not open the issue."""
+        self.proj(2, "Development", D(hours=1))
+        run = self.go()
+        self.expect("said so", True, "rewrote " in run.out and flow.STALLED_LIST_TITLE in run.out)
+
+    def test_a_failed_run_does_not_say_it_rewrote_the_list(self):
+        """A failed run keeps the last complete run's list, so it never says rewrote."""
+        self.quiet_world_one()
+        self.w.fail_reads["fakeorg/infrastructure/issues?state=open"] = "HTTP 500"
+        run = self.go()
+        self.expect("exit 2", 2, run.code)
+        self.expect("not said", False, "rewrote " in run.out)
+
     def test_immediate_rerun_writes_only_the_pinned_issue(self):
         """S31, I8: a rerun with nothing changed writes one body and nothing else."""
         self.w.add_issue(DP, 1, None)

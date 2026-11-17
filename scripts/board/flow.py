@@ -1149,5 +1149,6 @@ def run(now: datetime, dry_run: bool = False, board=sources,
             complain(f"board-flow: could not rewrite {sweep.pinned.name}: {exc}")
             say(render(sweep))
             return EXIT_FAILED
+        say(f"rewrote {sweep.pinned.name} ({STALLED_LIST_TITLE})")
     say(render(sweep))
     return EXIT_STALLED if (sweep.stalled or sweep.attention) else EXIT_CLEAN
