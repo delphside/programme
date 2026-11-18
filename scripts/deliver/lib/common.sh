@@ -243,7 +243,7 @@ hook_run() {
     run_log_event hook "name=$name" "result=not-executable-optional"
     return 0
   fi
-  # The variables go to the hook alone, in a subshell: left in turpin-host's own environment,
+  # The variables go to the hook alone, in a subshell: left in the deploy's own environment,
   # TURPIN_IMAGE_* would outrank `turpin.env` in every later `compose`, so a restore would start
   # the previous deploy's compose files with the refused deploy's images.
   local code=0
