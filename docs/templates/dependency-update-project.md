@@ -31,7 +31,7 @@ row that needs a test this template lacks.
 | Requirement | From | Statement |
 | --- | --- | --- |
 | R1 | | Every update in the table reaches production in `X.Y.Z` without changing behaviour |
-| R2 | *advisory requirements, or "none"* | None of the advisories this project folds reaches the application in what `X.Y.Z` ships |
+| R2 | *advisory requirements, or "none"* | None of the advisories the update rows fix reaches the application in what `X.Y.Z` ships |
 
 | Update | Why | Pull request | Targeted test | Result |
 | --- | --- | --- | --- | --- |
@@ -54,7 +54,7 @@ None, unless a row a user could notice adds a box here.
 ### Technical tests — *rehearsal environment*
 
 - [ ] **Claude** — each row's targeted test at its pull request's branch tip: where only a deployed stack can show the change, on the application's user-testing and rehearsal environments where it has them (its `3.n.6`); otherwise where the table says (CI)
-- [ ] **Claude** — the release's regression run, at a `main` tip that includes every merged row; a row merged after the build for *rehearse the release* started moves to the next release's project, unless the owner takes it into this one ([1.2 *Scheduling a release*](../1.2-change-lifecycle.md#scheduling-a-release)) and the run is repeated
+- [ ] **Claude** — the release's regression run, at a `main` tip that includes every merged row; a row merged after the build for *rehearse the release* started moves to the next release's project, unless the owner takes it into this one ([1.2 *Scheduling a release*](https://github.com/delphside/programme/blob/main/docs/1.2-change-lifecycle.md#scheduling-a-release)) and the run is repeated
 
 ## Dependencies and related work
 
@@ -71,5 +71,5 @@ None.
 | Requirement | How the check is done | Result |
 | --- | --- | --- |
 | R1 | the application's verification passes after the production deploy | |
-| R2 | the application's advisory check, run against the release's tag, reports none of the advisories R2's sources name | |
+| R2 | the application's advisory check, run against the release's tag, reports none of the advisories the update rows fix | |
 ````
