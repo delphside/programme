@@ -105,11 +105,13 @@ def root_files(prof: Profile, sudo: str) -> list[str]:
         # line says the lines arrived whole
         f"{{ printf '%s' {shlex.quote(lines)}; printf '\\n{hosts.CLOSING_LINE}\\n'; }} | {sudo} env "
         f"TURPIN_LIB=\"$R{LIB_DIR}\" \"$R{HOST_PATH}\" allowlist {app}",
-        f"printf '%s' {shlex.quote(prefix)} | {sudo} install -m 0644 /dev/stdin "
-        f"{under_root(allow_dir + '/ephemeral.prefix')}",
-        # a bad line in a sudoers file locks `sudo` out, so it is checked before it is installed
-        'T="$(mktemp)"',
-        "trap 'rm -f \"$T\"' EXIT",                      # on every way out, a refusal included
+        # a bad line in a sudoers file locks `sudo` out, so it is checked before it is installed;
+        # both files are written to temporary files first, never installed from a pipe: an empty
+        # prefix piped to `install /dev/stdin` over an existing file failed on CI's runner
+        'T="$(mktemp)"; P="$(mktemp)"',
+        "trap 'rm -f \"$T\" \"$P\"' EXIT",                      # on every way out, a refusal included
+        f"printf '%s' {shlex.quote(prefix)} > \"$P\"",
+        f"{sudo} install -m 0644 \"$P\" {under_root(allow_dir + '/ephemeral.prefix')}",
         f'printf "%s ALL=(root) NOPASSWD: {HOST_PATH} root-ops *\\n" "$(id -un)" > "$T"',
         'PATH="$PATH:/usr/sbin:/sbin" visudo -qcf "$T" >&2',
         f'{sudo} install -D -m 0440 "$T" "$R{SUDOERS}"',
