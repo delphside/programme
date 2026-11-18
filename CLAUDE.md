@@ -331,10 +331,12 @@ docs/1.6 records the app it works through.
   steps.
 - A release milestone is a shipping list: move out what is not shipping before
   the release is made (docs/1.2 §2.5).
-- **A change merged after the build for *rehearse the release* waits for the
-  next release** (owner, 2026-11-18), unless he accepts a good reason and the
-  regression runs again, or it cannot wait and is an emergency (docs/1.2
-  *Scheduling a release*).
+- **A change merged after the build for *rehearse the release* started waits
+  for the next release** (owner, 2026-11-18; docs/1.2 *Scheduling a
+  release*):
+  - it joins this release only for a good reason the owner accepts, and the
+    regression then runs again;
+  - a change that cannot wait for the next release is an emergency.
 - An issue whose change went straight to main has no milestone, and is
   closed by hand; no deploy settles it.
 - After deploying, run the application's verification and trust exit status,
