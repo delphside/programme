@@ -337,8 +337,9 @@ docs/1.6 records the app it works through.
   not read output. Each application's CLAUDE.md names its script and says
   what a deploy does.
 - **A change to production is the owner's to run; either may read it, Claude
-  by default** (owner, 2026-09-21 and 2026-11-18). Ask him for a change, or for a read
-  Claude cannot reach; he runs it, and Claude works from what comes back.
+  by default** (owner, 2026-09-21 and 2026-11-18). Ask him for a change, or
+  for a read Claude cannot reach; he runs it, and Claude works from what comes
+  back.
   - A change, such as a deploy, a database write, a restart or a
     configuration change: the owner's.
   - A read, such as the deployed version and commit, an admin listing, a
