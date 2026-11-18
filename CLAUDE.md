@@ -337,13 +337,13 @@ docs/1.6 records the app it works through.
   not read output. Each application's CLAUDE.md names its script and says
   what a deploy does.
 - **A change to production is the owner's to run; reading it is Claude's**
-  (owner, 2026-09-21 and 2026-11-18). Ask him for a change, he runs it, and
-  Claude works from what comes back.
+  (owner, 2026-09-21 and 2026-11-18). Ask him for a change, or for a read
+  Claude cannot reach; he runs it, and Claude works from what comes back.
   - A change, such as a deploy, a database write, a restart or a
     configuration change: the owner's.
   - A read, such as the deployed version and commit, an admin listing, a
     database query or a log dump: Claude's, where it can reach production.
-  - Copying production's data into rehearsal, whose access is closed, during
+  - Copying production's data into a rehearsal whose access is closed, during
     technical testing or a deployment rehearsal where it is needed: Claude's.
   - Copying it anywhere else: the owner's, as it changes who can see it.
 

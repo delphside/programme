@@ -102,7 +102,7 @@ status. Redirect to a file if you need the output.
 | --- | --- |
 | the delivery-log row | Claude completes the row written when the release was made (step 6) with its deployed date and outcome |
 | a dated milestone | closed by hand by the local session: it is not semver, so nothing matches it |
-| post-deployment checks | answered by Claude on the work package, each row, from what production's reads return, with `passed`, `cannot be tested` or `failed` |
+| post-deployment checks | answered by Claude on the work package, each row, from Claude's reads of production, with `passed`, `cannot be tested` or `failed` |
 
 ## The other routes
 
