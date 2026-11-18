@@ -54,7 +54,7 @@ None, unless a row a user could notice adds a box here.
 ### Technical tests — *rehearsal environment*
 
 - [ ] **Claude** — each row's targeted test at its pull request's branch tip: where only a deployed stack can show the change, on the application's user-testing and rehearsal environments where it has them (its `3.n.6`); otherwise where the table says (CI)
-- [ ] **Claude** — the release's regression run, at a `main` tip that includes every merged row; Claude moves a row merged after the run to the next release's project, or repeats the run
+- [ ] **Claude** — the release's regression run, at a `main` tip that includes every merged row; a row merged after the build for *rehearse the release* started moves to the next release's project, unless the owner takes it into this one ([1.2 *Scheduling a release*](../1.2-change-lifecycle.md#scheduling-a-release)) and the run is repeated
 
 ## Dependencies and related work
 
