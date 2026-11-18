@@ -200,7 +200,7 @@ OPT_WAIT=""
 
 HOOK_NOT_YET=75
 
-# hook_env_export: the variables a hook receives (design §8). The caller sets
+# hook_env_export: the variables a hook receives (design §8), exported in hook_run's subshell. The caller sets
 # H_APP H_ENV H_ROLE H_SHA H_VERSION H_STATE H_URL and H_IMAGES (name=ref lines).
 hook_env_export() {
   export TURPIN_APP="$H_APP" TURPIN_ENV="$H_ENV" TURPIN_ROLE="$H_ROLE"
@@ -243,9 +243,11 @@ hook_run() {
     run_log_event hook "name=$name" "result=not-executable-optional"
     return 0
   fi
-  hook_env_export
+  # The variables go to the hook alone, in a subshell: left in turpin-host's own environment,
+  # TURPIN_IMAGE_* would outrank `turpin.env` in every later `compose`, so a restore would start
+  # the previous deploy's compose files with the refused deploy's images.
   local code=0
-  "$path" </dev/null || code=$?
+  ( hook_env_export && exec "$path" </dev/null ) || code=$?
   run_log_event hook "name=$name" "result=exit-$code"
   return "$code"
 }

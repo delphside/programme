@@ -111,8 +111,10 @@ case "${1:-}" in
         fi
         rm -f "$S/compose/$proj".* "$S/stopped"/"$proj".*
         last="${envs[${#envs[@]}-1]}"
+        # As Compose does, a variable in the process's environment wins over the env file's.
         while IFS='=' read -r k v; do
           [[ "$k" == TURPIN_IMAGE_* ]] || continue
+          pv="$(printenv "$k")" && v="$pv"
           printf '%s\n' "$v" > "$S/compose/$proj.$k"
         done < "$last" ;;
       down)
