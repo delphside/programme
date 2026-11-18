@@ -19,10 +19,12 @@ teardown() {
   return 0
 }
 
-# turpin in a process group of its own, as a terminal runs it: its output goes to $W/TAG.out
+# turpin in a process group of its own, as a terminal runs it: its output goes to $W/TAG.out.
+# SIGINT is set back to its default first: a shell that starts with it ignored, as CI's runner
+# starts the step, passes that on, and Python then never raises KeyboardInterrupt for it.
 tstart() {   # TAG ARGS...
   local t="$1"; shift
-  ( cd "$W/work" && exec setsid "$TURPIN" "$@" > "$W/$t.out" 2>&1 ) &
+  ( cd "$W/work" && exec setsid env --default-signal=INT "$TURPIN" "$@" > "$W/$t.out" 2>&1 ) &
   echo $! > "$W/$t.pid"
 }
 tint() { kill -INT -- "-$(cat "$W/$1.pid")"; }                              # the Ctrl+C
