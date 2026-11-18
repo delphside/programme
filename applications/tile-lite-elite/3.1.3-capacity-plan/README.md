@@ -10,9 +10,9 @@ date in delphside/tile-lite-elite#291's body, in the form
 `Next capacity plan due: <date> — **Claude**`, which Claude moves on a month
 once the owner has reviewed the plan.
 
-**Where the numbers come from.** The owner reads every figure by hand. All but
-the two quotas are production reads, which are the owner's (the programme's
-[`CLAUDE.md`](../../../CLAUDE.md)).
+**Where the numbers come from.** Every figure is read by hand. All but the two
+quotas are production reads, which Claude makes where it can reach production
+(the programme's [`CLAUDE.md`](../../../CLAUDE.md)).
 
 | Rows | Source | Command |
 | --- | --- | --- |
