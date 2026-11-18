@@ -67,4 +67,4 @@ headings:
 - Run an application's deploy or rollback script (Tile Lite Elite's
   `scripts/deliver/deploy*.sh` and `rollback*.sh`), or anything that reaches a
   server.
-- Read production: production reads are the owner's.
+- Read production: a read of production is the main session's to make.

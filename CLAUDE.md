@@ -336,14 +336,16 @@ docs/1.6 records the app it works through.
 - After deploying, run the application's verification and trust exit status,
   not read output. Each application's CLAUDE.md names its script and says
   what a deploy does.
-- **A change to production is the owner's to run**: a deploy, a database
-  write, a restart, a configuration change. Ask him for it, he runs it, Claude
-  works from what comes back (owner, 2026-09-21). **Reading production is
-  Claude's**, where it can reach it: the deployed version and commit, an
-  admin listing, a database query, a log dump (owner, 2026-11-18). So is
-  copying production's data into an environment whose access is closed, such
-  as seeding rehearsal for technical testing or a deployment rehearsal;
-  copying it anywhere else is a change of who can see it, and his.
+- **A change to production is the owner's to run; reading it is Claude's**
+  (owner, 2026-09-21 and 2026-11-18). Ask him for a change, he runs it, and
+  Claude works from what comes back.
+  - A change, such as a deploy, a database write, a restart or a
+    configuration change: the owner's.
+  - A read, such as the deployed version and commit, an admin listing, a
+    database query or a log dump: Claude's, where it can reach production.
+  - Copying production's data into rehearsal, whose access is closed, during
+    technical testing or a deployment rehearsal where it is needed: Claude's.
+  - Copying it anywhere else: the owner's, as it changes who can see it.
 
 ## Tests, checks and decisions
 
