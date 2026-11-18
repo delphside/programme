@@ -236,9 +236,11 @@ class Script(Isolated):
 
     def test_a_second_run_updates_what_the_first_wrote(self):
         text = host_install.script_for(prof(), CredentialKind.DOCKER_CONFIG, PRODUCTION)
-        self.assertEqual(0, self.run_script(text).returncode)
+        first = self.run_script(text)
+        self.assertEqual(0, first.returncode, first.stderr)
         (self.root / "usr/local/lib/turpin/common.sh").write_text("# changed\n")
-        self.assertEqual(0, self.run_script(text).returncode)
+        second = self.run_script(text)
+        self.assertEqual(0, second.returncode, second.stderr)
         self.assertEqual((DELIVER / "lib/common.sh").read_bytes(), (self.root / "usr/local/lib/turpin/common.sh").read_bytes())
 
 
