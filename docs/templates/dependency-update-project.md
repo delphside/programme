@@ -31,7 +31,7 @@ row that needs a test this template lacks.
 | Requirement | From | Statement |
 | --- | --- | --- |
 | R1 | | Every update in the table reaches production in `X.Y.Z` without changing behaviour |
-| R2 | *advisory requirements, or "none"* | No finding of the application's advisory check that reaches the application remains in what `X.Y.Z` ships |
+| R2 | *advisory requirements, or "none"* | None of the advisories this project folds reaches the application in what `X.Y.Z` ships |
 
 | Update | Why | Pull request | Targeted test | Result |
 | --- | --- | --- | --- | --- |
@@ -71,5 +71,5 @@ None.
 | Requirement | How the check is done | Result |
 | --- | --- | --- |
 | R1 | the application's verification passes after the production deploy | |
-| R2 | the application's advisory check, run against the release's tag, finds nothing that reaches the application | |
+| R2 | the application's advisory check, run against the release's tag, reports none of the advisories R2's sources name | |
 ````
