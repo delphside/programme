@@ -59,7 +59,7 @@ def open_comments(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("days", nargs="?", type=int, default=7,
-                        help="how many days back to look (default 7)")
+                        help="how many days back to look (default %(default)s)")
     parser.add_argument("--no-colour", action="store_true")
     parser.add_argument("--open", action="store_true",
                         help="the owner's comments Claude has not answered, from the to-do floor (comments.to_do_floor) on")

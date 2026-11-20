@@ -39,7 +39,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--since", default=str(date.today() - timedelta(days=7)),
-                    help="tag, sha or YYYY-MM-DD (default: seven days ago)")
+                    help="tag, sha or YYYY-MM-DD (default: %(default)s)")
     ap.add_argument("--decided", action="append", metavar="TEXT",
                     help="a judgement call the owner might have made "
                          "differently; repeatable")
