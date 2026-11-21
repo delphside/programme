@@ -460,7 +460,7 @@ def main() -> int:
     ap.add_argument("--summary", action="store_true",
                     help="print the forecast summary table as markdown")
     ap.add_argument("--horizon", type=int, default=6,
-                    help="periods to project the trend (default 6)")
+                    help="periods to project the trend (default %(default)s)")
     args = ap.parse_args()
 
     try:
