@@ -1257,7 +1257,7 @@ class _Rest:
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise Unavailable(f"GitHub did not answer: {exc}", transient=_blip(exc)) from exc
         if run.returncode != 0:
-            if "HTTP 404" in run.stderr or "Not Found" in run.stderr:
+            if _not_found(run.stderr):
                 raise NotFound(f"GitHub has no {path}: {run.stderr.strip()[:300]}")
             raise Unavailable(f"GitHub refused {path}: {run.stderr.strip()[:300]}", transient=_blip(stderr=run.stderr))
         try:
@@ -1480,6 +1480,11 @@ def fetch(states: str = "OPEN", with_bodies: bool = True,
 # `Unavailable`, so a gate that cannot see refuses.
 
 
+def _not_found(stderr: str) -> bool:
+    """Whether `gh api` failed because GitHub answered 404."""
+    return "HTTP 404" in stderr or "Not Found" in stderr
+
+
 def rest_get(path: str):
     """One REST GET as JSON. None only when GitHub answers 404; any other
     failure raises `Unavailable`, so *absent* and *unreadable* are never merged."""
@@ -1489,7 +1494,7 @@ def rest_get(path: str):
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise Unavailable(f"GitHub did not answer: {exc}", transient=_blip(exc)) from exc
     if run.returncode != 0:
-        if "HTTP 404" in run.stderr or "Not Found" in run.stderr:
+        if _not_found(run.stderr):
             return None
         raise Unavailable(f"GitHub refused {path}: {run.stderr.strip()[:300]}", transient=_blip(stderr=run.stderr))
     try:
