@@ -2,11 +2,15 @@
 
 import importlib.util
 import json
+import os
+import stat
+import tempfile
 import unittest
+import urllib.parse
 from pathlib import Path
 from unittest import mock
 
-from board import profile, sources
+from board import profile, records, sources
 
 from .cli import run
 
@@ -38,7 +42,11 @@ class Github:
 
     def __call__(self, args, **kw):
         self.asked.append(args[2])
-        value = self.answers.get(args[2].split("?")[0])
+        path, _, query = args[2].partition("?")
+        value = self.answers.get(path)
+        page = urllib.parse.parse_qs(query).get("page")
+        if isinstance(value, list) and page:
+            value = value[100 * (int(page[0]) - 1):100 * int(page[0])]
         if isinstance(value, mock.Mock):
             return value
         if value is not None:
@@ -122,8 +130,62 @@ class Reading(unittest.TestCase):
         self.call(gh, "--all")
         self.assertTrue(all(a.startswith("repos/") for a in gh.asked), gh.asked)
 
-    def test_a_missing_pull_request_cannot_judge(self):
-        self.assertEqual(2, self.call(Github(ANSWERS), "--pr", "o/r#99")[0])
+    def test_a_pull_request_that_is_not_there_is_a_business_error(self):
+        gh = Github(ANSWERS)
+        self.assertEqual(65, self.call(gh, "--pr", "o/r#99")[0])
+        self.assertEqual(65, self.call(gh, "--pr", "o/r#99", "--exit-code")[0])
+
+    def test_a_repository_that_is_not_there_is_a_business_error(self):
+        self.assertEqual(65, self.call(Github({}), "--files", "a", "--repo", "p/q")[0])
+        self.assertEqual(65, self.call(Github({}), "--files", "a", "--repo", "p/q", "--exit-code")[0])
+
+    def test_the_applications_own_repository_missing_cannot_judge(self):
+        self.assertEqual(2, self.call(Github({}), "--files", "a")[0])
+
+    def test_a_missing_live_checkout_cannot_judge_even_with_exit_code(self):
+        gone = records.NoLiveCheckout(Path("/nowhere"))
+        for flags in ((), ("--exit-code",)):
+            with mock.patch("builtins.print") as out, \
+                    mock.patch.object(profile, "repository_name", side_effect=gone), \
+                    mock.patch("sys.stderr"):
+                self.assertEqual(2, _command().main(["--files", "a", *flags]))
+            self.assertEqual([], [c for c in out.call_args_list if not c.kwargs])
+
+    def test_a_renamed_file_counts_under_both_names(self):
+        renamed = {**ANSWERS, "repos/o/r/pulls": [pr(7, "mover")],
+                   "repos/o/r/pulls/7/files": [{"filename": "new.md", "previous_filename": "old.md"}]}
+        self.assertEqual(["OVERLAP o/r#7 mover — old.md"], self.call(Github(renamed), "--files", "old.md")[1])
+        self.assertEqual(["OVERLAP o/r#7 mover — new.md"], self.call(Github(renamed), "--files", "new.md")[1])
+
+    def test_more_than_a_hundred_pull_requests_are_all_read(self):
+        many = {"repos/o/r/pulls": [pr(n, f"t{n}") for n in range(1, 151)]}
+        many.update({f"repos/o/r/pulls/{n}/files": files("x.md" if n == 150 else f"f{n}") for n in range(1, 151)})
+        self.assertEqual(["OVERLAP o/r#150 t150 — x.md"], self.call(Github(many), "--files", "x.md")[1])
+
+    def test_more_than_a_hundred_files_are_all_read(self):
+        many = {"repos/o/r/pulls": [pr(1, "big")],
+                "repos/o/r/pulls/1/files": files(*[f"f{n}" for n in range(130)])}
+        self.assertEqual(["OVERLAP o/r#1 big — f129"], self.call(Github(many), "--files", "f129")[1])
+
+    def test_a_draft_claims_like_any_open_pull_request(self):
+        draft = {"repos/o/r/pulls": [{**pr(4, "wip", "Claims: d.md"), "draft": True}],
+                 "repos/o/r/pulls/4/files": files("z")}
+        self.assertEqual(["OVERLAP o/r#4 wip — d.md"], self.call(Github(draft), "--files", "d.md")[1])
+
+    def test_a_pull_request_that_is_closed_or_merged_is_not_compared(self):
+        for raw, word in (({"state": "closed", "merged": False}, "closed"),
+                          ({"state": "closed", "merged": True}, "merged")):
+            gh = Github({**ANSWERS, "repos/o/r/pulls/2": {**pr(2, "second"), **raw}})
+            code, lines = self.call(gh, "--pr", "o/r#2", "--exit-code")
+            self.assertEqual(0, code)
+            self.assertEqual(1, len(lines), lines)
+            self.assertIn(f"is {word}", lines[0])
+            self.assertEqual(["repos/o/r/pulls/2"], gh.asked)
+
+    def test_a_pull_request_has_its_files_read_once(self):
+        gh = Github(ANSWERS)
+        self.call(gh, "--pr", "o/r#2")
+        self.assertEqual(1, gh.asked.count("repos/o/r/pulls/2/files?per_page=100&page=1"), gh.asked)
 
     def test_a_refused_read_cannot_judge(self):
         refused = Github({"repos/o/r/pulls": mock.Mock(returncode=1, stdout="", stderr="HTTP 403: refused")})
@@ -133,6 +195,41 @@ class Reading(unittest.TestCase):
         def slow(args, **kw):
             raise sources.subprocess.TimeoutExpired(args, 30)
         self.assertEqual(75, self.call(slow, "--files", "a")[0])
+
+
+class InTheProgrammesOwnCheckout(unittest.TestCase):
+    """Where there is no programme file and no profile, `--files --repo` still
+    reads, and the other modes say what they need."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        root = Path(self.dir.name)
+        (root / "bin").mkdir()
+        gh = root / "bin" / "gh"
+        gh.write_text("#!/bin/sh\ncase \"$2\" in\n  repos/p/q/pulls\\?*) echo '[]';;\n"
+                      "  *) echo 'HTTP 404: Not Found' >&2; exit 1;;\nesac\n")
+        gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
+        (root / "repo").mkdir()
+        os.system(f"git -C {root / 'repo'} init -q")
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("PROGRAMME_", "BOARD_"))}
+        self.env["PATH"] = f"{root / 'bin'}:{self.env['PATH']}"
+        self.cwd = root / "repo"
+
+    def go(self, *args):
+        return run(COMMAND, *args, cwd=self.cwd, env=self.env)
+
+    def test_files_with_repo_needs_no_profile(self):
+        done = self.go("--files", "a", "--repo", "p/q")
+        self.assertEqual((0, "ok overlap: none\n"), (done.returncode, done.stdout), done.stderr)
+
+    def test_without_repo_the_profile_is_still_asked_for(self):
+        done = self.go("--files", "a")
+        self.assertEqual(70, done.returncode)
+        self.assertIn("programme file", done.stderr)
+
+    def test_all_still_needs_the_programme_file(self):
+        self.assertEqual(70, self.go("--all").returncode)
 
 
 if __name__ == "__main__":

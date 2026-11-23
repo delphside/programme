@@ -14,10 +14,10 @@ The `Refs #N` line:
 Never write `Closes #N`.
 
 The `Claims:` line names the files this pull request expects to change, so
-that `board-overlap.py` can warn another thread before it edits one of them
-([1.2](https://github.com/delphside/programme/blob/main/docs/1.2-change-lifecycle.md#claiming-the-files-a-change-will-touch)).
-Paths are relative to the repository's root, separated by commas, a trailing
-`/` for a directory; keep it current.
+that `board-overlap.py` can warn another thread before it edits one of them,
+in the form
+[1.2](https://github.com/delphside/programme/blob/main/docs/1.2-change-lifecycle.md#naming-the-files-a-change-will-touch)
+gives; keep it current.
 
 *Review* says whether the owner's review is owed:
 
@@ -38,7 +38,8 @@ The board tooling reads these, so keep them as written:
   `board-check.py`;
 - *Review* and its opening `No review owed`, read by `board-pr-state.py`;
 - *Review rounds* and its opening `None owed`, read by the weekly digest,
-  and checked on the pull request by `board-review-record.py`.
+  and checked on the pull request by `board-review-record.py`;
+- `Claims:`, read by `board-overlap.py`.
 -->
 
 Refs #N

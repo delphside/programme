@@ -7,7 +7,9 @@ A pull request claims the files it expects to change in one line of its body,
 `Claims: path, path, …`. A path is relative to the repository root, bare or in
 backticks; one ending `/` claims the directory and everything below it. Paths
 are split on commas and white space, so a path with a space in it is not
-supported. Only the first `Claims:` line counts.
+supported. Only the first `Claims:` line counts,
+and text inside an HTML comment (`<!-- … -->`) is not read, so a template's comment
+explaining the form claims nothing.
 """
 
 from __future__ import annotations
@@ -15,6 +17,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+# A comment runs to its end, or to the body's if it is never closed, as GitHub reads it.
+_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 _LINE = re.compile(r"^[ \t]*Claims:(.*)$", re.MULTILINE)
 _SEPARATORS = re.compile(r"[,\s]+")
 
@@ -28,8 +32,8 @@ def _clean(path: str) -> str:
 
 def parse_claims(body: str | None) -> tuple[str, ...]:
     """The paths on the body's first `Claims:` line, in order and without
-    repeats; none when there is no such line."""
-    found = _LINE.search(body or "")
+    repeats; none when there is no such line outside an HTML comment."""
+    found = _LINE.search(_COMMENT.sub("", body or ""))
     if found is None:
         return ()
     paths = (_clean(p) for p in _SEPARATORS.split(found.group(1)))
