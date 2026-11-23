@@ -44,7 +44,9 @@ numbered document.**
 | [test-design-specification.md](test-design-specification.md) | with its change, as [1.9](../1.9-testing-standards.md#how-a-test-design-specification-is-built) says | [the generic deliver tool](../../records/2.5-changes/programme-tooling/117-generic-deliver-tool/test-design.md) |
 | [post-deployment-review.md](post-deployment-review.md) | the issue's body or the project's folder, as [1.2](../1.2-change-lifecycle.md#the-parents-lifecycle-is-shorter) says | [documentation by type](../../records/2.5-changes/process-definition/427-documentation-by-type/post-deployment-review.md) · [the programme repository](../../records/2.5-changes/programme-tooling/485-programme-repository/post-deployment-review.md) · Tile Lite Elite's [Claude sessions from the workspace root](../../applications/tile-lite-elite/3.1.7-changes/workstreams/delivery-tooling/452-claude-sessions-from-workspace-root/post-deployment-review.md) |
 | [capacity-plan.md](capacity-plan.md) | the application's capacity plans (`3.n.3-capacity-plan/`), monthly, named as [1.2](../1.2-change-lifecycle.md#which-document-goes-where) says | [TLE_CP_2026_09](../../applications/tile-lite-elite/3.1.3-capacity-plan/TLE_CP_2026_09.md), the first |
-| [dependency-update-project.md](dependency-update-project.md) | a new project's body, once per release, when the first update after the previous release arrives | none yet |
+| [dependency-update-project.md](dependency-update-project.md) | a new project's body, once per release, as [1.2](../1.2-change-lifecycle.md#221-business-as-usual-updates) says | [delphside/tile-lite-elite#569 *Dependency updates for 0.10.2*](https://github.com/delphside/tile-lite-elite/issues/569) |
+| [agent-handover.md](agent-handover.md) | an agent's prompt, as [1.1](../1.1-programme-tooling.md#claudes-tooling) says | none yet |
+| [triage-comment.md](triage-comment.md) | an issue comment, as [1.2](../1.2-change-lifecycle.md#what-triage-asks) says | none yet |
 | [workstream-register.md](workstream-register.md) · [artefact-register.md](artefact-register.md) · [role-assignment.md](role-assignment.md) · [delivery-log.md](delivery-log.md) · [application-profile.md](application-profile.md) | a new application's programme records, once each, when the programme takes it on | Tile Lite Elite's: [3.1.4](../../applications/tile-lite-elite/3.1.4-workstreams.md) · [3.1.2](../../applications/tile-lite-elite/3.1.2-artefacts.md) · [3.1.5](../../applications/tile-lite-elite/3.1.5-roles.md) · [3.1.1](../../applications/tile-lite-elite/3.1.1-delivery-log.md) · [3.1.6](../../applications/tile-lite-elite/3.1.6-profile.md) |
 
 ## The forms GitHub offers
@@ -59,10 +61,8 @@ request form only:
 | [`Requirement`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/requirement.yml) · [`Project`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/project.yml) · [`Decision`](https://github.com/delphside/tile-lite-elite/blob/main/.github/ISSUE_TEMPLATE/decision.yml) | raising an issue of that type |
 | [Tile Lite Elite's `PULL_REQUEST_TEMPLATE.md`](https://github.com/delphside/tile-lite-elite/blob/main/.github/PULL_REQUEST_TEMPLATE.md) · [the programme's `pull_request_template.md`](../../.github/pull_request_template.md) · [Dark Portal's `pull_request_template.md`](https://github.com/delphside/dark-portal/blob/main/.github/pull_request_template.md) | opening a pull request |
 
-GitHub fills those in front of you. The templates in this folder are copied:
-into the repository; for the post-deployment review, into an issue's body or
-the project's folder; for the triage comment and the handover, into an issue
-comment or an agent's prompt.
+GitHub fills those in front of you. The templates in this folder are copied to
+the place the *Copy it to* column names.
 
 ## Reports
 

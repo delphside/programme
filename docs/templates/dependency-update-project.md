@@ -1,8 +1,12 @@
 # Dependency update project
 
-The body of a release's dependency update project. The rule, the title and
-the fields are in
-[1.2 §2.2.1](../1.2-change-lifecycle.md#221-business-as-usual-updates).
+The body of a release's dependency update project.
+[1.2 §2.2.1](../1.2-change-lifecycle.md#221-business-as-usual-updates) holds:
+
+- the rule and the title;
+- the fields;
+- what changes from release to release;
+- what a row needing a test this template lacks adds.
 
 <!--
 Claude copies only the fenced block into the project's body when raising it.
@@ -11,16 +15,24 @@ Placeholders: `#N` is this project's number; `X.Y.Z` is the release it rides;
 `#nnn` is a pull request; `#aaa` is an advisory requirement; `n` in `3.n.6` is
 the application's index.
 
-Fixed wording, which the tooling reads: the headings `Test approach`,
-`Functional user tests`, `Technical tests`, `Deliveries` and
-`Post-deployment checks against requirements`. The user-testing check
-(`obligations.py`, `turn.py`) matches the literal
-`Functional user tests — Preview`, so that heading keeps `Preview`; the text
-after the dash in `Technical tests` names the rehearsal environment from the
-application's `3.n.6`, and Tile Lite Elite's is Rehearsal.
+Fixed wording, which the tooling reads. The headings:
 
-1.2 §2.2.1 says what changes from release to release, and what to add for a
-row that needs a test this template lacks.
+- `Requirements`
+- `Design`
+- `Non-functional design`
+- `Test approach`
+- `Functional user tests`
+- `Technical tests`
+- `Dependencies and related work`
+- `Deliveries`
+- `Post-deployment checks against requirements`
+
+`board-check.py` and `scripts/board/turn.py` match the
+literal `Functional user tests — Preview`, so that heading keeps `Preview`.
+
+The text after the dash in `Technical tests` names the rehearsal environment
+from the application's `3.n.6` (Tile Lite Elite's is Rehearsal); where the
+application has no such environment, the text says so, and the heading stays.
 -->
 
 ````markdown
@@ -35,7 +47,7 @@ row that needs a test this template lacks.
 
 | Update | Why | Pull request | Targeted test | Result |
 | --- | --- | --- | --- | --- |
-| *what moves, from and to which version* | *Dependabot · advisory `#aaa` · planned* | `#nnn` | *the test aimed at the change, or "CI"; for an advisory, the advisory check at the branch tip no longer reports it* | *passed · failed* |
+| *what moves, from and to which version* | *Dependabot · advisory `#aaa` · planned* | `#nnn` | *the test aimed at the change, or "CI"; for an advisory, that the advisory check at the branch tip clears it* | *passed · failed* |
 
 ## Design
 

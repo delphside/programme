@@ -5,50 +5,59 @@ description: Raise a project issue with the seven headings, set its fields and f
 
 # Raising a project
 
-The mechanics only. **What goes in the project is a judgement and is not here** —
-the rules are in `CLAUDE.md` and `docs/1.2`, and the groupings are agreed with the
-owner, never assumed.
+The mechanics only. **What goes in the project is a judgement**, set by
+`CLAUDE.md` and
+[1.2](../../../docs/1.2-change-lifecycle.md) and agreed with the owner.
+
+The order: agree the grouping, write the body, create the issue, set its
+fields, fold its requirements, regenerate the *context header* (the generated
+block at the top of an issue, see *Afterwards*) and check.
 
 ## Before anything
 
-**Triage is joint.** If the grouping has not been agreed, ask. Raising a project
-folds and closes requirements, which is not trivially reversible.
+**Triage follows `CLAUDE.md`**: joint with the owner, except where Claude
+triages alone. Where triage is joint and the grouping has not been agreed, ask
+the owner. Raising a project folds and closes requirements, which is hard to
+reverse.
 
 **Straight to project is allowed** when the change certainly needs doing and how
 it is grouped or split into projects is decided: no requirement needs raising
-first. Converting an existing requirement is equally fine — edit its body into
-the seven headings and change its type.
+first.
+
+**Converting a requirement** is raising the project and folding the requirement
+into it, as in *Folding the requirements it takes*. Its body is never
+rewritten into the project's
+([1.2 §2.11](../../../docs/1.2-change-lifecycle.md#211-what-a-project-is)), and
+it keeps its type.
 
 ## The seven headings
 
-**A parent and a work package owe different halves of these.** A project with
-no work packages is a standalone project, which carries all seven and a
-`Route`.
+A project with no parent and no sub-projects is a *standalone project*, which
+carries all seven and a `Route`. A parent and a work package owe different
+halves:
 
 | Heading | Parent | Work package |
 | --- | --- | --- |
-| Requirements | **owns** | links |
-| Design | **owns** | links, adding only what is its own |
-| Non-functional design | **owns** | answers, or points at the parent's |
-| Test approach | points at its packages' | **owns** |
-| Dependencies and related work | **owns** | links |
-| Deliveries | **owns** the list, each row a sub-project or straight to `main`; points at each package for its subsection | **owns** its delivery's subsection: the artefacts by route, then the steps |
-| Post-deployment checks | only for a requirement no delivery satisfies | **owns** — a check is answered per delivery |
+| Requirements | owns | links |
+| Design | owns | links, adding only what is its own |
+| Non-functional design | owns | answers, or points at the parent's |
+| Test approach | points at its packages' | owns |
+| Dependencies and related work | owns | links |
+| Deliveries | owns the list, each row a sub-project or straight to `main`, and points at each package for its subsection | owns its delivery's subsection: the artefacts by route, then the steps |
+| Post-deployment checks | only for a requirement no delivery satisfies | owns, because a check is answered per delivery |
 
-**`board-check.py` asks each for what it owes**, telling them apart by the
-parent link, so a one-commit delivery is not made to carry a Requirements table.
-
-Each heading holds the content or a link to the document that holds it, never
-both:
+`board-check.py` asks each for what it owes, telling them apart by the parent
+link. Each heading holds the content or a link to the document that holds it,
+never both:
 
 ```markdown
 ## Requirements
 
-**Source requirements**: #nnn, #nnn.
+**Source requirements**: #NNN *title*, #NNN *title*.
 
 | | From | |
 | --- | --- | --- |
-| R1 | #nnn | what must be true when this is done |
+| R1 | #NNN *title* | what must be true when this is done |
 
 ## Design
 
@@ -69,22 +78,13 @@ Capacity, failure, limits and timeouts, secrets and access: each answered, or
 
 ## Dependencies and related work
 
-**waits on #nnn** *title*: why.
-**is needed by #nnn** *title*: why.
-
-Each `waits on` and `is needed by` here is also set as a GitHub dependency link
-(`addBlockedBy`), one link serving both ends — the context header shows the
-links, and `board-check.py` reports a line with none behind it. Only this
-section is read.
+**waits on #NNN** *title*: why.
+**is needed by #NNN** *title*: why.
 
 ## Deliveries
 
 | # | What it delivers | Route | Milestone | Work package or steps |
 | --- | --- | --- | --- | --- |
-
-*Then one subsection per delivery: its artefacts as a table, a row per route,
-then its steps. How to fill it in is `docs/1.2`, "Deliveries: one subsection
-per delivery, a table per subsection".*
 
 ### Delivery 1 — <what it delivers>
 
@@ -95,10 +95,7 @@ per delivery, a table per subsection".*
 | **Docs and Programme Tooling** | yes/no | | | |
 | **Other** | yes/no | | | |
 
-*Steps: the runbook, in order, after the table. A Docs and Programme Tooling
-delivery says whether each application's pin moves, and where one does, ends
-with the move (`docs/1.2`, "Deliveries: one subsection per delivery, a table
-per subsection").*
+Steps: the runbook, in order, after the table.
 
 ## Post-deployment checks against requirements
 
@@ -106,146 +103,142 @@ per subsection").*
 | --- | --- | --- |
 ```
 
-**The source requirements are listed as well as parented** (owner, 2026-09-08),
-separately from the requirements table, which may move on during scoping.
+The Deliveries subsections follow
+[1.2 *Deliveries: one subsection per delivery, a table per subsection*](../../../docs/1.2-change-lifecycle.md#deliveries-one-subsection-per-delivery-a-table-per-subsection).
+A Docs and Programme Tooling delivery says whether each application's pin
+moves, and where one does, ends with the move.
+A delivery's steps live in one place: the subsection of the work package that
+carries it, or the parent's where the project has no sub-project
+([1.2 §2.14](../../../docs/1.2-change-lifecycle.md#214-the-delivery-runbook)).
+
+Each `waits on` and `is needed by` is also set as a GitHub dependency link
+(`addBlockedBy`), one link serving both ends: the context header shows the
+links, and `board-check.py` reports a line with none behind it. It reads
+only the *Dependencies and related work* section.
+
+The two test headings are written exactly as the template has them, because the
+tooling finds them by name. Write *None.* under one that does not apply, and
+keep the heading. What each heading holds, and how a post-deployment check is
+answered, is in [1.2 §2](../../../docs/1.2-change-lifecycle.md#2-the-rules).
+
+**Once an option is chosen, only it stays in the body**, and the reasoning goes
+in a comment.
+
+## Source requirements
 
 | | Is | Changes when |
 | --- | --- | --- |
-| **Source requirements** | the issues this project took, by number | a requirement moves in or out. It matches the `Requirement` sub-issues exactly |
-| the **Requirements table** | R1…Rn, what must be true when this is done | scoping restructures them — two sources merge into one R, one splits into three, a source is dropped as out of scope |
+| *Source requirements* | the issues this project took, by number and title | a requirement moves in or out |
+| the *Requirements table* | R1…Rn, what must be true when this is done | scoping merges, splits or drops them |
 
-**The `From` column is not a substitute.** It says which source produced an R,
-which is useful and which stops being complete the moment scoping merges or drops
-one. The source list is provenance and does not move; the table is the current
-statement of the work and does.
+- The source list matches the `Requirement` sub-issues exactly. The `From`
+  column says which source produced an R, and goes incomplete the moment
+  scoping merges or drops one.
+- A decision is not a source requirement, because nothing folds a decision. Name
+  it in the `From` column of the rows it produced.
+- A project raised directly keeps the line and says `none: raised directly as
+  a project, so R1 and R2 are its own`. An absent line cannot be told from an
+  unanswered one.
+- A requirement parented here but not listed, or listed but parented elsewhere,
+  is a defect: it sits under a project whose body does not claim it.
 
-**A decision is not a source requirement.** It routes work — it raises or adds
-requirements and is then closed — so it is named in the `From` column of the
-rows it produced, never in the source list: nothing folds a decision.
+## Work packages
 
-**A project raised directly says so** rather than leaving the line out — `none —
-raised directly as a project, so R1 and R2 are its own`. An absent line cannot be
-told from an unanswered one, which is the same reason a test approach that does
-not apply says *"None."*
-
-**The two must agree with the sub-issues.** A requirement parented here but not
-listed, or listed but parented elsewhere, is a defect: the requirement sits
-under a project whose body does not claim it.
-
-**A work package is carried by a sub-project or by the parent; a milestone is
-what groups them** (`docs/1.2` §1.1 defines them). A sub-project is a `Project`
-whose parent is this one, carrying its own artefacts, test approach,
-post-deployment checks and, where its delivery has one, milestone. **Every
-change has a delivery** — it has to reach main — but only a delivery made at one
-point in time takes a **milestone**, and packages sharing one go live together.
-The milestone never has an issue of its own. The parent owns the requirements,
-the design and the documents, carries no milestone once it has sub-projects
-(with none, it is the package), and lists its deliveries: each row names the
-work packages it carries, or says straight to `main`.
-
-**Whether a delivery needs a sub-project** is `docs/1.2` *The model, and the
-four cases that follow from it*. **Case A, one package, is the common shape**,
-and takes no sub-project: the parent and the child would say the same thing.
+A work package is carried by a sub-project or by the parent, and a milestone is
+what groups packages that go live together
+([1.2 §1.1](../../../docs/1.2-change-lifecycle.md#11-what-a-milestone-says)).
+Whether a delivery needs a sub-project is
+[1.2 *The model, and the four cases that follow from it*](../../../docs/1.2-change-lifecycle.md#the-model-and-the-four-cases-that-follow-from-it).
+Case A, one package, is the common shape and takes none.
 
 ## Naming
 
-| | Form |
-| --- | --- |
-| a parent | `#N MAIN PROJECT: <what it is>` |
-| a work package, alone in its delivery | `#N WP A Del 1 of 2: <what it delivers>` |
-| a work package sharing its delivery | `#N WP A Del 1 of 2, pt 1 of 2: <what it delivers>` |
-| a work package whose deliveries are not yet decided | `#N WP A: <what it delivers>` |
-| a release's dependency update project | `#N Dependency updates for X.Y.Z`, from [`dependency-update-project.md`](../../../docs/templates/dependency-update-project.md) |
+The forms, and what `WP A`, `Del 1 of 2` and `pt 1 of 2` mean, are in
+[1.2 *Naming*](../../../docs/1.2-change-lifecycle.md#naming). A release's
+dependency update project is created from
+[`dependency-update-project.md`](../../../docs/templates/dependency-update-project.md).
 
-`WP A` is which package, lettered so it never reads as a delivery number; the
-packages of one change split by route may share a letter, as `docs/1.2` *Naming*
-says. `Del 1 of 2` is which delivery carries it. `pt 1 of 2` is its share of
-that delivery and **is omitted when the delivery carries one package** —
-`pt 1 of 1` says nothing. It is what makes a shared delivery visible from a
-listing.
-
-The parent's number is repeated in every child so a title sort groups the family.
-
-**A branch is named for the work package, not the parent** — `415-admin-cli-…`,
-not `400-…`. Commits say `Refs` the branch's number, and the board credits a
-work package only with commits naming it. **Splitting a project that already has
-a branch means renaming the branch to the package it now carries**, before the
-next commit, or every later commit names the parent and `board-status.py`
-reports the package *not started* after it has merged. The post-merge hook finds
-the package from the pull request and moves its Project State anyway; the
-commits it cannot fix.
-
-**A delivery's steps live in one place**: `docs/1.2` §2.14.
-
-**The design starts with the as-is** (owner, 2026-09-03). How the thing works
-today, then how it will work: a reviewer who does not know the first cannot
-judge the change, and reading the code to find out is the author's job, not the
-reviewer's.
-
-**The two test headings are matched by their opening words**: Preview by
-`board-check.py`, both by the release tooling, which count the unticked boxes
-under each. Write "None." under one that
-does not apply, and keep the heading.
-
-**A post-deployment check says how it is done**, not what is being checked,
-covers each clause of its requirement, and is answered `passed`, `cannot be
-tested` or `failed`.
-
-**Only rejected options are omitted.** While options are open, number them and
-say what each constrains; once one is chosen only it survives in the body, and
-the reasoning goes in a comment.
+**A branch is named for the work package, not the parent**, and its commits say
+`Refs` the work package, as
+[1.2 §2.5](../../../docs/1.2-change-lifecycle.md#25-tracking-a-change-to-production)
+sets out. Splitting a project that already has a branch means renaming the
+branch to the package it now carries before the next commit, or
+`board-status.py` reports the package *not started* after it has merged.
 
 ## Writing the body
 
-**Never hard-wrap a paragraph in an issue body.** GitHub Flavored Markdown
-renders a single newline as a line break, so a paragraph wrapped at 76 characters
-comes out ragged and half the width — unlike the repository's documents, where
-markdownlint requires the wrapping. One paragraph is one line, however long.
-
-Structural lines are unaffected and keep their own line: headings, table rows,
-list items, block quotes and fenced code.
+**Never hard-wrap a paragraph in an issue body.** GitHub renders a single
+newline in an issue body as a line break, so a wrapped paragraph comes out
+ragged. One paragraph is one line, however long; headings, table rows, list
+items, block quotes and fenced code keep their own lines.
 
 ## Creating it
 
-Always `--body-file`. A body passed with `--body` has its backticks evaluated by
-the shell, which silently swallows whole spans.
+Write the body to a file and pass the file, never `--body`: the shell evaluates
+the backticks in a body passed inline, and silently swallows whole spans.
 
-**Set `--type` at creation.** It is a flag on `gh issue create`, so there is no
-window in which the issue exists untyped:
+**Set the type at creation**, so no window exists in which the issue is
+untyped. `gh issue create --type` is refused by the older `gh` in a cloud
+session, so the main path is the REST create, which takes the type by name:
 
 ```bash
-# The repository is the one in the application's programme profile (identity table).
+# The application's repository, from its technical profile (identity table).
 REPO=$(programme/scripts/board/board-profile.py get profile.identity.repository)   # owner/name
-NUM=$(gh issue create -R "$REPO" --type Project \
-        --title "..." --body-file /tmp/body.md | grep -o '[0-9]*$')
-id=$(gh api graphql -f query="{repository(owner:\"${REPO%/*}\",name:\"${REPO#*/}\"){issue(number:$NUM){id}}}" \
-       -q '.data.repository.issue.id')
+gh api -X POST "repos/$REPO/issues" -f title="..." -F body=@/tmp/body.md \
+  -f type=Project --jq '[.number,.node_id]|@tsv'
 ```
 
-`--type Requirement` for a requirement. The name, not the id — `gh` resolves it.
+`-f type=Requirement` for a requirement. In the programme's own checkout there
+is no technical profile: the repository is `delphside/programme`
+(`programme.repository` in `config/programme.toml`), so set
+`REPO=delphside/programme`. Where `gh` accepts it,
+`gh issue create -R "$REPO" --type Project --title "..." --body-file /tmp/body.md`
+does the same.
 
-An `updateIssue` mutation after creation works, but it is a separate action
-that can be forgotten, interrupted or fail quietly. `board-check.py` treats an
-untyped issue as a requirement and reports it as untyped, but an ad-hoc filter
-on type (a `jq select`, say) drops it silently.
-
-To change the type of an issue that already exists — converting a requirement to
-a project — the mutation is still the way:
-
-```bash
-gh api graphql -f query='mutation($i:ID!,$t:ID!){updateIssue(input:{id:$i,issueTypeId:$t}){issue{number}}}' \
-  -f i="$id" -f t="IT_kwDOEyOvmc4yo-D_"
-```
-
-| type | id |
-| --- | --- |
-| Requirement | `IT_kwDOEyOvmc4yo-D-` |
-| Project | `IT_kwDOEyOvmc4yo-D_` |
+`board-check.py` treats an untyped issue as a requirement and reports it as
+untyped, but an ad-hoc filter on type (a `jq select`, say) drops it silently.
 
 ## Setting fields
 
-`issueFields` takes a **list**, and several can be set at once. The singular
-`createIssueFieldValue` refuses when a value already exists — use this one.
+| New issue | Fields | Stage |
+| --- | --- | --- |
+| a requirement | none beyond its stage | `Requirement State` `Triage` |
+| a project | `Workstream`, `Type of change`, `Effort`, `Priority` | `Project State` `Scope` |
+| a work package or standalone project | those, and `Route`, the route of its delivery | `Project State` `Scope` |
+| a parent | those, never `Route` | `Project State` `Scope` |
+| a release's dependency update project | the fields [1.2 §2.2.1](../../../docs/1.2-change-lifecycle.md#221-business-as-usual-updates) lists | the stage it lists |
+
+**Set the stage in the same call as the rest.** `board-check.py` reports a
+requirement with no stage, and an unset `Requirement State` is read as
+`Triage`, so a requirement left without one hides in that state.
+
+**The cloud path is REST**, which sets a field by its option name:
+
+```bash
+gh api -X POST "repos/$REPO/issues/$NUM/issue-field-values" --input - <<'JSON'
+{"issue_field_values":[
+  {"field_id":46162136,"value":"Scope"},
+  {"field_id":46217763,"value":"<workstream>"}
+]}
+JSON
+```
+
+The REST field IDs are numbers: `Project State` 46162136, `Workstream`
+46217763, `Priority` 46090971, `Type of change` 46117082, `Effort` 46090974,
+`Requirement State` 46185224 and `Route` 46415058. Read the ID of any other
+field from an issue that holds it, with
+`gh api repos/$REPO/issues/N/issue-field-values`.
+
+**Locally, four GraphQL mutations set fields and the type**, each on the
+issue's node ID (`$id`, the `node_id` the create printed, or read from
+`repos/$REPO/issues/N`):
+
+| Mutation | Use it to | Input shape |
+| --- | --- | --- |
+| `setIssueFieldValue` | set several fields at once | `issueFields:[{fieldId:"…",singleSelectOptionId:"…"}]`, a list |
+| `updateIssueFieldValue` | set one field | `issueField:{fieldId:"…",singleSelectOptionId:"…"}`, nested; `fieldId` at the top level is rejected |
+| `deleteIssueFieldValue` | clear a field | `fieldId:"…"` directly; `clearIssueFieldValue` does not exist |
+| `updateIssue` | change the type of an existing issue | `issueTypeId:"…"` |
 
 ```bash
 gh api graphql -f query='mutation($i:ID!){setIssueFieldValue(input:{issueId:$i,issueFields:[
@@ -253,20 +246,16 @@ gh api graphql -f query='mutation($i:ID!){setIssueFieldValue(input:{issueId:$i,i
 ]}){issue{number}}}' -f i="$id"
 ```
 
-A new project takes `Workstream`, `Type of change`, `Project State`
-(`Scope`), `Effort` and `Priority`. A work package or a standalone project also
-takes `Route` when it is known; a parent never does.
+The singular `createIssueFieldValue` refuses when a value already exists. When a
+mutation is rejected, read its input type:
+`gh api graphql -f query='{__type(name:"IssueFieldCreateOrUpdateInput"){inputFields{name}}}'`.
 
-**Set the stage or the phase in the same call as the rest.** An issue with
-neither is invisible in the same way an untyped one is: the Requirement rules
-key on `Requirement State` and the Project rules on `Project State`, so an issue
-with no stage is asked for nothing. A new requirement takes `Requirement State`
-`Triage`; a new project takes `Project State` `Scope`, except a release's
-dependency update project, which takes the fields
-[1.2 §2.2.1](../../../docs/1.2-change-lifecycle.md#221-business-as-usual-updates)
-lists.
+| Type | ID |
+| --- | --- |
+| Requirement | `IT_kwDOEyOvmc4yo-D-` |
+| Project | `IT_kwDOEyOvmc4yo-D_` |
 
-| field or option | id |
+| Field or option | ID |
 | --- | --- |
 | `Workstream` | `IFSS_kgDOAsE6Iw` |
 | … Process Definition | `IFSSO_kgDOBNJpTg` |
@@ -294,7 +283,7 @@ lists.
 | … Production Release | `IFSSO_kgDOBNeykw` |
 | … Application Tooling | `IFSSO_kgDOBPfgTQ` |
 | … Docs and Programme Tooling | `IFSSO_kgDOBPfgTg` |
-| … Repository Change DEPRECATED, never set | `IFSSO_kgDOBNeylA` |
+| … DEPRECATED Repository Change, never set | `IFSSO_kgDOBNeylA` |
 | … Other | `IFSSO_kgDOBNeylg` |
 | `Priority` | `IFSS_kgDOAr9K2w` |
 | … Urgent | `IFSSO_kgDOBM8AMw` |
@@ -325,106 +314,96 @@ lists.
 | … Post-deployment | `IFSSO_kgDOBNDpVw` |
 | … Project Closedown | `IFSSO_kgDOBNU2qA` |
 
-**To clear a field rather than set it**, the mutation is `deleteIssueFieldValue`
-— not `clearIssueFieldValue`, which does not exist. Needed when converting a
-requirement to a project: `Requirement State` is a requirement's journey and `Project State` is a
-project's, so a converted issue carries a `Requirement State` that no longer means anything.
+The `non-functional` option of `Type of change` is not cached: name it in the
+REST call, or read its ID with the query that follows. The programme's own
+Delivery Tooling workstream is not cached either.
+
+**These IDs are a cache and can go stale.** If one is rejected, re-read them at
+organisation level, as `board/sources.py` does:
 
 ```bash
-gh api graphql -f query='mutation($i:ID!){deleteIssueFieldValue(input:{issueId:$i,fieldId:"IFSS_kgDOAsC7CA"}){clientMutationId}}' -f i="$id"
+gh api graphql -f query='{organization(login:"'"${REPO%/*}"'"){issueFields(first:50){nodes{... on IssueFieldSingleSelect{id name options{id name}}}}}}'
 ```
 
-**The mutation nests the field under `issueField`**; `fieldId` at the top
-level is rejected with *"Argument 'issueField' on InputObject
-'UpdateIssueFieldValueInput' is required"*. The shape that works:
-
-```bash
-gh api graphql -f query='mutation($i:ID!){updateIssueFieldValue(input:{issueId:$i,issueField:{fieldId:"IFSS_kgDOAsBg2A",singleSelectOptionId:"IFSSO_kgDOBNDpVw"}}){clientMutationId}}' -f i="$id"
-```
-
-`deleteIssueFieldValue` still takes `fieldId` directly, so the two are not the
-same shape. When one is rejected, read the input type rather than guessing:
-
-```bash
-gh api graphql -f query='{__type(name:"IssueFieldCreateOrUpdateInput"){inputFields{name}}}'
-```
-
-**These ids are a cache and can go stale.** If one is rejected, re-read them:
-
-```bash
-gh api graphql -f query='{repository(owner:"'"${REPO%/*}"'",name:"'"${REPO#*/}"'"){issueFields(first:30){nodes{... on IssueFieldSingleSelect{id name options{id name}}}}}}'
-```
+After setting `Project State`, read the issue back: the IDs of `Deployment` and
+`Development` differ in one character and are easily confused.
 
 ## Folding the requirements it takes
 
-**Requirements only.** A `Project` absorbed into another follows *Moving
-requirements between projects* below instead.
+Requirements only: a `Project` absorbed into another follows *Moving
+requirements between projects*. For each requirement, in order:
 
-For each one: make it a sub-issue, label it `folded`, close it as completed with
-a comment naming the project.
+1. Copy its content into the project.
+2. Make it a sub-issue of the project.
+3. Label it `folded`.
+4. Close it as `completed` with a comment naming the project.
+5. Remove its milestone, if it has one: a folded requirement carries none.
 
 ```bash
-pid=$(gh api graphql -f query='{repository(owner:"'"${REPO%/*}"'",name:"'"${REPO#*/}"'"){issue(number:'"$NUM"'){id}}}' -q '.data.repository.issue.id')
-cid=$(gh api graphql -f query='{repository(owner:"'"${REPO%/*}"'",name:"'"${REPO#*/}"'"){issue(number:NNN){id}}}' -q '.data.repository.issue.id')
 gh api graphql -f query='mutation($p:ID!,$c:ID!){addSubIssue(input:{issueId:$p,subIssueId:$c}){issue{number}}}' -f p="$pid" -f c="$cid"
 gh issue edit NNN -R "$REPO" --add-label folded
-gh issue close NNN -R "$REPO" --reason completed --comment "Folded into #$NUM, which owns this requirement from here."
+gh issue close NNN -R "$REPO" --reason completed --comment "Folded into #$NUM *<title>*, which owns this requirement from here."
+gh issue edit NNN -R "$REPO" --remove-milestone
 ```
 
-`addSubIssue` takes `replaceParent:true` to move one that already has a parent.
+`$pid` and `$cid` are the node IDs of the project and the requirement, read as
+`node_id` from `repos/$REPO/issues/N`. Where GraphQL is refused (`gh issue edit`
+and `gh issue close` use it too), REST does each step. The sub-issue call takes
+the requirement's numeric issue ID, the `id` of `repos/$REPO/issues/NNN`:
+
+```bash
+gh api -X POST repos/$REPO/issues/$NUM/sub_issues -F sub_issue_id=<id>
+gh api -X POST repos/$REPO/issues/NNN/labels -f 'labels[]=folded'
+gh api -X POST repos/$REPO/issues/NNN/comments -f body="Folded into #$NUM *<title>*, which owns this requirement from here."
+gh api -X PATCH repos/$REPO/issues/NNN -f state=closed -f state_reason=completed
+gh api -X PATCH repos/$REPO/issues/NNN -F milestone=null
+```
 
 ## Moving requirements between projects
 
-**`fold` is a requirement word and stays one.** A requirement is folded into the
-project that takes it, once. Nothing else is folded.
+A requirement is folded into the project that takes it, once; nothing else is
+folded. It can move on afterwards, from one project to another. Document the
+move in both projects: the receiving one names the source (`#NNN *title*`, so
+the trail survives), the losing one records that it has gone and where.
 
-**A requirement can move on afterwards**, from one project to another. Document
-the move in **both** — the receiving project names the source (`#294 · #130`, so
-the trail survives), the losing project records that it has gone and where.
-
-**Move the sub-issue link with it**, using `replaceParent:true`. A folded
-requirement is a sub-issue of the project that owns it, so leaving the link
-behind puts the requirement under a project whose body no longer claims it.
+Move the sub-issue link with it, using `replaceParent:true` (REST:
+`-F replace_parent=true` on the `sub_issues` call), or the requirement sits
+under a project whose body no longer claims it:
 
 ```bash
 gh api graphql -f query='mutation($p:ID!,$c:ID!){addSubIssue(input:{issueId:$p,subIssueId:$c,replaceParent:true}){issue{number}}}' -f p="$pid" -f c="$cid"
 ```
 
-**A project whose requirements have all moved out can be closed** (owner,
-2026-09-08). It owns nothing, so it has nothing left to do. Say in the comment
-which projects took what, and pick whatever close reason fits — *duplicate*
-where it was genuinely the same work seen twice, *not planned* otherwise.
+A project whose requirements have all moved out owns nothing and is closed.
+Say in the comment which projects took what, and pick the close reason that
+fits: *duplicate* where it was genuinely the same work seen twice, *not
+planned* otherwise.
 
-**What must not happen to it:**
+Two things must not happen to an absorbed project:
 
-| | why |
+| Not this | Why |
 | --- | --- |
-| `addSubIssue` on the project itself | **a `Project` sub-issue means a work package, and nothing else** — owner, 2026-09-08. It claims work still to come under that parent, with its own delivery and, where that has one, milestone, and `board-check.py` then asks the absorbing project for a parent's obligations and the absorbed one for a work package's. A `Requirement` sub-issue is a fold and is fine; a `Project` one is a structural claim |
-| the `folded` label, and closing as **completed** | `folded` marks a requirement, and nothing was completed |
+| `addSubIssue` on the project itself | a `Project` sub-issue means a work package: `board-check.py` then asks the absorbing project for a parent's obligations and the absorbed one for a work package's |
+| the `folded` label, and closing as `completed` | `folded` marks a requirement, and nothing was completed |
 
 ## Afterwards
 
 ```bash
 programme/scripts/board/board-context.py --write N    # the context header, for N's whole family
 programme/scripts/board/board-check.py                # has it done what its phase claims?
-programme/scripts/board/roadmap-diagram.py --write    # regenerate the roadmap (Tile Lite Elite's docs/4.1.5)
+programme/scripts/board/roadmap-diagram.py --write    # only where the profile sets documents.roadmap
 ```
 
-**Never write the context header by hand.** It is generated from the family's
-fields, milestones, pull requests and dependency links, and rewritten whole, so
-a hand edit inside its markers is lost on the next run. Set the facts and
-regenerate.
+In the programme's own checkout the scripts are `scripts/board/…`. Never write
+the context header by hand: it is generated from the family's fields,
+milestones, pull requests and dependency links, and rewritten whole, so a hand
+edit inside its markers is lost. Set the facts and regenerate.
 
-Commit the regenerated roadmap, the application's `documents.roadmap` (Tile
-Lite Elite's `docs/4.1.5`): the diagram is derived, so a stale copy is wrong.
+Where the profile sets `documents.roadmap` (Tile Lite Elite's `docs/4.1.5`),
+commit the regenerated roadmap: the diagram is derived, and a stale copy is
+wrong.
 
-## What goes wrong
+## Where a project's documentation is committed
 
-**The wrong Project State option id.** `Deployment` and `Development` sit next to each
-other and are easily confused. Check the result rather than assuming it took.
-
-**A milestone on a requirement.** Milestones hold project deliveries; a folded
-requirement carries none.
-
-**Editing on the wrong branch.** Documentation for a project belongs on `main`
-unless the project has a branch; check the branch before committing.
+Documentation for a project belongs on `main` unless the project has a branch.
+Check the branch before committing.

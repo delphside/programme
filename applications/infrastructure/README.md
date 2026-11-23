@@ -1,11 +1,16 @@
 # Infrastructure (application 3)
 
-What the applications share: the hosts' capacity, networking and security, run
-as an application of its own. Its repository is `delphside/infrastructure`, its
-own documents are numbered `6.x`, and its issues are on the programme board.
-This folder holds the programme's records about it. The numbering is in
-[1.5](../../docs/1.5-writing-documents.md#each-range-covers-one-scope), and the
-list of applications in [2.1](../../records/2.1-applications.md).
+Infrastructure, application 3 in [2.1](../../records/2.1-applications.md), is
+the hosts, the networking in front of them and host security, and what the
+applications share; [3.3.6](3.3.6-profile.md) says what. Where its parts are:
+
+- its own documents (`6.x`):
+  [`delphside/infrastructure`](https://github.com/delphside/infrastructure)
+- issues: the programme board, Infrastructure view
+- the programme's records about it: this folder
+
+The numbering is in
+[1.5](../../docs/1.5-writing-documents.md#each-range-covers-one-scope).
 
 | Record | Document |
 | --- | --- |

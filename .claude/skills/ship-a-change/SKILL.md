@@ -1,132 +1,127 @@
 ---
 name: ship-a-change
-description: Take a change through preview, rehearsal and a production release, or deliver a tooling or Other change. Use when a change is ready to go out, when a release is being cut, or when the release's steps are being run against preview or rehearsal.
+description: Take a change through preview, rehearsal and a production release, or deliver a tooling or Other change. Use when a change is ready to go out, or when a release is being cut or run against preview or rehearsal.
 ---
 
 # Shipping a change
 
-The mechanics and the traps. **Whether a change ships is a judgement made
-elsewhere**: the application's release document has the steps (Tile Lite
-Elite's `docs/4.3.3` §1) and `docs/1.2` the rules.
+**Whether a change ships is a judgement made elsewhere**: the application's
+release document has the steps
+(Tile Lite Elite's is
+[`docs/4.3.3`](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md)
+§1) and [1.2](../../../docs/1.2-change-lifecycle.md) the rules.
 
 ## First, the route
 
-The route decides which steps apply.
+The route decides which steps apply. Which artefacts take which route is
+[1.2 §2.15 *Route*](../../../docs/1.2-change-lifecycle.md#route), and each
+application's artefact register (`3.n.2`) applies it.
 
 | Route | What shipping means |
 | --- | --- |
-| **Production Release** | anything in the image, and what the application installs on its production host. Semver, branch, pull request, the full lap |
-| **Application Tooling** | scripts that build, test, deploy, operate or measure the application, its CI and tests, and an application document change large enough to want a branch. Branch and pull request, a dated milestone and a row; live at merge, with no deploy |
-| **Docs and Programme Tooling** | every document changed on its own, and anything else in the repository. Straight to `main` (by pull request from a cloud session); no deploy |
-| **Other** | a console, a cloud resource, host maintenance, preview or rehearsal. Whatever applying it takes, plus a row in the delivery log (`3.n.1`; the infrastructure application's for host maintenance) |
+| Production Release | a semver, a branch and pull request, and the full lap (*The lap, for a Production Release*) |
+| Application Tooling | a branch and pull request; live at merge, with no deploy |
+| Docs and Programme Tooling | straight to `main` (by pull request from a cloud session), with no deploy; the programme's `scripts/deliver/` and its tests are the exception and take Application Tooling's route |
+| Other | applied by hand: whatever applying it takes |
 
-**A delivery has one route.** Work spanning several splits into a delivery each,
-and each delivery is one or more work packages. Documentation is the exception:
-it rides the branch of the delivery it accompanies, where that has one
-(`docs/1.2` §2.15 *Route*, *A document is never Other*).
-
-**A Requirement never carries a milestone.** If the thing shipping is a
-requirement, it needs a work package to own the delivery, or the record says a
-delivery happened with nothing responsible for it.
+A delivery has one route. Work spanning several splits into a delivery each,
+and each delivery is one or more work packages. Documentation is the
+exception: it rides the branch of the delivery it accompanies, where that has
+one ([1.2 §2.15 *Route*](../../../docs/1.2-change-lifecycle.md#route)).
 
 ## The lap, for a Production Release
 
-*The lap* is the release's steps in order, each proved by its **exit status**,
-never its output. The application's release document lists them per shape
-(Tile Lite Elite's `docs/4.3.3` *Which steps each shape runs*). Tile Lite
-Elite's single-delivery release runs, by section of its 4.3.3:
+*The lap* is the release's steps in order, each proved by its exit status,
+never its output. The application's release document lists the steps for each
+kind of release (Tile Lite Elite's is 4.3.3 *Which steps each shape runs*).
+Tile Lite Elite's single-delivery release runs these steps, where the numbers
+are the sections of its 4.3.3, `SHA` is the commit being released and `VERSION`
+the release's version:
 
-1. 1.1 record the change, and 1.2 push and let CI judge it (1.2.4 too if
-   functional).
-2. 1.9 step 1: rebase onto `main`.
-3. 1.3 deploy to preview, at the commit you will ship.
-4. 1.4 user testing, on preview.
-5. 1.5 rehearse the release, and run the technical tests.
-6. Once the owner judges rehearsal passed, the release is made (for Tile Lite
-   Elite, until delphside/tile-lite-elite#545 splits it out of `deploy.sh`,
-   that is this point): Claude writes its delivery-log row (`3.n.1`), saying
-   *released, not deployed*.
-7. 1.9 step 3: fast-forward `main` to the proven branch.
-8. 1.6 ship it, from the `main` tree: the owner's step.
-9. 1.7 verify what is live: `verify.sh`.
-10. 1.10 delete the branch.
+| Step | What | Who |
+| --- | --- | --- |
+| 1.1 | record the change | Claude |
+| 1.2 | push, and let CI judge it | Claude |
+| 1.2.4 | set the version, when any package in the release has `Type of change` `functional` | the owner |
+| 1.9 step 1 | rebase onto `main` | Claude |
+| 1.3 | `turpin build SHA`, then `turpin deploy preview SHA` | Claude |
+| 1.4 | user testing, on preview | the owner |
+| 1.5 | rehearse the release on rehearsal, and run the technical tests | Claude |
+| 1.5.3 | regression on rehearsal | Claude runs the suite, the test manager checks the results, the owner judges whether rehearsal passed |
+| 1.9 step 3 | fast-forward `main` to the proven branch | Claude |
+| 1.6 | read the milestone, then `turpin release`, from the `main` tree | the owner |
+| 1.6 | write the release's delivery-log row (`3.n.1`), saying *released, not deployed* ([1.2 §2.14](../../../docs/1.2-change-lifecycle.md#the-delivery-log-row-is-part-of-the-delivery)) | Claude |
+| 1.6 | `turpin deploy production VERSION`, from the `main` tree | the owner |
+| 1.7 | verify what is live with `verify.sh` | Claude or the owner |
+| 1.10 | delete the branch | Claude |
 
-### Tile Lite Elite's traps, each of which has cost a run
+## Tile Lite Elite's traps
 
-**Preview must be on the commit being shipped.** `deploy.sh` refuses otherwise.
-Rebase first, then redeploy preview, then ship.
+**The commit shipped is the commit rehearsed.** `turpin release` refuses a
+commit that rehearsal has not run, and preview has no such check
+([4.3.3 §1.4](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#14-user-testing)).
+A rebase or a version bump after the preview deploy is a new commit, so Claude
+runs 1.3 to 1.5 again.
 
-**The suite runs against preview only when told to, with one worker.** The
-engine holds the games map's write lock while searching, so parallel workers
-queue and time out. Run it in a subshell, so the next step starts where you
-are:
-
-```bash
-(cd e2e && PLAYWRIGHT_BASE_URL=http://localhost:8081 npx playwright test --workers=1)
-```
-
-**Rehearsal refuses a suite at its rate limits.** Registration is 2/min with a
-burst of 3 and the suite registers an account per test:
+**Read the milestone before `turpin release`**
+([4.3.3 §1.6](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#16-ship-it)):
 
 ```bash
-./scripts/deliver/rehearsal-limits.sh regression   # before
-./scripts/deliver/rehearsal-limits.sh production   # after, always
+gh issue list --milestone X.Y.Z --state open --json number,title,issueType
 ```
 
-**Leaving them relaxed is worse than forgetting to relax them**, because
-`check-rate-limits.sh` then passes against numbers nobody ships.
+The owner's local `gh` has `issueType` in `--json`; an older one, such as the
+cloud session's 2.89.0, does not.
 
-**A remote run's teardown removes its own accounts.** Where it prints
-`CLEANUP FAILED`, remove them by hand:
+Making the release checks that the milestone holds only what ships
+([1.2 *Making the release*](../../../docs/1.2-change-lifecycle.md#making-the-release)).
+When `turpin release` asks about an open issue, not a project, that no commit
+names, the owner decides, as Tile Lite Elite's `CLAUDE.md` describes: fold the
+issue into a work package, move it out of the milestone, or ship it in the
+milestone.
 
-```bash
-./scripts/deliver/clean-test-accounts.sh --prefix T- --target <the rehearsal URL>
-```
+**Regression runs with one worker and the rate limits relaxed, then restored.**
+Restore the limits always, even when the suite fails. The commands, the
+rehearsal URL and a failed cleanup are
+[4.3.3 §1.5.3](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#153-regression-on-rehearsal-then-judge-it)
+and the [e2e README](https://github.com/delphside/tile-lite-elite/blob/main/e2e/README.md).
 
-The rehearsal URL is the variable the application's technical profile
-(`app-profile.toml`) names in `environments.rehearsal.url_variable`, set by the
-script in `environments.rehearsal.url_from` (or the override in
-`environments.rehearsal.env`).
+**Run each `turpin` command bare.** Piping it into `tail` reports the pipe's
+exit status. Redirect to a file where the output is needed.
 
-**The owner reads the milestone before deploying.** `deploy.sh` settles every
-open issue in it, shipped or not: it closes a non-project, moves a work package
-to `Post-deployment` and skips a parent. Move out anything that is not shipping
-first.
-
-**Run `deploy.sh` bare.** Piping it into `tail` reports the *pipe's* exit
-status. Redirect to a file if you need the output.
-
-## By hand, afterwards
+## After the production deploy, by hand
 
 | Item | How |
 | --- | --- |
-| the delivery-log row | Claude completes the row written when the release was made (step 6) with its deployed date and outcome |
-| a dated milestone | closed by hand by the local session: it is not semver, so nothing matches it |
-| post-deployment checks | answered by Claude on the work package, each row, from Claude's reads of production, with `passed`, `cannot be tested` or `failed` |
+| the delivery-log row | Claude completes the row written when the release was made, with its deployed date and outcome |
+| post-deployment checks | Claude answers each row on the work package from its reads of production: `passed`, `cannot be tested` or `failed` |
 
 ## The other routes
 
 | Route | Tried | Milestone | Delivery-log row | Live |
 | --- | --- | --- | --- | --- |
 | Application Tooling | its tests and CI, on its branch | the date it merges (`YYYY.MM.DD-n`) | yes | at merge |
-| Docs and Programme Tooling | none | none | no; its record is the commit | at the push or merge |
-| Other | as applying it allows | the date it is applied (`YYYY.MM.DD-n`); for host maintenance, in the infrastructure application | yes | when applied |
+| Docs and Programme Tooling | its review rounds; `check-docs.sh` for a document, its tests for a script | none | no; its record is the commit | at the push or merge |
+| Other | as applying it allows | the date it is applied (`YYYY.MM.DD-n`); for host maintenance, in the infrastructure application | yes; for host maintenance, in the infrastructure application's log | when applied |
 
-A package upgrade and a reboot are two deliveries, because either can fail
-alone and the record must say which did.
+A dated milestone is closed by hand by the local session, because it is not a
+semver. A package upgrade and a reboot are two deliveries
+([1.2 §2.2.1](../../../docs/1.2-change-lifecycle.md#221-business-as-usual-updates)).
 
 ## An emergency
 
-The owner runs it, from the application's release document (Tile Lite Elite's
-`docs/4.3.6` §3):
+The owner runs each step, in the order of the application's guide to a release
+that goes wrong (Tile Lite Elite's is
+[4.3.6 §3](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.6-when-a-release-goes-wrong.md#3-ship-an-emergency-change)),
+and the *emergency* row of
+[1.2 *Making a release, then deploying it*](../../../docs/1.2-change-lifecycle.md#making-a-release-then-deploying-it)
+says what each command does. Three points the steps turn on:
 
-1. Roll back first, where going back can help: it takes seconds and needs no
-   build.
-2. Cut a branch from **the commit production runs, never from `main`**: `main`
-   accumulates tested but unshipped image changes, and deploying it ships them
-   beside the fix. After a rollback, the highest release tag is not that
-   commit.
-3. Commit the fix, open a pull request and deploy it, as §1.13 says.
-4. **Merge it back** into `main`: not rebase, which rewrites `main` and orphans
-   every artefact built from it, and not cherry-pick, which leaves production
-   running a commit that is not an ancestor of `main`.
+- Roll back first, where going back can help: it takes seconds and needs no
+  build.
+- Cut the branch from the commit production runs, never from `main`: `main`
+  accumulates tested but unshipped image changes, and shipping it carries them
+  beside the fix. After a rollback, the highest release tag is not that commit.
+- Merge the fix back into `main`, never by rebase or cherry-pick: rebase
+  rewrites `main` and orphans every artefact built from it, and cherry-pick
+  leaves production running a commit that is not an ancestor of `main`.
