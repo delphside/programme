@@ -28,8 +28,8 @@ _SEPARATORS = re.compile(r"[,\s]+")
 
 def _clean(path: str) -> str:
     path = path.strip().strip("`'\"")
-    while path.startswith("./"):
-        path = path[2:]
+    while path.startswith(("./", "/")):
+        path = path[2:] if path.startswith("./") else path[1:]
     return path
 
 

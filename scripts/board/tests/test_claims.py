@@ -25,6 +25,10 @@ class TheClaimsLine(unittest.TestCase):
     def test_a_path_with_a_space_is_not_supported(self):
         self.assertEqual(("my", "file.md"), parse_claims("Claims: my file.md"))
 
+    def test_a_leading_slash_is_the_repository_root(self):
+        self.assertEqual(("docs/b.md",), parse_claims("Claims: /docs/b.md"))
+        self.assertTrue(touches("/docs/", "docs/b.md"))
+
     def test_repeats_and_dot_slash_are_dropped(self):
         self.assertEqual(("a.md",), parse_claims("Claims: a.md, ./a.md,"))
 
