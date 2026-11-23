@@ -198,8 +198,8 @@ class Reading(unittest.TestCase):
 
 
 class InTheProgrammesOwnCheckout(unittest.TestCase):
-    """Where there is no programme file and no profile, `--files --repo` still
-    reads, and the other modes say what they need."""
+    """Where there is no programme file and no profile, `--files --repo` and
+    `--pr` still read, and the other modes say what they need."""
 
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -208,6 +208,7 @@ class InTheProgrammesOwnCheckout(unittest.TestCase):
         (root / "bin").mkdir()
         gh = root / "bin" / "gh"
         gh.write_text("#!/bin/sh\ncase \"$2\" in\n  repos/p/q/pulls\\?*) echo '[]';;\n"
+                      "  repos/p/q/pulls/5) echo '{\"state\": \"closed\"}';;\n"
                       "  *) echo 'HTTP 404: Not Found' >&2; exit 1;;\nesac\n")
         gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
         (root / "repo").mkdir()
@@ -222,6 +223,11 @@ class InTheProgrammesOwnCheckout(unittest.TestCase):
     def test_files_with_repo_needs_no_profile(self):
         done = self.go("--files", "a", "--repo", "p/q")
         self.assertEqual((0, "ok overlap: none\n"), (done.returncode, done.stdout), done.stderr)
+
+    def test_pr_needs_no_profile(self):
+        done = self.go("--pr", "p/q#5")
+        self.assertEqual((0, "ok overlap: p/q#5 is closed, so nothing was compared\n"),
+                         (done.returncode, done.stdout), done.stderr)
 
     def test_without_repo_the_profile_is_still_asked_for(self):
         done = self.go("--files", "a")
