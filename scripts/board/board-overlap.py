@@ -37,7 +37,8 @@ A check run to report, so it exits 0 whatever it finds (docs/1.10):
     64  usage error: a bad flag, or a --pr that is not OWNER/REPO#N
     65  there is no such pull request as the --pr names, or no such repository as
         the --repo names
-    70  unexpected error (`profile.run`)
+    70  unexpected error, or no profile or programme file where one is needed
+        (`profile.run`)
     75  could not judge, and a retry may work: GitHub did not answer in time
 
 It changes nothing, so it has no pivot.
