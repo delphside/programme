@@ -97,8 +97,9 @@ for a situation, and the fix keeps both intents only once both are known.
 When a rebase or a pull request shows that `main` has changed text your
 branch also changes, follow
 [1.2 *When `main` moves under a branch*](../../../docs/1.2-change-lifecycle.md#when-main-moves-under-a-branch):
-redo your edit on `main`'s text, running this procedure again from step 1,
-since the fact may now have another home or be there already.
+redo your edit on `main`'s text, running [*The procedure*](#the-procedure)
+again from step 1, since the fact may now have another home or be there
+already.
 
 ## Traps
 
