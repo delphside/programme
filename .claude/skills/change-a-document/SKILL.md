@@ -95,17 +95,10 @@ for a situation, and the fix keeps both intents only once both are known.
 ## When `main` has changed the same text
 
 When a rebase or a pull request shows that `main` has changed text your
-branch also changes, redo your change on the new text rather than choosing a
-side of each conflict ([1.2 *When `main` moves under a
-branch*](../../../docs/1.2-change-lifecycle.md#when-main-moves-under-a-branch)):
-
-1. Rebase onto `main`.
-2. Read each section `main` changed, and its commit message, to learn what it
-   was for.
-3. Write your edit as though that change had been there when you started:
-   the fact may now have a different home, or be there already.
-4. Send each part that differs from what was reviewed to the reviewers in a
-   resumed check, then push with `--force-with-lease` to your own branch.
+branch also changes, follow
+[1.2 *When `main` moves under a branch*](../../../docs/1.2-change-lifecycle.md#when-main-moves-under-a-branch):
+redo your edit on `main`'s text, running this procedure again from step 1,
+since the fact may now have another home or be there already.
 
 ## Traps
 
