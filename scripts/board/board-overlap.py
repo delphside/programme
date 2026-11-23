@@ -10,9 +10,9 @@
 
 A pull request's files are the ones it changes (GitHub's `/files`) and the ones
 it names, on the `Claims:` line of its body (`board/claims.py` says the form).
-`--files` and `--pr` list each other open pull request of the repository, which
-is the application's (its profile's) unless `--repo` names another, with a file
-in common, one line each:
+`--files` and `--pr` list each other open pull request with a file in common,
+one line each: `--files` in the application's repository (its profile's) or
+`--repo`'s, `--pr` in that pull request's own:
 
     OVERLAP OWNER/REPO#N TITLE — PATH, PATH
 
@@ -26,8 +26,8 @@ nothing to report it prints `ok overlap: none`. Paths are relative to the
 repository's root; one ending `/` is a directory and everything below it.
 
 It reads open pull requests and each one's files by REST, so a cloud session's
-token can run it: per repository, a call for each hundred open pull requests
-and a call for each hundred files of each.
+token can run it: per repository, a call for each 100 open pull requests and a
+call for each 100 files of each, and with `--pr` one for that pull request.
 
 A check run to report, so it exits 0 whatever it finds (docs/1.10):
 
