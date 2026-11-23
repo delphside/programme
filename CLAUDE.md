@@ -3,119 +3,117 @@
 This page owns the rules. The numbered documents own the procedures and the
 reasons, and issues own the arguments. If this page and a document disagree,
 one of them has a defect: read how they came apart (the rule on disagreements
-under *Documentation*), then fix it; do not work around it.
+under *Documentation*), then fix it; do not work around it. docs/1.2 §1's key
+terms table defines the terms.
 
 **A Claude Code session on the web** (claude.ai/code) works without the local
-session's memory and outside its git hooks. It answers questions and comments
-on issues freely, makes changes only on a branch with a pull request, never by
-pushing to `main`. Records, change documents, and other documents, process
-and tooling go through a pull request it merges itself once the required
-checks pass and its review rounds find nothing material; a new or changed
-rule is agreed with the owner in the chat first, and the application waits
-for his review (docs/1.2 §2.2). Before it finishes it leaves a note for the
-local session: a comment on the issue the work concerns, or on the
-application's own notes issue, named in its CLAUDE.md, if there is none. The local session reads new comments at its next start.
+session's memory, and with git hooks only where its application's cloud setup
+switches them on (Tile Lite Elite's does). It:
+
+- answers questions and comments on issues freely;
+- changes things only by branch and pull request, never by pushing to `main`;
+- merges its own pull request once the required checks pass and its review
+  rounds find nothing material, except an application change, which waits for
+  the owner's review (docs/1.2 §2.2); a new or changed rule is agreed with him
+  in the chat first;
+- leaves the local session a note before it finishes, on the issue the work
+  concerns or else on the notes issue named in its application's CLAUDE.md,
+  read by the local session at its next start.
+
 docs/1.6 records the app it works through.
 
 ## The work
 
 - **The rules serve the project; the project does not serve the rules.** The
-  owner may set any rule aside when there is a reason. Claude says which rule
-  is being set aside, does what he decided, and records it where the work is
-  recorded: the issue, the delivery-log row or the commit message. A rule that
-  is continually set aside suggests a defect in the rule: consider changing it.
-- A change that seems possible takes one or more of four vehicles: a
-  pre-approved change where it is already agreed and needs no branch, a
-  Requirement issue where what to do about it, if anything, is open or how it
-  is grouped or split into projects is not yet decided, a project where it
-  certainly needs doing and that is decided, and a note in the next weekly
-  digest where it is a lesson for continual improvement (docs/1.2 *Where a
-  possible change goes*). Raise it quickly. Discussion happens in the comments;
-  the conclusions go in the body, which is edited to stay current.
+  owner may set any rule aside for a reason; Claude says which, does what he
+  decided and records it on the issue, the delivery-log row or the commit. A
+  rule that is continually set aside suggests a defect in the rule: consider
+  changing it.
+- **A change that seems possible is raised quickly, as one or more of four
+  vehicles** (docs/1.2 *Where a possible change goes*); discussion goes in
+  comments, conclusions in the body, kept current.
+
+  | Where | Vehicle |
+  | --- | --- |
+  | agreed, and needs no branch | a pre-approved change |
+  | whether to act, or how to group or split it into projects, is open | a `Requirement` |
+  | it certainly needs doing, and that is decided | a project |
+  | a lesson for continual improvement | a note in the next weekly digest |
+
 - **Raise quickly, but into an existing requirement where one covers the area**
-  (owner, 2026-09-17). Look first; a new row in a table beats a new number. A
-  new issue is right when the subject is genuinely separate, or when the
-  existing one has been scoped and widening it would reopen that.
-- **A decision belongs on what it decides.** Its own issue only where it spans
-  several, or where the argument is long enough to bury the requirement. Either
-  way it is a `Decision` issue, and the board indexes them by type.
-- **A decision is only worth an issue while there is a choice to discuss**
-  (owner, 2026-09-21). An answer that is already settled goes straight to its
-  owning document and to this page, with the argument in the commit message —
-  no issue, no `D` number, nothing to close later. The test is whether anybody
-  still has to be convinced.
-- **Whether to do something is a Requirement; how to do it is a Decision.**
-  Owner, 2026-09-27. A requirement can be rejected or folded into a project,
-  so an idea not yet agreed is raised as one, not as a Decision.
-- **A settled decision is never maintained; the document carrying it is** —
-  the general rule under *Documentation*, applied to decisions.
-- **Options live in the body, numbered, each saying what it constrains**, so one
-  issue can be read and settled rather than assembled from a thread (owner).
-- Make a tooling change when something first needs it, not when it occurs to
-  you. The requirement is still raised; the doing waits for the need.
-- **A change the weekly review proposes is a fix or an improvement** — owner,
-  2026-10-27. A fix cites what went wrong and what it cost him, and goes ahead
-  as BAU or a project as its type decides; an improvement makes something that
-  works better, and waits for him to pick it at the monthly
-  `improvement-review` (docs/1.4). A mistake is left to review the first time;
-  once it recurs it is a candidate for an automatic check.
+  (owner, 2026-09-17). Look first. A new issue is right where the subject is
+  genuinely separate, or where widening a scoped one would reopen it.
+- **A decision belongs on what it decides**, with its own issue only where it
+  spans several or its argument would bury the requirement. Either way it is a
+  `Decision` issue, the GitHub issue type, whose `Decision State` and
+  `Agreed Decision` heading `board-check.py` reads.
+- **A decision is only worth an issue while there is a choice to discuss**,
+  while anybody still has to be convinced (owner, 2026-09-21); a settled answer
+  goes straight to its owning document and this page, the argument in the
+  commit, with no issue or `D` number.
+- **Whether to do something is a Requirement; how to do it is a Decision**
+  (owner, 2026-09-27), so an idea not yet agreed is raised as a requirement.
+- **A settled decision is never maintained; the document carrying it is** (see
+  *Documentation*).
+- **Options live in the body, numbered, each saying what it constrains**
+  (owner).
+- **Make a tooling change when something first needs it**; raise its
+  requirement at once.
+- **A change the weekly review proposes is a fix or an improvement** (owner,
+  2026-10-27; docs/1.4). A fix cites what went wrong and what it cost him, and
+  goes ahead as BAU or a project as its type decides; an improvement makes
+  something that works better, and waits for him to pick it at the monthly
+  `improvement-review`. A mistake is left to review the first time, and once
+  it recurs is a candidate for an automatic check.
 - **Documentation, process and tooling changes go on without the owner**
-  (owner, 2026-11-09). They merge without his review, and only these come to
-  him, in the chat, never left in a document, pull request or issue for him to
-  find (docs/1.2 §2.2, docs/1.4):
+  (owner, 2026-11-09; docs/1.2 §2.2, docs/1.4): they merge without his
+  review, and only these go to him, in the chat, never left in a document,
+  pull request or issue:
   - a new or changed rule, for his agreement before it lands;
   - an action or a question that blocks the work.
 
   A change to the application still takes his review.
-- Claude sweeps, the owner reacts. Claude looks across every open item and
-  identifies what can be progressed; the owner should not have to scan the
-  board to find work waiting on him. So anything genuinely needing him is
-  brought to him, and everything else is Claude's to find and move.
-- Triage is done jointly with the owner, never alone: he comments first, and
-  Claude writes the triage comment and sets the fields from his (owner,
-  2026-11-04). **Except in Process
-  Definition, Programme Tooling and each application's Delivery Tooling, and for type `tooling` or `documentation` in
-  any workstream, where Claude triages alone** — D54, 2026-09-17 — and for a
-  dependency advisory, where only whether one can wait comes to him (owner,
-  2026-11-03). Anything reaching production, the product and its rules, and
-  anything irreversible outside git still come to the owner whatever their
-  workstream. Minimum: clear short
-  description, workstream, priority, type of change. Then scope (options,
-  dependencies, effort), then project planning. Outcomes: solo project,
-  grouped project, straight to main, on hold, cancelled.
+- **Claude sweeps, the owner reacts**: Claude looks across every open item,
+  brings him what needs him and moves the rest.
+- **Triage is joint: the owner comments first, and Claude writes the triage
+  comment and sets the fields from his** (owner, 2026-11-04; docs/1.2 §2.17):
+  - Claude triages alone in Process Definition, Programme Tooling and each
+    application's Delivery Tooling, and for type `tooling` or `documentation`
+    anywhere (delphside/tile-lite-elite#382
+    *[Decision]: D54 · Claude's triage scope*, 2026-09-17);
+  - of a dependency advisory, only whether it can wait goes to him (owner,
+    2026-11-03);
+  - anything reaching production, the product and its rules, and anything
+    irreversible outside git go to him whatever the workstream.
+
+  The minimum is a clear short title, workstream, priority and type of
+  change; then scope (options, dependencies, effort), then project planning,
+  whose outcomes are solo project, grouped project, straight to main, on hold
+  or cancelled.
 - **Related change goes in one project, so it is designed once** (owner,
-  2026-09-21), and as little design as possible is coordinated across projects.
-  A different route is not a reason to split a project — it is a reason to split
-  a delivery, which is what a work package already is. Two projects are right
-  where deciding one does not constrain the other, and then a link under
-  *Dependencies and related work* is enough.
-- **The exception is a shared mechanism**, which is owned by one workstream and
-  designed to by the others — owner, 2026-09-21. It gets a delivery project of
-  its own, treating every use case as a customer feeding requirements for the
-  generic thing; each workstream then builds its own functionality on top. The
-  test is whether it would exist for only one caller. If it would, it belongs
-  to that caller's project. docs/1.3 says how a mechanism's owning
-  workstream is chosen.
-- **A mechanism ships in the same release as its first customers**, so it is
-  tested against a real requirement rather than only against its own tests —
-  owner, 2026-09-21. Scoped and designed independently, scheduled jointly: its
-  milestone is the one its first callers carry.
-- A project owns its requirements: sources are folded and closed. Its issue
-  carries seven headings: requirements, design, **non-functional design**, test
-  approach, dependencies and related work, deliveries (each delivery's
-  artefacts by route, then its steps), post-deployment checks against
-  requirements. Under each heading is the content or a link to the design
-  document that holds it, never both.
-- **Non-functional design is four questions and *none, because…* answers any of
-  them**: capacity, failure, limits and timeouts, secrets and access. Asked
-  per change they are cheap; a project is the expensive way to answer them
-  later. A limit's answer says **where its number came from**.
-- **A dependency is declared from both ends.** `waits on` has an inverse,
-  `is needed by`, so a relation lives in both bodies rather than in whichever was
-  written second. The edge is also a GitHub dependency link, which the
-  generated context header shows and `board-check.py` checks.
-- A project moves through the Project State field. The wording is the field's own
-  stage descriptions:
+  2026-09-21; docs/1.2 §2.23), with as little design as possible coordinated
+  across projects; a different route splits a delivery, not a project. Two
+  projects, linked under *Dependencies and related work*, are right where
+  deciding one does not constrain the other.
+- **The exception is a shared mechanism**, owned by one workstream (docs/1.3)
+  and designed to by the others (owner, 2026-09-21): its own delivery project,
+  every use case a customer, each workstream building on top. One that would
+  exist for only one caller belongs to that caller's project.
+- **A mechanism ships in the same release as its first customers** (owner,
+  2026-09-21): scoped and designed independently, scheduled jointly on its
+  first callers' milestone.
+- **A project owns its requirements: whoever raises it folds its sources into
+  it and closes them.** Its issue carries the seven headings of docs/1.2 §2,
+  each holding the content or a link to the design document that holds it,
+  never both.
+- **Non-functional design is four questions and *none, because…* answers any
+  of them**: capacity, failure, limits and timeouts, secrets and access. A
+  limit's answer says where its number came from.
+- **A dependency is declared from both ends**, `waits on` and `is needed by`
+  in the two bodies, and as a GitHub link, which `board-check.py` checks
+  within the issue's own repository.
+- **A project moves through the `Project State` field**, in the field's own
+  words:
 
   | Phase | Done when |
   | --- | --- |
@@ -128,369 +126,296 @@ docs/1.6 records the app it works through.
   | Post-deployment | Check it is working and giving the benefit expected. |
   | Project Closedown | Lessons learnt completed. |
 
-  A test approach is approved by the test manager before the project leaves
-  Design and Test Approach (docs/1.9 *The test policy*).
-
-  Whoever holds a phase moves it on where no tool does: the design authority
-  at Scope and Design and Test Approach, the technical lead from Development to
-  closing (for a parent, its design authority). At each board-sweep Claude
-  proposes moving a workstream's Q1 project to Design and Test Approach where
-  it has none there, and the owner agrees it (owner, 2026-11-04; docs/1.2
-  §2.15, §2.22).
-  The daily sweep lists a project that has sat in its phase past its bound, for
-  the phase's holder (docs/1.2 §2.24).
-
-  The post-deployment check has one row per requirement.
+  - the test manager approves the test approach before Development (docs/1.9
+    *The test policy*);
+  - whoever holds a phase moves it on where no tool does: the design authority
+    at Scope and Design and Test Approach, the technical lead from Development
+    to closing (for a parent, its design authority);
+  - at each `board-sweep` (docs/1.4) Claude proposes moving a workstream's Q1
+    project to Design and Test Approach where it has none there, and the owner
+    agrees it (owner, 2026-11-04; docs/1.2 §2.22);
+  - the daily sweep lists a project past its phase's bound, for the phase's
+    holder (docs/1.2 §2.24);
+  - the post-deployment check has one row per requirement.
 - **A problem found in testing is fixed on the branch, and the branch is
-  retested.** One found after the merge either reopens the package (a new
-  branch, back to Development, tested again) or goes in a later package. A
-  merge moves a Production Release package to Deployment and a tooling-route
-  one to Post-deployment; docs/1.2 §2.1 has why. Owner, 2026-09-26.
-- **A work package is at most one delivery, and so one route.** A delivery may
-  carry several packages; a package never spans two deliveries. Building a tool
-  and running it are two deliveries with different routes, so two packages
-  (delphside/tile-lite-elite#404 and delphside/tile-lite-elite#422). Owner, 2026-09-27.
+  retested** (owner, 2026-09-26; docs/1.2 §2.1); one found after the merge
+  reopens the package or goes in a later one. A merge moves a Production
+  Release package to Deployment, a tooling-route one to Post-deployment.
+- **A work package is at most one delivery, and so one route** (owner,
+  2026-09-27); a delivery may carry several. Building and running a tool are
+  two packages.
 
 ## Changes
 
-- A Production Release always takes a branch, a pull request, a semver
-  milestone and a row in the delivery log. The pull request is what gives the
-  review its mechanics, and a release commit that reaches main *unproven*
-  cannot be guaranteed to work and blocks every other release until it does,
-  because main is what gets deployed.
-- **Proven and unshipped is different, and is the normal state.** A release
-  change merges to main once preview, user testing and rehearsal (where the
-  application has them) have passed against its branch tip; shipping may follow immediately or later. So main is
-  the accumulating next release, and a release branch is for a release that
-  must stabilise while main moves on, not for one delivery. D55. The condition
-  that makes this safe lives in the emergency path: cut an emergency from the
-  last released tag, never from main.
-- Otherwise the route decides (docs/1.2 §2.2). Application Tooling takes a
-  branch, because main is where it runs; Docs and Programme Tooling commits
-  straight to main, which is what pre-approved means. A document change takes no
-  branch unless it is large enough to be given Application Tooling: a document
-  branch lives too long, main moves, and the review does not happen. A cloud
-  session's branch and pull request are incidental to the route. One branch per
-  project at a time (a dependency update project excepted: each update keeps
-  its own pull request's branch), and everything the project touches goes on
-  it, its technical documentation included. Programme documents, generic
-  assets and records alike (docs/1.3; the list is
-  `programme/scripts/board/documents.py`'s), belong to no project and change
-  on main.
-- A pull request is what gives a review mechanics: a diff, a place to comment,
-  a recorded approval, a merge that waits for a tick. Pre-approved does not mean
-  unreviewed — it means the discussion was the review, which is enough where a
-  change is cheap to reverse and is not, for the image.
-- The pull request body is the review surface. **It says which part of the
-  project's scope is being requested, and what is deliberately left out** —
-  owner, 2026-09-17. It does not duplicate the project body or the documents:
-  the argument, the measurements and the design live on the issue, and a body
-  that restates them makes the reviewer read the same thing twice to find the
-  one paragraph that is new. Where the owner's review is owed (docs/1.2
-  §2.2), add him as reviewer at creation and ask for it in the chat. He
-  approves, Claude merges by rebase and fast-forward.
+- **A Production Release always takes a branch, a pull request, a semver
+  milestone and a row in the delivery log** (docs/1.2 §2.2).
+- **Proven and unshipped is the normal state** (delphside/tile-lite-elite#388
+  *[Decision]: D55 · Whether a release-route change may reach main before its
+  release*). A release change merges to `main` once preview, user
+  testing and rehearsal (where the application has them) pass at its branch
+  tip, and ships then or later. A release branch is for a release that must
+  stabilise while `main` moves on, not for one delivery. An emergency is cut
+  from the last released tag, never from `main`.
+- **Otherwise the route decides the branch** (docs/1.2 §2.2):
+  - Application Tooling takes one;
+  - Docs and Programme Tooling goes straight to `main`, which is what
+    pre-approved means;
+  - so does a document change, unless it is large enough to be given
+    Application Tooling;
+  - a cloud session's branch and pull request are incidental to the route.
+- **One branch per project at a time, and everything the project touches goes
+  on it**, its technical documentation included; a dependency update project
+  keeps a branch per update.
+- **Programme documents, generic assets and records belong to no project and
+  change on `main`** (docs/1.3): the programme's own list and each technical
+  profile's `documents` table, as `scripts/board/documents.py` reads them.
+- **Pre-approved does not mean unreviewed**: the discussion was the review,
+  enough where a change is cheap to reverse, which an image change is not.
+- **The pull request body says which part of the project's scope is being
+  requested, and what is deliberately left out** (owner, 2026-09-17): the
+  review surface, restating nothing the issue or documents hold. Where his
+  review is owed (docs/1.2 §2.2), add the owner as reviewer at creation and ask
+  in the chat; he approves, and Claude merges by rebase and fast-forward.
 - A review comes back two ways and they return differently. **Approved with
   comments** stays approved: make the changes and merge. **Changes requested**
   does not: make the changes, then re-request the review, which is what puts it
   back to awaiting review rather than leaving it sitting as answered. The board
   reads both from `reviewDecision`, so skipping the re-request leaves it in the
   wrong column and waiting on nobody.
-- Commits and pull requests say `Refs #N`, never `Closes #N`: no merge closes
-  an issue, because even a change that never leaves the repository enters
-  Post-deployment at its merge. Each repository has GitHub's auto-close
-  setting off (docs/1.6); the deploy settles its milestone, and anything else
-  is closed by hand (owner, 2026-10-26). Programme BAU work needs no issue: its commits say
+- **Commits and pull requests say `Refs #N`, never `Closes #N`** (owner,
+  2026-10-26; docs/1.2 §2.5): no merge closes an issue, and GitHub's
+  auto-close is off (docs/1.6). The deploy settles its milestone; the rest is
+  closed by hand.
+- **Programme business-as-usual (BAU) work needs no issue**: its commits say
   `Activity: <id>` from docs/1.4's register, and `Initiative: <id>` where there
   is one. BAU is its own triage, so a change that would benefit from a
-  project's controls, which docs/1.4's table decides by type of change, or one
-  to an asset BAU does not own, becomes a project, never a requirement. Every
-  subject starts with the application's stamp and a space; each application's
-  CLAUDE.md says what its stamp is.
+  project's controls (docs/1.4's table decides), or touches an asset BAU does
+  not own, becomes a project, never a requirement.
+- **Every commit subject starts with the application's stamp**, from its
+  CLAUDE.md, and a space.
 - **A commit on a project's branch says `Refs` for the work package it
-  delivers**, and need not name the requirements folded into it (docs/1.2 §2.5).
-  A rebase merge adds no commit of its own, so the author rewords any commit
-  written before its work package was raised. That happens before the branch's
-  first test deployment, or its merge where it has none.
-- Push immediately after committing. Until pushed, a change does not exist.
-  Run an unpushed script to test it, never to use it.
+  delivers**, and need not name the requirements folded into it (docs/1.2
+  §2.5). The author rewords one written before its work package was raised,
+  ahead of the branch's first test deployment, or of its merge if it has none.
+- **Push immediately after committing**: until pushed, a change does not exist.
+  Run an unpushed script only to test it.
 
 ## Deliveries and releases
 
-- A **delivery** is a change reaching its users — any update to a programme
-  asset, documents included. **Every change has one**, because it has to reach
-  main. A **release** is a new version of the application, delivered to
-  production with a new semver.
+- **A *delivery* is a change reaching its users, and every change has one**:
+  any update to a programme asset, documents included. A *release* is a new
+  version of the application, delivered to production with a new semver.
 - **A programme change reaches an application when its pin moves** (owner,
-  2026-11-09). A Docs and Programme Tooling delivery that changes anything
-  outside `records/` and `applications/` plans each application's pin move in
-  its steps (docs/1.2). Whoever runs a programme tool from an application
-  checks its pin first and moves it where the programme changed, except on a
-  release branch under test or an emergency cut from a tag (docs/1.1).
-- **Not every delivery has a milestone.** A change applied straight to main is
-  not assumed to be a single point in time, so it has no place in the sequence
-  the milestones are: no branch, no pull request, no milestone, no
-  delivery-log row. Its record is the commit, which references the requirement
-  or project it serves — possibly more than one.
-- **A milestone marks a delivery made at one point in time**, and places it in
-  the sequence: the release semver where it includes a release, otherwise
-  **the day it lands**, `YYYY.MM.DD-n`, set then and never renamed. The two
-  are independent sequences (owner, 2026-11-03): a release's semver is fixed
-  when it is made, and a date says only when.
-- `Route` belongs to the **artefact**, and **a delivery has one route**. Work
-  touching artefacts with different routes is split into a delivery per route,
-  each taking the shape its own route needs. A project might deliver its script
-  changes first, then a configuration change applied in the console, then the
-  application — three deliveries, three routes, one project.
-- **Each of those deliveries is a work package, so each is tracked**, and the
-  route lives where the delivery does: the parent carries no `Route`.
-- **Documentation riding on a release is a pre-approved add-on.** A release that
-  also touches documents stays one delivery with one semver milestone: the
-  documents need no dated milestone, no second pull request and no row of their
-  own. They are on the project branch already, reviewed in the same diff, and
-  live when the release is. A document carried along does not make a second
-  delivery.
-- So there are two shapes: straight to main, recorded by its commits; or held
-  back on a branch, which then owes a pull request, a milestone and a row in
-  the delivery log. The branch is what makes a delivery a point in time; the
-  milestone is what places that point in the sequence.
-- **A Requirement never carries a milestone.** A requirement is a statement
-  that something should be true; it delivers either by folding into a project,
-  and then the project's work package carries the milestone, or straight to
-  `main` as pre-approved, with none. A milestone on a requirement means a
-  delivery happened with no work package to own it. An application's deploy
-  script can warn about this.
-- **Milestones are only semvers and dates** — owner, 2026-10-26 and 2026-11-03.
-  `pre-approved`, `no-release`, `patch`, `minor` and `major` are retired;
-  `Route`, `Type of change` and the requirement and project states carry their
-  meaning (docs/1.2 §2.15).
-- **A routine update owes what its route owes, and nothing more.** A
-  `Production Release` bump (a base image, a dependency, the toolchain) reaches
-  `main` by pull request, so CI is its regression check, and waits for the next
-  release, whose regression testing is the last one; it never justifies a
-  release of its own. Every update is tested for what it changes, on preview and
-  rehearsal (where the application has them) at the branch tip where only a
-  deployed stack can show it. A new toolchain or major version gets a look at
-  its new features; anything that might be worth considering is raised as a
-  requirement, which judges it. Host maintenance (a host package, the container
-  runtime, a kernel, a reboot, hand-set host configuration) has no release to
-  ride, so it is the infrastructure application's delivery: a work package and a
-  row in its delivery log, numbered by date. What an application installs on its
-  host (its scripts, systemd units and the packages it needs) is its release.
-  `docs/1.2` §2.2.1 is the table, and §2.15 the rule.
-- **A dependency update takes the least ceremony its route allows.** An
-  `Application Tooling` one, a GitHub Actions bump, takes none: its pull
-  request and commit message are the record (owner). A `Production Release`
-  one, a base image, a library or an advisory's fix, whoever raised it, is a
-  row in the release's dependency update project, `#N Dependency updates for
-  X.Y.Z`, whose body is a fixed template, so it is tracked to production
-  without a project of its own (owner, 2026-11-04; docs/1.2 §2.2.1). A host
-  change the owner decides on — the kernel and package work of 2026-09-19 —
-  takes its own work package, a date milestone and a row.
-- **A change to one of our own assets that reaches the image takes a new
-  semver**, not a date: each application's artefact register (`3.n.2`) lists
-  them, and changing one is a Production Release. The date form is for a
-  delivery that ships **no** application code at all: a tooling merge, a
-  console change, a drill, host maintenance.
-- **Every delivery is one or more work packages**, each carried by a sub-project
-  or by the parent. Work packages sharing a milestone are delivered together,
-  and that grouping has no issue of its own — the milestone is what identifies
-  it. A parent lists what it delivers, each row naming the work packages that
-  share a milestone or saying straight to main. The four cases are in docs/1.2
-  §1.1.
+  2026-11-09; docs/1.1, docs/1.2). A Docs and Programme Tooling delivery
+  changing anything outside `records/` and `applications/` plans each pin
+  move in its steps. Whoever runs a programme tool from an application first
+  moves the pin where the programme changed, except on a release branch under
+  test or in an emergency.
+- **The route decides a delivery's shape** (docs/1.2 §1.0, §1.1):
+
+  | Route | Milestone | Branch and pull request | Delivery log |
+  | --- | --- | --- | --- |
+  | Docs and Programme Tooling, straight to `main` | none | none, except a web session's own pull request | none |
+  | Other, by hand | a date | none | a row |
+  | Other, host maintenance | the infrastructure application's date | none | a row in its log |
+  | Application Tooling | a date | yes | a row |
+  | Production Release | a semver | yes | a row |
+
+  A change straight to `main` is not one point in time; its record is the
+  commit, citing what it serves.
+- **A milestone marks a delivery made at one point in time** and places it in
+  the sequence: the semver where it includes a release, otherwise the day it
+  lands, `YYYY.MM.DD-n`, set then and never renamed. **Milestones are only
+  semvers and dates, two independent sequences** (owner, 2026-10-26 and
+  2026-11-03): a release's semver is fixed when it is made, and a date says
+  only when. `pre-approved`, `no-release`, `patch`, `minor` and `major` are
+  retired (docs/1.2 §2.15).
+- **A change to an application's own asset that reaches the image takes a new
+  semver**, being a Production Release; its artefact register (`3.n.2`) lists
+  them.
+- **`Route` belongs to the artefact, and a delivery has one route.** Work
+  touching artefacts with different routes is split into a delivery per route.
+- **Documentation riding on a release is a pre-approved add-on**: still one
+  delivery under the release's semver, with no milestone, pull request or row
+  of its own.
+- **A Requirement never carries a milestone.** It delivers by folding into a
+  project, whose work package carries the milestone, or straight to `main` with
+  none. An application's deploy script can warn about a milestone on a
+  requirement.
+- **A routine update owes what its route owes, and nothing more** (docs/1.2
+  §2.2.1, §2.15):
+  - a Production Release bump reaches `main` by pull request, CI its regression
+    check, rides the next release and never justifies one;
+  - each update is tested for what it changes, on preview and rehearsal (where
+    the application has them) at the branch tip, where only a deployed stack
+    can show it;
+  - a new toolchain or major version gets a look at its new features, and
+    anything worth considering is raised as a requirement;
+  - host maintenance (a host package, the container runtime, a kernel, a
+    reboot, hand-set host configuration) is the infrastructure application's
+    delivery, numbered by date; what an application installs on its host (its
+    scripts, systemd units and the packages it needs) is its release.
+- **A dependency update takes the least ceremony its route allows**:
+  - an Application Tooling one takes none: its pull request and commit message
+    are the record (owner);
+  - a Production Release one, whoever raised it, is a row in the release's
+    dependency update project, `#N Dependency updates for X.Y.Z`, with no
+    project of its own (owner, 2026-11-04);
+  - a host change the owner decides on is host maintenance.
+- **Every delivery is one or more work packages**, each carried by a
+  sub-project or by the parent (docs/1.2 §1.1). Packages sharing a milestone
+  are delivered together, a grouping with no issue of its own. A parent lists
+  what it delivers, each row naming the packages that share a milestone or
+  saying straight to main.
 - **A project that is one package is its own work package; otherwise every
-  package in a milestoned delivery has a sub-project**, which shows it on the
-  board and gives its tests a home of their own. A delivery with no milestone
-  may have one to carry its own steps, tests or checks; docs/1.2 has the
-  table.
-- A work package is titled `#N WP A Del 1 of 2: what it delivers`, a parent
-  `#N MAIN PROJECT: what it is`. `pt P of Q` is added only where a delivery
-  carries more than one package, and the packages of one change split by route,
-  developed and tested together, may share a letter: `WP A1`, `WP A2`. The
-  counts go stale and are kept anyway: a title saying `Del 1 of 2` is wrong
-  loudly where `Del 1` is silently incomplete. They are derivable from the
-  milestones; nothing checks them yet.
-- The parent owns the requirements, the design and the documents; a work package
-  links to them and carries its own artefacts, test approach and post-deployment
-  checks, because a check is answered per delivery. A parent with sub-projects
-  (a parent with none is the work package) carries no milestone and no Route. A
-  milestone says the issue represents a delivery, and a parent has no delivery
-  role; a Route answers how a change reaches its users. Settling a milestone
-  leaves a parent out. `board-check.py` reports a Route on a parent, because in
-  delphside/tile-lite-elite#297 parents were given routes to silence a report
-  that had asked for the wrong thing.
-- The parent runs Scope, the queue, and Design and Test Approach, then stops —
-  oversight is a design role. It may reach Post-deployment for a requirement no
-  single delivery satisfies, and Project Closedown to close. A work package may
-  delegate lessons learnt to the parent, and says so.
-- **A release is made once, at the end of regression; deploying it is
-  choosing a version.** Making the release, once the test manager has checked
-  the regression results and the owner judges rehearsal passed, checks the
-  milestone, writes the release record, tags the version and
-  bumps `main` to the next patch; the deploy checks only the record, the schema
-  and a smoke test. docs/1.2 *Making a release, then deploying it* has the
-  steps.
-- A release milestone is a shipping list: move out what is not shipping before
-  the release is made (docs/1.2 §2.5).
+  package in a milestoned delivery has a sub-project.** A delivery with no
+  milestone may have one for its steps, tests or checks (docs/1.2).
+- **A work package is titled `#N WP A Del 1 of 2: what it delivers`, a parent
+  `#N MAIN PROJECT: what it is`** (docs/1.2 *Naming*). The counts are kept
+  though they go stale; nothing checks them yet.
+- **The parent owns the requirements, the design and the documents**; a work
+  package links to them and owns its artefacts, test approach and
+  post-deployment checks.
+- **A parent with sub-projects carries no milestone and no Route**; settling a
+  milestone leaves it out, and `board-check.py` reports a Route on one.
+- **The parent runs Scope, the queue and Design and Test Approach, then
+  stops**, reaching Post-deployment only for a requirement no single delivery
+  satisfies, and Project Closedown to close. A work package may delegate
+  lessons learnt to the parent, and says so.
+- **A release is made once, at the end of regression; deploying it is choosing
+  a version.** Making it, once the test manager has checked the regression
+  results and the owner judges rehearsal passed, checks the milestone, writes
+  its record, tags the version and bumps `main` to the next patch; a deploy
+  checks only the record, the schema and a smoke test (docs/1.2 *Making a
+  release, then deploying it*).
+- **A release milestone is a shipping list**: move out what is not shipping
+  before the release is made (docs/1.2 §2.5).
 - **A change merged after the build for *rehearse the release* started waits
-  for the next release** (owner, 2026-11-18; docs/1.2 *Scheduling a
-  release*):
+  for the next release** (owner, 2026-11-18; docs/1.2 *Scheduling a release*):
   - it joins this release only for a good reason the owner accepts, and the
     regression then runs again;
   - a change that cannot wait for the next release is an emergency.
-- An issue whose change went straight to main has no milestone, and is
-  closed by hand; no deploy settles it.
-- After deploying, run the application's verification and trust exit status,
-  not read output. Each application's CLAUDE.md names its script and says
-  what a deploy does.
+- **After deploying, run the application's verification and trust its exit
+  status**, not its output; its CLAUDE.md names it and what a deploy does.
 - **A change to production is the owner's to run; either may read it, Claude
-  by default** (owner, 2026-09-21 and 2026-11-18). Ask him for a change, or
-  for a read Claude cannot reach; he runs it, and Claude works from what comes
-  back.
-  - A change, such as a deploy, a database write, a restart or a
-    configuration change: the owner's.
-  - A read, such as the deployed version and commit, an admin listing, a
-    database query or a log dump: Claude's by default, where it can reach
-    production, and the owner's whenever he chooses.
-  - Copying production's data into a rehearsal whose access is closed, during
-    technical testing or a deployment rehearsal where it is needed: Claude's.
-  - Copying it anywhere else: the owner's, as it changes who can see it.
+  by default** (owner, 2026-09-21 and 2026-11-18). Claude asks him for a
+  change, or a read it cannot reach, and works from what comes back:
+  - a change (a deploy, a database write, a restart, a configuration change):
+    the owner's;
+  - a read (the deployed version and commit, an admin listing, a database
+    query, a log dump): Claude's where it can reach production, the owner's
+    whenever he chooses;
+  - copying production's data into a closed-access rehearsal, where technical
+    testing or a deployment rehearsal needs it: Claude's; elsewhere: the
+    owner's, as it changes who can see it.
 
 ## Tests, checks and decisions
 
 - **Reading jobs with a defined file set, and a work package's change, go to an
   agent; triage, decisions and anything touching production stay with Claude.**
-  Each agent runs on the model its file sets, and a review runs in rounds until
-  one finds no material issue — owner, 2026-10-14. docs/1.1 has which model, how
-  a round runs and what makes a good agent task. A document change is reviewed
-  by `document-reviewer-reader` and `document-reviewer-truth`, against
-  docs/1.5's house style, and a pull request carrying code by `change-reviewer`,
-  whoever wrote the code; a pull request a bot opened owes no review rounds.
-- Test conditions derive from stated rules, not from the code. Each
-  application's rules are stated in its own documents, and the programme
-  tooling's in the programme's numbered documents.
-- A gate refuses and work stops; a check reports and a person decides. A new
-  check is shown to fail before it ships.
-- **Every checkbox names whose move it is**: `- [ ] **owner** — run the six
-  browser tests`, or `- [ ] **Claude** — write the regression tests`. The label
-  is on the box, not inferred from its heading, so a box keeps its owner when
-  it moves and a reader sees whose it is without scrolling up. An unlabelled
-  box is waiting on nobody, and `board-check.py` reports it.
-- A decision is applied in the same commit that marks it answered, or an
-  issue is raised and named in the decision.
+  An agent runs on the model its file sets; a review runs in rounds until one
+  finds nothing material (owner, 2026-10-14; docs/1.1). A document change is
+  reviewed against docs/1.5 by `document-reviewer-reader` and
+  `document-reviewer-truth`, a pull request carrying code by `change-reviewer`
+  whoever wrote the code, and a bot's pull request owes no rounds.
+- **Test conditions derive from stated rules, not from the code**: an
+  application's in its documents, the programme tooling's in the numbered ones.
+- **A gate refuses and work stops; a check reports and a person decides.** A
+  new check is shown to fail before it ships.
+- **Every checkbox names whose move it is**, on the box itself:
+  `- [ ] **owner** — run the browser tests` or `- [ ] **Claude** — write the
+  tests`. `board-check.py` reports an unlabelled box, which waits on nobody.
+- **Claude applies a decision in the same commit that marks it answered**, or
+  raises an issue and names it in the decision.
 - **A project answers its decisions in order**: document structure, then
-  functional requirements, then technical decisions, delivery planning last.
-  docs/1.2 *Decisions* has why.
+  functional requirements, then technical decisions, delivery planning last
+  (docs/1.2 *Decisions*).
 - **A project's decisions are logged by link**: closed once applied, cited in a
   footnote where the design states the conclusion, and listed in a Decisions
-  table in the project's body (owner, 2026-09-29). docs/1.2 has the detail.
-- A decision is not a change vehicle. It routes work: raise a requirement, add
-  one to a project, update a project or the documents, or close something. It
-  may make a pre-approved change only where no suitable requirement or project
-  exists. So it takes no semver and no dated milestone, and no delivery-log
-  row.
+  table in the project's body (owner, 2026-09-29; docs/1.2).
+- **A decision is not a change vehicle; it routes work** (docs/1.2
+  *Decisions*): it raises a requirement, adds one to a project or updates a
+  project. It makes a pre-approved change (a document, a small tooling change,
+  a closure) only where no suitable requirement or project exists, so it takes
+  no semver and no dated milestone; it has no delivery-log row either.
 
 ## Documentation
 
 - **Look up the industry's word before inventing one, and look inside the
-  standard you have already adopted** (owner, 2026-09-21 and 2026-09-22): ITIL,
-  where it has the practice. Take the term and the shape of the practice, leave
-  the ceremony that needs more people than this has, and say which practice an
-  answer came from. docs/1.2 has the mapping tables.
-- **The first rule did not stop it, so here is the test.** On 2026-09-22, in the
-  commit adopting C4, I invented a view called *Runtime* that C4 already has as
-  *Dynamic*, and labelled a Deployment diagram as a Container one. Before naming
-  anything: **read the standard's own list, including its supplementary parts**,
-  then look at one neighbouring standard. A name only this repository knows is a
-  cost paid by every future reader, and *we named it ourselves* is never the
-  reason to keep one.
+  standard already adopted** (owner, 2026-09-21 and 2026-09-22): ITIL, where it
+  has the practice. Take its term and shape, leave ceremony needing more people
+  than this has, and say which practice an answer came from (docs/1.2).
+- **Before naming anything, read the standard's own list, including its
+  supplementary parts, then one neighbouring standard**: C4's *Dynamic* view was
+  once reinvented as *Runtime*. A name only this repository knows costs every
+  future reader, and *we named it ourselves* is never the reason to keep one.
 - **An issue or pull request is named by its number and its title**, as
-  `#N *title*`, wherever Claude names one (owner, 2026-11-16). A bare number
-  makes the reader look it up.
-  - It covers documents, issue bodies, comments, pull request bodies, commit
-    message bodies and the chat, Claude's questions to the owner included. A
-    commit body gives the title in quotation marks, `#N "title"`, since git
-    shows asterisks as typed. A commit subject and a pull request's own
-    title stay as they are.
-  - The repository goes before the number, as `delphside/programme#N`, where
-    it is another repository's, and always in the chat, which spans every
-    application.
-  - A project's or work package's title drops its own leading `#N`.
-  - A line the tooling reads takes the form it parses: a `Refs #N` trailer
-    takes no title, and a dependency is one line each, `**waits on #N**
-    *title*: why` or `**is needed by #N** *title*: why`. A dependency on
-    another repository's issue takes its repository, as
-    `**waits on delphside/programme#N** *title*: why`, and `board-check.py`
-    checks only those in the issue's own repository for a GitHub link.
-  - A paragraph written before 2026-11-16 takes the form when it is next
-    edited; records, closed issues and posted comments stay as they are.
-- One fact, one home. The rule lives in its owning document, the argument in
-  the issue, and every other mention is a link.
-- **Where two documents disagree, or a document and the code, read the
-  commit history to learn how the disagreement came about before resolving
-  it** (owner, 2026-11-09 and 2026-11-16). The change-a-document skill has
-  the steps.
-- **Every setting is listed in the application's (3+n).4.1.** Deployment
-  settings (addresses, keys, hosts) are environment variables; product
-  settings (defaults, rate limits, retention, time limits) are one code module
-  per area. Owner, 2026-10-17; docs/1.5 says where settings are listed,
-  docs/1.10 how they are held.
-- **Each numbered document covers one scope**, set by its number (docs/1.5
-  owns the scheme). A document says what is true now with at most a
-  line of reason. History, argument and quotations go in the issue or the
-  commit. docs/1.5 has the detail.
-- **The documents live; the issues expire** (owner, 2026-09-21). A `docs/N.N`
-  file answers what is true now and is edited whenever that changes. An issue
-  answers what was argued and when, and once it closes that is all it answers.
-  So when something changes, change the document — do not edit a closed issue to
-  agree with it, and do not cite one as the authority for a rule. A line added
-  to a closed issue at the moment it is superseded is a record; editing one to
-  keep it true is the thing to avoid.
-- At a process step, consult the owning document. A process question with a
-  choice still open is a **`Decision` issue** — the GitHub issue type, carrying
-  `Decision State` and an `Agreed Decision` heading that `board-check.py`
-  reads — and is applied to the one place that part of the process is
-  documented, then closed. A process answer that is already settled skips the
-  issue and goes straight to that document and this page. The
-  process-definition glossary holds D1 to D38 and is history: it predates the
-  issue type and is not added to.
-- A change document lives in its issue's folder under its application's
-  `3.n.7-changes/`, or under `records/2.5-changes/` for the programme's own,
-  named for the parent project — a work package has no folder of its own.
-- **A report the programme produces on a cadence goes in the records, in a folder
-  named for the report (`records/2.4-weekly-digest/`, each application's
-  `3.n.3-capacity-plan/`), one file per period, named `<OWNER>_<CODE>_<period>.md`, where the owner's code is the application's in
-  records/2.1, or `PRG` for a programme-wide report.** Owner, 2026-09-22 —
-  the name has to mean something once it has left the folder. It is neither a numbered document
-  nor a change document: it records what was true at a moment, may be
-  regenerated until the owner has reviewed it (owner, 2026-09-27), and
-  afterwards is corrected but never reworked: a broken link or a wrong value is
-  fixed, and the content is not kept open (owner, 2026-10-27). It is not
-  superseded by the next one — the series is what carries the meaning.
+  `#N *title*`, wherever Claude names one (owner, 2026-11-16):
+  - a commit body uses `#N "title"`; a commit subject or pull request title
+    stays as it is;
+  - another repository's number, and any in the chat, takes its repository:
+    `delphside/programme#N`;
+  - a project's or work package's title drops its own leading `#N`;
+  - a line the tooling reads keeps its parsed form: a `Refs #N` trailer takes
+    no title, and a dependency is one line, `**waits on #N** *title*: why` or
+    `**is needed by #N** *title*: why`, its repository first where another's;
+  - text written before 2026-11-16 takes the form when next edited; records,
+    closed issues and posted comments stay as they are.
+- **One fact, one home.** The rule lives in its owning document, the argument
+  in the issue, and every other mention is a link.
+- **Where two documents disagree, or a document and the code, read the commit
+  history for how the disagreement came about before resolving it** (owner,
+  2026-11-09 and 2026-11-16; the change-a-document skill).
+- **Every setting is listed in its application's (3+n).4.1** (owner,
+  2026-10-17): deployment settings (addresses, keys, hosts) are environment
+  variables, product settings (defaults, rate limits, retention, time limits)
+  one code module per area (docs/1.5, docs/1.10).
+- **Each numbered document covers one scope**, set by its number, and says what
+  is true now with at most a line of reason; history, argument and quotations
+  go in the issue or commit (docs/1.5).
+- **The documents live; the issues expire** (owner, 2026-09-21). When something
+  changes, change the document: never edit a closed issue to agree with it or
+  cite one as a rule's authority, though a line added to a closed issue as it
+  is superseded is a record.
+- **At a process step, consult the owning document.** A process question with
+  a choice still open is a `Decision` issue (*The work*), applied to the one
+  place that part of the process is documented, then closed. The
+  process-definition glossary's D1 to D38 are history, not added to.
+- **A change document lives in its parent project's folder**, under its
+  application's `3.n.7-changes/` or the programme's `records/2.5-changes/`; a
+  work package has none.
+- **A report the programme produces on a cadence goes in the records, one file
+  per period, in a folder named for the report** (owner, 2026-09-22; docs/1.2
+  §2.4):
+  - `records/2.4-weekly-digest/` or an application's `3.n.3-capacity-plan/`,
+    each file `<OWNER>_<CODE>_<period>.md`, the owner being the application's
+    code in records/2.1, or `PRG` programme-wide, and the code the report's;
+  - it is neither a numbered nor a change document, and the next one does not
+    supersede it;
+  - it may be regenerated until the owner has reviewed it (owner, 2026-09-27),
+    and is afterwards corrected but never reworked (owner, 2026-10-27).
 - **Templates live together in `docs/templates/`, and the numbered document that
-  owns the rule links to them** (owner, 2026-09-22). The document owns the rule
-  and carries the reasoning; the template carries the form and no argument. A
-  new template owes that link, or nobody finds it at the moment they need it.
-  The forms GitHub offers when an issue or pull request is opened stay in
-  `.github/`, because GitHub reads them only there.
+  owns the rule links to them** (owner, 2026-09-22): a template carries the
+  form and no argument. GitHub's issue and pull request forms stay in
+  `.github/`, where it reads them.
 
 ## Where the detail is
 
 | For | Read |
 | --- | --- |
-| the lifecycle in full, and why | docs/1.2 |
-| programme and application, and the workstreams and what each owns | docs/1.3 |
-| roles, who decides, and each role's reading list | docs/1.7 |
-| the service desk: how a Ticket arrives, is answered and closed | docs/1.8 |
-| the test policy and strategy, and the standards every test is held to | docs/1.9 |
-| how code is built: one place per rule, settings, identifiers, exit statuses, comments, each language's standard, toolchain and checks | docs/1.10 |
-| the recurring activities, what the weekly digest reports, and the rules of the improvement registers | docs/1.4; the registers themselves are records/2.7 |
-| every tool, and how it is run | docs/1.1 |
-| every field a change is classified by, and each artefact's route | docs/1.2 §2.15 |
-| artefacts outside git | each application's artefact register (3.n.2), and docs/1.6 for GitHub's |
-| the fields each issue carries, and the strings tooling matches | docs/1.6 |
-| agents: which work, which model, how a review runs | docs/1.1 *Claude's tooling* |
-| daily state | programme/scripts/board/board-inbox.py, programme/scripts/board/board-status.py, programme/scripts/board/board-actions.py |
-| where a fact belongs, before writing it | the layout in the root README, and the change-a-document skill |
-| how a document is written, and what it may hold | docs/1.5 |
-| raising or retitling any issue | the triage skill |
-| raising a project or work package: load it before creating the issue | the raise-project skill |
+| the lifecycle | docs/1.2 |
+| programme, application and workstreams | docs/1.3 |
+| roles and who decides | docs/1.7 |
+| the service desk | docs/1.8 |
+| the test policy | docs/1.9 |
+| how code is built | docs/1.10 |
+| activities, the digest, improvement registers | docs/1.4; records/2.7 |
+| classifying a change, and routes | docs/1.2 §2.15 |
+| artefacts outside git | each application's 3.n.2; docs/1.6 for GitHub's |
+| issue fields and the strings tooling reads | docs/1.6 |
+| every tool, agents and reviews | docs/1.1 |
+| daily state | `scripts/board/`'s `board-inbox.py`, `board-status.py`, `board-actions.py` |
+| where a fact belongs | the root README's layout; the change-a-document skill |
+| how a document is written | docs/1.5 |
+| raising or retitling an issue | the triage skill |
+| raising a project or work package | the raise-project skill, loaded first |
