@@ -201,10 +201,11 @@ docs/1.6 records the app it works through.
   delivers**, and need not name the requirements folded into it (docs/1.2
   §2.5). The author rewords one written before its work package was raised,
   ahead of the branch's first test deployment, or of its merge if it has none.
-- **Before editing a file another thread might change, a thread checks it
-  with `board-overlap.py`, settles the order with any thread listed, and names
-  it on its pull request's `Claims:` line from its first push** (owner,
-  2026-11-23; docs/1.2 *Naming the files a change will touch*).
+- **Before editing a file another thread might change, a thread checks the
+  file with `board-overlap.py` and settles the order with any thread listed;
+  with a pull request, it names the file on the `Claims:` line from its first
+  push** (owner, 2026-11-23; docs/1.2 *Naming the files a change will
+  touch*).
 - **Push immediately after committing**: until pushed, a change does not exist.
   Run an unpushed script only to test it.
 
