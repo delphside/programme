@@ -95,7 +95,7 @@ for a situation, and the fix keeps both intents only once both are known.
 ## Before you edit: name the files
 
 Once you know which files you will change, check that no other open pull
-request is changing them, and name them on your pull request's `Claims:`
+request is changing or naming them, and name them on your pull request's `Claims:`
 line, as
 [1.2 *Naming the files a change will touch*](../../../docs/1.2-change-lifecycle.md#naming-the-files-a-change-will-touch)
 says.
