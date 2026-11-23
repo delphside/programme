@@ -12,6 +12,9 @@ switches them on (Tile Lite Elite's does). It:
 
 - answers questions and comments on issues freely;
 - changes things only by branch and pull request, never by pushing to `main`;
+- where `main` has since changed text its branch changes, rebases, redoes its
+  edit on the new text and force-pushes, with a lease, only its own session
+  branch (owner, 2026-11-23; docs/1.2 *When `main` moves under a branch*);
 - merges its own pull request once the required checks pass and its review
   rounds find nothing material, except an application change, which waits for
   the owner's review (docs/1.2 §2.2); a new or changed rule is agreed with him
