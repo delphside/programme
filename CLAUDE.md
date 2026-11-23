@@ -12,7 +12,7 @@ switches them on (Tile Lite Elite's does). It:
 
 - answers questions and comments on issues freely;
 - changes things only by branch and pull request, never by pushing to `main`;
-- where `main` has since changed text its branch also changes, rebases,
+- where `main` has changed text that its branch also changes, rebases,
   redoes its edit on `main`'s text, force-pushes, with a lease, only to a
   branch of its own and has the parts that came out different reviewed again
   (owner, 2026-11-23; docs/1.2 *When `main` moves under a branch*);
