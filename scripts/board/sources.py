@@ -1490,6 +1490,12 @@ def rest_get(path: str):
         raise Unavailable(f"GitHub returned no JSON for {path}: {exc}", transient=_blip(exc)) from exc
 
 
+def rest_list(path: str) -> list:
+    """Every item of a REST list endpoint, a hundred to a page. A failure,
+    a missing endpoint included, raises `Unavailable`."""
+    return _Rest().list(path)
+
+
 def _rest_write(method: str, path: str, **fields) -> None:
     """A REST write. A string field goes as text (`-f`), a number or null as
     typed (`-F`), in the order given."""
