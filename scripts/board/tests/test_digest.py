@@ -27,7 +27,8 @@ import unittest
 from pathlib import Path
 
 from board.digest import (CONCLUDE, RoundCount, documents, note_records, review_rounds, unparsed, unrecorded, unlessoned_projects, lessons_in_notes, DRAFT, Digest, with_conclusions, Window, draft, in_window, issue_lessons,
-                          notes_for_write, notes_of, register_rows, render, section, MEASURED_AT)
+                          notes_for_write, notes_of, register_rows, render, section, MEASURED_AT, record_problems,
+                          unread_round_lines)
 from board.model import RawIssue
 from board.sources import MergedPullRequest
 
@@ -794,7 +795,7 @@ class DocumentRows(Cases):
 
     def test_misspelt_doc_lines_make_no_row(self):
         for line in ["- doc docs/a.md; type rule", "- Doc: docs/a.md; type rule", "- docs: docs/a.md; type rule",
-                     "* doc: docs/a.md; type rule", "doc: docs/a.md; type rule", "-doc: docs/a.md; type rule"]:
+                     "* doc: docs/a.md; type rule", "-doc: docs/a.md; type rule"]:
             self.expect(line, False, TABLE in week(pr(1, f"{line}\n- R1 none")))
 
     def test_missing_doc_field_is_shown_unread_and_counted(self):
@@ -1275,6 +1276,237 @@ class OwnerLines(Cases):
                     "From the notes below (changes with no pull request, and findings after a merge):" in text)
         self.expect("an owner line at the top level joins the note above", 1,
                     render(digest(reviews=[]), notes="- a note\n- owner — reviewed, none").count(CONCLUDE))
+
+
+PR229 = """R1 reader — 1.5 What is true now — the shallow-clone sentence named a depth that does not reach the rule's commit (also truth)
+R1 cost: reader 83k, 85%, 3 runs; truth 72k, 85%, 2 runs
+R2 truth — 1.5 What is true now — agents-common sent a reviewer to git log with no shallow-clone caveat
+R2 cost: reader 85k, 80%, 3 runs; truth 88k, 85%, 3 runs
+R3 none
+R3 cost: reader 85k, 85%, 2 runs; truth 87k, 85%, 2 runs
+owner — not reviewed"""
+
+
+class FormsAWriterWrites(Cases):
+    """Lines without a leading dash, `none material`, and an owner's bracketed note."""
+
+    def test_a_record_with_no_leading_dashes_reads_as_with_them(self):
+        c = RoundCount().add(PR229, rounds=True)
+        self.expect("findings", ({"reader": 1, "truth": 2}, 2, 0, 3, [], 500),
+                    (dict(c.by_reviewer), c.findings, c.owner, c.cost_lines, c.unread_lines, c.tokens))
+        dashed = "\n".join("- " + line for line in PR229.splitlines())
+        self.expect("the same as with dashes", RoundCount().add(dashed).summary(), c.summary())
+
+    def test_each_dashless_pattern_is_read(self):
+        for line in ["R1 reader — x — y", "R1 cost: reader 5k", "R3 none", "owner — not reviewed", "doc: docs/a.md; type rule"]:
+            self.expect(line, True, digest_reads(line))
+            self.expect(line + " is not unread", [], unread_round_lines(line))
+
+    def test_a_dashless_round_line_is_not_a_new_note_record(self):
+        notes = "- abc1234 rounds:\nR1 reader — x — y\nR1 cost: reader 5k\nowner — none\n- def5678 rounds:\nR1 none"
+        self.expect("two", 2, len(note_records(notes)))
+        rows, without, _ = documents("doc: docs/a.md; type rule\nR1 none", "w")
+        self.expect("a dashless doc: line is a row", 1, len(rows))
+
+    def test_a_prose_line_opening_with_a_round_is_not_shaped_like_one(self):
+        for prose in ["R1 found nothing.", "R1 is each document's two reviews plus two resumed checks.",
+                      "R11's two findings were both from a fix."]:
+            self.expect(prose, [], unread_round_lines(prose))
+
+    def test_a_dashless_line_shaped_like_a_round_line_is_counted(self):
+        for line in ["R1 reader x — y", "R2 — something"]:
+            self.expect(line, [line], unread_round_lines(line))
+
+    def test_none_material_is_none(self):
+        for line in ["- R1 reader — none material (minor: the preview bullet could be trimmed)",
+                     "- R3 change-reviewer — none material", "R2 reader — none material; one minor thing",
+                     "- R1 reader — none", "- R1 — none material", "R1 — none material (minor)"]:
+            c = RoundCount().add(line)
+            self.expect(line, (0, 0), (c.findings, c.owner))
+            self.expect(line + " is read", True, digest_reads(line))
+        self.expect("a round with only these is not unread", [], unread_round_lines("- R1 — none material"))
+        self.expect("none of is a finding", 1, RoundCount().add("- R1 reader — none of the links work").findings)
+
+    def test_an_owner_line_with_a_bracketed_note_is_no_finding(self):
+        for line in ["- owner — not reviewed (rules agreed in the chat)", "- owner — reviewed, none (the rules were agreed)",
+                     "owner — not reviewed (a) (b)"]:
+            self.expect(line, 0, RoundCount().add(line).owner)
+        self.expect("a count", 2, RoundCount().add("- owner — 1.5 *x* — y (count 2)").owner)
+        self.expect("a date", 1, RoundCount().add("- owner — 1.5 *x* — y (after merge, 2026-11-20)").owner)
+
+
+def digest_reads(line):
+    from board.digest import readable
+    return readable(line)
+
+
+GOOD = """None owed: x"""
+
+
+def record(text):
+    return "Intro\n\n## Review rounds\n\n" + text + "\n\n---\n"
+
+
+def from_docs_1_1():
+    doc = (Path(__file__).resolve().parents[3] / "docs" / "1.1-programme-tooling.md").read_text()
+    return re.findall(r"```text\n(.*?)```", doc, re.S)
+
+
+class RecordProblems(Cases):
+    """The check of a pull request body's *Review rounds* section."""
+
+    GOOD = ("- doc: docs/1.5.md; type rule; words 100; change applied; lines 3; places 1; last review never; terms added 0\n"
+            "- R1 reader — x — y\n- R1 cost: reader 5k, 80%\n- R2 none\n- R2 cost: reader 4k\n- owner — not reviewed")
+
+    def problems(self, text):
+        return record_problems(record(text))
+
+    def has(self, text, fragment):
+        found = [p for p in self.problems(text) if fragment in p]
+        self.assertTrue(found, f"{fragment!r} not in {self.problems(text)}")
+        return found
+
+    def test_a_good_record_has_none(self):
+        self.expect("none", [], self.problems(self.GOOD))
+
+    def test_the_docs_1_1_examples_have_none(self):
+        blocks = from_docs_1_1()
+        self.assertGreaterEqual(len(blocks), 2)
+        for block in blocks[:2]:
+            self.expect("example", [], self.problems(block))
+
+    def test_none_owed_has_none_whatever_else(self):
+        self.expect("none owed", [], record_problems("## Review rounds\n\nNone owed: a record"))
+        self.expect("with a dash", [], record_problems("## Review rounds\n\n- None owed: a record\n\nprose"))
+
+    def test_no_section_or_an_empty_one(self):
+        self.expect("no section", 1, len(record_problems("Just a body")))
+        self.expect("empty", 1, len(record_problems("## Review rounds\n\n---\n")))
+        self.expect("none body", 1, len(record_problems(None)))
+
+    def test_no_line_the_digest_reads(self):
+        self.expect("one for the line", 1, len(self.has("Round 1 found some things.", "no line of the record")))
+
+    def test_a_round_shaped_line_not_read_is_quoted(self):
+        self.has(self.GOOD + "\n- R9 reader found something", "- R9 reader found something")
+
+    def test_a_heading_that_is_not_level_4(self):
+        for hashes in ("###", "#####", "######"):
+            self.has(self.GOOD + f"\n\n{hashes} docs/x.md\n- R1 none", f"level {len(hashes)}")
+        self.expect("level 4 is fine", [], [p for p in self.problems(self.GOOD + "\n\n#### docs/x.md\n- doc: docs/x.md; type rule; words 1; change applied; lines 0; places 0; last review never; terms added 0") if "level" in p])
+
+    def test_a_document_with_no_doc_line_is_named(self):
+        text = ("- R1 cost: change 5k\n\n#### docs/a.md\n- doc: docs/a.md; type rule; words 1; change applied; lines 0; places 0; last review never; terms added 0\n"
+                "- R1 none\n\n#### docs/b.md\n- R1 none\n- owner — none")
+        self.expect("b only", 1, len(self.has(text, "docs/b.md")))
+        self.expect("a not", [], [p for p in self.problems(text) if "docs/a.md" in p])
+
+    def test_a_record_with_rounds_and_no_heading_and_no_doc_line(self):
+        self.has("- R1 none\n- R1 cost: reader 5k\n- owner — none", "no heading and no doc: line")
+
+    def test_doc_fields_not_read_are_counted(self):
+        self.has(self.GOOD.replace("words 100", "words 1,000"), "doc: fields not read: 1")
+
+    def test_a_round_with_no_cost_line_is_named(self):
+        text = self.GOOD.replace("- R2 cost: reader 4k\n", "")
+        self.expect("R2", 1, len(self.has(text, "no cost line for round R2")))
+        self.expect("two", 1, len(self.has(text.replace("- R2 none", "- R2 none\n- R3 none"), "round R2, R3")))
+
+    def test_no_cost_line_at_all(self):
+        text = "- doc: docs/a.md; type rule; words 1; change applied; lines 0; places 0; last review never; terms added 0\n- R1 none\n- owner — none"
+        self.expect("one", 1, len(self.has(text, "no cost line")))
+        self.expect("no round is named", [], [p for p in self.problems(text) if "for round" in p])
+
+    def test_no_owner_line(self):
+        self.has(self.GOOD.replace("\n- owner — not reviewed", ""), "no owner line")
+
+    def test_cost_figures_and_counts_not_read(self):
+        self.has(self.GOOD.replace("reader 5k, 80%", "reader 5000"), "cost figure")
+        self.has(self.GOOD.replace("- R1 reader — x — y", "- R1 reader — x — y (count two)"), "marker")
+        self.has(self.GOOD.replace("- R2 none", "- R2 none (count 3 )"), "marker")
+
+    def test_a_document_with_no_cost_line_under_its_heading_is_named(self):
+        doc = "- doc: docs/{0}.md; type {1}; words 1; change applied; lines 0; places 0; last review never; terms added 0\n"
+        text = ("#### docs/a.md\n" + doc.format("a", "rule") + "- R1 reader — x — y\n- R1 cost: reader 5k; truth 6k\n\n"
+                "#### docs/b.md\n" + doc.format("b", "rule") + "- R1 truth — x — z\n\n- owner — none")
+        self.expect("b", ["no cost line under docs/b.md for round R1"],
+                    [p for p in self.problems(text) if "cost line" in p])
+        code = "- R1 cost: change 3k\n\n" + text.replace("b.md; type rule", "b.md; type code")
+        self.expect("a code file's cost line is the record's", [],
+                    [p for p in self.problems(code) if "cost line" in p])
+        self.expect("and is still owed", ["no cost line under docs/b.md for round R1"],
+                    [p for p in self.problems(text.replace("b.md; type rule", "b.md; type code")) if "cost line" in p])
+        self.expect("the record's own cost line counts for every heading", [],
+                    [p for p in self.problems("- R1 cost: change 5k\n\n" + text) if "cost line" in p])
+
+    def test_the_record_s_own_rounds_need_their_cost_lines(self):
+        doc = "- doc: docs/a.md; type rule; words 1; change applied; lines 0; places 0; last review never; terms added 0\n"
+        text = ("- R1 change — 1.10 x — a finding spanning files\n- R2 none\n- R1 cost: change 5k\n\n"
+                "#### docs/a.md\n" + doc + "- R1 none\n- R1 cost: reader 5k\n\n- owner — none")
+        self.expect("R2", ["no cost line for round R2"], [p for p in self.problems(text) if "cost line" in p])
+
+    def test_rounds_under_a_code_file_with_no_cost_line_anywhere(self):
+        text = ("- R1 change — x — y\n\n#### scripts/a.py\n- doc: scripts/a.py; type code; words 1; change code; "
+                "lines 0; places 0; last review never; terms added 0\n- R1 change — x — z\n\n- owner — none")
+        self.expect("none", ["the record has rounds and no cost line"],
+                    [p for p in self.problems(text) if "cost line" in p])
+
+    def test_a_code_file_s_own_cost_line_counts(self):
+        text = ("#### scripts/a.py\n- doc: scripts/a.py; type code; words 5; change code; lines 1; places 1; "
+                "last review never; terms added 0\n- R1 change — x — z\n- R1 cost: change 5k\n\n- owner — none")
+        self.expect("none", [], [p for p in self.problems(text) if "cost line" in p])
+
+    def test_cost_lines_under_a_heading_with_no_doc_line_are_the_record_s(self):
+        text = ("- R1 reader — x — y\n- R2 none\n\n#### rules: three documents\n"
+                "- R1 cost: reader 5k\n- R2 cost: reader 4k\n\n- owner — none")
+        problems = self.problems(text)
+        self.expect("no cost message", [], [p for p in problems if "cost line" in p])
+        self.expect("the heading is reported", 1, len([p for p in problems if "no doc: line" in p]))
+
+    def test_a_finding_by_a_reviewer_the_digest_does_not_know(self):
+        text = self.GOOD.replace("- R2 none\n", "- R2 none — the fix to R1 holds\n")
+        self.has(text, "a reviewer the digest does not know (none;")
+        self.has(self.GOOD.replace("R1 reader", "R1 change-reviewer"), "(change-reviewer;")
+        self.expect("none material by any name is no finding", [],
+                    [p for p in self.problems(self.GOOD.replace("- R2 none\n", "- R2 change-reviewer — none material\n"))
+                     if "does not know" in p])
+
+    def test_several_doc_lines_with_no_heading(self):
+        doc = "- doc: docs/{0}.md; type rule; words 1; change applied; lines 0; places 0; last review never; terms added 0\n"
+        self.has(doc.format("b") + self.GOOD, "2 doc: lines and no #### heading")
+        self.has(doc.format("b") + self.GOOD + "\n\n```text\n#### eg\n```", "2 doc: lines and no #### heading")
+
+    def test_an_also_marker_naming_an_unknown_reviewer(self):
+        self.has(self.GOOD.replace("R1 reader — x — y", "R1 reader — x — y (also chnage)"), "(chnage;")
+
+    def test_a_finding_by_a_reviewer_its_cost_line_gives_no_figure(self):
+        text = self.GOOD.replace("- R1 reader — x — y\n", "- R1 reader — x — y\n- R1 truth — x — z\n")
+        self.has(text, "cost line gives no figure for: 1")
+
+    def test_a_second_or_capitalised_reviewer_is_checked(self):
+        self.has(self.GOOD.replace("R1 reader — x", "R1 reader and R1 chnage — x"), "(chnage;")
+        self.expect("capitalised is known", [],
+                    [p for p in self.problems(self.GOOD.replace("R1 reader — x", "R1 Reader — x")) if "does not know" in p])
+
+    def test_a_fenced_heading_does_not_split_the_record_s_cost_lines(self):
+        text = self.GOOD + "\n\n```text\n#### docs/eg.md\n- R3 reader — x — y\n```"
+        self.expect("fenced", [], [p for p in self.problems(text) if "cost line" in p])
+
+    def test_a_record_s_none_round_is_costed_by_its_documents(self):
+        doc = "- doc: docs/{0}.md; type rule; words 1; change applied; lines 0; places 0; last review never; terms added 0\n"
+        block = ("#### docs/{0}.md\n" + doc + "- R1 reader — x — y\n- R1 cost: reader 5k; truth 6k\n"
+                 "- R2 cost: reader 6k; truth 7k\n\n")
+        text = "- R2 none\n\n" + block.format("a") + block.format("b") + "- owner — reviewed, none"
+        self.expect("none", [], [p for p in self.problems(text) if "cost line" in p])
+        self.has(text.replace("- R2 cost: reader 6k; truth 7k\n", ""), "no cost line for round R2")
+
+    def test_a_heading_in_a_code_fence_is_not_flagged(self):
+        text = self.GOOD + "\n\n```text\n### not a heading\n```"
+        self.expect("fenced", [], [p for p in self.problems(text) if "heading of level" in p])
+
+    def test_programme_229_reads_but_has_no_doc_line(self):
+        found = record_problems("## Review rounds\n\n" + PR229)
+        self.expect("only the doc: line", ["the record has rounds and no heading and no doc: line"], found)
 
 
 if __name__ == "__main__":
