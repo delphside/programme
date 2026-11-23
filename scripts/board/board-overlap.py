@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""board-overlap.py — which open pull requests claim or change the same files.
+"""board-overlap.py — which open pull requests name or change the same files.
 
     board-overlap.py --files PATH... [--repo OWNER/REPO]   # before editing: who else has these?
     board-overlap.py --pr OWNER/REPO#N                     # that pull request's files, the others'
@@ -9,7 +9,7 @@
     board-overlap.py --exit-code ...                       # exit 1 when anything overlaps
 
 A pull request's files are the ones it changes (GitHub's `/files`) and the ones
-it claims, in the `Claims:` line of its body (`board/claims.py` says the form).
+it names, on the `Claims:` line of its body (`board/claims.py` says the form).
 `--files` and `--pr` list each other open pull request of the repository, which
 is the application's (its profile's) unless `--repo` names another, with a file
 in common, one line each:

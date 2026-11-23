@@ -1,15 +1,18 @@
-"""The files a pull request claims, and which pull requests share one.
+"""The files a pull request names, and which pull requests share one.
 
 Pure: no GitHub, no clock. `board-overlap.py` reads the pull requests and
 hands their facts here.
 
-A pull request claims the files it expects to change in one line of its body,
+A pull request names the files it expects to change in one line of its body,
 `Claims: path, path, …`. A path is relative to the repository root, bare or in
-backticks; one ending `/` claims the directory and everything below it. Paths
+backticks; one ending `/` names the directory and everything below it. Paths
 are split on commas and white space, so a path with a space in it is not
-supported. Only the first `Claims:` line counts,
-and text inside an HTML comment (`<!-- … -->`) is not read, so a template's comment
-explaining the form claims nothing.
+supported. Only the first `Claims:` line counts, and text inside an HTML
+comment (`<!-- … -->`) is not read, so a template's comment explaining the form
+names nothing. A `Claims:` line inside a fenced code block is read like any
+other, so a body that quotes the form quotes it inside a comment.
+
+"Names" here is not the board's *claim*, the `Claimed by` field (1.2 §2.24).
 """
 
 from __future__ import annotations
