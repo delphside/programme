@@ -29,7 +29,7 @@ class TheClaimsLine(unittest.TestCase):
         self.assertEqual(("a.md",), parse_claims("Claims: a.md, ./a.md,"))
 
     def test_text_in_an_html_comment_claims_nothing(self):
-        for body in ("<!-- Claims: a.md -->", "<!--\nClaims: a.md, b.md\n-->\nno claims", "x <!-- Claims: a.md"):
+        for body in ("<!-- Claims: a.md -->", "<!--\nClaims: a.md, b.md\n-->\nno claims", "<!--\nClaims: a.md"):
             self.assertEqual((), parse_claims(body), body)
 
     def test_a_real_line_after_a_comment_is_the_first(self):
