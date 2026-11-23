@@ -31,7 +31,8 @@ The board tooling reads these, so keep them as written:
 - *What is being requested* and *What is deliberately left out*, read by
   `board-check.py`;
 - *Review* and its opening `No review owed`, read by `board-pr-state.py`;
-- *Review rounds* and its opening `None owed`, read by the weekly digest.
+- *Review rounds* and its opening `None owed`, read by the weekly digest,
+  and checked on the pull request by `board-review-record.py`.
 -->
 
 Refs #N

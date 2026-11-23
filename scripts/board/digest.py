@@ -395,7 +395,7 @@ def unparsed(pull_requests) -> list[tuple[str, int, str]]:
 # `- R1 reader — text`, and with markers before the dash, `- R1 reader (on
 # resume) — …`, and a second reviewer, `- R1 reader and R1 truth (on resume) — …`
 # (both credited). The docs/1.1 form puts the markers at the end.
-_FINDING = re.compile(r"^\s*-\s*R\d+\s+(?P<who>\S+)(?:\s+and\s+R\d+\s+(?P<and>\S+))?"
+_FINDING = re.compile(r"^\s*(?:-\s*)?R\d+\s+(?P<who>\S+)(?:\s+and\s+R\d+\s+(?P<and>\S+))?"
                       r"(?P<marks>(?:\s+\([^)]*\))*)\s+—\s*(?P<text>.*)$")
 # `(also truth)`, or with words after the reviewer, `(also truth, minor)`.
 _ALSO = re.compile(r"\(also ([^\s,)]+)(?:,[^)]*)?\)")
@@ -403,22 +403,31 @@ _ALSO = re.compile(r"\(also ([^\s,)]+)(?:,[^)]*)?\)")
 # finding, or `(from a fix to owner)`; an older record's bare `(from a fix)`
 # names no finding.
 _FROM_FIX = re.compile(r"\(from a fix(?: to (?:R\d+ )?([^)]+?))?\)")
-_OWNER = re.compile(r"^\s*-\s*owner\s+—\s*(.*)$")
+_OWNER = re.compile(r"^\s*(?:-\s*)?owner\s+—\s*(.*)$")
 # What the owner's line says when he found nothing, or did not review.
 _OWNER_NO_FINDING = re.compile(r"(none|not reviewed|reviewed\s*[,—]\s*none)", re.I)
-_NONE = re.compile(r"^\s*-\s*R(\d+)\s+none\b")
+# `R3 none`, or `R3 — none material` with no reviewer named.
+_NONE = re.compile(r"^\s*(?:-\s*)?R(\d+)\s+(?:none\b|—\s*none material\b)")
+# A finding line whose text says it found nothing material: `none`, or `none
+# material` with a note after it. `none of …` is a finding.
+_NO_FINDING = re.compile(r"none(?:\s+material\b.*)?", re.I | re.S)
+# A trailing parenthesised note on an owner's line: `not reviewed (rules agreed)`.
+_NOTES = re.compile(r"(?:\s*\([^)]*\))+\s*$")
 # `- doc: docs/1.2.md; type rule; words 16946; …`, the document's inputs.
-_DOC = re.compile(r"^\s*-\s+doc:(.*)$")
+_DOC = re.compile(r"^\s*(?:-\s+)?doc:(.*)$")
 # `(count 5)`: the line is five material findings. Only this form is read; any
 # other `(count …)` is text, counted as not read.
 _COUNT = re.compile(r"\(count ([1-9]\d*)\)")
 _COUNT_ANY = re.compile(r"\(\s*count(?![a-z])[^)]*\)", re.I)
-_COST = re.compile(r"^\s*-\s*R\d+\s+cost:\s*(.*)$")
-_ROUND = re.compile(r"^\s*-\s*R(\d+)")
+_COST = re.compile(r"^\s*(?:-\s*)?R\d+\s+cost:\s*(.*)$")
+_ROUND = re.compile(r"^\s*(?:-\s*)?R(\d+)")
 # A line shaped like a round line, whether or not it is read: a bullet opening
-# `R<n>`, or a table row whose first cell is `R<n>`, or a bare number under a
+# `R<n>`; a line opening `R<n>` with no bullet that has a dash after it or
+# after some words (a cost or none line is read before this is asked), so a
+# sentence opening `R1 is …` is prose; a table row whose first cell is `R<n>`; or a bare number under a
 # round heading.
-_ROUND_SHAPED = re.compile(r"^\s*-\s*R\d+\b|^\s*\|\s*R\d+\s*\|")
+_ROUND_SHAPED = re.compile(r"^\s*-\s*R\d+\b|^\s*R\d+\s+(?:—|\S+.*\s—(?:\s|$))"
+                           r"|^\s*\|\s*R\d+\s*\|")
 _NUMBER_ROW = re.compile(r"^\s*\|\s*\d+\s*\|")
 _ROUND_HEADING = re.compile(r"^#{1,6}\s+.*\bround", re.I)
 _SPENT = re.compile(r"([A-Za-z]+)\s+(\d+(?:\.\d+)?)k\b", re.I)
@@ -550,7 +559,7 @@ class RoundCount:
                 self.unread_counts += bool(_COUNT_ANY.search(line))
                 continue
             if m := _FINDING.match(line):
-                if m["text"].strip().lower() == "none":
+                if _NO_FINDING.fullmatch(m["text"].strip()):
                     continue
                 n = self._weight(m["marks"] + " " + m["text"])
                 self.findings += n
@@ -575,7 +584,7 @@ class RoundCount:
                 self.on_resume += n * ("(on resume)" in line)
                 self.missed += n * ("(missed in R" in line)
             elif m := _OWNER.match(line):
-                if not _OWNER_NO_FINDING.fullmatch(m.group(1).strip()):
+                if not _OWNER_NO_FINDING.fullmatch(_NOTES.sub("", m.group(1).strip())):
                     self.owner += self._weight(m.group(1))
             elif _NONE.match(line):
                 self.unread_counts += bool(_COUNT_ANY.search(line))
@@ -723,7 +732,14 @@ def _doc_line(rest: str):
 
 def documents(text: str, where: str) -> tuple[list[Document], int, int]:
     """The documents of one record, from its `doc:` lines: the rows, the
-    reviewed documents with no `doc:` line, and the fields not read. Under a
+    reviewed documents with no `doc:` line, and the fields not read."""
+    rows, lacking, unread = _documents(text, where)
+    return rows, len(lacking), unread
+
+
+def _documents(text: str, where: str) -> tuple[list[Document], list[str | None], int]:
+    """`documents`, with the reviewed documents that have no `doc:` line named
+    by their heading, or None for a record with no heading. Under a
     `####` heading the lines belong to that document; lines before the first
     belong to the record, and a record with no heading is one document, as a
     commit's note is. A row shows its block's rounds, findings and tokens, so
@@ -739,7 +755,7 @@ def documents(text: str, where: str) -> tuple[list[Document], int, int]:
         else:
             blocks[-1][1].append(("" if fenced or line.strip().startswith("```") else line))
     headed = len(blocks) > 1
-    rows, without, unread = [], 0, 0
+    rows, lacking, unread = [], [], 0
     for heading, lines in blocks:
         found = []
         for line in lines:
@@ -753,7 +769,8 @@ def documents(text: str, where: str) -> tuple[list[Document], int, int]:
         if not found:
             # A heading is a document, whatever is under it; without one, a record
             # that holds rounds is a single document.
-            without += heading is not None or (not headed and bool(rounds))
+            if heading is not None or (not headed and rounds):
+                lacking.append(heading)
             continue
         c = RoundCount().add("\n".join(lines))
         for path, fields in found:
@@ -763,7 +780,109 @@ def documents(text: str, where: str) -> tuple[list[Document], int, int]:
                 row.cost_lines, row.partial = c.cost_lines, c.unread_figures > 0
                 row.tokens = c.tokens if c.figures_read else None
             rows.append(row)
-    return rows, without, unread
+    return rows, lacking, unread
+
+
+def _outside_fences(lines: list[str]) -> list[str]:
+    """The lines outside code fences, without the fence lines themselves."""
+    out, fenced = [], False
+    for line in lines:
+        if line.strip().startswith("```"):
+            fenced = not fenced
+        elif not fenced:
+            out.append(line)
+    return out
+
+
+def _uncosted(lines: list[str]) -> list[str]:
+    """The rounds a record or a document gives no cost line for (docs/1.1):
+    with no `####` headings, over the record; with them, under each document's
+    heading, a round's cost line under the heading or among the record's own
+    lines before the first heading, where a code file's goes, counting for it."""
+    def rounds(block, pattern):
+        return {int(_ROUND.match(line).group(1)) for line in block if pattern(line)}
+
+    def said(block):
+        return {int(_ROUND.match(line).group(1)) for line in block
+                if _FINDING.match(line) or _NONE.match(line)}
+
+    blocks: list[tuple[str | None, list[str]]] = [(None, [])]
+    for line in _outside_fences(lines):
+        if m := _HEADING4.match(line):
+            blocks.append((m.group(1), []))
+        else:
+            blocks[-1][1].append(line)
+    every = [line for _, block in blocks for line in block]
+    if said(every) and not rounds(every, _COST.match):
+        return ["the record has rounds and no cost line"]
+    # A heading with no `doc:` line is no document (that is reported on its
+    # own), so its lines count as the record's.
+    documented = [(h, b) for h, b in blocks[1:] if any(_DOC.match(line) for line in b)]
+    record_lines = blocks[0][1] + [line for h, b in blocks[1:] if (h, b) not in documented for line in b]
+    own = rounds(record_lines, _COST.match)
+    out = []
+    # A round the record's own lines only call none, as 1.1 lets a round over the
+    # whole change be, is costed by any cost line for it, such as a document's.
+    found = rounds(record_lines, _FINDING.match)
+    none_only = rounds(record_lines, _NONE.match) - found
+    if missing := said(record_lines) - own - (none_only & rounds(every, _COST.match)):
+        out.append("no cost line for round " + ", ".join(f"R{n}" for n in sorted(missing)))
+    for heading, block in documented:
+        missing = said(block) - own - rounds(block, _COST.match)
+        if missing:
+            out.append(f"no cost line under {heading} for round "
+                       + ", ".join(f"R{n}" for n in sorted(missing)))
+    return out
+
+
+def record_problems(body: str) -> list[str]:
+    """What a pull request body's *Review rounds* section leaves the digest
+    unable to read or count, one sentence each; empty when it is fine. A check
+    run to report (`board-review-record.py`), built on the parser the digest
+    reads with, so what it reports is what the digest would miss.
+
+    A section opening `None owed` has nothing to read."""
+    text = without_footers(section(body, "Review rounds"))
+    if not text:
+        return ["there is no Review rounds section, or it is empty"]
+    if _none_owed(text):
+        return []
+    problems = []
+    count = RoundCount().add(text, rounds=True)
+    if not readable(text):
+        problems.append("no line of the record is one the digest reads")
+    problems += [f"a line shaped like a round line is not read: {line}" for line in count.unread_lines]
+    for line in _outside_fences(text.splitlines()):
+        if (m := re.match(r"^(#{1,6})\s", line)) and len(m.group(1)) != 4:
+            problems.append(f"a heading of level {len(m.group(1))} is not read as a document's "
+                            f"(only #### is): {line.strip()}")
+    _, lacking, unread = _documents(text, "record")
+    for heading in lacking:
+        problems.append(f"the document under the heading {heading} has no doc: line" if heading is not None
+                        else "the record has rounds and no heading and no doc: line")
+    if unread:
+        problems.append(f"doc: fields not read: {unread}")
+    lines = text.splitlines()
+    problems += _uncosted(lines)
+    for line in lines:
+        if (m := _FINDING.match(line)) and not _NO_FINDING.fullmatch(m["text"].strip()):
+            named = {m["who"], m["and"] or m["who"]} | set(_ALSO.findall(line))
+            unknown = sorted({w.lower() for w in named} - REVIEWERS)
+            if unknown:
+                problems.append(f"a finding names a reviewer the digest does not know ({', '.join(unknown)}; "
+                                f"it knows {', '.join(sorted(REVIEWERS - {'owner'}))}): {line.strip()}")
+    unfenced = _outside_fences(lines)
+    if (docs := sum(bool(_DOC.match(line)) for line in unfenced)) > 1 and not any(_HEADING4.match(line) for line in unfenced):
+        problems.append(f"{docs} doc: lines and no #### heading, so each document is given the whole record's rounds")
+    if not any(_OWNER.match(line) for line in lines):
+        problems.append("there is no owner line")
+    if count.unfigured:
+        problems.append(f"findings by a reviewer their round's cost line gives no figure for: {count.unfigured}")
+    if count.unread_costs:
+        problems.append(f"cost figures not read or for no reviewer: {count.unread_costs}")
+    if count.unread_counts:
+        problems.append(f"(count …) markers not read: {count.unread_counts}")
+    return problems
 
 
 def elsewhere(prs) -> list:

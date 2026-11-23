@@ -30,6 +30,7 @@ application's own tooling differs from the programme's.
 | [`.github/workflows/board-add.yml`](.github/workflows/board-add.yml) | puts every repository's open items on the board |
 | [`.github/workflows/pr-state.yml`](.github/workflows/pr-state.yml) | keeps the board's `PR State` current for this repository's pull requests |
 | [`.github/workflows/context.yml`](.github/workflows/context.yml) | keeps the context header on every open programme project current |
+| [`.github/workflows/review-record.yml`](.github/workflows/review-record.yml) | reports, on each pull request, a *Review rounds* record the weekly digest would misread |
 | [`.github/pull_request_template.md`](.github/pull_request_template.md) | the form of a pull request to this repository |
 | [`records/`](records/) | records about the whole programme, `2.x`: [2.1 applications](records/2.1-applications.md), [2.2 role holders](records/2.2-roles.md), [2.3 activity log](records/2.3-activity-log.csv), [2.4 weekly digests](records/2.4-weekly-digest/), [2.5 change documents](records/2.5-changes/), [2.6 programme workstreams](records/2.6-workstreams.md), [2.7 improvement registers](records/2.7-improvement-registers.md) |
 | [`applications/<app>/`](applications/) | one folder per application, with each record under the same suffix, `3.n.x` ([2.1](records/2.1-applications.md#what-each-applications-folder-holds)) |
