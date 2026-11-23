@@ -13,3 +13,10 @@ period,metric,value,ceiling,unit
 2026-10,games,8,,games
 2026-10,games waiting,6,,games
 2026-10,accounts,7,,accounts
+2026-11,cpu,0.08,2,load avg
+2026-11,memory,451,954,MB
+2026-11,disk,6.8,45,GB
+2026-11,journal,47.6,100,MB
+2026-11,games,7,,games
+2026-11,games waiting,6,,games
+2026-11,accounts,8,,accounts
