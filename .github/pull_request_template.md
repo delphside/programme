@@ -13,11 +13,11 @@ The `Refs #N` line:
 
 Never write `Closes #N`.
 
-The `Claims:` line names the files this pull request expects to change, so
-that `board-overlap.py` can warn another thread before it edits one of them,
-in the form
+The `Claims:` line names the files this pull request expects to change, in
+the form
 [1.2](https://github.com/delphside/programme/blob/main/docs/1.2-change-lifecycle.md#naming-the-files-a-change-will-touch)
-gives; keep it current.
+gives, so that `board-overlap.py` can warn another thread before it edits
+one; keep it current.
 
 *Review* says whether the owner's review is owed:
 
