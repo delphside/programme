@@ -28,6 +28,14 @@ class TheClaimsLine(unittest.TestCase):
     def test_repeats_and_dot_slash_are_dropped(self):
         self.assertEqual(("a.md",), parse_claims("Claims: a.md, ./a.md,"))
 
+    def test_text_in_an_html_comment_claims_nothing(self):
+        for body in ("<!-- Claims: a.md -->", "<!--\nClaims: a.md, b.md\n-->\nno claims", "x <!-- Claims: a.md"):
+            self.assertEqual((), parse_claims(body), body)
+
+    def test_a_real_line_after_a_comment_is_the_first(self):
+        body = "<!-- say it as Claims: path, path -->\nClaims: real.md\n"
+        self.assertEqual(("real.md",), parse_claims(body))
+
     def test_the_line_may_be_indented(self):
         self.assertEqual(("a.md",), parse_claims("text\n  Claims: a.md"))
 

@@ -146,6 +146,12 @@ class Refused(Unavailable):
     `Unavailable`."""
 
 
+class NotFound(Unavailable):
+    """A REST read GitHub answered with 404: what was asked for is not there (or
+    not visible to this token). A caller whose user named the thing may say so;
+    to every other caller it is an `Unavailable`."""
+
+
 # What `gh` and `git` print for a failure that may pass by itself: a connection
 # that failed or timed out, rate limiting, or a server error.
 _TRANSIENT = re.compile(
@@ -1251,6 +1257,8 @@ class _Rest:
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise Unavailable(f"GitHub did not answer: {exc}", transient=_blip(exc)) from exc
         if run.returncode != 0:
+            if "HTTP 404" in run.stderr or "Not Found" in run.stderr:
+                raise NotFound(f"GitHub has no {path}: {run.stderr.strip()[:300]}")
             raise Unavailable(f"GitHub refused {path}: {run.stderr.strip()[:300]}", transient=_blip(stderr=run.stderr))
         try:
             data = json.loads(run.stdout)

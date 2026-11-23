@@ -32,33 +32,22 @@ It changes nothing, so it has no pivot.
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from board import profile  # noqa: E402
+from board.cli import EX_TEMPFAIL, PR_REF, Parser  # noqa: E402
 from board.digest import record_problems  # noqa: E402
 from board.sources import Unavailable, rest_get  # noqa: E402
-
-EX_USAGE = 64
-EX_TEMPFAIL = 75
-_PR = re.compile(r"([\w.-]+)/([\w.-]+)#(\d+)")
-
-
-class _Parser(argparse.ArgumentParser):
-    def error(self, message: str):
-        self.print_usage(sys.stderr)
-        print(f"board-review-record.py: {message}", file=sys.stderr)
-        raise SystemExit(EX_USAGE)
 
 
 def _body(pr: str | None) -> str:
     """The body to judge: stdin, or the pull request's through REST."""
     if pr is None:
         return sys.stdin.read()
-    owner, name, number = _PR.fullmatch(pr).groups()
+    owner, name, number = PR_REF.fullmatch(pr).groups()
     data = rest_get(f"repos/{owner}/{name}/pulls/{number}")
     if data is None:
         raise Unavailable(f"there is no pull request {pr}")
@@ -66,11 +55,11 @@ def _body(pr: str | None) -> str:
 
 
 def main(argv: list[str]) -> int:
-    ap = _Parser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = Parser(prog="board-review-record.py", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pr", metavar="OWNER/REPO#N", help="read this pull request's body instead of stdin")
     ap.add_argument("--exit-code", action="store_true", help="exit 1 when it finds anything")
     args = ap.parse_args(argv)
-    if args.pr is not None and not _PR.fullmatch(args.pr):
+    if args.pr is not None and not PR_REF.fullmatch(args.pr):
         ap.error(f"--pr takes OWNER/REPO#N, not {args.pr!r}")
     try:
         body = _body(args.pr)
