@@ -14,7 +14,7 @@ switches them on (Tile Lite Elite's does). It:
 - changes things only by branch and pull request, never by pushing to `main`;
 - where `main` has since changed text its branch also changes, rebases,
   redoes its edit on `main`'s text, has the parts that came out different
-  reviewed again, and force-pushes with a lease only a branch of its own
+  reviewed again and force-pushes, with a lease, only to a branch of its own
   (owner, 2026-11-23; docs/1.2 *When `main` moves under a branch*);
 - merges its own pull request once the required checks pass and its review
   rounds find nothing material, except an application change, which waits for
