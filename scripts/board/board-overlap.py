@@ -140,7 +140,7 @@ def main(argv: list[str]) -> int:
         ap.error(f"--pr takes OWNER/REPO#N, not {args.pr!r}")
     if args.repo is not None and (args.files is None or not re.fullmatch(REPO, args.repo)):
         ap.error("--repo takes OWNER/REPO, and only with --files")
-    if args.repo:
+    if args.repo or args.pr:
         # no profile is read for a named repository, but the read's time limit is the programme file's
         os.environ.setdefault(profile.ENV_CONFIG, str(OWN_PROGRAMME_FILE))
     try:
