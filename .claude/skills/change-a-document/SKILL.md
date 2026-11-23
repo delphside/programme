@@ -95,8 +95,8 @@ for a situation, and the fix keeps both intents only once both are known.
 ## Before you edit: name the files
 
 Once you know which files you will change, run `board-overlap.py` to see
-which open pull requests change or name them, and name them on your pull
-request's `Claims:` line, as
+which open pull requests change or name them, agree with each listed thread
+who goes first, and name the files on your pull request's `Claims:` line, as
 [1.2 *Naming the files a change will touch*](../../../docs/1.2-change-lifecycle.md#naming-the-files-a-change-will-touch)
 says.
 
