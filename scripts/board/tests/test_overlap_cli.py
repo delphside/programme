@@ -83,7 +83,8 @@ class Reading(unittest.TestCase):
     """`main` is called in this process so `gh` can be stubbed."""
 
     def call(self, gh, *argv, repos=("o/r",)):
-        with mock.patch.object(sources.subprocess, "run", gh), \
+        with mock.patch.dict(os.environ), \
+                mock.patch.object(sources.subprocess, "run", gh), \
                 mock.patch.object(profile, "repository_name", return_value="o/r"), \
                 mock.patch.object(profile, "watched_repositories", return_value=repos), \
                 mock.patch("builtins.print") as out:

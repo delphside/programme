@@ -17,9 +17,9 @@ in common, one line each:
     OVERLAP OWNER/REPO#N TITLE — PATH, PATH
 
 A `--pr` that is closed or merged is not compared: it prints one line saying so
-and exits 0. `--files` with `--repo` needs no profile, so it runs in the
-programme's own checkout; the rest read the application's profile, and `--all`
-the programme file.
+and exits 0. `--files` with `--repo`, and `--pr`, need no profile, so they run
+in the programme's own checkout; `--files` alone reads the application's
+profile, and `--all` the programme file.
 
 `--all` prints `OVERLAP OWNER/REPO#N and #M — PATH, PATH` for each such pair. With
 nothing to report it prints `ok overlap: none`. Paths are relative to the
