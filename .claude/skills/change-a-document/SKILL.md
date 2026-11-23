@@ -92,7 +92,7 @@ for a situation, and the fix keeps both intents only once both are known.
    side came from. A fix that changes a rule, or an application, goes to the
    owner as `CLAUDE.md` *The work* says.
 
-## When `main` has changed the same text
+## When `main` has changed text your branch changes
 
 When a rebase or a pull request shows that `main` has changed text your
 branch also changes, follow
