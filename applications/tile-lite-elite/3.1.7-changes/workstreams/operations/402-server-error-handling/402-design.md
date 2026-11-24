@@ -19,15 +19,15 @@ will not) or *unexpected* (a defect).
 - **Four kinds of status change on existing paths**, which keep the API a
   minor: [401 against 403](#401-against-403).
 - **Three small choices of WP B**, [decisions](#decisions) 6 to 8: one overall
-  latency histogram, its bounds fixed in code, and a `sa metrics` command.
+  latency histogram, its bounds fixed in code and a `sa metrics` command.
 
 ## The work packages
 
 | Package | Requirements | Route | Waits on |
 | --- | --- | --- | --- |
-| [delphside/tile-lite-elite#606](https://github.com/delphside/tile-lite-elite/issues/606) WP A: API errors to the scheme | R1, R2, R6 to R9, the correlation ID | Production Release | none |
+| [delphside/tile-lite-elite#606](https://github.com/delphside/tile-lite-elite/issues/606) WP A: API errors to the scheme | R1, R2, R6's reason, status and caller columns, R7 to R9, the correlation ID | Production Release | none |
 | [delphside/tile-lite-elite#609](https://github.com/delphside/tile-lite-elite/issues/609) WP B: symptom counters | R3, and the counting column of R6 | Production Release | WP A, whose classification it counts |
-| [delphside/tile-lite-elite#610](https://github.com/delphside/tile-lite-elite/issues/610) WP C: alarms | R4, R5 | Other: the VM and the console | WP B, and [delphside/tile-lite-elite#608](https://github.com/delphside/tile-lite-elite/issues/608)'s `post-metric.sh` |
+| [delphside/tile-lite-elite#610](https://github.com/delphside/tile-lite-elite/issues/610) WP C: alarms | R4, R5, and R6's alarm and server-action columns | Other: the VM and the console | WP B, and [delphside/tile-lite-elite#608](https://github.com/delphside/tile-lite-elite/issues/608)'s `post-metric.sh` |
 
 **R1 classifies by 1.10's type and severity**, whose *info*, *warning*, and
 *error* or *fatal* are ITIL's *informational*, *warning* and *exception*.
@@ -387,18 +387,26 @@ server counts its own symptoms and exposes them on a loopback endpoint,
 ## WP C, in outline
 
 Claude designs WP C fully when it reaches Design and Test Approach; this fixes
-only what WP B leaves room for, and the endpoint's body is
+what WP C takes from WP B, and the endpoint's body is
 [WP B's](402-counters.md#the-endpoint).
 
-- **WP C extends #224's `post-metric.sh`**
-  ([delphside/tile-lite-elite#608](https://github.com/delphside/tile-lite-elite/issues/608))
-  to read `/admin/metrics` on the VM and post the rates to Oracle Cloud
-  Infrastructure (OCI) Monitoring under the instance principal, computing
-  rates as [WP B's endpoint](402-counters.md#the-endpoint) allows, restarts
-  included. The owner creates the alarms in the console. The application holds no OCI
-  credential (D49). The thresholds come from the capacity plan
-  ([delphside/tile-lite-elite#291](https://github.com/delphside/tile-lite-elite/issues/291))
-  once WP B's numbers have been read for a week.
+- **WP C extends the `post-metric.sh` of
+  delphside/tile-lite-elite#224** *MAIN PROJECT: Monitoring and alarming gaps*
+  ([delphside/tile-lite-elite#608](https://github.com/delphside/tile-lite-elite/issues/608)
+  *#224 WP B Del 2 of 2: host scripts post metrics*). On the VM it reads the
+  counters by running `sa metrics --json`, which is
+  `docker compose exec server tile-lite-elite-admin metrics --json`, since only
+  the container reaches the endpoint. It posts the rates to Oracle Cloud
+  Infrastructure (OCI) Monitoring under the instance principal, computing them
+  as [WP B's endpoint](402-counters.md#the-endpoint) allows, restarts included.
+- **The owner creates the alarms in the console.** The application holds no OCI
+  credential
+  ([delphside/tile-lite-elite#337](https://github.com/delphside/tile-lite-elite/issues/337)
+  *[Decision]: D49 · What posts the metric from the production host*).
+- **The thresholds come from the capacity plan**
+  ([delphside/tile-lite-elite#291](https://github.com/delphside/tile-lite-elite/issues/291)
+  *MAIN PROJECT: Capacity planning*) once WP B's numbers have been read for a
+  week.
 
 ## Coordination with #71
 
@@ -447,4 +455,4 @@ sentence.
 | 5 | The reason decides the status, and the per-status constructors go. | this design, for the owner's approval |
 | 6 | WP B keeps one latency histogram for every request, not one per route. | this design, for the owner's approval |
 | 7 | The histogram's bounds are constants in one code module, listed in 4.4.1, and ride in the body. | this design, for the owner's approval |
-| 8 | WP B adds the `metrics` command to the admin CLI, run as `sa metrics`. | this design, for the owner's approval |
+| 8 | WP B adds the `metrics` command to the admin CLI, run as `sa metrics`. WP C's poller runs it on the host, since only the container reaches the endpoint; recommended. | this design, for the owner's approval |
