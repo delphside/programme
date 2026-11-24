@@ -343,13 +343,11 @@ when something alarms on them.
 - **Failure**: the layer awaits only `next` and does nothing that can fail, so
   it cannot turn a good response into a bad one. A response with no reason is
   counted `unclassified`, not refused. The counters are lost when the process
-  stops, which `started_at` shows; a crash that restarts the container is
-  itself a symptom, which WP C alarms on through `started_at`. The endpoint
-  failing is a poll that fails, which WP C reports as a missing metric.
-- **Limits and timeouts**: no limit and no timeout is added. The body is 22
-  counters, `started_at` and the bounds, under 1 KB, whatever the traffic. The
-  counters are `u64`, which at 1,000 requests a second take 584 million years
-  to wrap. The latency bounds are the only numbers chosen, and
+  stops, which a new `started_at` shows, and WP C alarms on; a failed poll is
+  a missing metric to WP C.
+- **Limits and timeouts**: none is added. The body is 22 counters,
+  `started_at` and the bounds, under 1 KB whatever the traffic; a `u64` at
+  1,000 requests a second wraps in 584 million years. The latency bounds are the only numbers chosen, and
   [the bounds](#the-bounds) say where each comes from.
 - **Secrets and access**: the route is `Loopback`, guarded by
   `require_loopback` before the handler, as every `/admin/*` route is; no token
@@ -369,9 +367,10 @@ every image does.
 rule in this design, named by its section and its bold sentence.
 
 - [ ] **Claude** — T1: every response is in exactly one class. A request
-  answered 200, 404 and 500, and 101 and 301 through a route added with
-  `build_router_with`, moves exactly the one field of `responses`, by one, and
-  the sum of the fields equals the requests made. (*The endpoint*: "A request
+  answered 200, 404 and 500, 101 and 301 through a route added with
+  `build_router_with`, and an `OPTIONS` preflight that the CORS layer answers,
+  moves exactly the one field of `responses`, by one, and the sum of the
+  fields equals the requests made. (*The endpoint*: "A request
   is in exactly one of `responses`' fields.")
 - [ ] **Claude** — T2: the reason decides the type. For every variant of
   `Reason`, an error built with it moves exactly the field of `errors` that
@@ -409,7 +408,7 @@ rule in this design, named by its section and its bold sentence.
   60_000]`".)
 - [ ] **Claude** — T8: counting is exact under concurrency. 200 requests from
   50 tasks at once leave the sum of `responses` at 200 and the sum of `counts`
-  at 200. (*Where it counts*: "The counters are atomics.")
+  at 200, and `client_error` plus `server_error` equals the sum of `errors`. (*Where it counts*: "The counters are atomics.")
 - [ ] **Claude** — T9: the counters are cumulative and never fall. Two reads
   with requests between them show every field equal or greater, and
   `started_at` the same in both. (*The endpoint*: "cumulative from the
@@ -436,22 +435,26 @@ rule in this design, named by its section and its bold sentence.
   `crates/admin-cli/tests/exit_codes.rs`, which covers `size` only today.
   (*The admin command*: "`sa metrics` is added".)
 
-**Technical tests, Rehearsal**: T15 to T19 run on the release build, as part of
-this package's regression run on Rehearsal.
+**Technical tests, Rehearsal**: T15 to T19 run on Rehearsal at the branch tip,
+before the merge.
 
 - [ ] **Claude** — T15: the start time is the process's. After the deploy,
-  `sa metrics --json` gives a `started_at` within 5 s of the
-  container's own start (`docker inspect`). (*The endpoint*: "cumulative from
+  `sa metrics --json` gives a `started_at` within 5 s of the container's own
+  start (`docker inspect`), 5 s being the image's health-check start period
+  (`--start-period=5s`, `Dockerfile`). (*The endpoint*: "cumulative from
   the process's start".)
 - [ ] **Claude** — T16: a known mix is counted. Between two reads, make a
   request for a game that does not exist (404), a request with a body that is
   not JSON (400) and a request with no token to a route that needs one (401).
   The second read differs from the first by `client_error` +3, `errors.business`
-  +2 and `errors.technical` +1, and by nothing else in `errors`. (*Where it
+  +2 and `errors.technical` +1, and by nothing else in `errors`, and the sum
+  of `latency.counts` grows by at least 3. (*Where it
   counts*: "One middleware counts".)
-- [ ] **Claude** — T17: a restart is visible. After restarting the container,
-  `started_at` is later than before, every counter is at or below its earlier
-  value, and the sum of `responses` is lower. (*The endpoint*: "A restart is a
+- [ ] **Claude** — T17: a restart is visible. With the earlier read taken
+  after T16, a read after restarting the container gives a later `started_at`,
+  every `errors` counter at or below its earlier value, and a lower sum of
+  `responses`; `success` is not compared, since the health check adds one
+  every 30 s. (*The endpoint*: "A restart is a
   new `started_at`".)
 - [ ] **Claude** — T18: the public address never answers the counters. A `GET`
   of `/admin/metrics` through Caddy from outside the VM answers a 403 without
