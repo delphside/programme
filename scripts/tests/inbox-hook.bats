@@ -153,6 +153,8 @@ everything() {   # every section has something to show
   board_script board-inbox.py 0 <<'BODY'
 if [[ "$1" == --open ]]; then
   printf '%s\n' '  > 2026-10-01T09:00  #7  seven  a question' '...3 more on 2 issues (board-inbox.py --open --all)'
+elif [[ "$1" == --notes ]]; then
+  printf '%s\n' '  > 2026-11-23T08:00  web  #643  left a note  https://example.test/c/1'
 else
   printf '%s\n' 'INBOX  since 2026-09-20' '' 'REPORTS FROM THE SCHEDULED WORKFLOWS' \
     '  #384   open    2026-09-26T06:15  advisories' '' 'OPENED OR CLOSED' '  #9     opened        something'
@@ -176,6 +178,7 @@ BODY
     "For Claude to fix: the programme checkout and its pin" \
     "For Claude to read: opened or closed in the last 7 days" \
     "Waiting on Claude: comments from Pat not yet answered, of any age" \
+    "For Claude to read: notes from web sessions in the last 7 days (programme/scripts/board/board-inbox.py --notes)" \
     "For Claude to read: reports from the scheduled workflows" \
     "Waiting on Claude: actions on the board" \
     "For Claude to fix: incomplete for their type and step" \
@@ -184,9 +187,8 @@ BODY
   done
   # The intro says any age, and the sections come in the order it says.
   assert_output --partial "the owner's comments not yet answered, of any age"
-  positions=$(printf '%s\n' "$output" | grep -n -E '^(For Claude to fix: the programme checkout|For Claude to read: opened|Waiting on Claude: comments|For Claude to read: reports|Waiting on Claude: actions|For Claude to fix: incomplete|Programme activities overdue)' | cut -d: -f1 | tr '\n' ' ')
-  assert_equal "$(printf '%s\n' $positions | wc -l)" 7
-  assert_equal "$positions" "$(printf '%s\n' $positions | sort -n | tr '\n' ' ')"
+  order=$(printf '%s\n' "$output" | grep -o -E '^(For Claude to fix: the programme checkout|For Claude to read: opened|Waiting on Claude: comments|For Claude to read: notes|For Claude to read: reports|Waiting on Claude: actions|For Claude to fix: incomplete|Programme activities overdue)' | tr '\n' '|')
+  assert_equal "$order" "For Claude to fix: the programme checkout|For Claude to read: opened|Waiting on Claude: comments|For Claude to read: notes|For Claude to read: reports|Waiting on Claude: actions|For Claude to fix: incomplete|Programme activities overdue|"
   # The capped list's counting line passes through.
   assert_output --partial "...3 more on 2 issues"
   # And a later session reads the same sections from the cache, whose line says any age.
@@ -235,4 +237,38 @@ BODY
   assert_output --partial "Programme activities overdue, whose move is the activity's owner in the programme's docs/1.4 (programme/scripts/board/board-practices.py) could not be read (exit 2): boom from board-practices.py"
   assert_output --partial "#9     opened        something"
   assert_output --partial "#13 a finding"
+}
+
+@test "notes from web sessions reach the session, after the owner's comments" {
+  everything
+  context
+  assert_success
+  assert_output --partial "#643  left a note  https://example.test/c/1"
+}
+
+@test "no notes say nothing about notes" {
+  everything
+  board_script board-inbox.py 0 <<'BODY'
+[[ "$1" == --notes ]] && exit 0
+printf '%s\n' 'OPENED OR CLOSED' '  #9     opened        something'
+BODY
+  context
+  assert_success
+  refute_output --partial "For Claude to read: notes from web sessions"
+  assert_output --partial "#9     opened        something"
+}
+
+@test "a failed notes read hides no other section" {
+  everything
+  board_script board-inbox.py 0 <<'BODY'
+[[ "$1" == --notes ]] && { echo "notes boom" >&2; exit 1; }
+[[ "$1" == --open ]] && { echo '  > 2026-10-01T09:00  #7  seven  a question'; exit 0; }
+printf '%s\n' 'OPENED OR CLOSED' '  #9     opened        something'
+BODY
+  context
+  assert_success
+  assert_output --partial "notes from web sessions in the last 7 days (programme/scripts/board/board-inbox.py --notes) could not be read (exit 1): notes boom"
+  assert_output --partial "#9     opened        something"
+  assert_output --partial "  > 2026-10-01T09:00  #7  seven  a question"
+  assert_output --partial "#12  an action"
 }

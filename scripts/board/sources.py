@@ -1593,6 +1593,28 @@ def open_issue_titled(repo: str, title: str) -> dict | None:
     return None
 
 
+@dataclass(frozen=True)
+class Note:
+    """One comment as REST gives it: when it was made, who by, its whole text
+    and where to read it."""
+
+    number: int
+    created: str
+    author: str
+    text: str
+    url: str
+
+
+def comments_with_authors(repo: str, number: int, since_iso: str) -> tuple[Note, ...]:
+    """The comments on one issue of `repo` (`owner/name`) updated since
+    `since_iso`, with their authors and addresses, which `comments_on` does not
+    carry. Raises `Unavailable` when a read fails."""
+    path = f"repos/{repo}/issues/{number}/comments?since={since_iso}"
+    return tuple(Note(number, c.get("created_at") or "", (c.get("user") or {}).get("login") or "",
+                      c.get("body") or "", c.get("html_url") or "")
+                 for c in _Rest().items(path))
+
+
 def create_issue(title: str, body: str) -> None:
     _rest_write("POST", _repo_path("issues"), title=title, body=body)
 

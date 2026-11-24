@@ -20,7 +20,8 @@ from typing import Sequence
 
 from . import profile
 from .model import Issue, RawIssue, classify
-from .sources import Remark, Report, comments_on, comments_since, fetch, one_item
+from .sources import (Note, Remark, Report, comments_on, comments_since, comments_with_authors,
+                      fetch, one_item, open_issue_titled)
 
 # How many comments the to-do list shows. The cap counts comments, so it bounds
 # the lines shown; the rest are counted in one line (owner, 2026-11-13).
@@ -272,4 +273,36 @@ def render(inbox: Inbox, colour: bool = True) -> str:
 
     out.append("")
     out.append(dim("Read-only, derived at run time. '>' is what the owner typed."))
+    return "\n".join(out)
+
+
+# The title a web session's notes issue carries in every application repository,
+# matched literally (docs/1.6).
+NOTES_TITLE = "Notes for the local session"
+
+
+def read_notes(since_iso: str) -> tuple[Note, ...]:
+    """The comments made since `since_iso` on this repository's open notes
+    issue, oldest first; none when the repository has no such issue. Raises
+    `Unavailable` when a read fails.
+
+    `since` on GitHub is on *updated*, so an edited old comment is read and
+    then dropped here: the window is when a comment was made."""
+    repo = profile.repository_name()
+    issue = open_issue_titled(repo, NOTES_TITLE)
+    if issue is None:
+        return ()
+    found = comments_with_authors(repo, issue["number"], since_iso)
+    return tuple(sorted((n for n in found if n.created >= since_iso), key=lambda n: n.created))
+
+
+def render_notes(notes: Sequence[Note]) -> str:
+    """One line a note: when, who, the issue, the first line of the text cut
+    short, and the comment's address. Nothing when there are none."""
+    out = []
+    for n in notes:
+        words = next((ln.strip() for ln in n.text.splitlines() if ln.strip()), "")
+        if len(words) > FIRST_LINE:
+            words = words[:FIRST_LINE - 1].rstrip() + "…"
+        out.append(f"  > {n.created[:16]}  {n.author}  #{n.number}  {words}  {n.url}")
     return "\n".join(out)

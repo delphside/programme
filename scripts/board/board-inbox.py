@@ -6,6 +6,7 @@
     programme/scripts/board/board-inbox.py --open     # what the owner said that Claude has not answered
     programme/scripts/board/board-inbox.py --open --all         # no cap on the list
     programme/scripts/board/board-inbox.py --open --issue 452   # the same, for one issue, quickly
+    programme/scripts/board/board-inbox.py --notes    # what web sessions left for the local session, last seven days
 
 `--issue` and `--all` only qualify `--open`; without it they are refused.
 
@@ -17,6 +18,11 @@ so out loud.
 the current one will not last. Owner, same day: *"Right now I am working on this
 most days, but that won't last forever."* A default sized for today's cadence
 would be exactly wrong on the first day it changed.
+
+**`--notes`** lists the comments made in the window on the open issue titled
+`Notes for the local session` (`inbox.NOTES_TITLE`), where a session on the web
+leaves what the local session should read. One line each; nothing when the
+repository has no such issue.
 
 **Stateless.** No "last read" file to go stale, drift between machines, or need
 clearing when it is wrong. You pass the window.
@@ -41,7 +47,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from board.inbox import CAP, build, read_waiting, render, render_waiting      # noqa: E402
+from board.inbox import CAP, build, read_notes, read_waiting, render, render_notes, render_waiting      # noqa: E402
 from board.sources import Unavailable, comments_since, fetch, reports_since     # noqa: E402
 
 
@@ -65,6 +71,8 @@ def main() -> int:
                         help="the owner's comments Claude has not answered, from the to-do floor (comments.to_do_floor) on")
     parser.add_argument("--all", action="store_true", help="with --open: no cap on the list")
     parser.add_argument("--issue", type=int, help="with --open: only this issue")
+    parser.add_argument("--notes", action="store_true",
+                        help="the comments made in the window on the open 'Notes for the local session' issue")
     parser.add_argument("--ids", action="store_true", help="with --open: add each comment's GitHub id")
     args = parser.parse_args()
 
@@ -74,6 +82,9 @@ def main() -> int:
                         ("--ids", args.ids)):
         if given and not args.open:
             parser.error(f"{flag} needs --open")
+
+    if args.notes and args.open:
+        parser.error("--notes and --open are separate reads")
 
     if args.open:
         return open_comments(args)
@@ -85,6 +96,16 @@ def main() -> int:
 
     since = (datetime.now(timezone.utc) - timedelta(days=args.days)) \
         .strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    if args.notes:
+        try:
+            text = render_notes(read_notes(since))
+        except Unavailable as exc:
+            print(f"board-inbox: {exc}", file=sys.stderr)
+            return 1
+        if text:
+            print(text)
+        return 0
 
     try:
         # Both states: a thread on a closed issue is still a thread, and the
