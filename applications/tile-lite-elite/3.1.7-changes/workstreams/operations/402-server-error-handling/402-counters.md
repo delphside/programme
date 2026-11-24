@@ -24,11 +24,13 @@ decides, so it ships in its own release, after WP A's.
   ID, counting with atomics ([the diagram](#where-it-counts)).
 - **The command**: `sa metrics` (`sa` is the shell function that runs
   `tile-lite-elite-admin` in the server container,
-  [4.3.4](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.4-production-environment.md#admin-cli)).
-- **Three small decisions**, [6 to 8](402-design.md#decisions): one latency
-  histogram for every request, not one per route, because about 40 routes
-  times nine buckets would be nearly all zeros at a handful of requests a
-  week; the bounds fixed in code; and the command.
+  [4.3.4](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.4-production-environment.md#admin-cli)),
+  which WP C's poller runs on the host, since only the container reaches the
+  endpoint.
+- **Three small decisions**: [6 to 8](402-design.md#decisions), one latency
+  histogram for every request, not one per route, because 46 routes times nine
+  buckets would be nearly all zeros at a handful of requests a week; the
+  bounds fixed in code; and the command.
 
 ## What the server counts today
 
@@ -49,15 +51,21 @@ it to its row in 4.4.3. It reads atomics in memory and never the database. It
 answers an object where `scheduler-health` answers a list: there is one set of
 counters, not one row per job.
 
+**The public address does not serve it.** Caddy does not proxy `/admin/*` (the
+`Caddyfile`), and the server publishes no port (`docker-compose.yml`), so a
+host reaches the endpoint only through the container, by
+`docker compose exec server` ([the command](#the-admin-command)).
+
 The counters are **cumulative from the process's start**, and the object says
-when that was. Rates are the poller's work, as differences between two reads.
+when that was, in epoch seconds in Coordinated Universal Time (UTC). Rates are
+WP C's poller's work, as differences between two reads.
 
 ```rust
 // crates/api, beside AdminSchedulerJobHealthDto
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AdminMetricsDto {
-    /// When this process started, epoch seconds in Coordinated Universal
-    /// Time (UTC), as the other admin DTOs carry a time.
+    /// When this process started, epoch seconds UTC, as the other admin
+    /// DTOs carry a time.
     pub started_at: i64,
     /// Every response, by the class of its status.
     pub responses: AdminResponseCountsDto,
@@ -129,15 +137,15 @@ For example:
   `responses`.
 - **The five classes are named after RFC 9110's**, and `informational` is
   there only because a WebSocket's 101 is a response.
-- **`too_many_requests` and `service_unavailable` read the status**, so a 503
-  from the throttle's floor and one from a busy database
-  (`Reason::ServiceBusy` both ways) are together, as R5 treats them: the
-  server asking its callers to wait.
+- **`too_many_requests` and `service_unavailable` read the status**, so every
+  503 is counted whatever its source: the throttle's floor (`throttle.rs`) and
+  the hash permit (`auth.rs`), which are R5's, and a busy database
+  (`Reason::ServiceBusy`).
 - **The latency has no total and no sum.** The poller reads shares of the
   buckets; a sum in whole milliseconds would round most requests to zero, and
   one in microseconds would give the object two units.
-- **The bounds ride in the body**, so a poller reads them rather than knowing
-  them, and a release that moves a bound is read correctly.
+- **The bounds ride in the body**, so a poller reads them from each answer,
+  and a release that moves a bound is read correctly.
 - **A restart is a new `started_at`**, and every counter begins again at zero.
   A poller that finds `started_at` or `bounds_ms` different from its last read
   counts the new values from zero, and loses what was counted since that read.
@@ -149,7 +157,8 @@ For example:
 **`LATENCY_BOUNDS_MS` is `[10, 50, 100, 250, 500, 1_000, 5_000, 60_000]`**,
 nine buckets with the overflow one, in `app/metrics.rs`. The numbers come from
 the cost of a read and from the pacing the server already sets, and they are
-fixed. **`/start` and `/actions` carry engine time**: `run_engine_turns` runs
+fixed in code. **`/start`, `/actions` and `/suggest` carry engine time**:
+`run_engine_turns` runs
 inside the request, and sleeps `ENGINE_TURN_BROADCAST_DELAY` (120 ms,
 `games.rs`) after each engine turn that does not end the game, for up to
 `MAX_ENGINE_TURNS_PER_TRIGGER` (400) turns. A move against one engine seat
@@ -157,18 +166,19 @@ takes at least 120 ms, and a game of engines only runs inside one `/start`.
 
 | Bound | Reads as | Where it comes from |
 | --- | --- | --- |
-| 10 ms | a read of memory or one row | the greedy engine's move search takes medians of 0.126 to 0.815 ms on the laptop, and rehearsal runs 1.4 to 2 times slower ([4.2.8](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.8-engine-performance.md)) |
+| 10 ms | a read of memory or one row | the greedy engine's move search takes medians of 0.126 to 0.815 ms on the development laptop, and rehearsal runs 1.4 to 2 times slower ([4.2.8](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.2.8-engine-performance.md)) |
 | 50 ms, 100 ms | a database write; an Argon2 hash on the VM's two CPUs | estimates, not measured |
 | 250 ms | a move against one or two engine seats, which take 120 ms and 240 ms plus the search | the 120 ms pacing; `HASH_PERMIT_WAIT` (`auth.rs`) is also 250 ms, so a 503 for a hash permit lands in the next bucket |
 | 500 ms, 1 s | about four and eight engine turns | multiples of the 120 ms pacing; estimates |
 | 5 s | about 40 engine turns, so a long chain of engine seats | `ENGINE_TURN_TIMEOUT` (`games.rs`), the longest one engine search may take |
 | 60 s | beyond every limit the server sets | 400 turns of 120 ms is 48 s, with the searches |
 
-**The estimates are 50, 100, 500 and 1,000 ms.** The upper buckets mostly hold
-engine games, not trouble, and WP C's thresholds read them so
-([WP C](402-design.md#wp-c-in-outline)). A bound is moved if a week of numbers
-says so; moving one is a code change and a release, which 4.4.1's table
-records.
+The upper buckets mostly hold engine games, not trouble, and
+[WP C](402-design.md#wp-c-in-outline) reads them as engine time. Claude moves a
+bound when a week of numbers, read at the capacity plan
+([delphside/tile-lite-elite#291](https://github.com/delphside/tile-lite-elite/issues/291)
+*MAIN PROJECT: Capacity planning*), says so and the owner agrees; moving one
+is a code change and a release, which 4.4.1's table records.
 
 ## Where it counts
 
@@ -188,23 +198,22 @@ flowchart TB
         MET[("<i>Metrics</i><br>[Component: atomics]")]
         ADM["<i>admin_metrics</i><br>[Component: handler]<br>GET /admin/metrics"]
     end
-    CLI["<i>sa metrics</i><br>[Container: Rust]"]
-    POL["<i>post-metric.sh</i><br>[Component: host script]<br>WP C"]
+    CLI["<i>sa metrics</i><br>[Container: Rust]<br>runs in the server container"]
+    POL["<i>post-metric.sh</i><br>[Container: Bash]<br>WP C's poller, on the host"]
     RID --> CNT --> TRC --> BID --> COR --> PAN --> RWR --> RTE
     CNT -- "adds one" --> MET
     MET -- "reads once" --> ADM
     CLI -- "HTTP, loopback" --> ADM
-    POL -- "HTTP, loopback" --> ADM
+    POL -- "docker compose exec" --> CLI
     style CNT fill:#fde9b8,stroke:#b07d00
 ```
 
 *Dynamic diagram: a request runs down the layers, and the counting layer adds
-to the atomics the endpoint reads.*
+to the atomics the endpoint reads; the poller reaches them only by running the
+command.*
 
-In `build_router_with`'s stack the layers, from the inside, are the rewrite of
-framework errors, `CatchPanicLayer`, cross-origin resource sharing (CORS),
-`x-build-id`, the trace and the request ID. The new layer goes **between the
-trace and the request ID**:
+The new layer goes **between the trace and the request ID** in
+`build_router_with`'s stack:
 
 ```rust
 .layer(TraceLayer::new_for_http())
@@ -213,9 +222,9 @@ trace and the request ID**:
 ```
 
 Outside the panic layer and the rewrite, it sees what the caller sees: a
-panic's 500, axum's rewritten 400, and a CORS preflight's answer. Inside the
-request ID, it needs nothing from it. A response a layer outside it builds
-would escape it, and none does: the request-ID layer only adds a header.
+panic's 500, axum's rewritten 400 and a cross-origin resource sharing (CORS)
+preflight's answer. Inside the
+request ID, it needs nothing from it.
 
 The layer takes an `Instant` before `next.run`, and afterwards:
 
@@ -234,11 +243,13 @@ The layer takes an `Instant` before `next.run`, and afterwards:
 
 - **`ApiProblem::render` puts the `Reason` in the response's extensions.**
   This is how the layer reads the classification, which is the one match in
-  `crates/api`, and never re-derives it from the status. Every error leaves
-  through `render`: a handler's, the throttle's 429 and 503, and axum's
+  `crates/api`, and never re-derives it from the status. **Every error leaves
+  through `render`**: a handler's, the throttle's 429 and 503, and axum's
   rewritten rejections. The fallback for a body that fails to serialise
   answers 500 whatever the reason, and puts `Internal` in the extension. An
-  error response with none is `unclassified`.
+  error response with none is `unclassified`: one that claims
+  `application/problem+json` without passing through `render`, since the
+  rewrite gives every other error a reason.
 - **`panic_response` puts a `PanicCaught` marker in the extensions** of the 500
   it builds, and the layer adds one to `panics_caught` where it finds it. A
   panic is then counted by the one layer that counts, and also as a 500 of type
@@ -270,7 +281,15 @@ holds it.
 **`sa metrics` is added (decision 8).** Every other admin endpoint has a
 command, `scheduler-health` among them, and the command is how the owner reads
 a production number: `sa` runs it inside the container, where the endpoint is
-reachable. It is one function in the shape of `run_scheduler_health`:
+reachable.
+
+**The command is a dependency of WP C, not a convenience, and the design
+recommends it.** WP C's `post-metric.sh` reads the counters by running
+`docker compose exec server tile-lite-elite-admin metrics --json` on the host,
+which is `sa metrics --json`. A host has no other way in: the server publishes
+no port, and a request proxied from `web` is not loopback, so `require_loopback`
+answers it 403. The command is one function in the shape of
+`run_scheduler_health`:
 
 - a table of the counters, one row each, then the latency buckets with their
   bounds, and the start time in UTC to the second;
@@ -285,18 +304,29 @@ reachable. It is one function in the shape of `run_scheduler_health`:
 | 4.4.3 *Admin endpoints* | a row for `GET /admin/metrics`; its access and what it answers |
 | 4.4.3 *Admin DTOs* | rows for the four DTOs, and where each field is read from |
 | 4.4.3 admin sequence | the call, reading memory and not the database |
-| 4.4.3 *Reasons* | a column, *Counted in*, per row: the status's class, the type, and `too_many_requests` or `service_unavailable` where the status is 429 or 503. R6's counting column. A short paragraph says the layer, not the handler, counts, and that a panic and a handshake have their own counters |
+| 4.4.3 *Reasons* | a column, *Counted in*, per row, and a short paragraph on the layer |
 | 4.4.3 header | `API_VERSION` 2.18 |
 | 4.3.4 admin CLI table | a row for `metrics` |
 | 4.3.0 | the row for `scripts/develop/check-api-errors.py` gains the *Counted in* check |
-| 4.4.1 *Server timings held in code* | a row for `LATENCY_BOUNDS_MS`: value, `crates/server-game/src/app/metrics.rs`, what it bounds. It is a product setting held in one code module ([1.10](../../../../../../docs/1.10-development-standards.md#where-an-applications-settings-are-held)) |
-| 4.2.0's source, `docs/design-map/model.dsl` | a new component, *Response counters*, whose artefact is `crates/server-game/src/app/metrics.rs`; the relationships `adminApi -> counters` ("reads the counters") and `api -> counters` ("counts every response in"), the Transport API's artefact list already holding `app.rs` and `error.rs`; the Admin CLI's description names the counters; 4.2.0 is regenerated |
+| 4.4.1 *Server timings held in code* | a row for `LATENCY_BOUNDS_MS` |
+| 4.2.0's source, `docs/design-map/model.dsl` | a component, *Metrics*, its relationships, and the Admin CLI's description |
 | `crates/api`'s version comment | a line for 2.18, as 2.15 has for `scheduler-health` |
 
 **The API version moves to 2.18**, a minor by
 [4.3.7 §4.3](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.7-how-testing-and-release-work.md#43-decide-whether-the-api-version-moves):
-a route is added, as 2.15 added `scheduler-health`. It is the minor after WP
-A's 2.17, so WP B's release is the first to carry it.
+a route is added, as 2.15 added `scheduler-health`.
+
+**The *Counted in* column** names, per reason, the `responses` class, the
+`errors` type, and `too_many_requests` or `service_unavailable` where the
+status is 429 or 503; it is R6's counting column. The paragraph says that the
+layer counts, not the handler, and that a panic and a handshake have their own
+counters. **`LATENCY_BOUNDS_MS` is a product setting held in one code module**
+([1.10](../../../../../../docs/1.10-development-standards.md#where-an-applications-settings-are-held)),
+so 4.4.1 lists it. **The *Metrics* component's artefact** is
+`crates/server-game/src/app/metrics.rs`; its relationships are
+`adminApi -> metrics` ("reads the counters") and `api -> metrics` ("counts every
+response in"), and the Transport API's artefact list already holds `app.rs` and
+`error.rs`. 4.2.0 is regenerated.
 
 **`check-api-errors.py` widens by one check**: the *Counted in* column of
 each row must be what its status and type give, so the column cannot drift
@@ -307,17 +337,17 @@ when something alarms on them.
 ## Non-functional design for the counters
 
 - **Capacity**: none, because production sees a handful of requests a week
-  (owner, 2026-11-24). Each request costs one `Instant` and four or five
-  `fetch_add`s, against handlers that take 0.1 ms or more. WP C's poll is the
-  largest traffic the endpoint sees, and is one small read.
+  (owner, 2026-11-24). Each request costs one `Instant` and `fetch_add`s: two
+  for a success and three to five for an error, against handlers that take
+  0.1 ms or more.
 - **Failure**: the layer awaits only `next` and does nothing that can fail, so
   it cannot turn a good response into a bad one. A response with no reason is
   counted `unclassified`, not refused. The counters are lost when the process
   stops, which `started_at` shows; a crash that restarts the container is
   itself a symptom, which WP C alarms on through `started_at`. The endpoint
   failing is a poll that fails, which WP C reports as a missing metric.
-- **Limits and timeouts**: no limit and no timeout is added. The body is a
-  fixed 22 numbers and the bounds, under 1 KB, whatever the traffic. The
+- **Limits and timeouts**: no limit and no timeout is added. The body is 22
+  counters, `started_at` and the bounds, under 1 KB, whatever the traffic. The
   counters are `u64`, which at 1,000 requests a second take 584 million years
   to wrap. The latency bounds are the only numbers chosen, and
   [the bounds](#the-bounds) say where each comes from.
@@ -339,7 +369,7 @@ every image does.
 rule in this design, named by its section and its bold sentence.
 
 - [ ] **Claude** — T1: every response is in exactly one class. A request
-  answered 200, 404, and 500, and 101 and 301 through a route added with
+  answered 200, 404 and 500, and 101 and 301 through a route added with
   `build_router_with`, moves exactly the one field of `responses`, by one, and
   the sum of the fields equals the requests made. (*The endpoint*: "A request
   is in exactly one of `responses`' fields.")
@@ -349,9 +379,11 @@ rule in this design, named by its section and its bold sentence.
   a new reason is covered. (*Where it counts*: "`ApiProblem::render` puts the
   `Reason` in the response's extensions.")
 - [ ] **Claude** — T3: an error a layer builds is classified as one a handler
-  builds. A throttled 429, a busy-database 503, an axum 415, and a panic's 500
+  builds. A throttled 429, a busy-database 503, an axum 415 and a panic's 500
   each move `errors` by their reason's type, and `unclassified` stays zero; a
-  hand-built 4xx with no reason moves `unclassified` and nothing else; a body
+  4xx built outside `render`, with an `application/problem+json` content type
+  and no reason, moves `unclassified` and nothing else in `errors`, besides
+  `client_error` and a latency bucket; a body
   that fails to serialise counts as `Internal`. (*Where it counts*: "Every
   error leaves through `render`.")
 - [ ] **Claude** — T4: 429 and 503 are counted apart. A 429 moves
@@ -365,7 +397,7 @@ rule in this design, named by its section and its bold sentence.
   "`panic_response` puts a `PanicCaught` marker in the extensions".)
 - [ ] **Claude** — T6: a handshake failure is a non-upgraded request to the
   events route, and nothing else. A request with no token, a token with no
-  session, a signed-in player who is not in the game, an unknown game, and a
+  session, a signed-in player who is not in the game, an unknown game and a
   request without upgrade headers each move `websocket_handshake_failures`; a
   successful upgrade and the same refusals on another route do not. (*Where it
   counts*: "The events route's path is one constant".)
@@ -408,7 +440,7 @@ rule in this design, named by its section and its bold sentence.
 this package's regression run on Rehearsal.
 
 - [ ] **Claude** — T15: the start time is the process's. After the deploy,
-  `sa metrics --json` gives a `started_at` within a few seconds of the
+  `sa metrics --json` gives a `started_at` within 5 s of the
   container's own start (`docker inspect`). (*The endpoint*: "cumulative from
   the process's start".)
 - [ ] **Claude** — T16: a known mix is counted. Between two reads, make a
@@ -424,14 +456,9 @@ this package's regression run on Rehearsal.
 - [ ] **Claude** — T18: the public address never answers the counters. A `GET`
   of `/admin/metrics` through Caddy from outside the VM answers a 403 without
   the rehearsal cookie, and with it the web client's page, since Caddy does not
-  proxy `/admin/*` (the `Caddyfile`); neither is the counters' JSON. (*The
-  endpoint*: "`GET /admin/metrics` answers one JSON object", guarded by
-  `require_loopback`.)
+  proxy `/admin/*`; neither is the counters' JSON. (*The endpoint*: "The
+  public address does not serve it.")
 - [ ] **Claude** — T19: a handshake failure is counted on the deployed image.
   A WebSocket request to an existing game with no token moves
   `websocket_handshake_failures` by one. (*Where it counts*: "The events
   route's path is one constant".)
-
-**The schedule is two releases.** WP A ships first. WP B's release follows, and
-its regression run on Rehearsal includes T15 to T19, with the CI tests passing
-on its branch tip.
