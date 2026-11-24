@@ -42,10 +42,10 @@ the release's version:
 | --- | --- | --- |
 | 1.1 | record the change | Claude |
 | 1.2 | push, and let CI judge it | Claude |
-| 1.2.4 | set the version, when any package in the release has `Type of change` `functional` | the owner |
 | 1.9 step 1 | rebase onto `main` | Claude |
 | 1.3 | `turpin build SHA`, then `turpin deploy preview SHA` | Claude |
 | 1.4 | user testing, on preview | the owner |
+| 1.2.4 | at the release build, set the version to match the scope, rename the milestone and each open title carrying the version to it, and check it; a new commit runs 1.2 and 1.3 again before 1.5 | the owner |
 | 1.5 | rehearse the release on rehearsal, and run the technical tests | Claude |
 | 1.5.3 | regression on rehearsal | Claude runs the suite, the test manager checks the results, the owner judges whether rehearsal passed |
 | 1.9 step 3 | fast-forward `main` to the proven branch | Claude |
@@ -60,8 +60,9 @@ the release's version:
 **The commit shipped is the commit rehearsed.** `turpin release` refuses a
 commit that rehearsal has not run, and preview has no such check
 ([4.3.3 §1.4](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#14-user-testing)).
-A rebase or a version bump after the preview deploy is a new commit, so Claude
-runs 1.3 to 1.5 again.
+A rebase after the preview deploy is a new commit, so Claude runs 1.3 to 1.5
+again; the version commit of 1.2.4 runs 1.2, 1.3 and 1.5, with nothing for 1.4
+to judge.
 
 **Read the milestone before `turpin release`**
 ([4.3.3 §1.6](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#16-ship-it)):
