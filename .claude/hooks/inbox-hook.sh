@@ -19,8 +19,9 @@
 # not stop work starting. A section whose read failed prints a line saying so
 # under its own heading; a failure before any section is read prints nothing.
 #
-# **Fast, because it reads a cache (#452).** The board calls took ~48s when there were three,
-# and a session whose first message was sent while the hook ran appears to have
+# **Fast, because it reads a cache (#452).** The board calls took ~48s when
+# there were three, and a session whose first message was sent while the hook
+# ran appears to have
 # started with no hook at all (session 60541916, 2026-10-01, no record of any
 # kind). So the slow work is `--build`, run detached and written to
 # .claude/.inbox-cache; the SessionStart hook only reads it and says how old
@@ -207,8 +208,8 @@ else
   OPEN_SECTION="${OPEN:+$H_OPEN:$'\n'$OPEN}"
 fi
 
-# What web sessions left for the local session: the comments of the last seven
-# days on the repository's `Notes for the local session` issue (owner,
+# What web sessions left for the local session: the window's comments
+# on the repository's `Notes for the local session` issue (owner,
 # 2026-11-24). Nothing printed means nothing to show.
 H_NOTES="For Claude to read: notes from web sessions in the last ${WINDOW_DAYS} days (programme/scripts/board/board-inbox.py --notes)"
 if FAIL="$(failure notes "$H_NOTES")"; then
