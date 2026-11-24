@@ -18,6 +18,9 @@ will not) or *unexpected* (a defect).
   Decisions 1 to 3 are the owner's, answered on his cards of 2026-11-16.
 - **Four kinds of status change on existing paths**, which keep the API a
   minor: [401 against 403](#401-against-403).
+- **Three small choices of WP B**, [decisions](#decisions) 6 to 8: one overall
+  latency histogram, its bounds fixed in code, and an `admin-cli metrics`
+  command.
 
 ## The work packages
 
@@ -375,25 +378,27 @@ the error's body to stdout, as it prints a success's. A panic is caught in
 inside the process, or degrading a feature, would be a design of its own, and
 no failure seen so far has needed one.
 
-## WP B and WP C, in outline
+## WP B: symptom counters
 
-Claude designs each fully when it reaches Design and Test Approach; this fixes
-only what WP A must leave room for.
+[delphside/tile-lite-elite#609](https://github.com/delphside/tile-lite-elite/issues/609)
+*#402 WP B: symptom counters* delivers R3 and the counting column of R6: the
+server counts its own symptoms and exposes them on a loopback endpoint,
+`GET /admin/metrics`. Its design is [402-counters.md](402-counters.md).
 
-- **WP B exposes counters on a loopback endpoint**, `GET /admin/metrics`,
-  beside `/admin/scheduler-health`
-  ([delphside/tile-lite-elite#400](https://github.com/delphside/tile-lite-elite/issues/400))
-  and in the same JSON shape, so one reporting pattern serves both. It counts
-  responses by status class and by `error_type`, 429s apart from 503s, panics,
-  WebSocket handshake failures and request latency in fixed buckets, and
-  reports the process's start time. The counters are cumulative from start, so
-  the poller computes the rate.
+## WP C, in outline
+
+Claude designs WP C fully when it reaches Design and Test Approach; this fixes
+only what WP B leaves room for, and the endpoint's body is
+[WP B's](402-counters.md#the-endpoint).
+
 - **WP C extends #224's `post-metric.sh`**
   ([delphside/tile-lite-elite#608](https://github.com/delphside/tile-lite-elite/issues/608))
   to read `/admin/metrics` on the VM and post the rates to Oracle Cloud
-  Infrastructure (OCI) Monitoring under the instance principal. The owner
-  creates the alarms in the console. The application holds no OCI credential
-  (D49). The thresholds come from the capacity plan
+  Infrastructure (OCI) Monitoring under the instance principal. The rate is a
+  difference between two reads; a `started_at`, or `bounds_ms`, that differs
+  from the last read is a restart, and the new numbers count from zero. The
+  owner creates the alarms in the console. The application holds no OCI
+  credential (D49). The thresholds come from the capacity plan
   ([delphside/tile-lite-elite#291](https://github.com/delphside/tile-lite-elite/issues/291))
   once WP B's numbers have been read for a week.
 
@@ -442,3 +447,6 @@ sentence.
 | 3 | Three work packages; R5 by 1.8's incidents and the problem register. | answered by the owner, on his card of 2026-11-16 |
 | 4 | RFC 9457's `type` is left out; the reason is the machine code. | this design, for the owner's approval |
 | 5 | The reason decides the status, and the per-status constructors go. | this design, for the owner's approval |
+| 6 | WP B keeps one latency histogram for every request, not one per route. | this design, for the owner's approval |
+| 7 | The histogram's bounds are constants in one code module, listed in 4.4.1, and ride in the body. | this design, for the owner's approval |
+| 8 | WP B adds `admin-cli metrics`. | this design, for the owner's approval |
