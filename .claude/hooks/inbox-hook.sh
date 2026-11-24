@@ -19,7 +19,7 @@
 # not stop work starting. A section whose read failed prints a line saying so
 # under its own heading; a failure before any section is read prints nothing.
 #
-# **Fast, because it reads a cache (#452).** The three board calls take ~48s,
+# **Fast, because it reads a cache (#452).** The board calls took ~48s when there were three,
 # and a session whose first message was sent while the hook ran appears to have
 # started with no hook at all (session 60541916, 2026-10-01, no record of any
 # kind). So the slow work is `--build`, run detached and written to
@@ -49,12 +49,13 @@ log() { printf '%s %s pid=%s %s\n' "$(date -u +%FT%TZ)" "$MODE" "$$" "$*" >> "$L
 cache_age() { echo $(( $(date +%s) - $(stat -c %Y "$CACHE" 2>/dev/null || echo 0) )); }
 
 # What the text holds, in the order it holds it (#455-R10).
-ORDER="the programme checkout and its pin; opened or closed in the last 7 days; the owner's comments not yet answered; reports from the scheduled workflows; board actions; board-check findings; overdue programme activities"
-INTRO="GitHub activity: what opened or closed in the last 7 days, and the owner's comments not yet answered, of any age. Sections come in this order, each only when it has something to show: $ORDER. Each heading says whose move it is. Run programme/scripts/board/board-inbox.py for the detail."
+WINDOW_DAYS=7  # the window of the opened-or-closed and notes reads
+ORDER="the programme checkout and its pin; opened or closed in the last ${WINDOW_DAYS} days; the owner's comments not yet answered; notes from web sessions in the last ${WINDOW_DAYS} days; reports from the scheduled workflows; board actions; board-check findings; overdue programme activities"
+INTRO="GitHub activity: what opened or closed in the last ${WINDOW_DAYS} days, and the owner's comments not yet answered, of any age. Sections come in this order, each only when it has something to show: $ORDER. Each heading says whose move it is. Run programme/scripts/board/board-inbox.py for the detail."
 
 # Plain text, with the cache's age so a stale one is never mistaken for live.
 cache_text() {
-  printf 'GitHub activity: what opened or closed in the last 7 days, and the owner'"'"'s comments not yet answered, of any age (from a cache %s min old; programme/scripts/board/board-inbox.py for current detail). Sections come in this order, each only when it has something to show: %s. Each heading says whose move it is.\n\n' "$(( $(cache_age) / 60 ))" "$ORDER"
+  printf 'GitHub activity: what opened or closed in the last %s days, and the owner'"'"'s comments not yet answered, of any age (from a cache %s min old; programme/scripts/board/board-inbox.py for current detail). Sections come in this order, each only when it has something to show: %s. Each heading says whose move it is.\n\n' "$WINDOW_DAYS" "$(( $(cache_age) / 60 ))" "$ORDER"
   cat "$CACHE"
 }
 
@@ -140,9 +141,9 @@ if [[ "$MODE" == "--build" ]]; then
   trap 'rmdir "$LOCK" 2> /dev/null' EXIT
 fi
 
-# **Every section is read on its own** (#455-R7). The seven-day read, the to-do
-# read, the actions, the findings and the practices run in parallel, because
-# five sequential calls measured 16s against a 30s timeout and a slow GitHub
+# **Every section is read on its own** (#455-R7). The window's read, the to-do
+# read, the notes, the actions, the findings and the practices run in parallel,
+# because five sequential calls measured 16s against a 30s timeout and a slow GitHub
 # would eat the margin; each one's output, error and exit status are kept
 # apart, so one that fails prints its failure under its own heading and the
 # others still show. A section's `could not be read` line is a report, not a
@@ -153,10 +154,11 @@ read_to() {   # read_to NAME SECONDS COMMAND...: output, error and status in $TM
   local name="$1" secs="$2"; shift 2
   ( timeout "$secs" "$@" > "$TMP/$name" 2> "$TMP/$name.err" < /dev/null; echo $? > "$TMP/$name.rc" ) &
 }
-read_to week     60 "$BOARD"/board-inbox.py 7 --no-colour
+read_to week     60 "$BOARD"/board-inbox.py "$WINDOW_DAYS" --no-colour
 read_to open     60 "$BOARD"/board-inbox.py --open --no-colour
 read_to actions  25 "$BOARD"/board-actions.py --claude --no-colour
 read_to findings 25 "$BOARD"/board-check.py --no-colour
+read_to notes    60 "$BOARD"/board-inbox.py --notes "$WINDOW_DAYS" --no-colour
 read_to practice 10 "$BOARD"/board-practices.py
 wait
 
@@ -172,18 +174,18 @@ failure() {   # failure NAME HEADING: prints the failure line and succeeds when 
 
 # Opened or closed: news, not work, so only that section of the seven-day read
 # (its comments are listed by `board-inbox.py 7`, on demand).
-H_EVENTS="For Claude to read: opened or closed in the last 7 days"
+H_EVENTS="For Claude to read: opened or closed in the last ${WINDOW_DAYS} days"
 if FAIL="$(failure week "$H_EVENTS (programme/scripts/board/board-inbox.py)")"; then
   SUMMARY="$FAIL"
 else
-  SUMMARY="$(awk '
+  SUMMARY="$(awk -v days="$WINDOW_DAYS" '
     /^OPENED OR CLOSED/ { tail = 1; next }
     tail && /^  #/ { events[++e] = $0 }
     END {
       # Capped. A release week closes thirty issues at once, and an unbounded
       # summary of a busy week is the same wall of text this was meant to avoid.
       if (e) {
-        printf "For Claude to read: opened or closed in the last 7 days (%d; newest last):\n", e
+        printf "For Claude to read: opened or closed in the last %s days (%d; newest last):\n", days, e
         start = e > 10 ? e - 9 : 1
         if (start > 1) printf "  ...%d earlier\n", start - 1
         for (i = start; i <= e; i++) print events[i]
@@ -203,6 +205,17 @@ if FAIL="$(failure open "$H_OPEN")"; then
 else
   OPEN="$(grep -E '^(  > |\.\.\.[0-9]+ more )' "$TMP/open" 2>/dev/null || true)"
   OPEN_SECTION="${OPEN:+$H_OPEN:$'\n'$OPEN}"
+fi
+
+# What web sessions left for the local session: the comments of the last seven
+# days on the repository's `Notes for the local session` issue (owner,
+# 2026-11-24). Nothing printed means nothing to show.
+H_NOTES="For Claude to read: notes from web sessions in the last ${WINDOW_DAYS} days (programme/scripts/board/board-inbox.py --notes)"
+if FAIL="$(failure notes "$H_NOTES")"; then
+  NOTES_SECTION="$FAIL"
+else
+  NOTES="$(grep -E '^  > ' "$TMP/notes" 2>/dev/null || true)"
+  NOTES_SECTION="${NOTES:+$H_NOTES:$'\n'$NOTES}"
 fi
 
 # Reports from the scheduled workflows. Owner, 2026-09-27: "can you add a hook so
@@ -251,7 +264,7 @@ fi
 
 # The order is the one INTRO says: events (SUMMARY), then these.
 EXTRA=""
-for section in "$OPEN_SECTION" "$REPORTS_SECTION" "$ACTIONS_SECTION" "$FINDINGS_SECTION" "$PRACTICE_SECTION"; do
+for section in "$OPEN_SECTION" "$NOTES_SECTION" "$REPORTS_SECTION" "$ACTIONS_SECTION" "$FINDINGS_SECTION" "$PRACTICE_SECTION"; do
   [[ -n "$section" ]] && EXTRA="$EXTRA"$'\n\n'"$section"
 done
 

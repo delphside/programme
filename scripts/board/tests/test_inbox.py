@@ -397,6 +397,45 @@ class Reports(Cases):
         self.expect("rather than an empty heading", True, "no report opened, updated or closed" in text)
 
 
+class TheNotesForTheLocalSession(Cases):
+    """`--notes`: what web sessions left on the notes issue in the window."""
+
+    def read(self, issues, comments, since="2026-11-17T00:00:00Z"):
+        def fake(repo, number, since_iso):
+            return tuple(sources.Note(number, c, a, t, f"https://x/{number}#{i}")
+                         for i, (c, a, t) in enumerate(comments))
+        with mock.patch.object(inbox_module, "open_issue_titled",
+                               lambda repo, title: issues.get(title)), \
+             mock.patch.object(inbox_module, "comments_with_authors", fake), \
+             mock.patch.object(inbox_module.profile, "repository_name", lambda: "fakeorg/widget"):
+            return inbox_module.render_notes(inbox_module.read_notes(since))
+
+    def test_notes_in_the_window_one_line_each(self):
+        text = self.read({inbox_module.NOTES_TITLE: {"number": 643}},
+                         [("2026-11-20T10:00:00Z", "pat", "Finished the thing\nand more"),
+                          ("2026-11-10T10:00:00Z", "pat", "too old, though edited since")])
+        self.expect("one line", 1, len(text.splitlines()))
+        self.expect("date, author, issue, first line, url", True,
+                    "2026-11-20T10:00  pat  #643  Finished the thing  https://x/643#0" in text)
+
+    def test_no_notes_in_the_window_prints_nothing(self):
+        self.expect("nothing", "", self.read({inbox_module.NOTES_TITLE: {"number": 643}}, []))
+
+    def test_no_notes_issue_prints_nothing(self):
+        self.expect("nothing", "", self.read({}, [("2026-11-20T10:00:00Z", "pat", "x")]))
+
+    def test_a_long_first_line_is_cut(self):
+        text = self.read({inbox_module.NOTES_TITLE: {"number": 1}},
+                         [("2026-11-20T10:00:00Z", "pat", "w" * 500)])
+        self.expect("cut with an ellipsis", True, "…" in text and "w" * 200 not in text)
+
+    def test_a_failed_read_exits_one_with_the_reason_on_stderr(self):
+        run = FlagsThatQualifyOpen().board_inbox("--notes")
+        self.expect("status", 1, run.returncode)
+        self.expect("the reason", True, "board-inbox: " in run.stderr)
+        self.expect("nothing on stdout", "", run.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
 
