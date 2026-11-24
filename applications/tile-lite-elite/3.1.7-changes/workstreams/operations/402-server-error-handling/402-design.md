@@ -19,15 +19,14 @@ will not) or *unexpected* (a defect).
 - **Four kinds of status change on existing paths**, which keep the API a
   minor: [401 against 403](#401-against-403).
 - **Three small choices of WP B**, [decisions](#decisions) 6 to 8: one overall
-  latency histogram, its bounds fixed in code, and an `admin-cli metrics`
-  command.
+  latency histogram, its bounds fixed in code, and a `sa metrics` command.
 
 ## The work packages
 
 | Package | Requirements | Route | Waits on |
 | --- | --- | --- | --- |
 | [delphside/tile-lite-elite#606](https://github.com/delphside/tile-lite-elite/issues/606) WP A: API errors to the scheme | R1, R2, R6 to R9, the correlation ID | Production Release | none |
-| [delphside/tile-lite-elite#609](https://github.com/delphside/tile-lite-elite/issues/609) WP B: symptom counters | R3 | Production Release | WP A, whose classification it counts |
+| [delphside/tile-lite-elite#609](https://github.com/delphside/tile-lite-elite/issues/609) WP B: symptom counters | R3, and the counting column of R6 | Production Release | WP A, whose classification it counts |
 | [delphside/tile-lite-elite#610](https://github.com/delphside/tile-lite-elite/issues/610) WP C: alarms | R4, R5 | Other: the VM and the console | WP B, and [delphside/tile-lite-elite#608](https://github.com/delphside/tile-lite-elite/issues/608)'s `post-metric.sh` |
 
 **R1 classifies by 1.10's type and severity**, whose *info*, *warning*, and
@@ -209,7 +208,7 @@ alarms and what the server does are WP C's, all as columns of the same
   still reads a body from an older server.
 
 **The API version moves to 2.17**, a minor by
-[4.3.3 §2.4.3](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.3-testing-ci-and-release.md#243-decide-whether-the-api-version-moves):
+[4.3.7 §4.3](https://github.com/delphside/tile-lite-elite/blob/main/docs/4.3.7-how-testing-and-release-work.md#43-decide-whether-the-api-version-moves):
 every member is added, none removed or renamed, and the status changes are on
 paths that already exist.
 
@@ -394,10 +393,9 @@ only what WP B leaves room for, and the endpoint's body is
 - **WP C extends #224's `post-metric.sh`**
   ([delphside/tile-lite-elite#608](https://github.com/delphside/tile-lite-elite/issues/608))
   to read `/admin/metrics` on the VM and post the rates to Oracle Cloud
-  Infrastructure (OCI) Monitoring under the instance principal. The rate is a
-  difference between two reads; a `started_at`, or `bounds_ms`, that differs
-  from the last read is a restart, and the new numbers count from zero. The
-  owner creates the alarms in the console. The application holds no OCI
+  Infrastructure (OCI) Monitoring under the instance principal, computing
+  rates as [WP B's endpoint](402-counters.md#the-endpoint) allows, restarts
+  included. The owner creates the alarms in the console. The application holds no OCI
   credential (D49). The thresholds come from the capacity plan
   ([delphside/tile-lite-elite#291](https://github.com/delphside/tile-lite-elite/issues/291))
   once WP B's numbers have been read for a week.
@@ -449,4 +447,4 @@ sentence.
 | 5 | The reason decides the status, and the per-status constructors go. | this design, for the owner's approval |
 | 6 | WP B keeps one latency histogram for every request, not one per route. | this design, for the owner's approval |
 | 7 | The histogram's bounds are constants in one code module, listed in 4.4.1, and ride in the body. | this design, for the owner's approval |
-| 8 | WP B adds `admin-cli metrics`. | this design, for the owner's approval |
+| 8 | WP B adds the `metrics` command to the admin CLI, run as `sa metrics`. | this design, for the owner's approval |
