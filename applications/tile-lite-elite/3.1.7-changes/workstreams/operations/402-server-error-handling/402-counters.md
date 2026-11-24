@@ -53,8 +53,8 @@ counters, not one row per job.
 
 **The public address does not serve it.** Caddy does not proxy `/admin/*` (the
 `Caddyfile`), and the server publishes no port (`docker-compose.yml`), so a
-host reaches the endpoint only through the container, by
-`docker compose exec server` ([the command](#the-admin-command)).
+host reaches the endpoint only from inside the container, by `docker exec`
+([the command](#the-admin-command)).
 
 The counters are **cumulative from the process's start**, and the object says
 when that was, in epoch seconds in Coordinated Universal Time (UTC). Rates are
@@ -138,9 +138,9 @@ For example:
 - **The five classes are named after RFC 9110's**, and `informational` is
   there only because a WebSocket's 101 is a response.
 - **`too_many_requests` and `service_unavailable` read the status**, so every
-  503 is counted whatever its source: the throttle's floor (`throttle.rs`) and
-  the hash permit (`auth.rs`), which are R5's, and a busy database
-  (`Reason::ServiceBusy`).
+  503 is counted whatever its source, each a `Reason::ServiceBusy`: the
+  throttle's floor (`throttle.rs`) and the hash permit (`auth.rs`), which are
+  R5's, and a busy database.
 - **The latency has no total and no sum.** The poller reads shares of the
   buckets; a sum in whole milliseconds would round most requests to zero, and
   one in microseconds would give the object two units.
@@ -204,7 +204,7 @@ flowchart TB
     CNT -- "adds one" --> MET
     MET -- "reads once" --> ADM
     CLI -- "HTTP, loopback" --> ADM
-    POL -- "docker compose exec" --> CLI
+    POL -- "docker exec" --> CLI
     style CNT fill:#fde9b8,stroke:#b07d00
 ```
 
@@ -284,11 +284,11 @@ a production number: `sa` runs it inside the container, where the endpoint is
 reachable.
 
 **The command is a dependency of WP C, not a convenience, and the design
-recommends it.** WP C's `post-metric.sh` reads the counters by running
-`docker compose exec server tile-lite-elite-admin metrics --json` on the host,
-which is `sa metrics --json`. A host has no other way in: the server publishes
-no port, and a request proxied from `web` is not loopback, so `require_loopback`
-answers it 403. The command is one function in the shape of
+recommends it.** WP C's `post-metric.sh` finds the server container by its
+Compose labels and runs `docker exec <id> tile-lite-elite-admin --json metrics`,
+as `sa` and `backup-to-oci.sh` do. A host has no other way in: the server
+publishes no port, and a request proxied from `web` is not loopback, so
+`require_loopback` answers it 403. The command is one function in the shape of
 `run_scheduler_health`:
 
 - a table of the counters, one row each, then the latency buckets with their

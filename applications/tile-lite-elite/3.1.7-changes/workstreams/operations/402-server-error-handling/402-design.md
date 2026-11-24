@@ -394,9 +394,9 @@ what WP C takes from WP B, and the endpoint's body is
   delphside/tile-lite-elite#224** *MAIN PROJECT: Monitoring and alarming gaps*
   ([delphside/tile-lite-elite#608](https://github.com/delphside/tile-lite-elite/issues/608)
   *#224 WP B Del 2 of 2: host scripts post metrics*). On the VM it reads the
-  counters by running `sa metrics --json`, which is
-  `docker compose exec server tile-lite-elite-admin metrics --json`, since only
-  the container reaches the endpoint. It posts the rates to Oracle Cloud
+  counters by running `tile-lite-elite-admin --json metrics` in the server
+  container through `docker exec`, as `sa` does, since only the container
+  reaches the endpoint. It posts the rates to Oracle Cloud
   Infrastructure (OCI) Monitoring under the instance principal, computing them
   as [WP B's endpoint](402-counters.md#the-endpoint) allows, restarts included.
 - **The owner creates the alarms in the console.** The application holds no OCI
