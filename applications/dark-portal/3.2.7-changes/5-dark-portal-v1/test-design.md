@@ -19,7 +19,7 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 | R2 | Price history can be seen hourly for 4 weeks, with a daily summary (low, median, volume) kept indefinitely. | 5.1.0; 5.2.3 *History* |
 | R7 | Depth: the units listed at or below each price, and turnover per hour as a lower bound. | 5.1.0; 5.2.3 *Depth*, *Flows* |
 | R8v | Volume, estimated from listings vanishing between snapshots, can be seen: a certain floor and an inferred estimate side by side. "Beside each margin" waits for stage 3. | 5.1.0; 5.2.3 *Flows*; delphside/dark-portal#7 decision 2 |
-| R11 | A change in Blizzard's response format or timing that leaves the data sound is tolerated and recorded as a warning in the run's report and log, for delphside/dark-portal#2's alerting. A change that would leave an hour partial, so that missing listings read as sales, makes the hour a gap. | 5.1.0 R11; 5.2.1 *When Blizzard's response changes*; delphside/dark-portal#7 decision 13 |
+| R11 | A change in Blizzard's response format or timing that leaves the data sound is tolerated and recorded as a warning in the run's report and log, for the alerting of delphside/dark-portal#2 *Opportunity alerts*. A change that would leave an hour partial, so that missing listings read as sales, makes the hour a gap. | 5.1.0 R11; 5.2.1 *When Blizzard's response changes*; delphside/dark-portal#7 decision 13 |
 | T1 | A snapshot's hour is the UTC hour starting of its `last-modified`: 01:31:40 is 01:00. | 5.2.2 *Times*; 5.4.5 |
 | T2 | An event is dated by the hour of the snapshot that first showed it. An hour is *held* where its snapshot was processed. A comparison's `span` is the elapsed hours since the last snapshot held: 1 unless one was missed, null for the first hour collected. A listing's lifetime is the elapsed hours from its posting hour to the hour it was first missing. | 5.2.2 *Times*; 5.4.5 |
 | TR | Tiers: **observed** for facts read from a snapshot; **certain** for posted and partly sold; **inferred** for sold, expired and cancelled. | 5.2.2 *How sure a fact is*, the events table |
@@ -47,19 +47,19 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 | C6 | *changed*: `dp items` fetches each item ID in bronze's snapshot files with no response in bronze's item files (`static-eu`, `en_GB`), at 50 a second, and writes one `bronze/items/YYYY-MM-DDTHHMMSS.parquet` per run that fetched any, renamed into place under the lock, with `status`. A blip (C8) pauses the whole fetch for the backoff or the `Retry-After` and puts the item at the back of the queue; an item is asked at most 3 times in a run (item attempts), then left to the next run. A 401 takes a new token once and asks again, then is left to the next run; a 400, 403, 408, 500, other status or unreadable body is left to the next run; each of these gives the step exit `3`. A 404 is data, not an error: written with status 404 and no body, logged as a warning, and asked again only by `dp daily`. The profile shows the item's ID until it has a response. Run alone, `dp items` has a pivot of its own, its first request: a failure before it, such as bronze unreadable, stops it with that error's exit, and after it each item is a unit of work the run carries on past. | 5.2.1 *Item data*, *When it fails*; 5.4.1; 5.4.2; 5.4.5 |
 | C7 | Requests stay within Blizzard's 36,000 an hour and 100 a second. | 5.2.1 *Limits* |
 | C8 | *changed*: a blip is 1.10's: a timeout, an unreachable Blizzard, or a 429, 502, 503 or 504. It is retried with backoff from 30 s, doubling to 5 min, or after the response's `Retry-After`. Any other status, 408 and 500 included, is unexpected. Timeouts are 60 s for the snapshot and 10 s otherwise. | 5.2.1; 5.4.1; 1.10 |
-| C9 | *changed*: the hourly timer starts at :35 and the daily at 00:50 UTC, both persistent. The probe timer starts at 12:05 UTC, daily, and is not persistent. | 5.4.1; 5.3.2 *Install the units*; 5.1.1 *Restarts and recovery* |
+| C9 | *changed*: the hourly timer starts at :35 and the daily at 00:50 UTC, both persistent. The probe timer is PR3's and U1's. | 5.4.1; 5.3.2 *Install the units*; 5.1.1 *Restarts and recovery* |
 | C10 | The item fetch ends 10 min, the lock wait, before the next hourly timer start, :25 past: no request starts unless its HTTP timeout (10 s) ends before then, and the items not reached wait for the next run. | 5.2.1 *Item data* |
-| BC1 | Every warning of a run is logged where it is raised, as a `WARN` line carrying its code. The report's `warnings` lists every warning raised with its own metadata, in the order raised; its `warnings` metadata names their codes, each once, in the order first raised. `dp hourly`'s report lists its steps' warnings. An `hour` in a warning is written `YYYY-MM-DDTHH`. A warning leaves the exit `0` unless something else fails, and then the outcome and the exit are the failure's, with the warnings still listed. Each run reports what it sees, so a change that lasts repeats its warning every hour; raising it is the whole of `dp`'s part, and deduplicating is delphside/dark-portal#2's. | 5.2.1 *When Blizzard's response changes*; 5.3.2 *When a job fails*; 1.10 |
-| BC2 | A `time_left` that is not one of the four bands, an empty one included, is kept as given in bronze and in silver's `time_left`, and the hour is processed as any other. `dp transform` raises one `TIME_LEFT_UNKNOWN` for the hour, with `hour`, `values`, the distinct values in sorted order, and `listings`, the count of listings holding one. No time left reaches the sold floor or turns a disappearance into a sale. | 5.2.1; 5.2.2 *A time left that is not a band*; 5.4.2; 5.4.5 *Types* |
-| BC3 | Any of the following makes the hour a gap: a listing lacking a needed field (`id`, `item`, `item.id`, `quantity`, `unit_price`, `time_left`); a needed field of another kind (text, a boolean, null, an array or an object where a number is needed, or a `time_left` that is not text); or a changed structure (`item` not an object, `item.id` moved, `auctions` missing, renamed or not a sequence, a listing not an object, the body valid JSON but not an object). The error is fatal `SNAPSHOT_SHAPE_CHANGED`, *unexpected*, exit `70`. Its metadata is `field`, the path (one of the six fields, `item`, `item.id`, `auctions`, `auctions[]` or `$`), and `listings`, the count read before the fault. A body that is not JSON, or is cut off, is `SNAPSHOT_BODY_UNUSABLE` (X4). | 5.2.1 *When Blizzard's response changes*, *When it fails* |
-| BC4 | Any of the following makes the hour a gap: a number the column cannot hold (negative, `-0` included; a decimal, meaning a number written with a fraction or an exponent, `2.0` and `1e3` included; or above the column's range: `UINTEGER` for `quantity` and `item.id`, `UBIGINT` for `id` and `unit_price`); a `quantity` or `unit_price` of 0; or text that `dp` keeps, `time_left`, over the longest text, 32 bytes counted in bytes. An `id` or `item.id` of 0 is kept. The error is fatal `SNAPSHOT_VALUE_UNEXPECTED`, *unexpected*, exit `70`, with `field`, `value` (as sent, cut at the longest quoted value, 64 characters) and `listings`. | 5.2.1 *What a number is*; 5.4.1; 5.4.5 *Types* |
+| BC1 | Every warning of a run is logged where it is raised, as a `WARN` line carrying its code. The report's `warnings` lists every warning raised with its own metadata, in the order raised; its `warnings` metadata names their codes, each once, in the order first raised. `dp hourly`'s report lists its steps' warnings. An `hour` in a warning is written `YYYY-MM-DDTHH`. A warning leaves the exit `0` unless something else fails, and then the outcome and the exit are the failure's, with the warnings still listed. Each run reports what it sees, so a change that lasts repeats its warning every hour; raising it is the whole of `dp`'s part, and deduplicating is the alerting's, in delphside/dark-portal#2 *Opportunity alerts*. | 5.2.1 *When Blizzard's response changes*; 5.3.2 *When a job fails*; 1.10 |
+| BC2 | A `time_left` that is not one of the four bands, an empty one included, is kept as given in bronze and in silver's `time_left`, and the hour is processed as any other. `dp transform` raises one `TIME_LEFT_UNKNOWN` for the hour, with `hour`, `values` (the distinct values in sorted order) and `listings` (the count of listings holding one). No time left reaches the sold floor or turns a disappearance into a sale. | 5.2.1; 5.2.2 *A time left that is not a band*; 5.4.2; 5.4.5 *Types* |
+| BC3 | A needed field missing, of another kind or moved, or a changed structure (the causes under this table) makes the hour a gap. The error is fatal `SNAPSHOT_SHAPE_CHANGED`, *unexpected*, exit `70`. Its metadata is `field` (the path: one of the six needed fields, `item`, `item.id`, `auctions`, `auctions[]` or `$`) and `listings` (the count read before the fault). A body that is not JSON, or is cut off, is `SNAPSHOT_BODY_UNUSABLE` (X4). | 5.2.1 *When Blizzard's response changes*, *When it fails* |
+| BC4 | A value `dp` cannot hold (the causes under this table) makes the hour a gap. The error is fatal `SNAPSHOT_VALUE_UNEXPECTED`, *unexpected*, exit `70`, with `field`, `value` (as sent, cut at the *longest quoted value* setting, 64 characters) and `listings`. An `id` or `item.id` of 0 is kept. | 5.2.1 *What a number is*; 5.4.1; 5.4.5 *Types* |
 | BC5 | `dp collect` puts the refresh time, the `last-modified`'s time past the hour, on its report as `refresh_past_hour`, `mm:ss`, where it read a snapshot; a run that read none carries none. Outside the expected refresh window, :20:00 to :45:00 with both ends included, so :45:01 is outside, the hour is still collected, with the warning `REFRESH_TIME_MOVED`: `hour`, `refresh_past_hour`, `window_start`, `window_end`. | 5.2.1 *The refresh time*; 5.4.1 |
-| BC6 | `dp transform` judges the time between the `last-modified` of two held hours that follow one another, with none missed between. Outside the expected refresh interval, 50 to 70 min with both ends included, the hour is still processed, with the warning `REFRESH_INTERVAL_CHANGED`: `hour`, `last_modified`, `previous_last_modified`, `interval_seconds`. It is never judged across a missed hour. | 5.2.1 *A refresh that changes*; 5.4.1 |
+| BC6 | `dp transform` judges the time between the `last-modified` of two held hours that follow one another, with none missed between. Outside the expected refresh interval, 50 to 70 min with both ends included, the hour is still processed, with the warning `REFRESH_INTERVAL_CHANGED`: `hour`, `last_modified`, `previous_last_modified`, `interval_seconds`. | 5.2.1 *A refresh that changes*; 5.4.1 |
 | BC7 | Each hour `dp transform` records in `meta.gap` is one warning `HOUR_MISSED`, with `hour`, raised once the hour is recorded. It is the one gap that is a warning. A rebuild of the lake raises the hour warnings (`TIME_LEFT_UNKNOWN`, `REFRESH_INTERVAL_CHANGED` and `HOUR_MISSED`) again for every hour it processes. | 5.2.1; 5.2.2 *A missed hour* |
-| BC8 | An item response that is a JSON object may lack a path the reference table reads (`name`, `item_class.name`, `item_subclass.name`, `sell_price`, `purchase_price`), or have it of another type, a decimal or negative price included. The item is kept, with that field null (`vendor_sell_price` 0). `dp transform` raises one `ITEM_FIELD_MISSING` per path, over the answers new since the table was last built, which a rebuild does not repeat: `path`, `items`, the count, and `first_items`, the lowest item IDs, as many as 5 (the *item IDs named* setting). The item never fails. | 5.2.1; 5.4.1 |
-| PR1 | `dp probe` reads the `last-modified` of bronze's snapshot of the hour before, takes a token of its own and asks for the snapshot with `If-Modified-Since` that time. A `304` means nothing is newer. A `200` is read for its `last-modified` header and its body is dropped unread; a `200` without one is `PROBE_FAILED`. A `last-modified` later than the collected one by less than 50 min (the expected refresh interval's start) is `REFRESH_MORE_OFTEN`: `hour`, the hour before, whose file it compared, `collected_last_modified`, `latest_last_modified`. Later by 50 min or more, or not later, raises nothing. | 5.2.1 *The refresh probe*; 5.4.1 |
+| BC8 | An item response that is a JSON object may lack a path the reference table reads (`name`, `item_class.name`, `item_subclass.name`, `sell_price`, `purchase_price`), or have it of another type, a decimal or negative price included. The item is kept, with that field null (`vendor_sell_price` 0). `dp transform` raises one `ITEM_FIELD_MISSING` per path, over the answers new since the table was last built, which a rebuild does not repeat: `path`, `items` (the count) and `first_items` (the lowest item IDs, as many as 5, the *item IDs named* setting). The item never fails. | 5.2.1; 5.4.1 |
+| PR1 | `dp probe` reads the `last-modified` of bronze's snapshot of the hour before, takes a token of its own and asks for the snapshot with `If-Modified-Since` that time. A `304` means nothing is newer. A `200` is read for its `last-modified` header and its body is dropped unread. A `last-modified` later than the collected one by less than 50 min (the expected refresh interval's start) is `REFRESH_MORE_OFTEN`: `hour` (the hour before, whose file it compared), `collected_last_modified` and `latest_last_modified`. Later by 50 min or more, or not later, raises nothing. | 5.2.1 *The refresh probe*; 5.4.1 |
 | PR2 | `dp probe` writes nothing, takes no lock and so waits for none, caches no token, and never fails or retries. A file that is there but unreadable, a token it cannot take, a request to Blizzard that fails or a `200` without a `last-modified` is `PROBE_FAILED` (`cause`, `cause_message`), with exit `0`. Where the hour before's file is not there, it compares nothing, asks Blizzard nothing and raises no warning. | 5.2.1 *The refresh probe*; 5.1.1 |
-| PR3 | The probe runs from `dp-probe@.timer` at 12:05 UTC daily, not persistent, so a host down at 12:05 gets no catch-up run, under a 5 min run time limit (the unit's `RuntimeMaxSec`) and with `Restart=no`. Its two requests take the other HTTP timeout, 10 s. Its final line carries `total_seconds`, as every job's does. | 5.2.1; 5.4.1; 5.3.2 |
+| PR3 | The probe runs from `dp-probe@.timer` at 12:05 UTC daily, not persistent, so a host down at 12:05 gets no catch-up run, under a 5 min run time limit (the unit's `RuntimeMaxSec`) and with `Restart=no`. Its two requests take the *HTTP timeout* setting for other requests, 10 s. Its final line carries `total_seconds`, as every job's does. | 5.2.1; 5.4.1; 5.3.2 |
 | H0 | *changed*: `dp hourly` runs `collect`, `items`, `transform` and `export`, in that order, and runs the last three whatever `collect` returned. Each can be run alone. It exits with `collect`'s exit where that is not `0`; otherwise `3` where a later step failed; otherwise `0`. Where the lock is held past the lock wait the later steps do not run, and the exit is `collect`'s where that is not `0`, otherwise `75`. | 5.1.1; 5.2.1 *When it fails* |
 | H1 | *changed*: every `dp` subcommand that writes takes the VM-wide lock (`DP_LOCK_FILE`), whether a timer or a person starts it. It waits up to 10 minutes, then exits `75`. `dp collect` takes it only to rename its file, so polling holds no lock; `dp hourly` then holds it, without release, from that rename through `export`. Where `collect` took none (its hour was collected already, or it failed first), `dp hourly` takes it for `items`. An ad hoc query takes no lock and is bounded by `DP_ADHOC_MEMORY_LIMIT` and `DP_ADHOC_THREADS`. | 5.1.1; 5.2.1; 5.4.1 |
 | H2 | *changed*: the pivot is the bronze file. A snapshot error ends `dp collect` with its exit; an `items`, `transform` or `export` error is logged with its type and, under `dp hourly`, gives that step exit `3`. Run alone, `dp transform` and `dp export` exit by a fatal error's type, `dp export` `3` for an error it carried on past and `dp items` `3` for a failure after its first request. | 5.1.1; 5.2.1 *When it fails* |
@@ -71,9 +71,9 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 | H8 | *changed*: `dp daily` retries itself on exit `75`, with no unit restarting it (`Restart=no`): after the daily retry interval (15 min, from the end of one attempt to the start of the next), for as long as the next attempt would start before the earlier of 03:00 UTC on the day the run started and the daily retries span (130 min) after the run's start. It exits with the last attempt's status, so `75` where the retries ran out; a start at or after 03:00 UTC, such as a persistent timer's catch-up, makes one attempt. The hourly unit does not restart either; its next timer start is its retry. | 5.1.1 *Restarts and recovery*; 5.4.1; delphside/dark-portal#7 decision 12 (owner, 2026-11-26) |
 | H9 | A reboot loses no hour that can still be fetched: a run missed while the host was down starts when it is back, and `dp collect` takes the current hour as C0 fixes it. | 5.1.1 *Restarts and recovery*; 5.2.1 |
 | H10 | *changed*: one hourly processing bound, 5 min, covers the `transform` and `export` of an hour together, and a run over it is logged as a warning. A run's own work (opening the lake, the reference rebuild, the export's table rewrites and `profiles.sql`) counts against the bound, shared equally across the hours the run processed. `dp transform` or `dp export` run alone counts its own time against the same bound. | 5.4.1 |
-| H11 | *changed*: a bronze file that is unreadable (`BRONZE_HOUR_UNREADABLE`), or holds a repeated ID, a null or another hour than its name (`BRONZE_HOUR_INVALID`), is unexpected: `dp transform` stops at that hour, keeping the hours before it, and every run stops there until the file is repaired; run alone it exits `70`. An unknown time left is no longer one: it is BC2's. | 5.2.1 *When it fails* |
+| H11 | *changed*: a bronze file that is unreadable (`BRONZE_HOUR_UNREADABLE`), or holds a repeated ID, a null or another hour than its name (`BRONZE_HOUR_INVALID`), is unexpected: `dp transform` stops at that hour, keeping the hours before it, and every run stops there until the file is repaired; run alone it exits `70`. A time left that is not a band is BC2's. | 5.2.1 *When it fails* |
 | TM | Every job's final line carries `total_seconds` and each step's seconds, for the steps the run reached (it got to the step, whether the step ran, was skipped or was left; a close that fails is reached but has no `close_seconds`): for `dp hourly`, `collect_seconds`, `items_seconds`, `transform_seconds` and `export_seconds`; for `dp daily`, `close_seconds`, `export_seconds`, `push_seconds`, `expiry_seconds`, `temporary_seconds` and `items_retry_seconds`, with `attempts`, the count; a single-step command carries its total. A step the run never reached has no key, never null or `0`: under `dp hourly` where the lock is held past the wait, only `collect_seconds` and the total; under `dp daily` every step after the close has its key once the close has ended, one skipped or left included, which shows a time near zero, and only the total and `attempts` where the run ends before. The step times are the last attempt's, and `total_seconds` the whole run's. | 5.3.2 *What the timings are for*; owner, 2026-11-26 |
-| U1 | The units: the hourly timer starts at :35 UTC and the daily at 00:50 UTC, both persistent; the probe timer starts at 12:05 UTC and is not persistent; the three services have `Restart=no`; `RuntimeMaxSec` is 55 min for the hourly (the item fetch's end, 50 min after the start, and the 5 min bound) and 165 min for the daily (the 130 min retries span, the 10 min lock wait, the 15 min day close bound and the 10 min after-close allowance), each derived from 5.4.1's settings, and 5 min for the probe, its run time limit. `systemctl list-timers 'dp-*'` shows three timers. `dp-run` run by hand while its job's run is live exits `75`; with the lock file missing, a `DP_ENV_FILE` that names no environment or a stopped container holding the name, the run by hand exits `2`, and `dp-run` never makes the lock file. A unit that shows `failed` is a run that did not complete; a run over its limit is stopped, and the next timer start repeats what it left. | 5.3.2 *When a job fails*, *Install the units*, *`dp-run`'s exit statuses*; 5.4.1; 5.1.1 |
+| U1 | *changed*: the units: the hourly timer starts at :35 UTC and the daily at 00:50 UTC, both persistent; the probe timer starts at 12:05 UTC and is not persistent; the three services have `Restart=no`; `RuntimeMaxSec` is 55 min for the hourly (the item fetch's end, 50 min after the start, and the 5 min bound) and 165 min for the daily (the 130 min retries span, the 10 min lock wait, the 15 min day close bound and the 10 min after-close allowance), each derived from 5.4.1's settings, and 5 min for the probe, its run time limit. `systemctl list-timers 'dp-*'` shows three timers. `dp-run` run by hand while its job's run is live exits `75`; with the lock file missing, a `DP_ENV_FILE` that names no environment or a stopped container holding the name, the run by hand exits `2`, and `dp-run` never makes the lock file. A unit that shows `failed` is a run that did not complete; a run over its limit is stopped, and the next timer start repeats what it left. | 5.3.2 *When a job fails*, *Install the units*, *`dp-run`'s exit statuses*; 5.4.1; 5.1.1 |
 | P1 | *changed*: the profile view has a row for each item with an `item_hour` row at the latest hour: every commodity listed then (about 10,500) and each whose listings all ended in that hour. The view is filterable by name, class and subclass. | 5.2.3 *Which items*; 5.4.2 *Views and macros*; delphside/dark-portal#7 decision 3 |
 | P2 | Lowest is the lowest unit price in the latest snapshot. | 5.2.3 |
 | P3 | *changed*: fill price for N is the average unit price of the cheapest N units, with the units it covers; where fewer than N are listed, it covers all and says how many; where none are, both the price and the units are null. N below 1, or not a whole number, is refused. It is held to two decimal places of copper, rounded half away from zero. | 5.2.3; 5.4.2; 5.4.5 |
@@ -106,8 +106,25 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 | DC | A day is closed where `meta.day_closed` has a row for it or `item_day` has rows for it, as in a lake rebuilt with `item_day` restored: such a day is never recomputed, and the close only records it in `meta.day_closed`, in the transaction of the days it closes. `meta.day_closed` records every day closed, one with no item row included. A day whose 00:00 is past the hourly keep but whose later hours are in the lake is closed. A closable day never closed with no hour left (every hour past the hourly keep) cannot be closed: `dp daily` warns naming it (`DAY_EXPIRED_UNCLOSED`), lists it in `days_expired_unclosed` and records it in `meta.day_expired` in the close's transaction, so the warning is given once. An hour of the day before neither processed nor a gap stops the run before it does anything else, exit `75`. The run's report is a warning whenever any warning was raised in it (`DAY_EXPIRED_UNCLOSED`, `DAY_CLOSE_OVER_BOUND` or `PUSHED_AFTER_RETRIES`), logged as it is raised, and an error where a step failed. | 5.4.2 *gold*, *meta*; 5.1.1 *Data layers* |
 | E1 | *changed*: `dp export` writes, each under a temporary name then renamed: a `price_level_hour` and an `item_hour` file per committed hour within the hourly keep that the export lacks, oldest first (an hour with no rows has a file with the columns and no rows); `item_day.parquet` and `item.parquet` rewritten only where the table differs from the file; `profiles.sql` rewritten only where its text differs. A run with nothing new writes nothing. It removes any `*.tmp` file a killed run left, under the lock. A copy taken mid-run may be uneven; the next copy levels it. | 5.4.2 *The export*; 5.1.1; delphside/dark-portal#7 decision 8 |
 | SEC | *changed*: the client secret comes from `DP_BLIZZARD_CLIENT_SECRET_FILE`, and the bucket's pre-authenticated URL from `DP_BUCKET_ACCESS_FILE`; neither ever appears in logs, bronze or the export. | 5.4.1; 5.3.2; delphside/dark-portal#7 decision 10 (owner, 2026-11-26) |
-| REF | *changed*: reference is fetched once per item in stage 1; `reference.item` takes the latest response with status 200 per item from bronze, by `fetched_at` then file name. A 404 is no answer: an item with only 404s has no row, and one whose latest response is a 404 after a 200 keeps the 200's. where the body lacks the path of `name`, `class`, `subclass`, `sell_price` or `purchase_price`, or has it of another type (a decimal or negative price included), that column is null (`vendor_sell_price` 0) and the item is kept (BC8); `purchase_price` is otherwise kept as given, 0 staying 0; a body that is not a JSON object is unreadable and fetched again (C6); `vendor_sells` is `BOOLEAN` true, false or null, and null (unknown) for every item now. `dp transform` rebuilds it once a run, after the hours, as its own transaction, writing nothing where the rebuilt table equals the one held; a bad item file fails that step, not an hour. | 5.1.1; 5.4.2 *reference*; 5.4.5; delphside/dark-portal#7 decision 11 (owner, 2026-11-26) |
+| REF | *changed*: reference is fetched once per item in stage 1; `reference.item` takes the latest response with status 200 per item from bronze, by `fetched_at` then file name. A 404 is no answer: an item with only 404s has no row, and one whose latest response is a 404 after a 200 keeps the 200's. Where the body lacks the path of `name`, `item_class.name`, `item_subclass.name`, `sell_price` or `purchase_price`, or has it of another type (a decimal or negative price included), that column is null (`vendor_sell_price` 0) and the item is kept (BC8); `purchase_price` is otherwise kept as given, 0 staying 0; a body that is not a JSON object is unreadable and fetched again (C6); `vendor_sells` is `BOOLEAN` true, false or null, and null (unknown) for every item now. `dp transform` rebuilds it once a run, after the hours, as its own transaction, writing nothing where the rebuilt table equals the one held; a bad item file fails that step, not an hour. | 5.1.1; 5.4.2 *reference*; 5.4.5; delphside/dark-portal#7 decision 11 (owner, 2026-11-26) |
 | BK | The backup is what the bucket holds and keeps: bronze, pushed by `dp daily` and kept a year, and the daily history (`daily/item_day.parquet`, `daily/item.parquet`), pushed by `dp daily` and kept indefinitely. The restore from it after a lost host, its steps and its drill, are in delphside/dark-portal#38 *Restore Dark Portal after a lost host*. | 5.1.1 *Restarts and recovery*, *Data layers*; 5.4.2 *The bucket* |
+
+**The causes under BC3 and BC4.**
+
+- BC3, a needed field missing: a listing lacking `id`, `item`, `item.id`,
+  `quantity`, `unit_price` or `time_left`.
+- BC3, a needed field of another kind: text, a boolean, null, an array or an
+  object where a number is needed, or a `time_left` that is not text.
+- BC3, a changed structure: `item` not an object, `item.id` moved, `auctions`
+  missing, renamed or not a sequence, a listing not an object, or the body valid
+  JSON but not an object.
+- BC4, a number the column cannot hold: negative (`-0` included), a decimal (a
+  number written with a fraction or an exponent, `2.0` and `1e3` included), or
+  above the column's range (`UINTEGER` for `quantity` and `item.id`, `UBIGINT`
+  for `id` and `unit_price`).
+- BC4, a `quantity` or `unit_price` of 0.
+- BC4, text that `dp` keeps, `time_left`, over the *longest text* setting, 32
+  bytes.
 
 ### Checked for contradiction
 
@@ -116,7 +133,8 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 - **X-c5, the unknown band.** 5.2.1 *Which listings can be kept* says "an
   unknown one is read as the more careful *cancelled*" without qualification.
   5.2.2 limits that to a listing with no posting hour. The tests follow 5.2.2
-  (D39.10, D39.11). Wording only.
+  (D39.10, D39.11). 5.2.1's sentence is to be qualified, which Claude does in
+  the Dark Portal documents.
 
 ## 2. Conditions, grouped into dimensions
 
@@ -345,18 +363,18 @@ C9, EV-5, H3, H11, REF, U1 and X4.
   absent: null · D36.6 the rebuilt table equals the one held: nothing written
   · D36.7 a bad item file: the step fails, the hours are committed · D36.8 no
   response: the profile shows the ID.
-- **D37, units and `dp-run`** (complete): D37.1 *changed*: the timers'
-  start and persistence, the probe's at 12:05 UTC and not persistent · D37.2
+- **D37, units and `dp-run`** (complete): D37.1 *changed*: the hourly and daily
+  timers' start and persistence (the probe's is D49.1) · D37.2 *changed*:
   `Restart=no`, the probe's too · D37.3 *changed*: `RuntimeMaxSec` against the
-  settings, the probe's 5 min included
-  · D37.4 a run over it · D37.5 a run by hand while its job is live · D37.6 a
-  stopped container holding the name · D37.7 the lock file missing · D37.8
-  `dp`'s own statuses reach the unit unchanged · D37.9 `dp-run`'s own mapping
-  (5.3.2 *`dp-run`'s exit statuses*): `-h` or `--help` 0; usage 64; a missing
-  setting, a `DP_ENV_FILE` whose name (less any `.env`) is not a letter or digit
-  followed by letters, digits, `_`, `.` and `-`, or the lock file missing 2; the
-  docker daemon unreachable, `docker ps` failing or a run of the same job live
-  75; docker's 125, 126 and 127 2; anything else, such as 137, 70.
+  settings, the probe's 5 min included · D37.4 a run over it · D37.5 a run by
+  hand while its job is live · D37.6 a stopped container holding the name ·
+  D37.7 the lock file missing · D37.8 `dp`'s own statuses reach the unit
+  unchanged · D37.9 `dp-run`'s own mapping (5.3.2 *`dp-run`'s exit statuses*):
+  `-h` or `--help` 0; usage 64; a missing setting, a `DP_ENV_FILE` whose name
+  (less any `.env`) is not a letter or digit followed by letters, digits, `_`,
+  `.` and `-`, or the lock file missing 2; the docker daemon unreachable,
+  `docker ps` failing or a run of the same job live 75; docker's 125, 126 and
+  127 2; anything else, such as 137, 70.
 - **D38, a field the parser does not know** (complete): D38.1 none: no warning ·
   D38.2 one unknown field in one listing · D38.3 the same field in every
   listing, named once · D38.4 one in `item`: `item.<name>` · D38.5 one in each
@@ -374,7 +392,7 @@ C9, EV-5, H3, H11, REF, U1 and X4.
   characters: 16 × `é` (32 bytes) kept, 11 × `€` (33 bytes) a gap · D39.9 a
   number, boolean, null, array or object: BC3, field `time_left` · D39.10
   unknown, no posting hour, gone behind an intact listing at span 1 and span 13:
-  `cancelled`, EV-6, where `VERY_LONG` at span 13 expires · D39.11 unknown,
+  `cancelled`, EV-6, whereas `VERY_LONG` at span 13 expires · D39.11 unknown,
   posted h0, gone behind an intact listing at C = h12: `expired`, `duration` 12
   · D39.12 unknown, gone from the front: `sold`, EV-3 · D39.13 unknown, reduced:
   `partly_sold` · D39.14 the hour's floor equals EV-2's drops alone · D39.15 a
@@ -387,21 +405,21 @@ C9, EV-5, H3, H11, REF, U1 and X4.
   `listings` 0 · D40.8 no bronze file, no `*.tmp`, exit `70` · D40.9 the next
   hour collected: the lost hour in `meta.gap` with `HOUR_MISSED` · D40.10 under
   `dp hourly`: the later steps run, exit `70`.
-- **D41, a needed number of another kind** (complete): D41.1 to D41.5 each of
-  `id`, `item.id`, `quantity`, `unit_price` as text `"5"`, `true`, `null`, `[]`
-  and `{}` · D41.6 text of 40 bytes where a number is needed:
+- **D41, a needed number of another kind** (complete): D41.1 text `"5"` · D41.2
+  `true` · D41.3 `null` · D41.4 `[]` · D41.5 `{}`, each in `id`, `item.id`,
+  `quantity` and `unit_price` · D41.6 text of 40 bytes where a number is needed:
   `SNAPSHOT_SHAPE_CHANGED`, not `SNAPSHOT_VALUE_UNEXPECTED`.
 - **D42, the structure** (not complete: G43): D42.1 `item` an array · D42.2
   `item` a text · D42.3 `item.id` moved (`item: {"ref": {"id": 1}}`): field
   `item.id` · D42.4 `auctions` missing · D42.5 `auctions` renamed
   (`commodities`) · D42.6 `auctions` an object, null or a number · D42.7 a
   listing a number, text, array or null: `auctions[]` · D42.8 the body valid
-  JSON that is not an object, an array or a number: `$`, `listings` 0 · D42.9
-  the body not JSON, or cut off mid-listing: `SNAPSHOT_BODY_UNUSABLE`, exit `70`
-  · D42.10 `auctions: []` (G43) · D42.11 two faults in one body: the first in
-  stream order is reported.
+  JSON that is not an object, for example an array or a number: `$`, `listings`
+  0 · D42.9 the body not JSON, or cut off mid-listing: `SNAPSHOT_BODY_UNUSABLE`,
+  exit `70` · D42.10 `auctions: []` (G43) · D42.11 two faults in one body: the
+  first in stream order is reported.
 - **D43, numbers** (complete): D43.1 `quantity` 1 and `unit_price` 1: kept ·
-  D43.2 `quantity` 0, `unit_price` 0: a gap · D43.3 −1 in each numeric field ·
+  D43.2 `quantity` 0, `unit_price` 0: a gap · D43.3 -1 in each numeric field ·
   D43.4 1.5 in each · D43.5 `quantity` and `item.id` at 4,294,967,295: kept;
   4,294,967,296: a gap · D43.6 `id` and `unit_price` at
   18,446,744,073,709,551,615: kept; …616: a gap · D43.7 `2.0` and `1e3`
@@ -488,7 +506,7 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 | O13 | A whole bronze file at the final name; no temporary file. |
 | O14 | Exit `0` at step 1: no request made and nothing written. |
 | O15 | Exit `75`, nothing written; the hour later recorded as a gap. |
-| O16 | *changed*: exit `0` with a warning: a cleared retry, a renewed token, or a code of 5.2.1's table (BC1). |
+| O16 | *changed*: exit `0` with a warning: a cleared retry, a renewed token or a code of 5.2.1's table (BC1). |
 | O17 | Exit `2`; no file; the lake unchanged. |
 | O18 | Exit `70`; no file; the lake unchanged. |
 | O19 | Exit `3`; the error logged with its type; the rest of the work done. |
@@ -547,7 +565,7 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 | O72 | The push is as K5 says: the record holds a path once its push succeeded; an object put after retries is a warning and exit `0`; an object's own failure is exit `3` with the others pushed; refused access ends the push and says how many were left; the URL is in no log. |
 | O73 | A stale `*.tmp` or spill folder is removed; one younger than its threshold is kept, as are a running job's. |
 | O74 | The job's final line holds `total_seconds` and the seconds of each step the run reached, and `attempts` for `dp daily`, the keys by case as D35 says; the step times are the last attempt's, `total_seconds` the whole run's (D35.2). |
-| O75 | `reference.item` holds the values REF says: `purchase_price` as given, 0 included, null only where absent or of another type; `vendor_sells` null; nothing written where the rebuild equals the table. |
+| O75 | *changed*: `reference.item` holds the values REF says: `purchase_price` as given, 0 included, null only where absent or of another type; `vendor_sells` null; nothing written where the rebuild equals the table. |
 | O76 | The units are as U1 says; a status passes through `dp-run` as the job's own, and docker's own statuses map as 5.3.2 lists; a run by hand while its job is live exits `75`. |
 | O77 | A held span-1 hour in which the item has no row counts as 0 in the median, the mean and so in default N and the ladder's hours. |
 | O78 | The item fetch makes no request that could end after :25, and the items not reached are fetched next run. |
@@ -644,7 +662,7 @@ The datasets are in part 8.
 | S35 | Reprocessing a committed hour | D17.3 | O22 |
 | S36 | `dp hourly`'s order and exit, after each collect result, and with the lock held past the wait | D18, D16.8–9 | O50, O53, O66 |
 | S37 | Price now (TD-J) | D19.1–4, D19.7, D23 | O26, O27 (half away from zero); the vendor sell price shown, no `purchase_price` or `vendor_sells` |
-| S38 | N = 0, N = −1 and N = 1.5, then N = 1 | D19.5, D19.9 | O51, then O27 |
+| S38 | N = 0, N = -1 and N = 1.5, then N = 1 | D19.5, D19.9 | O51, then O27 |
 | S39 | Default N (TD-J, TD-J3, TD-J4, TD-J5) | D20.1–11 | O28, O55, O61, O77 |
 | S40 | Ladder (TD-J, TD-J2, TD-J3, TD-J5) | D21 | O29, O55, O77 |
 | S41 | Hidden sale; floor ≤ estimate | P7 | O30 |
@@ -680,7 +698,7 @@ The datasets are in part 8.
 | S71 | The bucket push (TD-P) | D33, D25.6–9 | O72, O71 |
 | S72 | Stale temporary files and spill folders | D34 | O73 |
 | S73 | A job's timings | D35 | O74 |
-| S74 | Reference rebuild and its columns (TD-O) | D23, D36 | O75; O96 for the `503` item's missing `sell_price` and `purchase_price` |
+| S74 | Reference rebuild and its columns (TD-O) | D23, D36 | O75; O96 (BC8) for the `503` item's missing `sell_price` and `purchase_price` |
 | S75 | The units, the probe's included, and `dp-run` | D37 | O76 |
 | S76 | Item fetch: a blip pauses it, three attempts, the fetch end (TD-Q) | D14.10–14 | O78, O19 |
 | S77 | Each step's exit run alone, DuckDB out of memory and bronze failures | D28.6–14, D29.13–14 | O79 |
@@ -718,7 +736,7 @@ The datasets are in part 8.
 | S59: `dp daily` exits 2 or 3 | the next run closes the day, or repeats the failed step |
 | S60: no retry closes the day before 03:00 | the next night's run closes both days |
 | S29: an item's new token is refused, exit 3 | the next run, with the right secret, fetches it |
-| S38: N = 0, N = −1 and N = 1.5 refused | N = 1 answered |
+| S38: N = 0, N = -1 and N = 1.5 refused | N = 1 answered |
 | S20: already collected, exit 0 | the next hour collects |
 | S61: Blizzard has moved on, exit 75, hour 10 a gap | the 11:35 run collects hour 11, exit 0 |
 | S67: the lock held past the wait, exit 75 | the lock free, every step runs |
@@ -739,7 +757,7 @@ The datasets are in part 8.
 | R2 | S11, S42, S43, S60, S62; UT3, UT4; PD2, PD6 |
 | R7 | S40, S41, S48; UT2; PD3 |
 | R8v | S1, S2, S41; UT3; PD4 |
-| R11 | S78–S90; TT13, TT14; PD7 |
+| R11 | S78–S90; TT13; PD7; TT14 as a report |
 | T1 | S17 |
 | T2 | S1, S11, S12, S14 |
 | TR | S1, S2 |
@@ -751,7 +769,7 @@ The datasets are in part 8.
 | EV-3 | S1, S2, S3, S4, S6, S64 |
 | EV-4 | S1, S4, S5, S6 |
 | EV-5 | S9, S10, S11, S13, S14, S79 |
-| EV-6 | S1, S9, S10, S11, S13 |
+| EV-6 | S1, S9, S10, S11, S13, S79 |
 | EVW | S1, S4, S6 |
 | EV-7 | S64 |
 | L1 | S1, S10, S11 |
@@ -773,14 +791,14 @@ The datasets are in part 8.
 | BC2 | S79 |
 | BC3 | S79–S82 |
 | BC4 | S79, S83 |
-| BC5 | S84; TT14 |
-| BC6 | S85, S86; TT14 |
+| BC5 | S84; TT14 as a report |
+| BC6 | S85, S86; TT14 as a report |
 | BC7 | S80, S86 |
-| BC8 | S89 |
+| BC8 | S74, S89 |
 | PR1 | S87; TT13 |
 | PR2 | S88 |
 | PR3 | S88, S91; TT11 |
-| H0 | S36, S67 |
+| H0 | S36, S67, S80, S90 |
 | H1 | S31, S32, S44, S56, S58, S67 |
 | H2 | S27, S29, S34, S36, S45 |
 | H3 | S11, S21, S33, S34, S61, S66, S86; PD5 |
@@ -904,7 +922,7 @@ The datasets are in part 8.
 | S71 | K5, K2, SEC |
 | S72 | K6 |
 | S73 | TM |
-| S74 | REF |
+| S74 | REF, BC8 |
 | S75 | U1, C9 |
 | S76 | C6, C8, C10 |
 | S77 | X3, X4, X5, H0, DX |
@@ -917,7 +935,7 @@ The datasets are in part 8.
 | S84 | BC5, BC1, X1, R11 |
 | S85 | BC6, R11 |
 | S86 | BC6, BC7, H3, R11 |
-| S87 | PR1, X1, R11 |
+| S87 | PR1, PR2, X1, R11 |
 | S88 | PR2, PR3, X1, R11 |
 | S89 | BC8, REF, R11 |
 | S90 | BC1, H0, R11 |
@@ -950,13 +968,15 @@ The datasets are in part 8.
   `export/`.
 - **[AUTO] `dp-run`**: `deploy/tests/dp-run.bats`, with `docker` a script, run
   by the repository's CI beside the crate's tests.
-- **[AUTO] decision 13**: D38 to D48, D50 and D51 are integration against the
-  Blizzard stub on the injected clock, the parser also by component tests on
-  constructed bodies. D39.10 to D39.14 and D45 seed bronze or silver directly,
-  as TD-E and TD-K do. D49.1, D49.3 and D49.5 read the unit and the timer
-  against 5.4.1, beside
+- **[AUTO] Blizzard's changes and the probe**: D38 to D48, D50 and D51 are
+  integration against the Blizzard stub on the injected clock, the parser also
+  by component tests on constructed bodies. D39.10 to D39.14 and D45 seed bronze
+  or silver directly, as TD-E and TD-K do. D49.1, D49.3 and D49.5 read the unit
+  and the timer against 5.4.1, beside
   `units_have_restart_no_and_the_settings_run_time_limits`. The injected clock
-  also covers the probe's hour before and its 10 s timeout.
+  also covers the probe's hour before. Its timeout is tested with
+  `Blizzard::with_timeouts` at 100 ms against a delayed stub, and the 10 s as
+  `Timeouts::SETTINGS.other`.
 
 **What is real, and what is stubbed.**
 
@@ -1212,10 +1232,10 @@ deadline, the day close bound and the item fetch's end. The seam is
   `$.next`, and `_links` there raises none; the same field in the next hour is
   warned again.
 - **TD-S, time left.**
-  - Bronze h10: `1101 100×2 LONG`, `1102 110×1 EXTRA_LONG`, `1103 120×1
-    EXTRA_LONG`, `1104 130×1 ULTRA`. One `TIME_LEFT_UNKNOWN` for h10, `values`
-    `EXTRA_LONG` and `ULTRA`, `listings` 3, the values kept in bronze and
-    silver.
+  - Bronze h10: listings `1101` (100 × 2, `LONG`), `1102` (110 × 1,
+    `EXTRA_LONG`), `1103` (120 × 1, `EXTRA_LONG`) and `1104` (130 × 1, `ULTRA`).
+    One `TIME_LEFT_UNKNOWN` for h10, `values` `EXTRA_LONG` and `ULTRA`,
+    `listings` 3, the values kept in bronze and silver.
   - Seeded, as TD-K: `EXTRA_LONG`, no posting hour, gone behind an intact
     listing at span 1 and at span 13 is `cancelled`, against `VERY_LONG` at span
     13, `expired`. Posted h0 and gone behind an intact listing at C = h12 is
@@ -1229,15 +1249,15 @@ deadline, the day close bound and the item fetch's end. The seam is
   one field. `listings` is 2 in each case. `2.0`, `1e3` and `-0` are gaps,
   quoted as sent (`1e3` stays `1e3`); an `id` and an `item.id` of 0 are kept.
 - **TD-U, refresh times.**
-  - Collect at 10:35, served `last-modified` 10:19:59, 10:20:00, 10:31:40,
-    10:45:00, 10:45:01, 10:00:00 and 10:59:59, the last served once the clock
-    passes it. A rerun in a collected hour, and a run that fails before the
-    snapshot, carry no `refresh_past_hour`.
+  - Collect for hour 10, served `last-modified` 10:05:03, 10:19:59, 10:20:00,
+    10:31:40, 10:45:00, 10:45:01, 10:00:00 and 10:59:59, each with the clock set
+    past it (10:50, and 11:00 for 10:59:59). A rerun in a collected hour, and a
+    run that fails before the snapshot, carry no `refresh_past_hour`.
   - Consecutive bronze hours: h10 10:31:40, h11 11:21:40 (50:00), h12 12:31:40
     (70:00), h13 13:31:40 (60:00), h14 14:21:39 (49:59, warns), h15 15:31:40
     (70:01, warns).
   - h20 20:59:59 then h21 21:00:00 (1 s, warns).
-  - h30 held, h31 and h32 missed, h33 33:31:40: two `HOUR_MISSED` and no
+  - h10 held, h11 and h12 missed, h13 13:31:40 (D45.8): two `HOUR_MISSED` and no
     interval warning.
   - Daily refresh: hours held 24 apart, with the 23 between missed.
   - A rebuild of a lake that holds missed hours and an interval outside the
@@ -1257,8 +1277,7 @@ deadline, the day close bound and the item fetch's end. The seam is
   - 1301 lacks `name`; 1302's `name` is `{"en_GB": "Linen Cloth"}`;
   - 1303's `item_class` is a text; 1304 lacks `item_subclass`;
   - 1305's `sell_price` is `"50"`; 1306 lacks `purchase_price`; 1307 lacks both
-    prices; one more has a `sell_price` of 12.5 and one a `purchase_price` of
-    −3;
+    prices; 1308's `sell_price` is 12.5; 1309's `purchase_price` is -3;
   - Warnings: `name`, items 2; `item_class.name`, 1; `item_subclass.name`, 1;
     `sell_price`, 3; `purchase_price`, 3.
   - A second build with no new answer warns nothing.
@@ -1323,16 +1342,16 @@ rules:
   back and it collects the previous hour (S57).
 - TT11 (E5) *changed*, the units (U1): `systemctl list-timers 'dp-*'` shows
   three timers, the hourly and daily with the :35 and 00:50 UTC starts and
-  persistence, and the probe's at 12:05 UTC, not persistent (`systemctl show
-  dp-probe@<env>.timer -p Persistent` is `no`); all three services show
-  `Restart=no`; `RuntimeMaxSec` is 55 min, 165 min and, for the probe, 5 min, as
-  5.4.1's settings derive them; with the host down across 12:05, no probe runs
-  until the next day's 12:05 (D49.2, D49.4); a run started by hand while its job
-  is live exits 75, with the live run going on; with the lock file missing it
-  exits 2; a run by hand with a stopped container holding the job's name exits
-  2; a run stopped at its limit shows `failed` and the next timer start repeats
-  what it left, a daily export stopped part-way included (D32.10); `DP_ENV_FILE`
-  naming no environment exits 2.
+  persistence, and the probe's at 12:05 UTC, not persistent (its timer's
+  `Persistent` is `no`); all three services show `Restart=no`; `RuntimeMaxSec`
+  is 55 min, 165 min and, for the probe, 5 min, as 5.4.1's settings derive them;
+  with the host down across 12:05, no probe runs until the next day's 12:05
+  (D49.2, D49.4); a run started by hand while its job is live exits 75, with the
+  live run going on; with the lock file missing it exits 2; a run by hand with a
+  stopped container holding the job's name exits 2; a run stopped at its limit
+  shows `failed` and the next timer start repeats what it left, a daily export
+  stopped part-way included (D32.10); `DP_ENV_FILE` naming no environment exits
+  2.
 - TT12 (E5), DuckLake over its SQLite catalog, which [AUTO] does not run: the
   lake attaches and its migrations run, from empty and from the previous
   version; an hour commits across every table it writes, and a failure part-way
@@ -1344,13 +1363,14 @@ rules:
   checkbox. It records whether the conditional request is answered `304` or a
   full `200`. Either, with nothing newer, is a run with no warning and exit `0`.
   The `If-Modified-Since` sent equals the collected `last-modified`. A `200`
-  costs a connection, not the snapshot's download: the bytes read are far below
-  a snapshot's. This passes where all of that holds, and fails otherwise.
+  costs a connection, not the snapshot's download: it reads headers only, under
+  64 KB in all, against the snapshot's roughly 28 MB. This passes where all of
+  that holds, and fails otherwise.
 - TT14 (E5): over TT1's 72 hours, reported, not judged. It lists each hour's
   `refresh_past_hour` and the interval between hours that follow one another,
   against the expected refresh window and interval, since 5.4.1 reviews both
   once bronze holds refresh times. It also lists every warning or fatal code of
-  5.2.1's table that was raised, each explained.
+  5.2.1's table that was raised, each explained by Claude.
 
 The restore's steps and its drill are in delphside/dark-portal#38 *Restore Dark
 Portal after a lost host*. BK is tested here for what reaches the bucket and
@@ -1374,8 +1394,9 @@ reads are his; one per row of delphside/dark-portal#7's post-deployment checks:
   lists host bronze, and gives Claude the result: the rule on `bronze/` is
   1 year, `daily/` has none, and host bronze holds no snapshot file older than
   7 days.
-- PD7 (R11): the owner lists the first week's `WARN` lines with their codes from
-  5.2.1's table, and Claude explains each.
+- PD7 (R11): every `WARN` line, and every fatal code of 5.2.1's *When Blizzard's
+  response changes*, in the first week is explained: the owner lists them from
+  the journal, and Claude matches each to its cause.
 
 ## 9. Test names
 
@@ -1480,9 +1501,8 @@ All of these are **[AUTO]**.
 
 ### Changes to Blizzard's responses
 
-These are the built names. A name given for two modules (the parser's and the
-collector's) is one test in each; a condition marked partial is covered in part,
-and says what is left.
+These are the built names. A name in two modules is given with both paths; a
+condition marked partial is covered in part, and says what is left.
 
 **D38:**
 
@@ -1535,14 +1555,14 @@ and says what is left.
   D40.6 through the run for `quantity` and `time_left`, D40.8)
 - `a_shape_change_counts_the_listings_read_before_it` (D40.7)
 - `a_body_that_is_json_but_not_an_object_is_a_shape_change_at_the_root` (D40.7,
-  D42.8, D42.9: in the parser's module and the collector's; not JSON and cut off
-  are in the collector's)
-- `each_hour_missed_is_warned_and_the_run_exits_0` (D40.9 (partial: the
-  transform's half), D46.1, D46.2)
-- `hourly_runs_items_transform_and_export_after_any_collect_result` (D40.10
-  (partial: collect is stubbed, so no real shape change runs under `dp hourly`))
-- `hourly_exits_with_collects_status_where_it_is_not_0` (D40.10 (partial, as
-  above))
+  D42.8, D42.9: in `src/collect/snapshot.rs` and in `src/collect/tests.rs`,
+  where not JSON and cut off are asserted)
+- `each_hour_missed_is_warned_and_the_run_exits_0` (D40.9, partial: the
+  transform's half; D46.1, D46.2)
+- `hourly_runs_items_transform_and_export_after_any_collect_result` (D40.10,
+  partial: collect is stubbed, so no real shape change runs under `dp hourly`)
+- `hourly_exits_with_collects_status_where_it_is_not_0` (D40.10, partial for the
+  same reason: collect is stubbed)
 - `every_needed_number_of_another_kind_is_a_shape_change` (D41.1 to D41.5)
 - `text_where_a_number_is_needed_is_a_shape_change_whatever_its_length` (D41.6)
 - `text_beyond_the_longest_where_a_number_is_needed_is_a_shape_change` (D41.6)
@@ -1631,22 +1651,23 @@ and says what is left.
 - `the_probe_carries_nothing_but_its_own_warnings_and_names_each_code_once`
   (D47.9)
 - `a_200_with_no_last_modified_is_a_failed_probe` (D47.10)
+
 D47.7's `REFRESH_TIME_MOVED` beside the probe's warning is
 `refresh_outside_the_expected_window_warns_with_the_time_past_the_hour` at :02,
-a second run.
+run a second time against the same day's snapshot.
 
 **D48:**
 
 - `a_bronze_file_that_cannot_be_read_is_a_warning_and_asks_blizzard_nothing`
   (D48.1)
-- `a_refused_token_is_a_warning_too` (D48.2 (partial: a 401; an unreachable
-  token endpoint has no test, G58))
-- `whatever_it_meets_is_a_warning_and_never_a_failure` (D48.3 (500, 503, 403, no
-  header), D48.8, D47.10)
-- `blizzard_not_answering_is_a_warning` (D48.3 (partial: a timeout; Blizzard
-  unreachable has no test, G59))
-- `a_failed_request_is_not_retried_and_a_blip_is_the_same_warning` (D48.3 (503,
-  429, 500: one request, no backoff))
+- `a_refused_token_is_a_warning_too` (D48.2, partial: a 401; an unreachable
+  token endpoint has no test, G58)
+- `whatever_it_meets_is_a_warning_and_never_a_failure` (D48.3 for a 500 and a
+  503, D48.8 for those and a 403, D47.10 for no header)
+- `blizzard_not_answering_is_a_warning` (D48.3, partial: a timeout; Blizzard
+  unreachable has no test, G59)
+- `a_failed_request_is_not_retried_and_a_blip_is_the_same_warning` (D48.3 for a
+  503, a 429 and a 500: one request, no backoff)
 - `the_probes_requests_take_the_other_timeout_and_never_the_snapshots` (D48.4)
 - `the_probe_writes_no_bronze_takes_no_lock_waits_for_none_and_caches_no_token`
   (D48.5, D48.6, D48.7)
@@ -1662,7 +1683,7 @@ a second run.
 - `writing_subcommand_exits_75_when_the_lock_wait_runs_out`
 - `persons_transform_waits_for_the_hourly_runs_lock`
 - `hourly_holds_the_lock_from_the_rename_through_export`
-- `ad_hoc_query_takes_no_lock_and_uses_its_own_limits`
+- `ad_hoc_query_takes_no_lock_and_uses_its_own_limits` (H1, H7, O43: not built, there is no ad hoc path yet; G60)
 - `hourly_takes_the_lock_for_items_where_collect_took_none`
 - `hourly_skips_later_steps_and_exits_75_where_the_lock_is_held_past_the_wait`
 - `hourly_exits_collects_status_where_the_lock_is_held_and_collect_failed`
@@ -1806,7 +1827,7 @@ a second run.
 - `daily_keeps_a_running_jobs_spill_folder`
 - `each_duckdb_connection_spills_to_its_own_folder_removed_at_close`
 - `daily_expires_lake_snapshots_older_than_7_days`
-- `daily_repeats_a_failed_file_clean_up_whether_or_not_a_row_was_deleted`
+- `daily_repeats_a_failed_file_clean_up_whether_or_not_a_row_was_deleted` (D24.6, K1: not built, a file clean-up is DuckLake's, which only TT12 runs; G61)
 - `daily_exits_75_when_the_lock_wait_runs_out`
 - `daily_exits_2_on_a_full_disk_without_closing_the_day`
 - `daily_exits_3_when_a_step_after_the_close_fails_and_the_next_run_repeats_it`
@@ -1833,8 +1854,8 @@ a second run.
 - `timers_start_at_35_and_00_50_utc_and_are_persistent`
 - `probe_runs_daily_at_12_05_utc_not_persistent_with_the_settings_run_time_limit`
   (D49.1, D49.3, D49.5; C9, U1)
-- `the probe is a job of its own: it runs, and a live one is no conflict for the
-  hourly run` (the bats test in `deploy/tests/dp-run.bats`; PR3)
+- `the probe is a job of its own: it runs, and a live one is no conflict for the hourly run`
+  (the bats test in `deploy/tests/dp-run.bats`; PR3)
 - `dp_run_by_hand_while_its_job_is_live_exits_75`
 - `dp_run_with_the_lock_file_missing_exits_2_and_does_not_make_it`
 - `dp_run_with_a_stopped_container_holding_the_name_exits_2`
@@ -1889,8 +1910,7 @@ covers it:
 - G38, a file in the data folder that cannot be read or written, other than a
   full disk: 5.2.1 *When it fails* (X3, D28.14).
 - G39, the probe timer's persistence: 5.1.1 *Restarts and recovery* and 5.3.2's
-  file table now say the hourly and daily timers are persistent and the probe's
-  is not (C9, U1, D37.1, D49.1).
+  file table (C9, U1, D49.1).
 - G40, the probe's timeout: 5.4.1's *HTTP timeout* row names the probe's two
   requests at 10 s (PR3, D48.4).
 - G41, the window's end: 5.4.1 says :45:00 is inside and :45:01 outside (BC5,
@@ -1922,8 +1942,8 @@ covers it:
   D47.10, D48.3).
 - G52, the probe's unit and final line: 5.2.1 says the unit has `Restart=no` and
   the final line carries `total_seconds` (PR3, D48.9, D49.5).
-- G53, R11's post-deployment row: a row added to delphside/dark-portal#7's body;
-  PD7 is its check (R11).
+- G53, R11's post-deployment row: delphside/dark-portal#7's post-deployment
+  checks, in its R11 row (R11, PD7).
 - G54, an item body of another shape: 5.2.1 *Item responses* says a JSON object
   is kept whole whatever its fields, and a body that is not JSON or not an
   object is unreadable and fetched next run (REF, D50.8).
@@ -1942,7 +1962,9 @@ The gaps open now; none blocks the test design, and each says why:
 | G28 E3 to E6 are not yet built (delphside/dark-portal#11) | [AUTO], [UT] and [TT] have nowhere to run. | delphside/dark-portal#11's packages land first. | Designed; delphside/dark-portal#7's Development waits on delphside/dark-portal#11. |
 | G29 "Lower bound" | Not directly observable. | Accept the structural tests (`listing_posted_and_bought_between_snapshots_shows_in_no_flow`, floor ≤ estimate). | Inherent. |
 | G35 `vendor_sells` true and false (until R5) | No code can set the flag until R5's setter exists, so `true` and `false` have no source to test through. | Build R5's setter (stage 3). | Only the column's type and the null for every item are tested now (D23.4). |
-| G43 an empty `auctions: []` | Blizzard serves an empty array: every live listing reads as sold, the partial hour R11 forbids. | The owner decides, and 5.2.1 says, whether an empty, or implausibly small, snapshot is a gap. | Awaiting the owner. Until then D42.10 has only `an_empty_auction_house_is_no_rows`, which pins today's behaviour. |
-| G44 a repeated auction ID from Blizzard | It is still `BRONZE_HOUR_INVALID` at the transform and stops every run until the file is repaired, where R11 would make it a gap at collect. | The owner decides whether 5.2.1 gives it a collect-time code. | Awaiting the owner. H11 is tested as written. |
+| G43 an empty `auctions: []` | Blizzard serves an empty array: every live listing reads as sold, the partial hour R11 forbids. | The owner decides, and 5.2.1 says, whether an empty, or implausibly small, snapshot is a gap. | Today's behaviour is tested as written until the owner decides: D42.10 has only `an_empty_auction_house_is_no_rows`. |
+| G44 a repeated auction ID from Blizzard | It is still `BRONZE_HOUR_INVALID` at the transform and stops every run until the file is repaired, where R11 would make it a gap at collect. | The owner decides whether 5.2.1 gives it a collect-time code. | Today's behaviour is tested as written until the owner decides: H11 as it stands. |
 | G58 the token endpoint unreachable, for the probe | A probe run with the token endpoint down is not shown to be `PROBE_FAILED` with exit `0`. | A test beside `a_refused_token_is_a_warning_too`. | Only a refused token (401) is tested (D48.2); the probe takes the same path for any token failure. |
-| G59 Blizzard unreachable, for the probe | A probe run with the snapshot host unreachable is not shown to be `PROBE_FAILED` with exit `0`. | A test beside `blizzard_not_answering_is_a_warning`. | A timeout, 500, 503, 429 and 403 are tested (D48.3). |
+| G59 Blizzard unreachable, for the probe | A probe run with the snapshot host unreachable is not shown to be `PROBE_FAILED` with exit `0`. | A test beside `blizzard_not_answering_is_a_warning`. | A timeout, a 500, a 503 and a 429 are tested (D48.3). |
+| G60 `ad_hoc_query_takes_no_lock_and_uses_its_own_limits` has no test (H1, H7, O43, S32) | An ad hoc query that took the lock, or ran without its `DP_ADHOC_*` limits, would pass. | The ad hoc query path is built, and the test with it. | No ad hoc path exists yet; H1 and H7's other halves are tested. |
+| G61 `daily_repeats_a_failed_file_clean_up_whether_or_not_a_row_was_deleted` has no test (D24.6, K1) | A clean-up that failed and is not repeated would pass. | TT12, which runs DuckLake. | The file clean-up is DuckLake's, which [AUTO] does not run (part 8). |
