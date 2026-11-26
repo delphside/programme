@@ -5,7 +5,7 @@ Work package: `delphside/programme#100` *1.5 gaps found by the first document
 review* (one delivery, so the project is its own work package) · delivery:
 `main` (delphside/programme#161 *1.5: README, front matter, run-in label and
 template rules*, merged 2026-11-11, 8db5301) · reviewed: 2026-11-16, check
-still open
+answered 2026-11-26: passed
 
 ## 1. Was the intended scope delivered?
 
@@ -46,11 +46,32 @@ them before writing a style rule.
 
 | Finding | Pre-approved change, requirement or project | Or why no change |
 | --- | --- | --- |
-| The check, a document-review week citing the new rules and raising no gap on the four subjects, has no evidence yet | | The review stays open (below). The `document-review` row of its week answers it |
+| The check, a document-review week citing the new rules and raising no gap on the four subjects | | Passed on 2026-11-26 (below); the project closes |
 | `project.yml` in Tile Lite Elite has lower-case headers | Pre-approved change: Docs and Programme Tooling's pin move or a Tile Lite Elite template edit, raised by the next Tile Lite Elite session | It is a small template edit in another repository and no issue carries it |
 | Style rules clash with practice | The week 47 digest note's proposed conclusion, with its monitor | Left to the weekly review to adopt |
 
-### The open check
+### The check, answered 2026-11-26: passed
+
+Two document-review weeks ran after the rules merged:
+
+- 2026-11-16, week 4 of 4;
+- 2026-11-23, week 1 of a new quarter.
+
+Their reviews covered READMEs (the root README, the templates README and Tile
+Lite Elite's), templates and front matter. Each week's log row in
+`records/2.3-activity-log.csv` ends with none material. Neither week raised an
+issue or a finding on a README, front matter, a run-in label or a template
+header: the issues raised from 2026-11-23 are delphside/programme#251
+*Re-requested review still shows Changes requested* and
+delphside/infrastructure#10 *Record the hosts as built in 3.3.2*.
+
+One finding in `records/2.4-weekly-digest/PRG_WD_2026_W48.md` cites
+*Sentence case, and names as the system shows them* by heading. The other
+three rules are cited nowhere. That is because nothing broke them, so the
+check's "cites by heading" half is read as met by their absence. The open
+check below is kept as the 2026-11-16 record.
+
+### The open check, as of 2026-11-16
 
 Evidence searched on 2026-11-16, none of it answering the check:
 
