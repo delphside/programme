@@ -4,7 +4,7 @@ Project: delphside/dark-portal#7 *#5 WP B Del 2 of 5: consumable profiles* · ty
 
 ## 1. Rules
 
-Taken from the design documents at 0d0027e (app 0.1.0),
+Taken from the design documents at 546fc51 (app 0.1.0),
 delphside/dark-portal#7's body and its Decisions table. The documents are drafts
 for delphside/dark-portal#7's design. The first version took them at 47c862a. A
 rule, condition, outcome or approach item marked *changed*, after its ID or
@@ -77,7 +77,7 @@ added; the earlier wording is in git history.
 | P15 | `hourly_history` gives each `item_hour` row with the item's name, `daily_summary` each `item_day` row with the item's name, and `held_hour` the hours gold holds with their span. | 5.4.2 *Views and macros* |
 | X1 | Exit `0`: done, with at most warnings. | 1.10; 5.2.1 |
 | X2 | Exit `75`: a timeout, 429, 502, 503 or 504 when the retry window closes; `last-modified` still before the current hour when it closes; `last-modified` in the hour after the current one, the current hour a gap; the lock wait running out. | 5.2.1 *When it fails* |
-| X3 | *changed*: exit `2`: a new token refused (401), including after a cached one was refused; 403 or 404 on the snapshot; a `last-modified` whose hour is two or more after the current one; disk full; the lake that cannot be opened (`LAKE_UNAVAILABLE`) in `dp transform` or `dp export` run alone; DuckDB out of memory (`OUT_OF_MEMORY`) in `dp transform` run alone, in opening or migrating the lake in `dp export` run alone, and in `dp daily` before its pivot (DX). | 5.2.1 *When it fails*; 5.1.1 *Restarts and recovery* |
+| X3 | *changed*: exit `2`: a new token refused (401), including after a cached one was refused; 403 or 404 on the snapshot; a `last-modified` whose hour is two or more after the current one; disk full; another file in the data folder that cannot be read or written (`LOCAL_IO_FAILED`); the lake that cannot be opened (`LAKE_UNAVAILABLE`) in `dp transform` or `dp export` run alone; DuckDB out of memory (`OUT_OF_MEMORY`) in `dp transform` run alone, in opening or migrating the lake in `dp export` run alone, and in `dp daily` before its pivot (DX). | 5.2.1 *When it fails*; 5.1.1 *Restarts and recovery* |
 | X4 | *changed*: exit `70`: Blizzard answers 400, 500 or another status, a body the parser cannot use, or no `last-modified`; DuckDB failing to write a bronze file in `dp collect` (`BRONZE_WRITE_FAILED`, out of memory included); in `dp items` before its first request, DuckDB failing to open its store for the responses (`BRONZE_WRITE_FAILED`) or to read bronze (`BRONZE_READ_FAILED`); in `dp transform` run alone, a fatal unexpected error, such as a failure of the lake (`LAKE_FAILED`) or a bronze file error (H11); in `dp export` run alone, an unexpected error in opening or migrating the lake (`LAKE_FAILED`). | 5.2.1 |
 | X5 | *changed*: exit `3`: under `dp hourly`, an item lookup (401 included, 404 not), the transform or the export failed after the pivot; run alone, `dp items` where an item lookup fails or DuckDB fails to write the item responses after its first request, and `dp export` where it carried on past an error, out of memory in reading the committed hours, rewriting `item_day` or `item`, or writing an hour included. | 5.2.1 |
 | X6 | Before the pivot a failure leaves no temporary or partial file. Usage errors exit `64`; a signal is unexpected; errors are 1.10's result object; a business error is logged at `INFO`, a technical one at `WARN`. | 1.10 |
@@ -256,11 +256,12 @@ added; the earlier wording is in git history.
   DuckDB fails to read bronze before its first request: `BRONZE_READ_FAILED`,
   exit 70 · D28.12 `dp transform` run alone, a fatal error by its type, such
   as the lock held past the wait 75; `LAKE_UNAVAILABLE`, a full disk or out of
-  memory 2; `LAKE_FAILED` or an unexpected failure in an hour 70 · D28.13 `dp export` run
-  alone: a fatal error by its type (such as the lock held past the wait 75; a
+  memory 2; `LAKE_FAILED` or an unexpected failure in an hour 70 · D28.13 `dp
+  export` run alone: a fatal error by its type (such as the lock held past the wait 75; a
   fundamental error in opening or migrating the lake 2; `LAKE_FAILED` or another
   unexpected error in opening or migrating the lake 70), and an error it carried
-  on past 3.
+  on past 3 · D28.14 a file in the data folder that cannot be written, its mode
+  wrong (`LOCAL_IO_FAILED`): exit 2.
 - **D29, `dp daily`'s exit** (complete): D29.1 lock held past the wait · D29.2
   the day before not closable · D29.3 disk full · D29.4 unexpected · D29.5 a
   push fails · D29.6 a deletion fails · D29.7 an item retry fails · D29.8 an
@@ -530,7 +531,7 @@ The datasets are in part 8.
 | S74 | Reference rebuild and its columns (TD-O) | D23, D36 | O75 |
 | S75 | The units and `dp-run` | D37 | O76 |
 | S76 | Item fetch: a blip pauses it, three attempts, the fetch end (TD-Q) | D14.10–14 | O78, O19 |
-| S77 | Each step's exit run alone, DuckDB out of memory and bronze failures | D28.6–13, D29.13–14 | O79 |
+| S77 | Each step's exit run alone, DuckDB out of memory and bronze failures | D28.6–14, D29.13–14 | O79 |
 
 ## 6. Refusals and successes
 
@@ -634,7 +635,7 @@ The datasets are in part 8.
 | X5 | S29, S34, S45, S77 |
 | X6 | S27, S50 |
 | DX | S44, S54, S59, S60, S68, S69 |
-| K1 | S42 |
+| K1 | S42; TT12 |
 | K2 | S46, S59, S71; TT8; PD6 |
 | K3 | S42 |
 | K4 | S54 |
@@ -743,18 +744,22 @@ The datasets are in part 8.
 **What runs, and where.**
 
 - **[AUTO] component**: `profiles.sql` and the transform's SQL, on an in-process
-  DuckDB and DuckLake in a temporary directory, fed bronze Parquet written from
-  the constructed snapshots.
+  DuckDB in a temporary directory, fed bronze Parquet written from the
+  constructed snapshots. The lake there is a plain DuckDB file, not DuckLake:
+  the tests install no extension, so what only DuckLake shows is TT12.
 - **[AUTO] integration**: the `dp` subcommands against a local stub of Blizzard
   (token, commodities, item), with a temporary `DP_DATA_DIR`, lock file, secret
   file and bucket.
 - **[AUTO] system**: about 30 constructed hours through `dp hourly`, then `dp
   daily`, then a fresh DuckDB loading `export/profiles.sql` over a copy of
   `export/`.
+- **[AUTO] `dp-run`**: `deploy/tests/dp-run.bats`, with `docker` a script, run
+  by the repository's CI beside the crate's tests.
 
 **What is real, and what is stubbed.**
 
-- Real: DuckDB, DuckLake, Parquet, the filesystem and the lock file.
+- Real: DuckDB, Parquet, the filesystem and the lock file. DuckLake is real
+  only on E5 (TT12).
 - Stubbed: Blizzard, the clock, the bucket, and a failed write for a full disk.
 - The timers' schedule and persistence are systemd's, so they are tested as
   [TT] on E5. `dp daily`'s own retries, deadline and close gate run on the
@@ -765,8 +770,8 @@ The datasets are in part 8.
 current hour), the poll, the :25 window, backoff and `Retry-After`, the token
 margin, the lock wait, an hour's processing time against its 5-minute bound,
 00:50, the 15-minute daily retry, the 130-minute retries span, 03:00, the daily
-deadline, the day close bound and the item fetch's end. The documents name no
-clock seam (G19), left to Development.
+deadline, the day close bound and the item fetch's end. The seam is
+`collect::clock`'s clock, which the tests replace with a fake one.
 
 **What state each test starts from.**
 
@@ -1059,6 +1064,13 @@ rules:
   shows `failed` and the next timer start repeats what it left, a daily export
   stopped part-way included (D32.10); `DP_ENV_FILE` naming no environment exits
   2.
+- TT12 (E5), DuckLake over its SQLite catalog, which [AUTO] does not run: the
+  lake attaches and its migrations run, from empty and from the previous
+  version; an hour commits across every table it writes, and a failure part-way
+  rolls back whole (O23); a `DELETE` with no `WHERE` empties a table; snapshot
+  expiry removes the snapshots older than the lake snapshot keep and the file
+  clean-up then deletes the files no remaining snapshot holds (K1, D24.5,
+  D24.6).
 
 The restore's steps and its drill are in delphside/dark-portal#38 *Restore Dark
 Portal after a lost host*. BK is tested here for what reaches the bucket and
@@ -1164,6 +1176,7 @@ All of these are **[AUTO]**.
 - `blizzard_500_exits_70_and_writes_nothing`
 - `unusable_body_exits_70_and_leaves_no_bronze_file`
 - `full_disk_exits_2_and_leaves_no_partial_file`
+- `unwritable_data_folder_file_exits_2`
 - `unknown_listing_field_is_logged_by_name`
 - `items_new_to_bronze_are_fetched_raw_once`
 - `failed_item_lookup_exits_3_and_is_retried_next_run`
@@ -1386,6 +1399,8 @@ covers it:
 
 - G7, a changed live listing: 5.2.2 *A live listing that changes* (EV-7, D1.4,
   D1.6 to D1.8).
+- G19, the clock seam: `collect::clock`'s clock, which the tests replace
+  (part 8).
 - G30, each step's exit run alone and the out-of-memory exit: 5.2.1 *When it
   fails*, and for `dp daily` 5.1.1 *Restarts and recovery* (X3 to X5, D28.6 to
   D28.13, D29.13, D29.14).
@@ -1398,12 +1413,13 @@ covers it:
 - G37, an export that overruns the allowance: 5.4.2 *The daily deadline*, where
   only the daily run time limit bounds it: an export still running when the run
   reaches that limit is stopped (DL, D32.10).
+- G38, a file in the data folder that cannot be read or written, other than a
+  full disk: 5.2.1 *When it fails* (X3, D28.14).
 
 The gaps open now; none blocks the test design, and each says why:
 
 | Gap | What would make the missing test fail | What it would take to close it | Why it is acceptable for now |
 | --- | --- | --- | --- |
-| G19 No clock seam | Every timed test (poll, :25, backoff, token margin, lock wait, the processing bound, 00:50, the retries span, 03:00, the daily deadline, the day close bound and the item fetch's end) needs the clock injected; none is named. | Name it in Development. | A Development matter; part 8 says what it must cover. |
 | G28 E3 to E6 are not yet built (delphside/dark-portal#11) | [AUTO], [UT] and [TT] have nowhere to run. | delphside/dark-portal#11's packages land first. | Designed; delphside/dark-portal#7's Development waits on delphside/dark-portal#11. |
 | G29 "Lower bound" | Not directly observable. | Accept the structural tests (`listing_posted_and_bought_between_snapshots_shows_in_no_flow`, floor ≤ estimate). | Inherent. |
 | G35 `vendor_sells` true and false (until R5) | No code can set the flag until R5's setter exists, so `true` and `false` have no source to test through. | Build R5's setter (stage 3). | Only the column's type and the null for every item are tested now (D23.4). |
