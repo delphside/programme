@@ -51,8 +51,8 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 | C10 | The item fetch ends 10 min, the lock wait, before the next hourly timer start, :25 past: no request starts unless its HTTP timeout (10 s) ends before then, and the items not reached wait for the next run. | 5.2.1 *Item data* |
 | BC1 | Every warning of a run is logged where it is raised, as a `WARN` line carrying its code. The report's `warnings` lists every warning raised with its own metadata, in the order raised; its `warnings` metadata names their codes, each once, in the order first raised. `dp hourly`'s report lists its steps' warnings. An `hour` in a warning is written `YYYY-MM-DDTHH`. A warning leaves the exit `0` unless something else fails, and then the outcome and the exit are the failure's, with the warnings still listed. Each run reports what it sees, so a change that lasts repeats its warning every hour; raising it is the whole of `dp`'s part, and deduplicating is the alerting's, in delphside/dark-portal#2 *Opportunity alerts*. | 5.2.1 *When Blizzard's response changes*; 5.3.2 *When a job fails*; 1.10 |
 | BC2 | A `time_left` that is not one of the four bands, an empty one included, is kept as given in bronze and in silver's `time_left`, and the hour is processed as any other. `dp transform` raises one `TIME_LEFT_UNKNOWN` for the hour, with `hour`, `values` (the distinct values in sorted order) and `listings` (the count of listings holding one). No time left reaches the sold floor or turns a disappearance into a sale. | 5.2.1; 5.2.2 *A time left that is not a band*; 5.4.2; 5.4.5 *Types* |
-| BC3 | A needed field missing, of another kind or moved, or a changed structure (the causes under this table) makes the hour a gap. The error is fatal `SNAPSHOT_SHAPE_CHANGED`, *unexpected*, exit `70`. Its metadata is `field` (the path: one of the six needed fields, `item`, `item.id`, `auctions`, `auctions[]` or `$`) and `listings` (the count read before the fault). A body that is not JSON, or is cut off, is `SNAPSHOT_BODY_UNUSABLE` (X4). | 5.2.1 *When Blizzard's response changes*, *When it fails* |
-| BC4 | A value `dp` cannot hold (the causes under this table) makes the hour a gap. The error is fatal `SNAPSHOT_VALUE_UNEXPECTED`, *unexpected*, exit `70`, with `field`, `value` (as sent, cut at the *longest quoted value* setting, 64 characters) and `listings`. An `id` or `item.id` of 0 is kept. | 5.2.1 *What a number is*; 5.4.1; 5.4.5 *Types* |
+| BC3 | A needed field missing, of another kind or moved, or a changed structure (*The causes under BC3 and BC4*) makes the hour a gap. The error is fatal `SNAPSHOT_SHAPE_CHANGED`, *unexpected*, exit `70`. Its metadata is `field` (the path: one of the six needed fields, `item`, `item.id`, `auctions`, `auctions[]` or `$`) and `listings` (the count read before the fault). A body that is not JSON, or is cut off, is `SNAPSHOT_BODY_UNUSABLE` (X4). | 5.2.1 *When Blizzard's response changes*, *When it fails* |
+| BC4 | A value `dp` refuses (*The causes under BC3 and BC4*) makes the hour a gap. The error is fatal `SNAPSHOT_VALUE_UNEXPECTED`, *unexpected*, exit `70`, with `field`, `value` (as sent, cut at the *longest quoted value* setting, 64 characters) and `listings`. An `id` or `item.id` of 0 is kept. | 5.2.1 *What a number is*; 5.4.1; 5.4.5 *Types* |
 | BC5 | `dp collect` puts the refresh time, the `last-modified`'s time past the hour, on its report as `refresh_past_hour`, `mm:ss`, where it read a snapshot; a run that read none carries none. Outside the expected refresh window, :20:00 to :45:00 with both ends included, so :45:01 is outside, the hour is still collected, with the warning `REFRESH_TIME_MOVED`: `hour`, `refresh_past_hour`, `window_start`, `window_end`. | 5.2.1 *The refresh time*; 5.4.1 |
 | BC6 | `dp transform` judges the time between the `last-modified` of two held hours that follow one another, with none missed between. Outside the expected refresh interval, 50 to 70 min with both ends included, the hour is still processed, with the warning `REFRESH_INTERVAL_CHANGED`: `hour`, `last_modified`, `previous_last_modified`, `interval_seconds`. | 5.2.1 *A refresh that changes*; 5.4.1 |
 | BC7 | Each hour `dp transform` records in `meta.gap` is one warning `HOUR_MISSED`, with `hour`, raised once the hour is recorded. It is the one gap that is a warning. A rebuild of the lake raises the hour warnings (`TIME_LEFT_UNKNOWN`, `REFRESH_INTERVAL_CHANGED` and `HOUR_MISSED`) again for every hour it processes. | 5.2.1; 5.2.2 *A missed hour* |
@@ -133,8 +133,7 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 - **X-c5, the unknown band.** 5.2.1 *Which listings can be kept* says "an
   unknown one is read as the more careful *cancelled*" without qualification.
   5.2.2 limits that to a listing with no posting hour. The tests follow 5.2.2
-  (D39.10, D39.11). 5.2.1's sentence is to be qualified, which Claude does in
-  the Dark Portal documents.
+  (D39.10, D39.11). This is G62.
 
 ## 2. Conditions, grouped into dimensions
 
@@ -764,7 +763,7 @@ The datasets are in part 8.
 | Q1 | S1, S16 |
 | Q2 | S1, S2 |
 | Q3 | S1, S2, S16 |
-| EV-1 | S1, S7, S10, S11, S55 |
+| EV-1 | S1, S7, S10, S11, S55, S64 |
 | EV-2 | S1, S2, S8, S64 |
 | EV-3 | S1, S2, S3, S4, S6, S64 |
 | EV-4 | S1, S4, S5, S6 |
@@ -784,7 +783,7 @@ The datasets are in part 8.
 | C5 | S28, S78 |
 | C6 | S18, S29, S30, S54, S76 |
 | C7 | S30 |
-| C8 | S22, S23, S24, S53, S76 |
+| C8 | S22, S23, S24, S29, S53, S76 |
 | C9 | TT1, TT8, TT10, S75, S91 |
 | C10 | S76 |
 | BC1 | S78, S84, S90 |
@@ -796,10 +795,10 @@ The datasets are in part 8.
 | BC7 | S80, S86 |
 | BC8 | S74, S89 |
 | PR1 | S87; TT13 |
-| PR2 | S88 |
+| PR2 | S87, S88 |
 | PR3 | S88, S91; TT11 |
-| H0 | S36, S67, S80, S90 |
-| H1 | S31, S32, S44, S56, S58, S67 |
+| H0 | S36, S67, S77, S80, S90 |
+| H1 | S31, S32, S36, S44, S56, S58, S67 |
 | H2 | S27, S29, S34, S36, S45 |
 | H3 | S11, S21, S33, S34, S61, S66, S86; PD5 |
 | H4 | S35 |
@@ -820,7 +819,7 @@ The datasets are in part 8.
 | P6 | S40 |
 | P7 | S1, S2, S41, S48 |
 | P8 | S42 |
-| P9 | S43, S60, S62 |
+| P9 | S43, S60, S62, S70 |
 | P10 | S11, S43; PD5 |
 | P11 | S48 |
 | P12 | S45, S48; UT1 |
@@ -833,10 +832,10 @@ The datasets are in part 8.
 | X4 | S26, S77, S80–S83 |
 | X5 | S29, S34, S45, S77 |
 | X6 | S27, S50 |
-| DX | S44, S54, S59, S60, S68, S69 |
+| DX | S44, S54, S59, S60, S68, S69, S77 |
 | K1 | S42; TT12 |
 | K2 | S46, S59, S71; TT8; PD6 |
-| K3 | S42 |
+| K3 | S42, S45 |
 | K4 | S54 |
 | K5 | S71; TT8 |
 | K6 | S72 |
@@ -844,7 +843,7 @@ The datasets are in part 8.
 | DC | S70 |
 | E1 | S33, S45; TT7 |
 | SEC | S25, S49, S71 |
-| REF | S18, S48, S54, S74, S89 |
+| REF | S18, S37, S48, S54, S74, S89 |
 | BK | S46; TT8; PD6 |
 
 | Scenario | Rules |
@@ -1250,15 +1249,15 @@ deadline, the day close bound and the item fetch's end. The seam is
   quoted as sent (`1e3` stays `1e3`); an `id` and an `item.id` of 0 are kept.
 - **TD-U, refresh times.**
   - Collect for hour 10, served `last-modified` 10:05:03, 10:19:59, 10:20:00,
-    10:31:40, 10:45:00, 10:45:01, 10:00:00 and 10:59:59, each with the clock set
-    past it (10:50, and 11:00 for 10:59:59). A rerun in a collected hour, and a
-    run that fails before the snapshot, carry no `refresh_past_hour`.
+    10:31:40, 10:45:00, 10:45:01, 10:00:00 and 10:59:59, each served as given,
+    with the clock fixed at 11:35, as `AT_1135` is. A rerun in a collected hour,
+    and a run that fails before the snapshot, carry no `refresh_past_hour`.
   - Consecutive bronze hours: h10 10:31:40, h11 11:21:40 (50:00), h12 12:31:40
     (70:00), h13 13:31:40 (60:00), h14 14:21:39 (49:59, warns), h15 15:31:40
     (70:01, warns).
   - h20 20:59:59 then h21 21:00:00 (1 s, warns).
-  - h10 held, h11 and h12 missed, h13 13:31:40 (D45.8): two `HOUR_MISSED` and no
-    interval warning.
+  - In a lake of its own, h10 held, h11 and h12 missed, h13 13:31:40 (D45.8):
+    two `HOUR_MISSED` and no interval warning.
   - Daily refresh: hours held 24 apart, with the 23 between missed.
   - A rebuild of a lake that holds missed hours and an interval outside the
     expected one: the hour warnings are raised again for every hour processed.
@@ -1363,9 +1362,10 @@ rules:
   checkbox. It records whether the conditional request is answered `304` or a
   full `200`. Either, with nothing newer, is a run with no warning and exit `0`.
   The `If-Modified-Since` sent equals the collected `last-modified`. A `200`
-  costs a connection, not the snapshot's download: it reads headers only, under
-  64 KB in all, against the snapshot's roughly 28 MB. This passes where all of
-  that holds, and fails otherwise.
+  costs a connection, not the snapshot's download: the probe reads the
+  response's headers only, and no body bytes, checked by counting the bytes
+  received, against the snapshot's roughly 28 MB. This passes where all of that
+  holds, and fails otherwise.
 - TT14 (E5): over TT1's 72 hours, reported, not judged. It lists each hour's
   `refresh_past_hour` and the interval between hours that follow one another,
   against the expected refresh window and interval, since 5.4.1 reviews both
@@ -1683,7 +1683,8 @@ run a second time against the same day's snapshot.
 - `writing_subcommand_exits_75_when_the_lock_wait_runs_out`
 - `persons_transform_waits_for_the_hourly_runs_lock`
 - `hourly_holds_the_lock_from_the_rename_through_export`
-- `ad_hoc_query_takes_no_lock_and_uses_its_own_limits` (H1, H7, O43: not built, there is no ad hoc path yet; G60)
+- `ad_hoc_query_takes_no_lock_and_uses_its_own_limits`
+  (H1, H7, O43; not built: there is no ad hoc path yet; G60)
 - `hourly_takes_the_lock_for_items_where_collect_took_none`
 - `hourly_skips_later_steps_and_exits_75_where_the_lock_is_held_past_the_wait`
 - `hourly_exits_collects_status_where_the_lock_is_held_and_collect_failed`
@@ -1827,7 +1828,8 @@ run a second time against the same day's snapshot.
 - `daily_keeps_a_running_jobs_spill_folder`
 - `each_duckdb_connection_spills_to_its_own_folder_removed_at_close`
 - `daily_expires_lake_snapshots_older_than_7_days`
-- `daily_repeats_a_failed_file_clean_up_whether_or_not_a_row_was_deleted` (D24.6, K1: not built, a file clean-up is DuckLake's, which only TT12 runs; G61)
+- `daily_repeats_a_failed_file_clean_up_whether_or_not_a_row_was_deleted`
+  (D24.6, K1; not built: a file clean-up is DuckLake's, which only TT12 runs; G61)
 - `daily_exits_75_when_the_lock_wait_runs_out`
 - `daily_exits_2_on_a_full_disk_without_closing_the_day`
 - `daily_exits_3_when_a_step_after_the_close_fails_and_the_next_run_repeats_it`
@@ -1968,3 +1970,4 @@ The gaps open now; none blocks the test design, and each says why:
 | G59 Blizzard unreachable, for the probe | A probe run with the snapshot host unreachable is not shown to be `PROBE_FAILED` with exit `0`. | A test beside `blizzard_not_answering_is_a_warning`. | A timeout, a 500, a 503 and a 429 are tested (D48.3). |
 | G60 `ad_hoc_query_takes_no_lock_and_uses_its_own_limits` has no test (H1, H7, O43, S32) | An ad hoc query that took the lock, or ran without its `DP_ADHOC_*` limits, would pass. | The ad hoc query path is built, and the test with it. | No ad hoc path exists yet; H1 and H7's other halves are tested. |
 | G61 `daily_repeats_a_failed_file_clean_up_whether_or_not_a_row_was_deleted` has no test (D24.6, K1) | A clean-up that failed and is not repeated would pass. | TT12, which runs DuckLake. | The file clean-up is DuckLake's, which [AUTO] does not run (part 8). |
+| G62 5.2.1 *Which listings can be kept* says an unknown band is read as the more careful *cancelled*, without qualification | A reader taking 5.2.1 alone would expect every unknown time left to be `cancelled`, where 5.2.2 limits that to a listing with no posting hour and EV-5's duration test applies otherwise. | 5.2.1's "read as the more careful *cancelled*" is qualified to "a listing with no posting hour", as 5.2.2 has it; Claude does it in the Dark Portal documents. | The tests follow 5.2.2 (D39.10, D39.11); wording only. |
