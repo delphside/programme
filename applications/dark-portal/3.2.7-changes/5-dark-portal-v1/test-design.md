@@ -61,13 +61,13 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 | PR2 | `dp probe` writes nothing, takes no lock and so waits for none, caches no token, and never fails or retries. A file that is there but unreadable, a token it cannot take, a request to Blizzard that fails or a `200` without a `last-modified` is `PROBE_FAILED` (`cause`, `cause_message`), with exit `0`. Where the hour before's file is not there, it compares nothing, asks Blizzard nothing and raises no warning. | 5.2.1 *The refresh probe*; 5.1.1 |
 | PR3 | The probe runs from `dp-probe@.timer` at 12:05 UTC daily, not persistent, so a host down at 12:05 gets no catch-up run, under a 5 min run time limit (the unit's `RuntimeMaxSec`) and with `Restart=no`. Its two requests take the *HTTP timeout* setting for other requests, 10 s. Its final line carries `total_seconds`, as every job's does. | 5.2.1; 5.4.1; 5.3.2 |
 | H0 | *changed*: `dp hourly` runs `collect`, `items`, `transform` and `export`, in that order, and runs the last three whatever `collect` returned. Each can be run alone. It exits with `collect`'s exit where that is not `0`; otherwise `3` where a later step failed; otherwise `0`. Where the lock is held past the lock wait the later steps do not run, and the exit is `collect`'s where that is not `0`, otherwise `75`. | 5.1.1; 5.2.1 *When it fails* |
-| H1 | *changed*: every `dp` subcommand that writes takes the VM-wide lock (`DP_LOCK_FILE`), whether a timer or a person starts it. It waits up to 10 minutes, then exits `75`. `dp collect` takes it only to rename its file, so polling holds no lock; `dp hourly` then holds it, without release, from that rename through `export`. Where `collect` took none (its hour was collected already, or it failed first), `dp hourly` takes it for `items`. An ad hoc query takes no lock and is bounded by `DP_ADHOC_MEMORY_LIMIT` and `DP_ADHOC_THREADS`. | 5.1.1; 5.2.1; 5.4.1 |
+| H1 | *changed*: every `dp` subcommand that writes takes the VM-wide lock (`DP_LOCK_FILE`), whether a timer or a person starts it. It waits up to 10 minutes, then exits `75`. `dp collect` takes it only to rename its file, so polling holds no lock; `dp hourly` then holds it, without release, from that rename through `export`. Where `collect` took none (its hour was collected already, or it failed first), `dp hourly` takes it for `items`. An ad hoc query, which waits on delphside/dark-portal#51 *Ad hoc query on the host* and is not built at 85a8f1a, takes no lock and is bounded by `DP_ADHOC_MEMORY_LIMIT` and `DP_ADHOC_THREADS`. | 5.1.1; 5.2.1; 5.4.1 |
 | H2 | *changed*: the pivot is the bronze file. A snapshot error ends `dp collect` with its exit; an `items`, `transform` or `export` error is logged with its type and, under `dp hourly`, gives that step exit `3`. Run alone, `dp transform` and `dp export` exit by a fatal error's type, `dp export` `3` for an error it carried on past and `dp items` `3` for a failure after its first request. | 5.1.1; 5.2.1 *When it fails* |
 | H3 | *changed*: `dp transform` processes every bronze hour after the high-water mark (`processed`'s latest hour), in order, one commit per hour. It records each hour missing between two snapshots held in `meta.gap` with `found_at`, in the later hour's transaction; a latest hour not yet collected is found by a later run. A failed hour is reprocessed by the next run. Each hour recorded is also the warning `HOUR_MISSED` (BC7). | 5.1.1; 5.2.1; 5.2.2; 5.4.2 |
 | H4 | An hour already processed is never processed again. | 5.4.2 `processed` key; 5.1.1 |
 | H5 | After a missed hour, the comparison runs from the live listings to C; events are dated to C with the span. | 5.2.2 *A missed hour* |
 | H6 | The hour's gold rows (`item_hour`, `price_level_hour`) are written once its events are in: prices and depth from the live listings, flows from the events. | 5.2.2 matrix |
-| H7 | The hourly and daily jobs run DuckDB with `memory_limit` 1 GB and `threads` 1. Ad hoc: 1 thread, and 4 GB in production, 8 GB outside it. `DP_CONTAINER_MEMORY` is the ad hoc limit plus 1 GB: 5 GB and 9 GB. | 5.4.1 |
+| H7 | The hourly and daily jobs run DuckDB with `memory_limit` 1 GB and `threads` 1. Ad hoc (waits on delphside/dark-portal#51 *Ad hoc query on the host*, not built at 85a8f1a): 1 thread, and 4 GB in production, 8 GB outside it. `DP_CONTAINER_MEMORY` is the ad hoc limit plus 1 GB: 5 GB and 9 GB. | 5.4.1 |
 | H8 | *changed*: `dp daily` retries itself on exit `75`, with no unit restarting it (`Restart=no`): after the daily retry interval (15 min, from the end of one attempt to the start of the next), for as long as the next attempt would start before the earlier of 03:00 UTC on the day the run started and the daily retries span (130 min) after the run's start. It exits with the last attempt's status, so `75` where the retries ran out; a start at or after 03:00 UTC, such as a persistent timer's catch-up, makes one attempt. The hourly unit does not restart either; its next timer start is its retry. | 5.1.1 *Restarts and recovery*; 5.4.1; delphside/dark-portal#7 decision 12 (owner, 2026-11-26) |
 | H9 | A reboot loses no hour that can still be fetched: a run missed while the host was down starts when it is back, and `dp collect` takes the current hour as C0 fixes it. | 5.1.1 *Restarts and recovery*; 5.2.1 |
 | H10 | *changed*: one hourly processing bound, 5 min, covers the `transform` and `export` of an hour together, and a run over it is logged as a warning. A run's own work (opening the lake, the reference rebuild, the export's table rewrites and `profiles.sql`) counts against the bound, shared equally across the hours the run processed. `dp transform` or `dp export` run alone counts its own time against the same bound. | 5.4.1 |
@@ -130,10 +130,7 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 
 - **X-c4, the `unsold` state.** The diagram keeps the state; the prose says
   it is a step, not a state. Wording only.
-- **X-c5, the unknown band.** 5.2.1 *Which listings can be kept* says "an
-  unknown one, in a listing with no posting hour, is read as the more careful
-  *cancelled*", and 5.2.2 limits it the same way. The tests follow both (D39.10,
-  D39.11). Wording only, closed as G62.
+- **X-c5, the unknown band.** None: 5.2.1 and 5.2.2 agree (G62).
 
 ## 2. Conditions, grouped into dimensions
 
@@ -246,9 +243,9 @@ C9, EV-5, H3, H11, REF, U1 and X4.
   `vendor_sells` · D23.6 `sell_price` absent: `vendor_sell_price` 0.
 - **D24, age against keep, by the row's or file's hour or day** (complete):
   D24.1 within · D24.2 exactly the keep · D24.3 older · D24.4 at 00:50, the hour
-  4 weeks before that day's 00:00, and the hour after it · D24.5 a lake
-  snapshot exactly 7 days old, and one older · D24.6 a file clean-up that
-  failed the night before, with no row deleted tonight.
+  4 weeks before that day's 00:00, and the hour after it · D24.5 a lake snapshot
+  exactly 7 days old, and one older · D24.6 a file clean-up that failed the
+  night before, with and without a row deleted tonight.
 - **D25, bucket** (complete): D25.1 set, holds the file · D25.2 set, not yet
   holding it · D25.3 empty · D25.4 the daily history pushed · D25.5 host item
   files past 7 days · D25.6 `DP_BUCKET` set, so `DP_BUCKET_ACCESS_FILE` is read
@@ -532,7 +529,7 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 | O40 | Backoff of 30, 60, 120, 240, 300 s, or the `Retry-After`; a 2-minute poll; timeouts of 60 and 10 s. |
 | O41 | A rebuild from bronze equals an incremental build from the same first hour. |
 | O42 | The secret is absent from logs, bronze and the export. |
-| O43 | An ad hoc query takes no lock and runs with the `DP_ADHOC_*` limits. Tested with delphside/dark-portal#51 *Ad hoc query on the host*. |
+| O43 | An ad hoc query takes no lock and runs with the `DP_ADHOC_*` limits. Untested until delphside/dark-portal#51 *Ad hoc query on the host* decides whether the query is built. |
 | O44 | *changed*: the reappearing ID, whatever its value: a warning naming it; no event, no live row, no place in any queue; its record unchanged. |
 | O45 | Exit `2` before any file is written (wrong clock, or 403, 404). |
 | O46 | *changed*: `dp daily` itself runs another attempt 15 min after one ends `75`, and none starts at or after the earlier of 03:00 and 130 min after its start; it exits with the last attempt's status; no unit restarts it. |
@@ -655,7 +652,7 @@ The datasets are in part 8.
 | S29 | Item lookup blips, gets 401 (new token accepted, or refused), or 400, 403, 408, 500 or an unreadable body; the next run fetches it | D14.3, D14.5–7 | O20 where the new token is accepted; otherwise O19, O33 with the ID, then O20 |
 | S30 | Item pacing | C6, C7 | ≤ 50 a second |
 | S31 | Lock held, then released at 9 min; held for 11 | D16.2–3 | completes; O37 |
-| S32 | Ad hoc query during the hourly run (waits on delphside/dark-portal#51) | H1, H7 | O43 |
+| S32 | Ad hoc query during the hourly run (waits on delphside/dark-portal#51 *Ad hoc query on the host*) | H1, H7 | O43 |
 | S33 | Catch-up of 3 hours | D17.2, D26.2 | O21, O36 |
 | S34 | Transform fails mid-hour under `dp hourly`; the next run repairs it | D17.4 | O23, O19, then O21 |
 | S35 | Reprocessing a committed hour | D17.3 | O22 |
@@ -804,7 +801,7 @@ The datasets are in part 8.
 | H4 | S35 |
 | H5 | S11, S12 |
 | H6 | S1, S16 |
-| H7 | S32; TT3; S32's ad hoc half waits on delphside/dark-portal#51 |
+| H7 | S32; TT3; H7's ad hoc half, S32, waits on delphside/dark-portal#51 *Ad hoc query on the host* |
 | H8 | S44, S60, S68; TT8 |
 | H9 | S57; TT10 |
 | H10 | S63; TT1, TT3 |
@@ -1356,8 +1353,8 @@ rules:
   rolls back whole (O23); a `DELETE` with no `WHERE` empties a table; snapshot
   expiry removes the snapshots older than the lake snapshot keep and the file
   clean-up then deletes the files no remaining snapshot holds (K1, D24.5,
-  D24.6); a file clean-up that failed is repeated by the next night's `dp
-  daily`, whether or not that night deleted a row (K1, D24.6).
+  D24.6); a file clean-up that failed is repeated by the next night's run,
+  whether or not that run deletes a row (K1, D24.6).
 - TT13 (E5): `dp probe` against Blizzard, from delphside/dark-portal#7's
   checkbox. It records whether the conditional request is answered `304` or a
   full `200`. Either, with nothing newer, is a run with no warning and exit `0`.
@@ -1686,7 +1683,8 @@ run a second time against the same day's snapshot.
 - `persons_transform_waits_for_the_hourly_runs_lock`
 - `hourly_holds_the_lock_from_the_rename_through_export`
 - `ad_hoc_query_takes_no_lock_and_uses_its_own_limits`
-  (H1, H7, O43; not built until delphside/dark-portal#51 *Ad hoc query on the host* builds the ad hoc path)
+  (H1, H7, O43; not built: it waits on
+  delphside/dark-portal#51 *Ad hoc query on the host*; G60)
 - `hourly_takes_the_lock_for_items_where_collect_took_none`
 - `hourly_skips_later_steps_and_exits_75_where_the_lock_is_held_past_the_wait`
 - `hourly_exits_collects_status_where_the_lock_is_held_and_collect_failed`
@@ -1831,7 +1829,7 @@ run a second time against the same day's snapshot.
 - `each_duckdb_connection_spills_to_its_own_folder_removed_at_close`
 - `daily_expires_lake_snapshots_older_than_7_days`
 - `daily_repeats_a_failed_file_clean_up_whether_or_not_a_row_was_deleted`
-  (D24.6, K1; not built: a file clean-up is DuckLake's, which only TT12 runs; G61)
+  (D24.6, K1; not built: TT12 only)
 - `daily_exits_75_when_the_lock_wait_runs_out`
 - `daily_exits_2_on_a_full_disk_without_closing_the_day`
 - `daily_exits_3_when_a_step_after_the_close_fails_and_the_next_run_repeats_it`
@@ -1961,8 +1959,8 @@ covers it:
 - G58, the probe with the token endpoint unreachable: `src/probe.rs` tests it
   (D48.2).
 - G59, the probe with Blizzard unreachable: `src/probe.rs` tests it (D48.3).
-- G60, the ad hoc query: deferred to delphside/dark-portal#51 *Ad hoc query on
-  the host*, which carries the tests of H7's ad hoc half and O43 (S32).
+- G61, a failed file clean-up repeated: TT12 runs DuckLake and checks it (K1,
+  D24.6).
 - G62, the unknown band: 5.2.1 *Which listings can be kept* qualifies it to a
   listing with no posting hour, as 5.2.2 does (D39.10, D39.11).
 
@@ -1973,6 +1971,6 @@ The gaps open now; none blocks the test design, and each says why:
 | G28 E3 to E6 are not yet built (delphside/dark-portal#11) | [AUTO], [UT] and [TT] have nowhere to run. | delphside/dark-portal#11's packages land first. | Designed; delphside/dark-portal#7's Development waits on delphside/dark-portal#11. |
 | G29 "Lower bound" | Not directly observable. | Accept the structural tests (`listing_posted_and_bought_between_snapshots_shows_in_no_flow`, floor ≤ estimate). | Inherent. |
 | G35 `vendor_sells` true and false (until R5) | No code can set the flag until R5's setter exists, so `true` and `false` have no source to test through. | Build R5's setter (stage 3). | Only the column's type and the null for every item are tested now (D23.4). |
+| G60 `ad_hoc_query_takes_no_lock_and_uses_its_own_limits` has no test (H1, H7, O43, S32) | An ad hoc query that took the lock, or ran without its `DP_ADHOC_*` limits, would pass. | The decision of delphside/dark-portal#51 *Ad hoc query on the host*; if the query is built, #51 carries the tests of H7's ad hoc half and O43 (S32). | The ad hoc query is not built in delphside/dark-portal#7 (5.1.1 and 5.4.1 at 85a8f1a). |
 | G43 an empty `auctions: []` | Blizzard serves an empty array: every live listing reads as sold, the partial hour R11 forbids. | The owner decides, and 5.2.1 says, whether an empty, or implausibly small, snapshot is a gap. | Today's behaviour is tested as written until the owner decides: D42.10 has only `an_empty_auction_house_is_no_rows`. |
 | G44 a repeated auction ID from Blizzard | It is still `BRONZE_HOUR_INVALID` at the transform and stops every run until the file is repaired, where R11 would make it a gap at collect. | The owner decides whether 5.2.1 gives it a collect-time code. | Today's behaviour is tested as written until the owner decides: H11 as it stands. |
-| G61 `daily_repeats_a_failed_file_clean_up_whether_or_not_a_row_was_deleted` has no test (D24.6, K1) | A clean-up that failed and is not repeated would pass. | TT12, which runs DuckLake and repeats a failed clean-up (K1, D24.6). | The file clean-up is DuckLake's, which [AUTO] does not run (part 8). |
