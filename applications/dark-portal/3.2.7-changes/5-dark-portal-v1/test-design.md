@@ -4,7 +4,7 @@ Project: delphside/dark-portal#7 *#5 WP B Del 2 of 5: consumable profiles* · ty
 
 ## 1. Rules
 
-Taken from the design documents at 48fd3e3 (app 0.1.0),
+Taken from the design documents at 85a8f1a (app 0.1.0),
 delphside/dark-portal#7's body and its Decisions table. The documents are drafts
 for delphside/dark-portal#7's design. The first version took them at 47c862a. A
 rule, condition, outcome or approach item marked *changed*, after its ID or
@@ -131,9 +131,9 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 - **X-c4, the `unsold` state.** The diagram keeps the state; the prose says
   it is a step, not a state. Wording only.
 - **X-c5, the unknown band.** 5.2.1 *Which listings can be kept* says "an
-  unknown one is read as the more careful *cancelled*" without qualification.
-  5.2.2 limits that to a listing with no posting hour. The tests follow 5.2.2
-  (D39.10, D39.11). This is G62.
+  unknown one, in a listing with no posting hour, is read as the more careful
+  *cancelled*", and 5.2.2 limits it the same way. The tests follow both (D39.10,
+  D39.11). Wording only, closed as G62.
 
 ## 2. Conditions, grouped into dimensions
 
@@ -532,7 +532,7 @@ C9, EV-5, H3, H11, REF, U1 and X4.
 | O40 | Backoff of 30, 60, 120, 240, 300 s, or the `Retry-After`; a 2-minute poll; timeouts of 60 and 10 s. |
 | O41 | A rebuild from bronze equals an incremental build from the same first hour. |
 | O42 | The secret is absent from logs, bronze and the export. |
-| O43 | An ad hoc query takes no lock and runs with the `DP_ADHOC_*` limits. |
+| O43 | An ad hoc query takes no lock and runs with the `DP_ADHOC_*` limits. Tested with delphside/dark-portal#51 *Ad hoc query on the host*. |
 | O44 | *changed*: the reappearing ID, whatever its value: a warning naming it; no event, no live row, no place in any queue; its record unchanged. |
 | O45 | Exit `2` before any file is written (wrong clock, or 403, 404). |
 | O46 | *changed*: `dp daily` itself runs another attempt 15 min after one ends `75`, and none starts at or after the earlier of 03:00 and 130 min after its start; it exits with the last attempt's status; no unit restarts it. |
@@ -655,7 +655,7 @@ The datasets are in part 8.
 | S29 | Item lookup blips, gets 401 (new token accepted, or refused), or 400, 403, 408, 500 or an unreadable body; the next run fetches it | D14.3, D14.5–7 | O20 where the new token is accepted; otherwise O19, O33 with the ID, then O20 |
 | S30 | Item pacing | C6, C7 | ≤ 50 a second |
 | S31 | Lock held, then released at 9 min; held for 11 | D16.2–3 | completes; O37 |
-| S32 | Ad hoc query during the hourly run | H1, H7 | O43 |
+| S32 | Ad hoc query during the hourly run (waits on delphside/dark-portal#51) | H1, H7 | O43 |
 | S33 | Catch-up of 3 hours | D17.2, D26.2 | O21, O36 |
 | S34 | Transform fails mid-hour under `dp hourly`; the next run repairs it | D17.4 | O23, O19, then O21 |
 | S35 | Reprocessing a committed hour | D17.3 | O22 |
@@ -804,7 +804,7 @@ The datasets are in part 8.
 | H4 | S35 |
 | H5 | S11, S12 |
 | H6 | S1, S16 |
-| H7 | S32; TT3 |
+| H7 | S32; TT3; S32's ad hoc half waits on delphside/dark-portal#51 |
 | H8 | S44, S60, S68; TT8 |
 | H9 | S57; TT10 |
 | H10 | S63; TT1, TT3 |
@@ -1306,16 +1306,15 @@ rules:
   processed or recorded as a gap.
 - TT2 (E5): the first `dp items` fetches about 10,500 items at 50 a second
   (about 3.5 min) with no 429.
-- TT3 (E5, load) *changed*: over TT1's 72 hours, with an ad hoc query running at
-  E5's `DP_ADHOC_*`: passes where every hourly run's `transform` and `export`
-  together, with the run's own work shared across its hours, finish inside
-  5.4.1's hourly processing bound (5 min, H10), and the peak memory of every
-  hourly and daily run stays inside its 1 GB `memory_limit` (H7), and fails
-  otherwise. Beside it, reported, not judged: per hour, `price_level_hour` and
-  `listing_record` rows and bytes, projected to 4 weeks and a year against
-  delphside/dark-portal#5's figures and the capacity plan, and every job's
-  `total_seconds` and step seconds (TM), read against the hourly bound, the
-  daily deadline and the two run time limits.
+- TT3 (E5, load) *changed*: over TT1's 72 hours: passes where every hourly run's
+  `transform` and `export` together, with the run's own work shared across its
+  hours, finish inside 5.4.1's hourly processing bound (5 min, H10), and the
+  peak memory of every hourly and daily run stays inside its 1 GB `memory_limit`
+  (H7), and fails otherwise. Beside it, reported, not judged: per hour,
+  `price_level_hour` and `listing_record` rows and bytes, projected to 4 weeks
+  and a year against delphside/dark-portal#5's figures and the capacity plan,
+  and every job's `total_seconds` and step seconds (TM), read against the hourly
+  bound, the daily deadline and the two run time limits.
 - TT4 (E5): kill a run after the bronze file and before the commit: the next run
   processes both hours, matching an uninterrupted run.
 - TT5 (E5): stop the timer for two hours: the gaps are recorded, the next
@@ -1357,7 +1356,8 @@ rules:
   rolls back whole (O23); a `DELETE` with no `WHERE` empties a table; snapshot
   expiry removes the snapshots older than the lake snapshot keep and the file
   clean-up then deletes the files no remaining snapshot holds (K1, D24.5,
-  D24.6).
+  D24.6); a file clean-up that failed is repeated by the next night's `dp
+  daily`, whether or not that night deleted a row (K1, D24.6).
 - TT13 (E5): `dp probe` against Blizzard, from delphside/dark-portal#7's
   checkbox. It records whether the conditional request is answered `304` or a
   full `200`. Either, with nothing newer, is a run with no warning and exit `0`.
@@ -1660,12 +1660,14 @@ run a second time against the same day's snapshot.
 
 - `a_bronze_file_that_cannot_be_read_is_a_warning_and_asks_blizzard_nothing`
   (D48.1)
-- `a_refused_token_is_a_warning_too` (D48.2, partial: a 401; an unreachable
-  token endpoint has no test, G58)
+- `a_refused_token_is_a_warning_too` (D48.2: a 401)
+- `a_token_endpoint_that_cannot_be_reached_is_a_failed_probe_with_exit_0`
+  (D48.2: the endpoint unreachable)
 - `whatever_it_meets_is_a_warning_and_never_a_failure` (D48.3 for a 500 and a
   503, D48.8 for those and a 403, D47.10 for no header)
-- `blizzard_not_answering_is_a_warning` (D48.3, partial: a timeout; Blizzard
-  unreachable has no test, G59)
+- `blizzard_not_answering_is_a_warning` (D48.3: a timeout)
+- `blizzard_that_cannot_be_reached_is_a_failed_probe_with_exit_0` (D48.3:
+  Blizzard unreachable)
 - `a_failed_request_is_not_retried_and_a_blip_is_the_same_warning` (D48.3 for a
   503, a 429 and a 500: one request, no backoff)
 - `the_probes_requests_take_the_other_timeout_and_never_the_snapshots` (D48.4)
@@ -1684,7 +1686,7 @@ run a second time against the same day's snapshot.
 - `persons_transform_waits_for_the_hourly_runs_lock`
 - `hourly_holds_the_lock_from_the_rename_through_export`
 - `ad_hoc_query_takes_no_lock_and_uses_its_own_limits`
-  (H1, H7, O43; not built: there is no ad hoc path yet; G60)
+  (H1, H7, O43; not built until delphside/dark-portal#51 *Ad hoc query on the host* builds the ad hoc path)
 - `hourly_takes_the_lock_for_items_where_collect_took_none`
 - `hourly_skips_later_steps_and_exits_75_where_the_lock_is_held_past_the_wait`
 - `hourly_exits_collects_status_where_the_lock_is_held_and_collect_failed`
@@ -1956,6 +1958,13 @@ covers it:
   time* says a run that read no snapshot carries none (BC5, D44.10, D44.11).
 - G57, a decimal or negative price in an item body: 5.2.1 says it is of another
   type, so null and warned (BC8, D50.2).
+- G58, the probe with the token endpoint unreachable: `src/probe.rs` tests it
+  (D48.2).
+- G59, the probe with Blizzard unreachable: `src/probe.rs` tests it (D48.3).
+- G60, the ad hoc query: deferred to delphside/dark-portal#51 *Ad hoc query on
+  the host*, which carries the tests of H7's ad hoc half and O43 (S32).
+- G62, the unknown band: 5.2.1 *Which listings can be kept* qualifies it to a
+  listing with no posting hour, as 5.2.2 does (D39.10, D39.11).
 
 The gaps open now; none blocks the test design, and each says why:
 
@@ -1966,8 +1975,4 @@ The gaps open now; none blocks the test design, and each says why:
 | G35 `vendor_sells` true and false (until R5) | No code can set the flag until R5's setter exists, so `true` and `false` have no source to test through. | Build R5's setter (stage 3). | Only the column's type and the null for every item are tested now (D23.4). |
 | G43 an empty `auctions: []` | Blizzard serves an empty array: every live listing reads as sold, the partial hour R11 forbids. | The owner decides, and 5.2.1 says, whether an empty, or implausibly small, snapshot is a gap. | Today's behaviour is tested as written until the owner decides: D42.10 has only `an_empty_auction_house_is_no_rows`. |
 | G44 a repeated auction ID from Blizzard | It is still `BRONZE_HOUR_INVALID` at the transform and stops every run until the file is repaired, where R11 would make it a gap at collect. | The owner decides whether 5.2.1 gives it a collect-time code. | Today's behaviour is tested as written until the owner decides: H11 as it stands. |
-| G58 the token endpoint unreachable, for the probe | A probe run with the token endpoint down is not shown to be `PROBE_FAILED` with exit `0`. | A test beside `a_refused_token_is_a_warning_too`. | Only a refused token (401) is tested (D48.2); the probe takes the same path for any token failure. |
-| G59 Blizzard unreachable, for the probe | A probe run with the snapshot host unreachable is not shown to be `PROBE_FAILED` with exit `0`. | A test beside `blizzard_not_answering_is_a_warning`. | A timeout, a 500, a 503 and a 429 are tested (D48.3). |
-| G60 `ad_hoc_query_takes_no_lock_and_uses_its_own_limits` has no test (H1, H7, O43, S32) | An ad hoc query that took the lock, or ran without its `DP_ADHOC_*` limits, would pass. | The ad hoc query path is built, and the test with it. | No ad hoc path exists yet; H1 and H7's other halves are tested. |
-| G61 `daily_repeats_a_failed_file_clean_up_whether_or_not_a_row_was_deleted` has no test (D24.6, K1) | A clean-up that failed and is not repeated would pass. | TT12, which runs DuckLake. | The file clean-up is DuckLake's, which [AUTO] does not run (part 8). |
-| G62 5.2.1 *Which listings can be kept* says an unknown band is read as the more careful *cancelled*, without qualification | A reader taking 5.2.1 alone would expect every unknown time left to be `cancelled`, where 5.2.2 limits that to a listing with no posting hour and EV-5's duration test applies otherwise. | 5.2.1's "read as the more careful *cancelled*" is qualified to "a listing with no posting hour", as 5.2.2 has it; Claude does it in the Dark Portal documents. | The tests follow 5.2.2 (D39.10, D39.11); wording only. |
+| G61 `daily_repeats_a_failed_file_clean_up_whether_or_not_a_row_was_deleted` has no test (D24.6, K1) | A clean-up that failed and is not repeated would pass. | TT12, which runs DuckLake and repeats a failed clean-up (K1, D24.6). | The file clean-up is DuckLake's, which [AUTO] does not run (part 8). |
